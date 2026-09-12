@@ -8,18 +8,18 @@ export interface TaskFixture {
   title: string;
   description?: string;
   status?: 'pending' | 'in-progress' | 'completed';
-  userId: string;
+  accountId: string;
 }
 
 /**
  * Create default test task data
  */
-export function createTaskData(userId: string, overrides?: Partial<TaskFixture>): TaskFixture {
+export function createTaskData(accountId: string, overrides?: Partial<TaskFixture>): TaskFixture {
   return {
     title: 'Test Task',
     description: 'This is a test task',
     status: 'pending',
-    userId,
+    accountId,
     ...overrides,
   };
 }
@@ -27,23 +27,23 @@ export function createTaskData(userId: string, overrides?: Partial<TaskFixture>)
 /**
  * Create multiple test tasks for a user
  */
-export function createMultipleTasks(userId: string, count: number): TaskFixture[] {
+export function createMultipleTasks(accountId: string, count: number): TaskFixture[] {
   return Array.from({ length: count }, (_, i) => ({
     title: `Test Task ${i + 1}`,
     description: `Description for task ${i + 1}`,
     status: 'pending' as const,
-    userId,
+    accountId,
   }));
 }
 
 /**
  * Create task with different statuses
  */
-export function createTasksByStatus(userId: string) {
+export function createTasksByStatus(accountId: string) {
   return {
-    pending: createTaskData(userId, { title: 'Pending Task', status: 'pending' }),
-    inProgress: createTaskData(userId, { title: 'In Progress Task', status: 'in-progress' }),
-    completed: createTaskData(userId, { title: 'Completed Task', status: 'completed' }),
+    pending: createTaskData(accountId, { title: 'Pending Task', status: 'pending' }),
+    inProgress: createTaskData(accountId, { title: 'In Progress Task', status: 'in-progress' }),
+    completed: createTaskData(accountId, { title: 'Completed Task', status: 'completed' }),
   };
 }
 
@@ -52,7 +52,7 @@ export function createTasksByStatus(userId: string) {
  */
 export function createTaskWithMissingFields(): Partial<TaskFixture> {
   return {
-    // Missing title and userId
+    // Missing title and accountId
     description: 'Task without required fields',
   };
 }
@@ -60,10 +60,10 @@ export function createTaskWithMissingFields(): Partial<TaskFixture> {
 /**
  * Create task with invalid data
  */
-export function createTaskWithInvalidData(userId: string): Partial<TaskFixture> {
+export function createTaskWithInvalidData(accountId: string): Partial<TaskFixture> {
   return {
     title: '', // Empty title
-    userId,
+    accountId,
   };
 }
 
@@ -81,21 +81,21 @@ export function createTaskUpdateData(): Partial<TaskFixture> {
 /**
  * Create task with long description
  */
-export function createTaskWithLongDescription(userId: string): TaskFixture {
+export function createTaskWithLongDescription(accountId: string): TaskFixture {
   return {
     title: 'Task with Long Description',
     description: 'A'.repeat(1000), // Very long description
     status: 'pending',
-    userId,
+    accountId,
   };
 }
 
 /**
  * Create task with minimal data
  */
-export function createMinimalTask(userId: string): Omit<TaskFixture, 'id' | 'description' | 'status'> {
+export function createMinimalTask(accountId: string): Omit<TaskFixture, 'id' | 'description' | 'status'> {
   return {
     title: 'Minimal Task',
-    userId,
+    accountId,
   };
 }

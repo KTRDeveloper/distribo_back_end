@@ -1,13 +1,16 @@
 /**
  * User Test Fixtures
- * Provides factory functions for creating test user data
+ * Provides factory functions for creating test account (Person+Account) data
  */
+
+import { uniquePhone } from '../helpers/phone';
 
 export interface UserFixture {
   id?: string;
   email: string;
   password: string;
   name: string;
+  phoneNumber: string;
 }
 
 /**
@@ -18,6 +21,7 @@ export function createUserData(overrides?: Partial<UserFixture>): UserFixture {
     email: 'test@example.com',
     password: 'SecurePass123!',
     name: 'Test User',
+    phoneNumber: uniquePhone(),
     ...overrides,
   };
 }
@@ -30,6 +34,7 @@ export function createMultipleUsers(count: number): UserFixture[] {
     email: `test${i + 1}@example.com`,
     password: 'SecurePass123!',
     name: `Test User ${i + 1}`,
+    phoneNumber: uniquePhone(),
   }));
 }
 
@@ -41,6 +46,7 @@ export function createUserWithInvalidEmail(): Partial<UserFixture> {
     email: 'invalid-email',
     password: 'SecurePass123!',
     name: 'Test User',
+    phoneNumber: uniquePhone(),
   };
 }
 
@@ -52,6 +58,7 @@ export function createUserWithShortPassword(): UserFixture {
     email: 'test@example.com',
     password: '123',
     name: 'Test User',
+    phoneNumber: uniquePhone(),
   };
 }
 
@@ -61,7 +68,7 @@ export function createUserWithShortPassword(): UserFixture {
 export function createUserWithMissingFields(): Partial<UserFixture> {
   return {
     email: 'test@example.com',
-    // Missing password and name
+    // Missing password, name, and phoneNumber
   };
 }
 
@@ -73,6 +80,7 @@ export function createAdminUserData(overrides?: Partial<UserFixture>): UserFixtu
     email: 'admin@example.com',
     password: 'AdminPass123!',
     name: 'Admin User',
+    phoneNumber: uniquePhone(),
     ...overrides,
   };
 }
@@ -85,6 +93,7 @@ export function createRegistrationData(overrides?: Partial<UserFixture>): Omit<U
     email: `test-${Date.now()}@example.com`,
     password: 'SecurePass123!',
     name: 'New User',
+    phoneNumber: uniquePhone(),
     ...overrides,
   };
 }

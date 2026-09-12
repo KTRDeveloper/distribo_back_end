@@ -13,6 +13,9 @@ export const registerSchema = z.object({
     .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
     .regex(/[0-9]/, 'Password must contain at least one number'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
+  phoneNumber: z
+    .string()
+    .regex(/^\+?[1-9]\d{6,14}$/, 'Phone number must be a valid E.164-style number'),
 });
 
 export const loginSchema = z.object({

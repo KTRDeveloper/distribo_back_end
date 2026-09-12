@@ -13,7 +13,7 @@ import { queueJobsTotal } from '../lib/metrics.js';
 
 interface TaskJobData {
   taskId: string;
-  userId: string;
+  accountId: string;
   parameters: Record<string, unknown>;
 }
 

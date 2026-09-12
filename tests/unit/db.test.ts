@@ -9,7 +9,8 @@ describe('Database Client', () => {
   });
 
   it('should have all expected models', () => {
-    expect(prisma.user).toBeDefined();
+    expect(prisma.account).toBeDefined();
+    expect(prisma.person).toBeDefined();
     expect(prisma.task).toBeDefined();
     expect(prisma.taskResult).toBeDefined();
     expect(prisma.passwordResetToken).toBeDefined();

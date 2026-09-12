@@ -6,6 +6,7 @@ export interface RegisterInput {
   email: string;
   password: string;
   name: string;
+  phoneNumber: string;
 }
 
 export interface LoginInput {
@@ -26,10 +27,9 @@ export interface AuthResponse {
   token: string;
   user: {
     id: string;
-    email: string;
-    name: string;
-    status: string;
-    emailVerified: boolean;
+    email: string | null;
+    name: string | null;
+    emailVerifiedAt: Date | null;
     createdAt: Date;
   };
 }

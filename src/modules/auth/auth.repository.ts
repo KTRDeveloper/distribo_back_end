@@ -1,68 +1,117 @@
 import { prisma } from '../../lib/db.js';
-import { UserStatus } from '@prisma/client';
+import type { Account, Person } from '@prisma/client';
 
 /**
  * Authentication repository
- * Handles database operations for authentication
+ * Handles database operations for authentication.
+ *
+ * Identity is split across two models: `Person` (who someone is — phone
+ * number, email, name) and `Account` (their login credentials, attached to
+ * a Person). See specs/001-delivery-data-model/ and the plan that merged
+ * the legacy `User` model into this split.
  */
+
+export type AccountWithPerson = Account & { person: Person };
+
+/**
+ * Flatten an Account+Person pair into the shape API responses expect.
+ */
+export function toAuthUser(account: AccountWithPerson) {
+  return {
+    id: account.id,
+    email: account.person.email,
+    name: account.person.fullName,
+    emailVerifiedAt: account.person.emailVerifiedAt,
+    createdAt: account.createdAt,
+  };
+}
 
 export const authRepository = {
   /**
-   * Create a new user
+   * Register a new Account, reusing an existing guest Person for the given
+   * phone number if one exists (no account yet), or creating a new Person.
    */
-  async createUser(data: { email: string; password: string; name: string }) {
-    return prisma.user.create({
+  async register(data: {
+    email: string;
+    password: string;
+    name: string;
+    phoneNumber: string;
+  }): Promise<AccountWithPerson> {
+    const existingPerson = await prisma.person.findUnique({
+      where: { phoneNumber: data.phoneNumber },
+      include: { account: true },
+    });
+
+    if (existingPerson?.account) {
+      throw Object.assign(new Error('An account already exists for this phone number'), {
+        statusCode: 409,
+        code: 'PHONE_EXISTS',
+      });
+    }
+
+    if (existingPerson) {
+      // Reuse the guest Person (created by an organization before this
+      // person ever registered) and attach a new Account to it.
+      return prisma.$transaction(async (tx) => {
+        await tx.person.update({
+          where: { id: existingPerson.id },
+          data: {
+            fullName: data.name,
+            email: data.email,
+          },
+        });
+
+        return tx.account.create({
+          data: {
+            personId: existingPerson.id,
+            passwordHash: data.password,
+          },
+          include: { person: true },
+        });
+      });
+    }
+
+    return prisma.account.create({
       data: {
-        email: data.email,
-        password: data.password,
-        name: data.name,
-        status: UserStatus.ACTIVE,
+        passwordHash: data.password,
+        person: {
+          create: {
+            phoneNumber: data.phoneNumber,
+            fullName: data.name,
+            email: data.email,
+          },
+        },
       },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        status: true,
-        emailVerified: true,
-        createdAt: true,
-      },
+      include: { person: true },
     });
   },
 
   /**
-   * Find user by email
+   * Find an Account by its Person's email.
    */
-  async findByEmail(email: string) {
-    return prisma.user.findUnique({
-      where: { email },
+  async findByEmail(email: string): Promise<AccountWithPerson | null> {
+    return prisma.account.findFirst({
+      where: { person: { email } },
+      include: { person: true },
     });
   },
 
   /**
-   * Find user by ID
+   * Find an Account by ID.
    */
-  async findById(id: string) {
-    return prisma.user.findUnique({
+  async findById(id: string): Promise<AccountWithPerson | null> {
+    return prisma.account.findUnique({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        status: true,
-        emailVerified: true,
-        failedLoginAttempts: true,
-        lockedUntil: true,
-        createdAt: true,
-      },
+      include: { person: true },
     });
   },
 
   /**
-   * Update user's failed login attempts
+   * Update account's failed login attempts
    */
-  async updateFailedLoginAttempts(userId: string, attempts: number) {
-    return prisma.user.update({
-      where: { id: userId },
+  async updateFailedLoginAttempts(accountId: string, attempts: number) {
+    return prisma.account.update({
+      where: { id: accountId },
       data: {
         failedLoginAttempts: attempts,
         lastFailedLoginAt: new Date(),
@@ -71,11 +120,11 @@ export const authRepository = {
   },
 
   /**
-   * Lock user account
+   * Lock account
    */
-  async lockAccount(userId: string, lockUntil: Date) {
-    return prisma.user.update({
-      where: { id: userId },
+  async lockAccount(accountId: string, lockUntil: Date) {
+    return prisma.account.update({
+      where: { id: accountId },
       data: {
         lockedUntil: lockUntil,
       },
@@ -85,9 +134,9 @@ export const authRepository = {
   /**
    * Reset failed login attempts
    */
-  async resetFailedLoginAttempts(userId: string) {
-    return prisma.user.update({
-      where: { id: userId },
+  async resetFailedLoginAttempts(accountId: string) {
+    return prisma.account.update({
+      where: { id: accountId },
       data: {
         failedLoginAttempts: 0,
         lastFailedLoginAt: null,
@@ -99,7 +148,7 @@ export const authRepository = {
   /**
    * Create password reset token
    */
-  async createPasswordResetToken(data: { userId: string; token: string; expiresAt: Date }) {
+  async createPasswordResetToken(data: { accountId: string; token: string; expiresAt: Date }) {
     return prisma.passwordResetToken.create({
       data,
     });
@@ -118,7 +167,7 @@ export const authRepository = {
         },
       },
       include: {
-        user: true,
+        account: { include: { person: true } },
       },
     });
   },
@@ -134,12 +183,12 @@ export const authRepository = {
   },
 
   /**
-   * Update user password
+   * Update account password
    */
-  async updatePassword(userId: string, hashedPassword: string) {
-    return prisma.user.update({
-      where: { id: userId },
-      data: { password: hashedPassword },
+  async updatePassword(accountId: string, hashedPassword: string) {
+    return prisma.account.update({
+      where: { id: accountId },
+      data: { passwordHash: hashedPassword },
     });
   },
 };

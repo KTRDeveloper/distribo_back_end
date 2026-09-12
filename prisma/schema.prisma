@@ -11,11 +11,6 @@ datasource db {
 }
 
 // Enums
-enum UserStatus {
-  ACTIVE
-  DELETED
-}
-
 enum TaskStatus {
   QUEUED
   PROCESSING
@@ -24,36 +19,11 @@ enum TaskStatus {
   CANCELLED
 }
 
-// User model
-model User {
-  id                   String                @id @default(uuid())
-  email                String                @unique
-  password             String
-  name                 String
-  status               UserStatus            @default(ACTIVE)
-  emailVerified        Boolean               @default(false)
-  failedLoginAttempts  Int                   @default(0)
-  lastFailedLoginAt    DateTime?
-  lockedUntil          DateTime?
-  lastLoginAt          DateTime?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  deletedAt            DateTime?
-
-  // Relationships
-  passwordResetTokens  PasswordResetToken[]
-  tasks                Task[]
-
-  @@index([email, status])
-  @@index([lockedUntil])
-  @@map("users")
-}
-
 // Task model for background jobs
 model Task {
   id              String      @id @default(uuid())
   type            String
-  userId          String
+  accountId       String
   parameters      Json
   status          TaskStatus  @default(QUEUED)
   priority        Int         @default(0)
@@ -67,10 +37,10 @@ model Task {
   updatedAt       DateTime    @updatedAt
 
   // Relationships
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account         Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
   result          TaskResult?
 
-  @@index([userId, status])
+  @@index([accountId, status])
   @@index([status, submittedAt])
   @@index([completedAt])
   @@map("tasks")
@@ -96,16 +66,16 @@ model TaskResult {
 // Password reset token model
 model PasswordResetToken {
   id          String    @id @default(uuid())
-  userId      String
+  accountId   String
   token       String    @unique
   expiresAt   DateTime
   used        Boolean   @default(false)
   createdAt   DateTime  @default(now())
 
   // Relationships
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account     Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@index([userId, used])
+  @@index([accountId, used])
   @@index([expiresAt])
   @@map("password_reset_tokens")
 }
@@ -158,4 +128,219 @@ model ConfigHistory {
   @@index([changedAt])
   @@index([changedBy])
   @@map("config_history")
+}
+
+// =====================================================================
+// Delivery domain models begin below (see specs/001-delivery-data-model/)
+// Source of truth: data-model/modele-donnees-livraisons.md
+// Prisma mapping decisions: specs/001-delivery-data-model/research.md
+// =====================================================================
+
+// --- Foundational: cross-cutting enums (research.md §10a for @@map values) ---
+
+enum PartyType {
+  PERSON
+  ORGANIZATION
+}
+
+enum Language {
+  FR
+  EN
+}
+
+enum PersonStatus {
+  ACTIVE
+  SUSPENDED
+  ANONYMIZED
+}
+
+enum OrganizationType {
+  BUSINESS
+  CONTRACTOR
+}
+
+// --- Foundational: root entities every other domain model references ---
+
+model Person {
+  id                 String        @id @default(uuid())
+  fullName           String?
+  phoneNumber        String        @unique
+  phoneVerifiedAt    DateTime?
+  email              String?       @unique
+  emailVerifiedAt    DateTime?
+  preferredLanguage  Language?
+  createdAt          DateTime      @default(now())
+  status             PersonStatus  @default(ACTIVE)
+  anonymizedAt       DateTime?
+
+  // Relationships
+  account                    Account?
+  phoneChangeLogs            PhoneNumberChangeLog[]
+  customers                  Customer[]
+  reassignmentsAsPrevious    CustomerPersonReassignment[] @relation("reassignmentPrevious")
+  reassignmentsAsNew         CustomerPersonReassignment[] @relation("reassignmentNew")
+
+  @@map("people")
+}
+
+model Account {
+  id                   String        @id @default(uuid())
+  personId             String        @unique
+  passwordHash         String
+  failedLoginAttempts  Int           @default(0)
+  lastFailedLoginAt    DateTime?
+  lockedUntil          DateTime?
+  lastLoginAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  deletedAt            DateTime?
+
+  // Relationships
+  person               Person        @relation(fields: [personId], references: [id])
+  ownedOrganizations   Organization[]
+  collaborations       Collaboration[]
+  reassignmentsMade    CustomerPersonReassignment[]
+  tasks                Task[]
+  passwordResetTokens  PasswordResetToken[]
+
+  @@index([lockedUntil])
+  @@index([deletedAt])
+  @@map("accounts")
+}
+
+model Organization {
+  id               String           @id @default(uuid())
+  type             OrganizationType
+  name             String
+  ownerAccountId   String
+  createdAt        DateTime         @default(now())
+
+  // Relationships
+  ownerAccount     Account          @relation(fields: [ownerAccountId], references: [id])
+  customers        Customer[]
+  positions        Position[]
+  collaborations   Collaboration[]
+
+  @@index([ownerAccountId])
+  @@map("organizations")
+}
+
+// --- User Story 1: identity, organizations and access (spec.md P1) ---
+
+enum CollaborationStatus {
+  INVITED
+  ACTIVE
+  REVOKED
+}
+
+enum PermissionDomain {
+  SALES
+  STOCK
+  FINANCE
+  DELIVERY
+  HR_ACCESS
+  CONTRACTORS
+}
+
+model PhoneNumberChangeLog {
+  id              String   @id @default(uuid())
+  personId        String
+  oldPhoneNumber  String
+  newPhoneNumber  String
+  verifiedAt      DateTime
+  changedAt       DateTime @default(now())
+
+  person          Person   @relation(fields: [personId], references: [id])
+
+  @@index([personId])
+  @@map("phone_number_change_logs")
+}
+
+model Customer {
+  id               String   @id @default(uuid())
+  personId         String
+  organizationId   String
+  displayLabel     String?
+  deliveryAddress  String?
+  preferences      Json?
+  createdAt        DateTime @default(now())
+
+  person           Person       @relation(fields: [personId], references: [id])
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  reassignments    CustomerPersonReassignment[]
+
+  @@unique([personId, organizationId])
+  @@map("customers")
+}
+
+model CustomerPersonReassignment {
+  id                 String   @id @default(uuid())
+  customerId         String
+  previousPersonId   String
+  newPersonId        String
+  reassignedById     String
+  reason             String?  @db.Text
+  reassignedAt       DateTime @default(now())
+
+  customer           Customer @relation(fields: [customerId], references: [id])
+  previousPerson     Person   @relation("reassignmentPrevious", fields: [previousPersonId], references: [id])
+  newPerson          Person   @relation("reassignmentNew", fields: [newPersonId], references: [id])
+  reassignedBy       Account  @relation(fields: [reassignedById], references: [id])
+
+  @@index([customerId])
+  @@map("customer_person_reassignments")
+}
+
+model Permission {
+  id           String            @id @default(uuid())
+  code         String            @unique
+  displayName  String
+  domain       PermissionDomain
+
+  positions    PositionPermission[]
+
+  @@map("permissions")
+}
+
+model Position {
+  id               String   @id @default(uuid())
+  organizationId   String
+  name             String
+  isOwnerPosition  Boolean  @default(false)
+
+  organization     Organization          @relation(fields: [organizationId], references: [id])
+  permissions      PositionPermission[]
+  collaborations   Collaboration[]
+
+  @@index([organizationId])
+  @@map("positions")
+}
+
+model PositionPermission {
+  positionId    String
+  permissionId  String
+
+  position      Position    @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  permission    Permission  @relation(fields: [permissionId], references: [id])
+
+  @@id([positionId, permissionId])
+  @@map("position_permissions")
+}
+
+model Collaboration {
+  id               String               @id @default(uuid())
+  accountId        String
+  positionId       String
+  organizationId   String
+  status           CollaborationStatus  @default(INVITED)
+  invitedAt        DateTime             @default(now())
+  acceptedAt       DateTime?
+
+  account          Account       @relation(fields: [accountId], references: [id])
+  position         Position      @relation(fields: [positionId], references: [id])
+  organization     Organization  @relation(fields: [organizationId], references: [id])
+
+  @@index([accountId])
+  @@index([organizationId])
+  @@map("collaborations")
 }

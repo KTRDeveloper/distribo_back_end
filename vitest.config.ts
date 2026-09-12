@@ -5,6 +5,12 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
+    // Integration test files share one physical Postgres database and each
+    // file's beforeEach truncates shared tables — running files in parallel
+    // lets one file's cleanup wipe rows another concurrently-running file
+    // just created (observed as spurious FK violations / "not found" errors
+    // when the full suite ran in parallel). Force sequential file execution.
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

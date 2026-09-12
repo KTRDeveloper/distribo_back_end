@@ -12,11 +12,11 @@ export const tasksService = {
   /**
    * Submit a new task to the queue
    */
-  async submitTask(userId: string, input: TaskSubmitInput): Promise<TaskResponse> {
+  async submitTask(accountId: string, input: TaskSubmitInput): Promise<TaskResponse> {
     // Create task in database
     const task = await tasksRepository.createTask({
       type: input.type,
-      userId,
+      accountId,
       parameters: input.parameters,
       priority: input.priority,
     });
@@ -26,7 +26,7 @@ export const tasksService = {
       input.type,
       {
         taskId: task.id,
-        userId,
+        accountId,
         parameters: input.parameters,
       },
       {
@@ -35,7 +35,7 @@ export const tasksService = {
       }
     );
 
-    logger.info({ taskId: task.id, type: input.type, userId }, 'Task submitted to queue');
+    logger.info({ taskId: task.id, type: input.type, accountId }, 'Task submitted to queue');
 
     return {
       id: task.id,
@@ -52,7 +52,7 @@ export const tasksService = {
   /**
    * Get task by ID
    */
-  async getTask(taskId: string, userId: string): Promise<TaskResponse & { result?: TaskResultResponse }> {
+  async getTask(taskId: string, accountId: string): Promise<TaskResponse & { result?: TaskResultResponse }> {
     const task = await tasksRepository.findById(taskId);
 
     if (!task) {
@@ -63,7 +63,7 @@ export const tasksService = {
     }
 
     // Ensure user owns the task
-    if (task.userId !== userId) {
+    if (task.accountId !== accountId) {
       throw Object.assign(new Error('Access denied'), {
         statusCode: 403,
         code: 'ACCESS_DENIED',
@@ -96,8 +96,8 @@ export const tasksService = {
   /**
    * List tasks for user
    */
-  async listTasks(userId: string): Promise<TaskResponse[]> {
-    const tasks = await tasksRepository.findByUserId(userId);
+  async listTasks(accountId: string): Promise<TaskResponse[]> {
+    const tasks = await tasksRepository.findByAccountId(accountId);
 
     return tasks.map((task) => ({
       id: task.id,

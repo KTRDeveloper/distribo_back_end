@@ -4,10 +4,9 @@
 
 export interface UserProfile {
   id: string;
-  email: string;
-  name: string;
-  status: string;
-  emailVerified: boolean;
+  email: string | null;
+  name: string | null;
+  emailVerifiedAt: Date | null;
   createdAt: Date;
 }
 

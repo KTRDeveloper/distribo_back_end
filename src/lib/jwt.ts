@@ -5,7 +5,7 @@ import { config } from '../config/index.js';
  * JWT payload interface
  */
 export interface JwtPayload {
-  userId: string;
+  accountId: string;
   email: string;
 }
 

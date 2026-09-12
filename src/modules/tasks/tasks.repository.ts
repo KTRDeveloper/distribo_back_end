@@ -12,14 +12,14 @@ export const tasksRepository = {
    */
   async createTask(data: {
     type: string;
-    userId: string;
+    accountId: string;
     parameters: Record<string, unknown>;
     priority?: number;
   }) {
     return prisma.task.create({
       data: {
         type: data.type,
-        userId: data.userId,
+        accountId: data.accountId,
         parameters: data.parameters,
         priority: data.priority ?? 0,
         status: TaskStatus.QUEUED,
@@ -40,11 +40,11 @@ export const tasksRepository = {
   },
 
   /**
-   * Find tasks by user ID
+   * Find tasks by account ID
    */
-  async findByUserId(userId: string, limit = 50) {
+  async findByAccountId(accountId: string, limit = 50) {
     return prisma.task.findMany({
-      where: { userId },
+      where: { accountId },
       orderBy: { submittedAt: 'desc' },
       take: limit,
       include: {

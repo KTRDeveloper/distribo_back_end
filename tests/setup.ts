@@ -5,9 +5,11 @@ process.env.LOG_LEVEL = 'fatal'; // Valid enum: trace, debug, info, warn, error,
 process.env.JWT_SECRET = 'test-secret-key-must-be-at-least-32-characters-long';
 process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.CONFIG_ENCRYPTION_KEY = 'TnLiHyYNuboynP/t2+mZAj3QLrIgX8zS12hGPqVELH0='; // base64 encoded 32-byte key for tests
+process.env.CORS_ORIGINS = process.env.CORS_ORIGINS || 'http://localhost:3000';
 
 import { beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { execSync } from 'child_process';
 
 // Mock Redis before any imports
@@ -82,16 +84,24 @@ let prisma: PrismaClient;
 // Global test setup
 beforeAll(async () => {
   // Initialize Prisma client (env vars already set above)
-  prisma = new PrismaClient();
+  // Prisma 7 requires an explicit driver adapter (no implicit datasource.url connection)
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  prisma = new PrismaClient({ adapter });
 
-  // Push schema to test database (no migrations needed)
+  // Apply any pending migrations to the test database. `migrate deploy` is
+  // safe/idempotent (applies only pending migrations, never resets or force-
+  // pushes schema state), unlike `db push --accept-data-loss` which Prisma's
+  // own AI-agent safety gate refuses to run non-interactively without fresh
+  // per-invocation consent. Now that this project has real migrations under
+  // prisma/migrations/, `migrate deploy` is also the more correct choice.
   try {
-    execSync('npx prisma db push --skip-generate', {
+    execSync('npx prisma migrate deploy', {
       env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL },
       stdio: 'inherit',
     });
   } catch (error) {
-    console.error('Failed to push schema:', error);
+    console.error('Failed to apply migrations:', error);
+    throw error;
   }
 
   // Store for tests
@@ -106,7 +116,21 @@ beforeEach(async () => {
   await prisma.taskResult.deleteMany();
   await prisma.task.deleteMany();
   await prisma.passwordResetToken.deleteMany();
-  await prisma.user.deleteMany();
+
+  // Delivery domain models (specs/001-delivery-data-model/) — deepest
+  // dependents first, since Organization/Collaboration/Customer etc. all
+  // FK back to Account/Person and would otherwise block their deletion.
+  await prisma.customerPersonReassignment.deleteMany();
+  await prisma.positionPermission.deleteMany();
+  await prisma.collaboration.deleteMany();
+  await prisma.customer.deleteMany();
+  await prisma.phoneNumberChangeLog.deleteMany();
+  await prisma.position.deleteMany();
+  await prisma.permission.deleteMany();
+  await prisma.organization.deleteMany();
+
+  await prisma.account.deleteMany();
+  await prisma.person.deleteMany();
 });
 
 afterAll(async () => {

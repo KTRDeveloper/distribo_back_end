@@ -28,11 +28,11 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
     // Attach user information to request
     req.user = {
-      id: payload.userId,
+      id: payload.accountId,
       email: payload.email,
     };
 
-    logger.debug({ requestId: req.requestId, userId: payload.userId }, 'User authenticated');
+    logger.debug({ requestId: req.requestId, accountId: payload.accountId }, 'User authenticated');
 
     next();
   } catch (error) {

@@ -1,28 +1,47 @@
 import { prisma } from '../setup';
 import { hash } from 'bcrypt';
+import { uniquePhone } from './phone';
 
 /**
- * Seed database with test user
+ * Seed database with a test account (creates a Person + Account together)
  */
-export async function seedUser(userData: {
+export async function seedAccount(userData: {
   id?: string;
   email: string;
   password: string;
   name: string;
+  phoneNumber?: string;
 }) {
   const hashedPassword = await hash(userData.password, 10);
 
-  const user = await prisma.user.create({
+  const account = await prisma.account.create({
     data: {
       id: userData.id,
-      email: userData.email,
-      password: hashedPassword,
-      name: userData.name,
+      passwordHash: hashedPassword,
+      person: {
+        create: {
+          phoneNumber: userData.phoneNumber ?? uniquePhone(),
+          fullName: userData.name,
+          email: userData.email,
+        },
+      },
     },
+    include: { person: true },
   });
 
-  return { ...user, password: hashedPassword };
+  // Flattened convenience fields alongside the raw Account+Person shape,
+  // matching what the auth API's response body exposes.
+  return {
+    ...account,
+    email: account.person.email,
+    name: account.person.fullName,
+    phoneNumber: account.person.phoneNumber,
+    password: hashedPassword,
+  };
 }
+
+/** @deprecated use {@link seedAccount} */
+export const seedUser = seedAccount;
 
 /**
  * Seed database with test task
@@ -30,7 +49,7 @@ export async function seedUser(userData: {
 export async function seedTask(taskData: {
   id?: string;
   type: string;
-  userId: string;
+  accountId: string;
   parameters?: any;
   status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 }) {
@@ -38,7 +57,7 @@ export async function seedTask(taskData: {
     data: {
       id: taskData.id,
       type: taskData.type,
-      userId: taskData.userId,
+      accountId: taskData.accountId,
       parameters: taskData.parameters || {},
       status: taskData.status || 'QUEUED',
     },
@@ -48,10 +67,11 @@ export async function seedTask(taskData: {
 }
 
 /**
- * Clear all users from database
+ * Clear all accounts (and their linked people) from database
  */
 export async function clearUsers() {
-  await prisma.user.deleteMany();
+  await prisma.account.deleteMany();
+  await prisma.person.deleteMany();
 }
 
 /**
@@ -68,24 +88,27 @@ export async function clearDatabase() {
   await prisma.taskResult.deleteMany();
   await prisma.task.deleteMany();
   await prisma.passwordResetToken.deleteMany();
-  await prisma.user.deleteMany();
+  await prisma.account.deleteMany();
+  await prisma.person.deleteMany();
 }
 
 /**
- * Get user by email from database
+ * Get account by email (joined through Person) from database
  */
 export async function getUserByEmail(email: string) {
-  return prisma.user.findUnique({
-    where: { email },
+  return prisma.account.findFirst({
+    where: { person: { email } },
+    include: { person: true },
   });
 }
 
 /**
- * Get user by ID from database
+ * Get account by ID from database
  */
 export async function getUserById(id: string) {
-  return prisma.user.findUnique({
+  return prisma.account.findUnique({
     where: { id },
+    include: { person: true },
   });
 }
 
@@ -99,19 +122,19 @@ export async function getTaskById(id: string) {
 }
 
 /**
- * Get all tasks for a user
+ * Get all tasks for an account
  */
-export async function getTasksByUserId(userId: string) {
+export async function getTasksByUserId(accountId: string) {
   return prisma.task.findMany({
-    where: { userId },
+    where: { accountId },
   });
 }
 
 /**
- * Count total users in database
+ * Count total accounts in database
  */
 export async function countUsers(): Promise<number> {
-  return prisma.user.count();
+  return prisma.account.count();
 }
 
 /**

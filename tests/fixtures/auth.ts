@@ -1,4 +1,5 @@
 import { sign } from 'jsonwebtoken';
+import { uniquePhone } from '../helpers/phone';
 
 /**
  * Auth Token Test Fixtures
@@ -10,22 +11,22 @@ const JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key';
 /**
  * Create valid JWT access token
  */
-export function createAccessToken(userId: string, expiresIn = '1h'): string {
-  return sign({ userId }, JWT_SECRET, { expiresIn });
+export function createAccessToken(accountId: string, expiresIn = '1h'): string {
+  return sign({ accountId }, JWT_SECRET, { expiresIn });
 }
 
 /**
  * Create valid JWT refresh token
  */
-export function createRefreshToken(userId: string, expiresIn = '7d'): string {
-  return sign({ userId, type: 'refresh' }, JWT_SECRET, { expiresIn });
+export function createRefreshToken(accountId: string, expiresIn = '7d'): string {
+  return sign({ accountId, type: 'refresh' }, JWT_SECRET, { expiresIn });
 }
 
 /**
  * Create expired JWT token
  */
-export function createExpiredToken(userId: string): string {
-  return sign({ userId }, JWT_SECRET, { expiresIn: '-1h' });
+export function createExpiredToken(accountId: string): string {
+  return sign({ accountId }, JWT_SECRET, { expiresIn: '-1h' });
 }
 
 /**
@@ -45,20 +46,20 @@ export function createMalformedToken(): string {
 /**
  * Create JWT token with invalid signature
  */
-export function createTokenWithInvalidSignature(userId: string): string {
-  return sign({ userId }, 'wrong-secret', { expiresIn: '1h' });
+export function createTokenWithInvalidSignature(accountId: string): string {
+  return sign({ accountId }, 'wrong-secret', { expiresIn: '1h' });
 }
 
 /**
  * Create JWT token with tampered payload
  */
-export function createTamperedToken(userId: string): string {
-  const validToken = createAccessToken(userId);
+export function createTamperedToken(accountId: string): string {
+  const validToken = createAccessToken(accountId);
   const [header, payload, signature] = validToken.split('.');
 
   // Tamper with the payload
   const tamperedPayload = Buffer.from(
-    JSON.stringify({ userId: 'tampered-user-id' })
+    JSON.stringify({ accountId: 'tampered-user-id' })
   ).toString('base64url');
 
   return `${header}.${tamperedPayload}.${signature}`;
@@ -89,11 +90,13 @@ export function createRegistrationData(overrides?: {
   email?: string;
   password?: string;
   name?: string;
+  phoneNumber?: string;
 }) {
   return {
     email: `test-${Date.now()}@example.com`,
     password: 'SecurePass123!',
     name: 'Test User',
+    phoneNumber: uniquePhone(),
     ...overrides,
   };
 }
