@@ -14,24 +14,11 @@ export const prisma =
   global.prisma ||
   new PrismaClient({
     log: [
-      { level: 'query', emit: 'event' },
-      { level: 'error', emit: 'event' },
-      { level: 'warn', emit: 'event' },
+      { level: 'query', emit: 'stdout' },
+      { level: 'error', emit: 'stdout' },
+      { level: 'warn', emit: 'stdout' },
     ],
   });
-
-// Log Prisma queries in development
-prisma.$on('query', (e) => {
-  logger.debug({ duration: e.duration, query: e.query }, 'Database query');
-});
-
-prisma.$on('error', (e) => {
-  logger.error({ target: e.target, message: e.message }, 'Database error');
-});
-
-prisma.$on('warn', (e) => {
-  logger.warn({ target: e.target, message: e.message }, 'Database warning');
-});
 
 // Prevent multiple instances in development
 if (process.env.NODE_ENV !== 'production') {
