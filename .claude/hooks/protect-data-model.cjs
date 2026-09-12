@@ -26,7 +26,11 @@ process.stdin.on('end', () => {
         })
       );
     }
-  } catch {
-    // Malformed input: fail open, do not block.
+  } catch (err) {
+    // Malformed input: fail open (do not block the tool call), but log so
+    // this doesn't fail silently.
+    process.stderr.write(
+      `protect-data-model.cjs: failed to parse hook input, allowing tool call: ${err.message}\n`
+    );
   }
 });
