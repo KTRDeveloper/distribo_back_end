@@ -1,0 +1,42 @@
+{
+  "env": {
+    "CLAUDE_CODE_GLOB_NO_IGNORE": "false"
+  },
+  "permissions": {
+    "deny": [
+      "Edit(./data-model/modele-donnees-livraisons.md)",
+      "Write(./data-model/modele-donnees-livraisons.md)",
+      "Read(./node_modules/**)",
+      "Read(./built/**)",
+      "Read(./coverage/**)",
+      "Read(./yarn-error.log)",
+      "Read(./.env)",
+      "Read(./.env-dev)",
+      "Read(./.env-godealy-prod)",
+      "Read(./package.json.save)",
+      "Read(./package.json.2saved)",
+      "Read(./.eslintrc.json.save)",
+      "Read(./jest.config.js.save)",
+      "Grep(./node_modules/**)",
+      "Grep(./built/**)",
+      "Grep(./coverage/**)",
+      "Glob(./node_modules/**)",
+      "Glob(./built/**)",
+      "Glob(./coverage/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/protect-data-model.cjs",
+            "statusMessage": "Checking data-model protection..."
+          }
+        ]
+      }
+    ]
+  }
+}
