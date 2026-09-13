@@ -3,11 +3,11 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: template-postgres
+    container_name: distribo-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: template_dev
+      POSTGRES_DB: distribo_db
     ports:
       - '5435:5432'
     volumes:
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: template-redis
+    container_name: distribo-redis
     ports:
       - '6380:6379'
     volumes:

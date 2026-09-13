@@ -1,7 +1,7 @@
 services:
   postgres-test:
     image: postgres:16-alpine
-    container_name: node-ts-test-db
+    container_name: distribo-node-ts-test-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
