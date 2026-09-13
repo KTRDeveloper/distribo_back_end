@@ -78,7 +78,7 @@ enum OtpChannel {
 
 model OtpChallenge {
   id         String     @id @default(uuid())
-  personId   String
+  accountId  String
   purpose    OtpPurpose
   channel    OtpChannel @default(SMS)
   codeHash   String
@@ -88,16 +88,16 @@ model OtpChallenge {
   createdAt  DateTime   @default(now())
 
   // Relationships
-  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@index([personId, purpose, consumedAt])
+  @@index([accountId, purpose, consumedAt])
   @@index([expiresAt])
   @@map("otp_challenges")
 }
 
 model EmailVerificationRequest {
   id          String    @id @default(uuid())
-  personId    String
+  accountId   String
   email       String
   codeHash    String
   expiresAt   DateTime
@@ -105,9 +105,9 @@ model EmailVerificationRequest {
   createdAt   DateTime  @default(now())
 
   // Relationships
-  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@index([personId, confirmedAt])
+  @@index([accountId, confirmedAt])
   @@index([expiresAt])
   @@map("email_verification_requests")
 }
@@ -211,8 +211,6 @@ model Person {
   customers                 Customer[]
   reassignmentsAsPrevious   CustomerPersonReassignment[] @relation("reassignmentPrevious")
   reassignmentsAsNew        CustomerPersonReassignment[] @relation("reassignmentNew")
-  otpChallenges             OtpChallenge[]
-  emailVerificationRequests EmailVerificationRequest[]
 
   @@map("people")
 }
@@ -232,11 +230,13 @@ model Account {
   deletedAt           DateTime?
 
   // Relationships
-  person             Person                       @relation(fields: [personId], references: [id])
-  ownedOrganizations Organization[]
-  collaborations     Collaboration[]
-  reassignmentsMade  CustomerPersonReassignment[]
-  tasks              Task[]
+  person                    Person                       @relation(fields: [personId], references: [id])
+  ownedOrganizations        Organization[]
+  collaborations            Collaboration[]
+  reassignmentsMade         CustomerPersonReassignment[]
+  tasks                     Task[]
+  otpChallenges             OtpChallenge[]
+  emailVerificationRequests EmailVerificationRequest[]
 
   @@index([lockedUntil])
   @@index([deletedAt])

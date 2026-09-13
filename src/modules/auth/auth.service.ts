@@ -86,17 +86,17 @@ async function enforceOtpVerifyRateLimit(phoneNumber: string, purpose: string) {
 }
 
 /**
- * Validate a submitted OTP against the person's active challenge for the
+ * Validate a submitted OTP against the account's active challenge for the
  * given purpose. Throws on failure; returns the consumed challenge on
  * success. Shared by registration verification and password-reset
  * confirmation.
  */
 async function verifyOtpChallenge(
-  personId: string,
+  accountId: string,
   purpose: 'REGISTRATION' | 'PASSWORD_RESET',
   code: string
 ) {
-  const challenge = await authRepository.findActiveOtpChallenge(personId, purpose);
+  const challenge = await authRepository.findActiveOtpChallenge(accountId, purpose);
 
   if (!challenge || challenge.attempts >= MAX_OTP_ATTEMPTS) {
     throw Object.assign(new Error('Invalid or expired code'), {
@@ -158,7 +158,7 @@ export const authService = {
     const codeHash = await hashOtp(code);
 
     await authRepository.createOtpChallenge({
-      personId: account.personId,
+      accountId: account.id,
       purpose: 'REGISTRATION',
       channel: 'SMS',
       codeHash,
@@ -200,7 +200,7 @@ export const authService = {
     }
 
     try {
-      await verifyOtpChallenge(account.personId, 'REGISTRATION', input.code);
+      await verifyOtpChallenge(account.id, 'REGISTRATION', input.code);
     } catch (error) {
       await trackFailedOtpVerification(account.id, account.failedLoginAttempts);
       throw error;
@@ -255,7 +255,7 @@ export const authService = {
     const codeHash = await hashOtp(code);
 
     await authRepository.createOtpChallenge({
-      personId: account.personId,
+      accountId: account.id,
       purpose: 'REGISTRATION',
       channel: 'SMS',
       codeHash,
@@ -360,7 +360,7 @@ export const authService = {
     const codeHash = await hashOtp(code);
 
     await authRepository.createOtpChallenge({
-      personId: account.personId,
+      accountId: account.id,
       purpose: 'PASSWORD_RESET',
       channel: 'SMS',
       codeHash,
@@ -415,7 +415,7 @@ export const authService = {
     }
 
     try {
-      await verifyOtpChallenge(account.personId, 'PASSWORD_RESET', input.code);
+      await verifyOtpChallenge(account.id, 'PASSWORD_RESET', input.code);
     } catch (error) {
       await trackFailedOtpVerification(account.id, account.failedLoginAttempts);
       throw error;
@@ -454,7 +454,7 @@ export const authService = {
     const codeHash = await hashOtp(code);
 
     await authRepository.createEmailVerificationRequest({
-      personId: account.personId,
+      accountId: account.id,
       email: input.email,
       codeHash,
       expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MS),
@@ -487,7 +487,7 @@ export const authService = {
       });
     }
 
-    const request = await authRepository.findActiveEmailVerificationRequest(account.personId);
+    const request = await authRepository.findActiveEmailVerificationRequest(account.id);
     if (!request) {
       throw Object.assign(new Error('Invalid or expired verification code'), {
         statusCode: 400,

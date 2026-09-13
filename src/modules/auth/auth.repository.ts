@@ -190,12 +190,12 @@ export const authRepository = {
   // ---------------------------------------------------------------------
 
   /**
-   * Invalidate any prior unconsumed challenges for this person+purpose,
+   * Invalidate any prior unconsumed challenges for this account+purpose,
    * then create a new one. Ensures only the most recently issued challenge
-   * for a given (personId, purpose) pair is ever usable.
+   * for a given (accountId, purpose) pair is ever usable.
    */
   async createOtpChallenge(data: {
-    personId: string;
+    accountId: string;
     purpose: OtpPurpose;
     channel: OtpChannel;
     codeHash: string;
@@ -203,7 +203,7 @@ export const authRepository = {
   }): Promise<OtpChallenge> {
     return prisma.$transaction(async (tx) => {
       await tx.otpChallenge.updateMany({
-        where: { personId: data.personId, purpose: data.purpose, consumedAt: null },
+        where: { accountId: data.accountId, purpose: data.purpose, consumedAt: null },
         data: { consumedAt: new Date() },
       });
 
@@ -212,16 +212,16 @@ export const authRepository = {
   },
 
   /**
-   * Find the currently active (not consumed, not expired) challenge for a
-   * person+purpose, regardless of channel.
+   * Find the currently active (not consumed, not expired) challenge for an
+   * account+purpose, regardless of channel.
    */
   async findActiveOtpChallenge(
-    personId: string,
+    accountId: string,
     purpose: OtpPurpose
   ): Promise<OtpChallenge | null> {
     return prisma.otpChallenge.findFirst({
       where: {
-        personId,
+        accountId,
         purpose,
         consumedAt: null,
         expiresAt: { gte: new Date() },
@@ -255,14 +255,14 @@ export const authRepository = {
   // ---------------------------------------------------------------------
 
   async createEmailVerificationRequest(data: {
-    personId: string;
+    accountId: string;
     email: string;
     codeHash: string;
     expiresAt: Date;
   }): Promise<EmailVerificationRequest> {
     return prisma.$transaction(async (tx) => {
       await tx.emailVerificationRequest.updateMany({
-        where: { personId: data.personId, confirmedAt: null },
+        where: { accountId: data.accountId, confirmedAt: null },
         data: { confirmedAt: new Date() },
       });
 
@@ -271,11 +271,11 @@ export const authRepository = {
   },
 
   async findActiveEmailVerificationRequest(
-    personId: string
+    accountId: string
   ): Promise<EmailVerificationRequest | null> {
     return prisma.emailVerificationRequest.findFirst({
       where: {
-        personId,
+        accountId,
         confirmedAt: null,
         expiresAt: { gte: new Date() },
       },
