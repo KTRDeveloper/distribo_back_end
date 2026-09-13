@@ -88,6 +88,14 @@ npm run dev
 
 This command runs the server and makes your application available at `http://localhost:3000`.
 
+## 📘 API Documentation
+
+While the server is running outside production, browse and try out every endpoint interactively at
+[`/docs`](http://localhost:3000/docs) (Swagger UI), backed by the live OpenAPI document at
+`/docs/openapi.json`. A standalone, versioned copy of the same document lives in
+[`openapi/openapi.json`](./openapi/openapi.json) — see [`openapi/README.md`](./openapi/README.md)
+for how to regenerate it after changing an endpoint.
+
 ## 🔍 Features
 
 - **Modular Structure**: Organizes your code for better maintainability.

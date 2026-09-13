@@ -11,6 +11,8 @@ export const config = {
   isDevelopment: env.NODE_ENV === 'development',
   isProduction: env.NODE_ENV === 'production',
   isTest: env.NODE_ENV === 'test',
+  // Interactive API docs (/docs) must never be reachable in production (FR-008)
+  docsEnabled: env.NODE_ENV !== 'production',
 
   // Database
   database: {

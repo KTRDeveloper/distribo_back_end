@@ -93,12 +93,27 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { userRoutes } from './modules/user/user.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js';
+import { apiDocsRoutes } from './modules/api-docs/api-docs.routes.js';
+
+// Register every module's OpenAPI paths/schemas on the shared registry
+// (src/lib/openapi/registry.ts) before api-docs.routes.js generates the
+// document. Import side effects only — nothing is exported from these.
+import './modules/health/health.openapi.js';
+import './modules/auth/auth.openapi.js';
+import './modules/user/user.openapi.js';
+import './modules/tasks/tasks.openapi.js';
+import './modules/remote-config/remote-config.openapi.js';
 
 app.use('/health', healthRoutes);
 app.use('/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/v1/tasks', tasksRoutes);
 app.use('/api/remote-config', remoteConfigRoutes);
+
+// Interactive API docs — never reachable in production (FR-008)
+if (config.docsEnabled) {
+  app.use('/docs', apiDocsRoutes);
+}
 
 // 404 handler (must be after all routes)
 app.use(notFoundHandler);
