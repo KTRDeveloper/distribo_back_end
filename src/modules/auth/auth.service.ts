@@ -8,6 +8,7 @@ import { checkAndConsume } from '../../lib/rate-limit.js';
 import type {
   RegisterInput,
   RegisterVerifyInput,
+  RegisterResendInput,
   LoginInput,
   PasswordResetRequestInput,
   PasswordResetConfirmInput,
@@ -222,6 +223,54 @@ export const authService = {
       token,
       user: toAuthUser(verifiedAccount!),
     };
+  },
+
+  /**
+   * Resend the registration OTP for a phone number that has not yet been
+   * verified. Responds identically whether the phone number is unknown,
+   * already verified, or a fresh code was actually sent, to avoid
+   * disclosing account existence or verification state.
+   */
+  async resendRegistrationOtp(input: RegisterResendInput): Promise<{ message: string }> {
+    await enforceOtpRequestRateLimit(input.phoneNumber, 'REGISTRATION');
+
+    const account = await authRepository.findByPhoneNumber(input.phoneNumber);
+    if (!account || account.deletedAt || account.person.phoneVerifiedAt) {
+      logger.warn(
+        { phoneNumber: input.phoneNumber },
+        'Registration OTP resend requested for unknown or already-verified phone number'
+      );
+      return genericOtpSentResponse();
+    }
+
+    if (account.lockedUntil && account.lockedUntil > new Date()) {
+      const remainingMinutes = Math.ceil((account.lockedUntil.getTime() - Date.now()) / 60000);
+      throw Object.assign(
+        new Error(`Account is locked. Try again in ${remainingMinutes} minutes`),
+        { statusCode: 423, code: 'ACCOUNT_LOCKED' }
+      );
+    }
+
+    const code = generateOtp();
+    const codeHash = await hashOtp(code);
+
+    await authRepository.createOtpChallenge({
+      personId: account.personId,
+      purpose: 'REGISTRATION',
+      channel: 'SMS',
+      codeHash,
+      expiresAt: new Date(Date.now() + OTP_EXPIRY_MS),
+    });
+
+    await enqueueOtpDelivery({
+      channel: 'SMS',
+      to: account.person.phoneNumber,
+      message: `Your verification code is ${code}. It expires in 5 minutes.`,
+    });
+
+    logger.info({ accountId: account.id }, 'Registration OTP resent');
+
+    return genericOtpSentResponse();
   },
 
   /**

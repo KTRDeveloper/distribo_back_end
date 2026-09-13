@@ -3,6 +3,7 @@ import { authService } from './auth.service.js';
 import {
   registerSchema,
   registerVerifySchema,
+  registerResendSchema,
   loginSchema,
   passwordResetRequestSchema,
   passwordResetConfirmSchema,
@@ -32,6 +33,15 @@ export const authController = {
     const input = registerVerifySchema.parse(req.body);
     const result = await authService.verifyRegistration(input);
     res.json(result);
+  },
+
+  /**
+   * POST /auth/register/resend
+   */
+  async resendRegistration(req: Request, res: Response) {
+    const input = registerResendSchema.parse(req.body);
+    const result = await authService.resendRegistrationOtp(input);
+    res.status(202).json(result);
   },
 
   /**
