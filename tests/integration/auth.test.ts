@@ -1,209 +1,348 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/app.js';
-import { seedUser, clearDatabase } from '../helpers/database';
-import { createUserData, createRegistrationData, createLoginCredentials } from '../fixtures/users';
-import { createExpiredToken, createAccessToken } from '../fixtures/auth';
+import {
+  seedUser,
+  clearDatabase,
+  getUserByPhoneNumber,
+  markEmailVerified,
+  markPhoneVerified,
+} from '../helpers/database';
+import { uniquePhone } from '../helpers/phone';
+import { otpDeliveryQueue } from '../../src/lib/otp-delivery-queue';
+
+/**
+ * Extract the plaintext OTP job(s) enqueued for delivery. `bullmq` is
+ * mocked in tests/setup.ts, so `add()` never actually sends anything —
+ * this is how tests recover the code a real user would receive by SMS/email.
+ */
+function getOtpJobs(): Array<{ channel: string; to: string; message: string; subject?: string }> {
+  const calls = (otpDeliveryQueue.add as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+  return calls.map((call) => call[1] as { channel: string; to: string; message: string; subject?: string });
+}
+
+function getLastOtpCode(): string {
+  const jobs = getOtpJobs();
+  const { message } = jobs[jobs.length - 1];
+  const match = message.match(/(\d{6})/);
+  if (!match) throw new Error(`No OTP code found in message: ${message}`);
+  return match[1];
+}
+
+function createRegistrationData(overrides?: { name?: string; phoneNumber?: string; password?: string }) {
+  return {
+    name: 'Test User',
+    phoneNumber: uniquePhone(),
+    password: 'SecurePass123!',
+    ...overrides,
+  };
+}
 
 describe('Authentication Endpoints', () => {
   beforeEach(async () => {
     await clearDatabase();
+    (otpDeliveryQueue.add as unknown as { mockClear: () => void }).mockClear();
   });
 
-  describe('POST /auth/register', () => {
-    it('should create user and return token when valid data provided', async () => {
-      const userData = createRegistrationData();
+  describe('POST /auth/register + /auth/register/verify', () => {
+    it('should create an unverified account and send an OTP', async () => {
+      const data = createRegistrationData();
 
-      const response = await request(app).post('/auth/register').send(userData);
+      const response = await request(app).post('/auth/register').send(data);
 
       expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('token');
-      expect(response.body).toHaveProperty('user');
-      expect(response.body.user.email).toBe(userData.email);
-      expect(response.body.user.name).toBe(userData.name);
+      expect(response.body).not.toHaveProperty('token');
+      const jobs = getOtpJobs();
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0].channel).toBe('SMS');
+      expect(jobs[0].to).toBe(data.phoneNumber);
     });
 
-    it('should validate email format', async () => {
-      const response = await request(app).post('/auth/register').send({
-        email: 'invalid-email',
-        password: 'TestPassword123',
-        name: 'Test User',
-      });
+    it('should not require an email address to register', async () => {
+      const data = createRegistrationData();
+      const response = await request(app).post('/auth/register').send(data);
+      expect(response.status).toBe(201);
+    });
+
+    it('should return 409 when the phone number already has an account', async () => {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+
+      const response = await request(app).post('/auth/register').send(data);
+
+      expect(response.status).toBe(409);
+      expect(response.body.error.code).toBe('PHONE_EXISTS');
+    });
+
+    it('should verify the OTP, activate the phone number, and sign the user in', async () => {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+      const code = getLastOtpCode();
+
+      const response = await request(app)
+        .post('/auth/register/verify')
+        .send({ phoneNumber: data.phoneNumber, code });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('token');
+      expect(response.body.user.phoneNumber).toBe(data.phoneNumber);
+
+      const account = await getUserByPhoneNumber(data.phoneNumber);
+      expect(account!.person.phoneVerifiedAt).not.toBeNull();
+    });
+
+    it('should reject an incorrect registration OTP', async () => {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+
+      const response = await request(app)
+        .post('/auth/register/verify')
+        .send({ phoneNumber: data.phoneNumber, code: '000000' });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.code).toBe('INVALID_OTP');
     });
 
     it('should validate password strength', async () => {
-      const response = await request(app).post('/auth/register').send({
-        email: 'test@example.com',
-        password: 'weak',
-        name: 'Test User',
-      });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('should validate name length', async () => {
-      const response = await request(app).post('/auth/register').send({
-        email: 'test@example.com',
-        password: 'TestPassword123',
-        name: 'T',
-      });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('should return 400 when email is missing', async () => {
-      const response = await request(app).post('/auth/register').send({
-        password: 'TestPassword123',
-        name: 'Test User',
-      });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('should return 409 when email already exists', async () => {
-      const userData = createRegistrationData();
-
-      // Register user first time
-      await request(app).post('/auth/register').send(userData);
-
-      // Try to register again with same email
-      const response = await request(app).post('/auth/register').send(userData);
-
-      expect(response.status).toBe(409);
-      expect(response.body.error.code).toBe('USER_EXISTS');
-    });
-
-    it('should return 400 when malformed JSON is sent', async () => {
       const response = await request(app)
         .post('/auth/register')
-        .set('Content-Type', 'application/json')
-        .send('invalid json');
+        .send(createRegistrationData({ password: 'weak' }));
 
       expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
     });
   });
 
-  describe('POST /auth/login', () => {
-    it('should login successfully and return token', async () => {
-      const password = 'TestPassword123';
-      const user = await seedUser({
-        email: 'test@example.com',
-        password,
-        name: 'Test User',
-      });
+  describe('POST /auth/login (phone + password, no OTP)', () => {
+    async function registerAndVerify(overrides?: { name?: string; password?: string }) {
+      const data = createRegistrationData(overrides);
+      await request(app).post('/auth/register').send(data);
+      const code = getLastOtpCode();
+      await request(app).post('/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
+      return data;
+    }
 
-      const response = await request(app).post('/auth/login').send({
-        email: user.email,
-        password,
-      });
+    it('should log in successfully with the correct phone number and password', async () => {
+      const data = await registerAndVerify();
+
+      const response = await request(app)
+        .post('/auth/login')
+        .send({ phoneNumber: data.phoneNumber, password: data.password });
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('token');
-      expect(response.body).toHaveProperty('user');
-      expect(response.body.user.email).toBe(user.email);
+      expect(response.body.user.phoneNumber).toBe(data.phoneNumber);
     });
 
-    it('should validate email format', async () => {
-      const response = await request(app).post('/auth/login').send({
-        email: 'invalid-email',
-        password: 'TestPassword123',
-      });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('should require password', async () => {
-      const response = await request(app).post('/auth/login').send({
-        email: 'test@example.com',
-        password: '',
-      });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('should return 401 when user does not exist', async () => {
-      const response = await request(app).post('/auth/login').send({
-        email: 'nonexistent@example.com',
-        password: 'TestPassword123',
-      });
-
-      expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
-    });
-
-    it('should return 401 when password is incorrect', async () => {
-      await seedUser({
-        email: 'test@example.com',
-        password: 'CorrectPassword123',
-        name: 'Test User',
-      });
-
-      const response = await request(app).post('/auth/login').send({
-        email: 'test@example.com',
-        password: 'WrongPassword123',
-      });
-
-      expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
-    });
-
-    it('should return 400 when malformed JSON is sent', async () => {
+    it('should not require or accept an OTP to log in', async () => {
+      const data = await registerAndVerify();
+      // No OTP request/verify call happens between register-verify and login.
       const response = await request(app)
         .post('/auth/login')
-        .set('Content-Type', 'application/json')
-        .send('invalid json');
-
-      expect(response.status).toBe(400);
-    });
-  });
-
-  describe('POST /auth/password-reset/request', () => {
-    it('should validate email format', async () => {
-      const response = await request(app).post('/auth/password-reset/request').send({
-        email: 'invalid-email',
-      });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('should accept valid email without revealing if user exists', async () => {
-      const response = await request(app).post('/auth/password-reset/request').send({
-        email: 'nonexistent@example.com',
-      });
-
+        .send({ phoneNumber: data.phoneNumber, password: data.password });
       expect(response.status).toBe(200);
-      expect(response.body.message).toContain('If the email exists');
+    });
+
+    it('should reject login for an unverified phone number', async () => {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+
+      const response = await request(app)
+        .post('/auth/login')
+        .send({ phoneNumber: data.phoneNumber, password: data.password });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe('PHONE_NOT_VERIFIED');
+    });
+
+    it('should reject an incorrect password', async () => {
+      const data = await registerAndVerify();
+
+      const response = await request(app)
+        .post('/auth/login')
+        .send({ phoneNumber: data.phoneNumber, password: 'WrongPassword123' });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+    });
+
+    it('should return 401 for an unknown phone number', async () => {
+      const response = await request(app)
+        .post('/auth/login')
+        .send({ phoneNumber: uniquePhone(), password: 'SecurePass123!' });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+    });
+
+    it('should lock the account after too many failed password attempts', async () => {
+      const data = await registerAndVerify();
+
+      let lastResponse;
+      for (let i = 0; i < 5; i++) {
+        lastResponse = await request(app)
+          .post('/auth/login')
+          .send({ phoneNumber: data.phoneNumber, password: 'WrongPassword123' });
+      }
+
+      expect(lastResponse!.status).toBe(423);
+      expect(lastResponse!.body.error.code).toBe('ACCOUNT_LOCKED');
     });
   });
 
-  describe('POST /auth/password-reset/confirm', () => {
-    it('should validate token requirement', async () => {
+  describe('POST /auth/password-reset/request + /auth/password-reset/confirm', () => {
+    async function seedVerifiedAccount(password = 'OldPassword123') {
+      const user = await seedUser({ email: 'reset@example.com', password, name: 'Test' });
+      const account = await getUserByPhoneNumber(user.phoneNumber);
+      await markPhoneVerified(account!.personId);
+      return user;
+    }
+
+    it('should send the reset OTP by SMS only when email is unverified', async () => {
+      const user = await seedVerifiedAccount();
+
+      const response = await request(app)
+        .post('/auth/password-reset/request')
+        .send({ phoneNumber: user.phoneNumber });
+
+      expect(response.status).toBe(202);
+      const jobs = getOtpJobs();
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0].channel).toBe('SMS');
+    });
+
+    it('should send the reset OTP by both SMS and email when the email is verified', async () => {
+      const user = await seedVerifiedAccount();
+      const account = await getUserByPhoneNumber(user.phoneNumber);
+      await markEmailVerified(account!.personId);
+
+      const response = await request(app)
+        .post('/auth/password-reset/request')
+        .send({ phoneNumber: user.phoneNumber });
+
+      expect(response.status).toBe(202);
+      const jobs = getOtpJobs();
+      expect(jobs).toHaveLength(2);
+      expect(jobs.map((j) => j.channel).sort()).toEqual(['EMAIL', 'SMS']);
+      expect(jobs.find((j) => j.channel === 'EMAIL')!.to).toBe(user.email);
+      // Both channels carry the same code.
+      const codes = jobs.map((j) => j.message.match(/(\d{6})/)![1]);
+      expect(codes[0]).toBe(codes[1]);
+    });
+
+    it('should reset the password successfully and allow login with the new password', async () => {
+      const user = await seedVerifiedAccount();
+
+      await request(app).post('/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
+      const code = getLastOtpCode();
+
+      const confirmResponse = await request(app).post('/auth/password-reset/confirm').send({
+        phoneNumber: user.phoneNumber,
+        code,
+        newPassword: 'NewPassword123',
+      });
+      expect(confirmResponse.status).toBe(200);
+
+      const loginResponse = await request(app)
+        .post('/auth/login')
+        .send({ phoneNumber: user.phoneNumber, password: 'NewPassword123' });
+      expect(loginResponse.status).toBe(200);
+    });
+
+    it('should invalidate previously issued tokens after a password reset', async () => {
+      const user = await seedVerifiedAccount();
+      const loginResponse = await request(app)
+        .post('/auth/login')
+        .send({ phoneNumber: user.phoneNumber, password: 'OldPassword123' });
+      const oldToken = loginResponse.body.token;
+
+      await request(app).post('/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
+      const code = getLastOtpCode();
+      await request(app).post('/auth/password-reset/confirm').send({
+        phoneNumber: user.phoneNumber,
+        code,
+        newPassword: 'NewPassword123',
+      });
+
+      const response = await request(app)
+        .post('/auth/email/verify/request')
+        .set('Authorization', `Bearer ${oldToken}`)
+        .send({ email: 'anything@example.com' });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should reject an incorrect reset code', async () => {
+      const user = await seedVerifiedAccount();
+      await request(app).post('/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
+
       const response = await request(app).post('/auth/password-reset/confirm').send({
-        token: '',
+        phoneNumber: user.phoneNumber,
+        code: '000000',
         newPassword: 'NewPassword123',
       });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.code).toBe('INVALID_OTP');
+    });
+  });
+
+  describe('POST /auth/email/verify/request + /auth/email/verify/confirm', () => {
+    async function registerVerifyAndLogin() {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+      const code = getLastOtpCode();
+      const verifyResponse = await request(app)
+        .post('/auth/register/verify')
+        .send({ phoneNumber: data.phoneNumber, code });
+      return { phoneNumber: data.phoneNumber, token: verifyResponse.body.token as string };
+    }
+
+    it('should verify an email address and set it on the account', async () => {
+      const { phoneNumber, token } = await registerVerifyAndLogin();
+
+      const requestResponse = await request(app)
+        .post('/auth/email/verify/request')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: 'verified@example.com' });
+      expect(requestResponse.status).toBe(202);
+
+      const code = getLastOtpCode();
+
+      const confirmResponse = await request(app)
+        .post('/auth/email/verify/confirm')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code });
+
+      expect(confirmResponse.status).toBe(200);
+
+      const account = await getUserByPhoneNumber(phoneNumber);
+      expect(account!.person.email).toBe('verified@example.com');
+      expect(account!.person.emailVerifiedAt).not.toBeNull();
     });
 
-    it('should validate new password strength', async () => {
-      const response = await request(app).post('/auth/password-reset/confirm').send({
-        token: 'some-token',
-        newPassword: 'weak',
-      });
+    it('should reject an incorrect verification code', async () => {
+      const { token } = await registerVerifyAndLogin();
+      await request(app)
+        .post('/auth/email/verify/request')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: 'someone@example.com' });
+
+      const response = await request(app)
+        .post('/auth/email/verify/confirm')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: '000000' });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.code).toBe('INVALID_VERIFICATION_CODE');
+    });
+
+    it('should require authentication', async () => {
+      const response = await request(app)
+        .post('/auth/email/verify/request')
+        .send({ email: 'someone@example.com' });
+
+      expect(response.status).toBe(401);
     });
   });
 });

@@ -5,9 +5,11 @@ import { sign } from 'jsonwebtoken';
  * Create authenticated request with JWT token
  */
 export function createAuthenticatedRequest(app: any, accountId: string) {
-  const token = sign({ accountId }, process.env.JWT_SECRET || 'test-secret-key', {
-    expiresIn: '1h',
-  });
+  const token = sign(
+    { accountId, tokenVersion: 0 },
+    process.env.JWT_SECRET || 'test-secret-key',
+    { expiresIn: '1h' }
+  );
 
   return {
     get: (url: string) => request(app).get(url).set('Authorization', `Bearer ${token}`),
@@ -35,7 +37,7 @@ export function createRequestWithHeaders(app: any, headers: Record<string, strin
  * Create expired JWT token for testing authentication failures
  */
 export function createExpiredToken(accountId: string): string {
-  return sign({ accountId }, process.env.JWT_SECRET || 'test-secret-key', {
+  return sign({ accountId, tokenVersion: 0 }, process.env.JWT_SECRET || 'test-secret-key', {
     expiresIn: '-1h', // Already expired
   });
 }

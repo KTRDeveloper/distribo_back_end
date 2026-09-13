@@ -1,5 +1,5 @@
 import { prisma } from '../../lib/db.js';
-import type { Account, Person } from '@prisma/client';
+import type { Account, Person, OtpChallenge, OtpPurpose, OtpChannel, EmailVerificationRequest } from '@prisma/client';
 
 /**
  * Authentication repository
@@ -9,6 +9,10 @@ import type { Account, Person } from '@prisma/client';
  * number, email, name) and `Account` (their login credentials, attached to
  * a Person). See specs/001-delivery-data-model/ and the plan that merged
  * the legacy `User` model into this split.
+ *
+ * Phone number is the sole sign-in anchor (specs/002-sms-otp-auth/); email
+ * is only ever a secondary, verification-gated delivery channel for the
+ * password-reset OTP — never a sign-in credential.
  */
 
 export type AccountWithPerson = Account & { person: Person };
@@ -19,6 +23,7 @@ export type AccountWithPerson = Account & { person: Person };
 export function toAuthUser(account: AccountWithPerson) {
   return {
     id: account.id,
+    phoneNumber: account.person.phoneNumber,
     email: account.person.email,
     name: account.person.fullName,
     emailVerifiedAt: account.person.emailVerifiedAt,
@@ -30,9 +35,10 @@ export const authRepository = {
   /**
    * Register a new Account, reusing an existing guest Person for the given
    * phone number if one exists (no account yet), or creating a new Person.
+   * Only name + phone + password are collected here; email is added later
+   * via the email-verification flow.
    */
   async register(data: {
-    email: string;
     password: string;
     name: string;
     phoneNumber: string;
@@ -55,10 +61,7 @@ export const authRepository = {
       return prisma.$transaction(async (tx) => {
         await tx.person.update({
           where: { id: existingPerson.id },
-          data: {
-            fullName: data.name,
-            email: data.email,
-          },
+          data: { fullName: data.name },
         });
 
         return tx.account.create({
@@ -78,7 +81,6 @@ export const authRepository = {
           create: {
             phoneNumber: data.phoneNumber,
             fullName: data.name,
-            email: data.email,
           },
         },
       },
@@ -87,11 +89,33 @@ export const authRepository = {
   },
 
   /**
-   * Find an Account by its Person's email.
+   * Mark a person's phone number as verified (set at registration, once the
+   * registration OTP is confirmed).
+   */
+  async markPhoneVerified(personId: string) {
+    return prisma.person.update({
+      where: { id: personId },
+      data: { phoneVerifiedAt: new Date() },
+    });
+  },
+
+  /**
+   * Find an Account by its Person's email (registration uniqueness check only —
+   * email is never used to sign in).
    */
   async findByEmail(email: string): Promise<AccountWithPerson | null> {
     return prisma.account.findFirst({
       where: { person: { email } },
+      include: { person: true },
+    });
+  },
+
+  /**
+   * Find an Account by its Person's phone number — the sole sign-in anchor.
+   */
+  async findByPhoneNumber(phoneNumber: string): Promise<AccountWithPerson | null> {
+    return prisma.account.findFirst({
+      where: { person: { phoneNumber } },
       include: { person: true },
     });
   },
@@ -146,49 +170,132 @@ export const authRepository = {
   },
 
   /**
-   * Create password reset token
-   */
-  async createPasswordResetToken(data: { accountId: string; token: string; expiresAt: Date }) {
-    return prisma.passwordResetToken.create({
-      data,
-    });
-  },
-
-  /**
-   * Find valid password reset token
-   */
-  async findPasswordResetToken(token: string) {
-    return prisma.passwordResetToken.findFirst({
-      where: {
-        token,
-        used: false,
-        expiresAt: {
-          gte: new Date(),
-        },
-      },
-      include: {
-        account: { include: { person: true } },
-      },
-    });
-  },
-
-  /**
-   * Mark password reset token as used
-   */
-  async markTokenAsUsed(tokenId: string) {
-    return prisma.passwordResetToken.update({
-      where: { id: tokenId },
-      data: { used: true },
-    });
-  },
-
-  /**
-   * Update account password
+   * Update account password. Bumps `tokenVersion` (and `passwordChangedAt`
+   * for audit purposes) so every previously issued JWT — which carries the
+   * prior tokenVersion — is rejected by the auth middleware.
    */
   async updatePassword(accountId: string, hashedPassword: string) {
     return prisma.account.update({
       where: { id: accountId },
-      data: { passwordHash: hashedPassword },
+      data: {
+        passwordHash: hashedPassword,
+        passwordChangedAt: new Date(),
+        tokenVersion: { increment: 1 },
+      },
+    });
+  },
+
+  // ---------------------------------------------------------------------
+  // OTP challenges (sign-in + password reset)
+  // ---------------------------------------------------------------------
+
+  /**
+   * Invalidate any prior unconsumed challenges for this person+purpose,
+   * then create a new one. Ensures only the most recently issued challenge
+   * for a given (personId, purpose) pair is ever usable.
+   */
+  async createOtpChallenge(data: {
+    personId: string;
+    purpose: OtpPurpose;
+    channel: OtpChannel;
+    codeHash: string;
+    expiresAt: Date;
+  }): Promise<OtpChallenge> {
+    return prisma.$transaction(async (tx) => {
+      await tx.otpChallenge.updateMany({
+        where: { personId: data.personId, purpose: data.purpose, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+
+      return tx.otpChallenge.create({ data });
+    });
+  },
+
+  /**
+   * Find the currently active (not consumed, not expired) challenge for a
+   * person+purpose, regardless of channel.
+   */
+  async findActiveOtpChallenge(
+    personId: string,
+    purpose: OtpPurpose
+  ): Promise<OtpChallenge | null> {
+    return prisma.otpChallenge.findFirst({
+      where: {
+        personId,
+        purpose,
+        consumedAt: null,
+        expiresAt: { gte: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  },
+
+  /**
+   * Increment the verification-attempt counter on a challenge.
+   */
+  async incrementOtpAttempts(challengeId: string) {
+    return prisma.otpChallenge.update({
+      where: { id: challengeId },
+      data: { attempts: { increment: 1 } },
+    });
+  },
+
+  /**
+   * Mark a challenge as successfully consumed.
+   */
+  async consumeOtpChallenge(challengeId: string) {
+    return prisma.otpChallenge.update({
+      where: { id: challengeId },
+      data: { consumedAt: new Date() },
+    });
+  },
+
+  // ---------------------------------------------------------------------
+  // Email verification (gates the secondary password-reset email channel)
+  // ---------------------------------------------------------------------
+
+  async createEmailVerificationRequest(data: {
+    personId: string;
+    email: string;
+    codeHash: string;
+    expiresAt: Date;
+  }): Promise<EmailVerificationRequest> {
+    return prisma.$transaction(async (tx) => {
+      await tx.emailVerificationRequest.updateMany({
+        where: { personId: data.personId, confirmedAt: null },
+        data: { confirmedAt: new Date() },
+      });
+
+      return tx.emailVerificationRequest.create({ data });
+    });
+  },
+
+  async findActiveEmailVerificationRequest(
+    personId: string
+  ): Promise<EmailVerificationRequest | null> {
+    return prisma.emailVerificationRequest.findFirst({
+      where: {
+        personId,
+        confirmedAt: null,
+        expiresAt: { gte: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  },
+
+  async confirmEmailVerificationRequest(requestId: string, personId: string, email: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.emailVerificationRequest.update({
+        where: { id: requestId },
+        data: { confirmedAt: new Date() },
+      });
+
+      // Persist the now-verified email onto the person — registration never
+      // collects an email, so this is the first time it's set.
+      return tx.person.update({
+        where: { id: personId },
+        data: { email, emailVerifiedAt: new Date() },
+      });
     });
   },
 };

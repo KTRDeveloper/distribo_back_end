@@ -2,9 +2,12 @@ import { Request, Response } from 'express';
 import { authService } from './auth.service.js';
 import {
   registerSchema,
+  registerVerifySchema,
   loginSchema,
   passwordResetRequestSchema,
   passwordResetConfirmSchema,
+  emailVerifyRequestSchema,
+  emailVerifyConfirmSchema,
 } from './auth.schemas.js';
 
 /**
@@ -23,6 +26,15 @@ export const authController = {
   },
 
   /**
+   * POST /auth/register/verify
+   */
+  async verifyRegistration(req: Request, res: Response) {
+    const input = registerVerifySchema.parse(req.body);
+    const result = await authService.verifyRegistration(input);
+    res.json(result);
+  },
+
+  /**
    * POST /auth/login
    */
   async login(req: Request, res: Response) {
@@ -37,7 +49,7 @@ export const authController = {
   async requestPasswordReset(req: Request, res: Response) {
     const input = passwordResetRequestSchema.parse(req.body);
     const result = await authService.requestPasswordReset(input);
-    res.json(result);
+    res.status(202).json(result);
   },
 
   /**
@@ -46,6 +58,24 @@ export const authController = {
   async confirmPasswordReset(req: Request, res: Response) {
     const input = passwordResetConfirmSchema.parse(req.body);
     const result = await authService.confirmPasswordReset(input);
+    res.json(result);
+  },
+
+  /**
+   * POST /auth/email/verify/request
+   */
+  async requestEmailVerification(req: Request, res: Response) {
+    const input = emailVerifyRequestSchema.parse(req.body);
+    const result = await authService.requestEmailVerification(req.user!.id, input);
+    res.status(202).json(result);
+  },
+
+  /**
+   * POST /auth/email/verify/confirm
+   */
+  async confirmEmailVerification(req: Request, res: Response) {
+    const input = emailVerifyConfirmSchema.parse(req.body);
+    const result = await authService.confirmEmailVerification(req.user!.id, input);
     res.json(result);
   },
 };

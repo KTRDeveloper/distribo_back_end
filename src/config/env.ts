@@ -36,6 +36,19 @@ const envSchema = z.object({
   // Worker Settings
   WORKER_CONCURRENCY: z.string().regex(/^\d+$/).transform(Number).default('5'),
   WORKER_MAX_RETRIES: z.string().regex(/^\d+$/).transform(Number).default('3'),
+
+  // SMS (TextBee) — phone/OTP authentication
+  TEXTBEE_API_KEY: z.string().min(1, 'TEXTBEE_API_KEY is required'),
+
+  // Email (SMTP via Nodemailer) — secondary password-reset OTP channel
+  SMTP_HOST: z.string().min(1, 'SMTP_HOST is required'),
+  SMTP_PORT: z.string().regex(/^\d+$/).transform(Number).default('587'),
+  SMTP_USER: z.string().min(1, 'SMTP_USER is required'),
+  SMTP_PASSWORD: z.string().min(1, 'SMTP_PASSWORD is required'),
+  SMTP_FROM_ADDRESS: z.string().email('SMTP_FROM_ADDRESS must be a valid email address'),
+
+  // OTP delivery queue
+  OTP_DELIVERY_QUEUE_NAME: z.string().default('otp-delivery'),
 });
 
 // Validate and export environment variables

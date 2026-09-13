@@ -2,31 +2,47 @@
  * TypeScript interfaces for authentication module
  */
 
+export type OtpPurpose = 'REGISTRATION' | 'PASSWORD_RESET';
+
 export interface RegisterInput {
-  email: string;
-  password: string;
   name: string;
   phoneNumber: string;
+  password: string;
+}
+
+export interface RegisterVerifyInput {
+  phoneNumber: string;
+  code: string;
 }
 
 export interface LoginInput {
-  email: string;
+  phoneNumber: string;
   password: string;
 }
 
 export interface PasswordResetRequestInput {
-  email: string;
+  phoneNumber: string;
 }
 
 export interface PasswordResetConfirmInput {
-  token: string;
+  phoneNumber: string;
+  code: string;
   newPassword: string;
+}
+
+export interface EmailVerifyRequestInput {
+  email: string;
+}
+
+export interface EmailVerifyConfirmInput {
+  code: string;
 }
 
 export interface AuthResponse {
   token: string;
   user: {
     id: string;
+    phoneNumber: string;
     email: string | null;
     name: string | null;
     emailVerifiedAt: Date | null;

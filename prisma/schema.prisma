@@ -21,24 +21,24 @@ enum TaskStatus {
 
 // Task model for background jobs
 model Task {
-  id              String      @id @default(uuid())
-  type            String
-  accountId       String
-  parameters      Json
-  status          TaskStatus  @default(QUEUED)
-  priority        Int         @default(0)
-  progress        Int         @default(0)
-  errorMessage    String?
-  retryCount      Int         @default(0)
-  submittedAt     DateTime    @default(now())
-  startedAt       DateTime?
-  completedAt     DateTime?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id           String     @id @default(uuid())
+  type         String
+  accountId    String
+  parameters   Json
+  status       TaskStatus @default(QUEUED)
+  priority     Int        @default(0)
+  progress     Int        @default(0)
+  errorMessage String?
+  retryCount   Int        @default(0)
+  submittedAt  DateTime   @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   // Relationships
-  account         Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  result          TaskResult?
+  account Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  result  TaskResult?
 
   @@index([accountId, status])
   @@index([status, submittedAt])
@@ -48,60 +48,92 @@ model Task {
 
 // Task result model
 model TaskResult {
-  id            String    @id @default(uuid())
-  taskId        String    @unique
-  outputPath    String
-  metadata      Json
-  storageSize   BigInt
-  createdAt     DateTime  @default(now())
-  expiresAt     DateTime
+  id          String   @id @default(uuid())
+  taskId      String   @unique
+  outputPath  String
+  metadata    Json
+  storageSize BigInt
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
 
   // Relationships
-  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
   @@map("task_results")
 }
 
-// Password reset token model
-model PasswordResetToken {
+// Phone/OTP authentication (002-sms-otp-auth): superseded PasswordResetToken
+// (email-link reset, never fully wired) with OTP-based sign-in and reset.
+
+enum OtpPurpose {
+  REGISTRATION
+  PASSWORD_RESET
+}
+
+enum OtpChannel {
+  SMS
+  EMAIL
+}
+
+model OtpChallenge {
+  id         String     @id @default(uuid())
+  personId   String
+  purpose    OtpPurpose
+  channel    OtpChannel @default(SMS)
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int        @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  // Relationships
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId, purpose, consumedAt])
+  @@index([expiresAt])
+  @@map("otp_challenges")
+}
+
+model EmailVerificationRequest {
   id          String    @id @default(uuid())
-  accountId   String
-  token       String    @unique
+  personId    String
+  email       String
+  codeHash    String
   expiresAt   DateTime
-  used        Boolean   @default(false)
+  confirmedAt DateTime?
   createdAt   DateTime  @default(now())
 
   // Relationships
-  account     Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
-  @@index([accountId, used])
+  @@index([personId, confirmedAt])
   @@index([expiresAt])
-  @@map("password_reset_tokens")
+  @@map("email_verification_requests")
 }
 
 // Remote Configuration models
 
 // System configuration model
 model SystemConfig {
-  id               String          @id @default(uuid())
+  id               String    @id @default(uuid())
   category         String
   key              String
-  value            String          @db.Text
-  isSensitive      Boolean         @default(false)
-  isProtected      Boolean         @default(false)
-  enabled          Boolean         @default(true)
-  description      String?         @db.Text
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  value            String    @db.Text
+  isSensitive      Boolean   @default(false)
+  isProtected      Boolean   @default(false)
+  enabled          Boolean   @default(true)
+  description      String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   createdBy        String?
   updatedBy        String?
   lastValidatedAt  DateTime?
   validationStatus String?
-  validationError  String?         @db.Text
+  validationError  String?   @db.Text
 
   // Relationships
-  history          ConfigHistory[]
+  history ConfigHistory[]
 
   @@unique([category, key])
   @@index([category])
@@ -112,17 +144,17 @@ model SystemConfig {
 
 // Configuration change history model
 model ConfigHistory {
-  id            String       @id @default(uuid())
+  id            String   @id @default(uuid())
   configId      String
   action        String
-  previousValue String?      @db.Text
-  newValue      String?      @db.Text
-  changedAt     DateTime     @default(now())
+  previousValue String?  @db.Text
+  newValue      String?  @db.Text
+  changedAt     DateTime @default(now())
   changedBy     String?
-  reason        String?      @db.Text
+  reason        String?  @db.Text
 
   // Relationships
-  config        SystemConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  config SystemConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
 
   @@index([configId])
   @@index([changedAt])
@@ -162,46 +194,49 @@ enum OrganizationType {
 // --- Foundational: root entities every other domain model references ---
 
 model Person {
-  id                 String        @id @default(uuid())
-  fullName           String?
-  phoneNumber        String        @unique
-  phoneVerifiedAt    DateTime?
-  email              String?       @unique
-  emailVerifiedAt    DateTime?
-  preferredLanguage  Language?
-  createdAt          DateTime      @default(now())
-  status             PersonStatus  @default(ACTIVE)
-  anonymizedAt       DateTime?
+  id                String       @id @default(uuid())
+  fullName          String?
+  phoneNumber       String       @unique
+  phoneVerifiedAt   DateTime?
+  email             String?      @unique
+  emailVerifiedAt   DateTime?
+  preferredLanguage Language?
+  createdAt         DateTime     @default(now())
+  status            PersonStatus @default(ACTIVE)
+  anonymizedAt      DateTime?
 
   // Relationships
-  account                    Account?
-  phoneChangeLogs            PhoneNumberChangeLog[]
-  customers                  Customer[]
-  reassignmentsAsPrevious    CustomerPersonReassignment[] @relation("reassignmentPrevious")
-  reassignmentsAsNew         CustomerPersonReassignment[] @relation("reassignmentNew")
+  account                   Account?
+  phoneChangeLogs           PhoneNumberChangeLog[]
+  customers                 Customer[]
+  reassignmentsAsPrevious   CustomerPersonReassignment[] @relation("reassignmentPrevious")
+  reassignmentsAsNew        CustomerPersonReassignment[] @relation("reassignmentNew")
+  otpChallenges             OtpChallenge[]
+  emailVerificationRequests EmailVerificationRequest[]
 
   @@map("people")
 }
 
 model Account {
-  id                   String        @id @default(uuid())
-  personId             String        @unique
-  passwordHash         String
-  failedLoginAttempts  Int           @default(0)
-  lastFailedLoginAt    DateTime?
-  lockedUntil          DateTime?
-  lastLoginAt          DateTime?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  deletedAt            DateTime?
+  id                  String    @id @default(uuid())
+  personId            String    @unique
+  passwordHash        String
+  passwordChangedAt   DateTime  @default(now())
+  tokenVersion        Int       @default(0)
+  failedLoginAttempts Int       @default(0)
+  lastFailedLoginAt   DateTime?
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
 
   // Relationships
-  person               Person        @relation(fields: [personId], references: [id])
-  ownedOrganizations   Organization[]
-  collaborations       Collaboration[]
-  reassignmentsMade    CustomerPersonReassignment[]
-  tasks                Task[]
-  passwordResetTokens  PasswordResetToken[]
+  person             Person                       @relation(fields: [personId], references: [id])
+  ownedOrganizations Organization[]
+  collaborations     Collaboration[]
+  reassignmentsMade  CustomerPersonReassignment[]
+  tasks              Task[]
 
   @@index([lockedUntil])
   @@index([deletedAt])
@@ -209,17 +244,17 @@ model Account {
 }
 
 model Organization {
-  id               String           @id @default(uuid())
-  type             OrganizationType
-  name             String
-  ownerAccountId   String
-  createdAt        DateTime         @default(now())
+  id             String           @id @default(uuid())
+  type           OrganizationType
+  name           String
+  ownerAccountId String
+  createdAt      DateTime         @default(now())
 
   // Relationships
-  ownerAccount     Account          @relation(fields: [ownerAccountId], references: [id])
-  customers        Customer[]
-  positions        Position[]
-  collaborations   Collaboration[]
+  ownerAccount   Account         @relation(fields: [ownerAccountId], references: [id])
+  customers      Customer[]
+  positions      Position[]
+  collaborations Collaboration[]
 
   @@index([ownerAccountId])
   @@map("organizations")
@@ -243,102 +278,102 @@ enum PermissionDomain {
 }
 
 model PhoneNumberChangeLog {
-  id              String   @id @default(uuid())
-  personId        String
-  oldPhoneNumber  String
-  newPhoneNumber  String
-  verifiedAt      DateTime
-  changedAt       DateTime @default(now())
+  id             String   @id @default(uuid())
+  personId       String
+  oldPhoneNumber String
+  newPhoneNumber String
+  verifiedAt     DateTime
+  changedAt      DateTime @default(now())
 
-  person          Person   @relation(fields: [personId], references: [id])
+  person Person @relation(fields: [personId], references: [id])
 
   @@index([personId])
   @@map("phone_number_change_logs")
 }
 
 model Customer {
-  id               String   @id @default(uuid())
-  personId         String
-  organizationId   String
-  displayLabel     String?
-  deliveryAddress  String?
-  preferences      Json?
-  createdAt        DateTime @default(now())
+  id              String   @id @default(uuid())
+  personId        String
+  organizationId  String
+  displayLabel    String?
+  deliveryAddress String?
+  preferences     Json?
+  createdAt       DateTime @default(now())
 
-  person           Person       @relation(fields: [personId], references: [id])
-  organization     Organization @relation(fields: [organizationId], references: [id])
-  reassignments    CustomerPersonReassignment[]
+  person        Person                       @relation(fields: [personId], references: [id])
+  organization  Organization                 @relation(fields: [organizationId], references: [id])
+  reassignments CustomerPersonReassignment[]
 
   @@unique([personId, organizationId])
   @@map("customers")
 }
 
 model CustomerPersonReassignment {
-  id                 String   @id @default(uuid())
-  customerId         String
-  previousPersonId   String
-  newPersonId        String
-  reassignedById     String
-  reason             String?  @db.Text
-  reassignedAt       DateTime @default(now())
+  id               String   @id @default(uuid())
+  customerId       String
+  previousPersonId String
+  newPersonId      String
+  reassignedById   String
+  reason           String?  @db.Text
+  reassignedAt     DateTime @default(now())
 
-  customer           Customer @relation(fields: [customerId], references: [id])
-  previousPerson     Person   @relation("reassignmentPrevious", fields: [previousPersonId], references: [id])
-  newPerson          Person   @relation("reassignmentNew", fields: [newPersonId], references: [id])
-  reassignedBy       Account  @relation(fields: [reassignedById], references: [id])
+  customer       Customer @relation(fields: [customerId], references: [id])
+  previousPerson Person   @relation("reassignmentPrevious", fields: [previousPersonId], references: [id])
+  newPerson      Person   @relation("reassignmentNew", fields: [newPersonId], references: [id])
+  reassignedBy   Account  @relation(fields: [reassignedById], references: [id])
 
   @@index([customerId])
   @@map("customer_person_reassignments")
 }
 
 model Permission {
-  id           String            @id @default(uuid())
-  code         String            @unique
-  displayName  String
-  domain       PermissionDomain
+  id          String           @id @default(uuid())
+  code        String           @unique
+  displayName String
+  domain      PermissionDomain
 
-  positions    PositionPermission[]
+  positions PositionPermission[]
 
   @@map("permissions")
 }
 
 model Position {
-  id               String   @id @default(uuid())
-  organizationId   String
-  name             String
-  isOwnerPosition  Boolean  @default(false)
+  id              String  @id @default(uuid())
+  organizationId  String
+  name            String
+  isOwnerPosition Boolean @default(false)
 
-  organization     Organization          @relation(fields: [organizationId], references: [id])
-  permissions      PositionPermission[]
-  collaborations   Collaboration[]
+  organization   Organization         @relation(fields: [organizationId], references: [id])
+  permissions    PositionPermission[]
+  collaborations Collaboration[]
 
   @@index([organizationId])
   @@map("positions")
 }
 
 model PositionPermission {
-  positionId    String
-  permissionId  String
+  positionId   String
+  permissionId String
 
-  position      Position    @relation(fields: [positionId], references: [id], onDelete: Cascade)
-  permission    Permission  @relation(fields: [permissionId], references: [id])
+  position   Position   @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id])
 
   @@id([positionId, permissionId])
   @@map("position_permissions")
 }
 
 model Collaboration {
-  id               String               @id @default(uuid())
-  accountId        String
-  positionId       String
-  organizationId   String
-  status           CollaborationStatus  @default(INVITED)
-  invitedAt        DateTime             @default(now())
-  acceptedAt       DateTime?
+  id             String              @id @default(uuid())
+  accountId      String
+  positionId     String
+  organizationId String
+  status         CollaborationStatus @default(INVITED)
+  invitedAt      DateTime            @default(now())
+  acceptedAt     DateTime?
 
-  account          Account       @relation(fields: [accountId], references: [id])
-  position         Position      @relation(fields: [positionId], references: [id])
-  organization     Organization  @relation(fields: [organizationId], references: [id])
+  account      Account      @relation(fields: [accountId], references: [id])
+  position     Position     @relation(fields: [positionId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([accountId])
   @@index([organizationId])

@@ -6,6 +6,13 @@ process.env.JWT_SECRET = 'test-secret-key-must-be-at-least-32-characters-long';
 process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.CONFIG_ENCRYPTION_KEY = 'TnLiHyYNuboynP/t2+mZAj3QLrIgX8zS12hGPqVELH0='; // base64 encoded 32-byte key for tests
 process.env.CORS_ORIGINS = process.env.CORS_ORIGINS || 'http://localhost:3000';
+process.env.TEXTBEE_API_KEY = process.env.TEXTBEE_API_KEY || 'test-textbee-api-key';
+process.env.SMTP_HOST = process.env.SMTP_HOST || 'smtp.test.local';
+process.env.SMTP_PORT = process.env.SMTP_PORT || '587';
+process.env.SMTP_USER = process.env.SMTP_USER || 'test-smtp-user';
+process.env.SMTP_PASSWORD = process.env.SMTP_PASSWORD || 'test-smtp-password';
+process.env.SMTP_FROM_ADDRESS = process.env.SMTP_FROM_ADDRESS || 'no-reply@test.local';
+process.env.OTP_DELIVERY_QUEUE_NAME = process.env.OTP_DELIVERY_QUEUE_NAME || 'otp-delivery-test';
 
 import { beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
@@ -115,7 +122,8 @@ beforeEach(async () => {
   await prisma.systemConfig.deleteMany();
   await prisma.taskResult.deleteMany();
   await prisma.task.deleteMany();
-  await prisma.passwordResetToken.deleteMany();
+  await prisma.otpChallenge.deleteMany();
+  await prisma.emailVerificationRequest.deleteMany();
 
   // Delivery domain models (specs/001-delivery-data-model/) — deepest
   // dependents first, since Organization/Collaboration/Customer etc. all

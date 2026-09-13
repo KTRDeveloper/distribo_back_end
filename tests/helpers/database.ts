@@ -87,7 +87,8 @@ export async function clearTasks() {
 export async function clearDatabase() {
   await prisma.taskResult.deleteMany();
   await prisma.task.deleteMany();
-  await prisma.passwordResetToken.deleteMany();
+  await prisma.otpChallenge.deleteMany();
+  await prisma.emailVerificationRequest.deleteMany();
   await prisma.account.deleteMany();
   await prisma.person.deleteMany();
 }
@@ -109,6 +110,38 @@ export async function getUserById(id: string) {
   return prisma.account.findUnique({
     where: { id },
     include: { person: true },
+  });
+}
+
+/**
+ * Get account by phone number (joined through Person) from database
+ */
+export async function getUserByPhoneNumber(phoneNumber: string) {
+  return prisma.account.findFirst({
+    where: { person: { phoneNumber } },
+    include: { person: true },
+  });
+}
+
+/**
+ * Mark a person's email as verified directly (bypasses the verification flow).
+ */
+export async function markEmailVerified(personId: string) {
+  return prisma.person.update({
+    where: { id: personId },
+    data: { emailVerifiedAt: new Date() },
+  });
+}
+
+/**
+ * Mark a person's phone number as verified directly (bypasses the
+ * registration OTP flow) — useful for tests that only care about
+ * login/password-reset behavior, not registration itself.
+ */
+export async function markPhoneVerified(personId: string) {
+  return prisma.person.update({
+    where: { id: personId },
+    data: { phoneVerifiedAt: new Date() },
   });
 }
 

@@ -6,7 +6,8 @@ import { config } from '../config/index.js';
  */
 export interface JwtPayload {
   accountId: string;
-  email: string;
+  phoneNumber: string;
+  tokenVersion: number;
 }
 
 /**

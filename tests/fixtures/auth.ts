@@ -12,21 +12,21 @@ const JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key';
  * Create valid JWT access token
  */
 export function createAccessToken(accountId: string, expiresIn = '1h'): string {
-  return sign({ accountId }, JWT_SECRET, { expiresIn });
+  return sign({ accountId, tokenVersion: 0 }, JWT_SECRET, { expiresIn });
 }
 
 /**
  * Create valid JWT refresh token
  */
 export function createRefreshToken(accountId: string, expiresIn = '7d'): string {
-  return sign({ accountId, type: 'refresh' }, JWT_SECRET, { expiresIn });
+  return sign({ accountId, type: 'refresh', tokenVersion: 0 }, JWT_SECRET, { expiresIn });
 }
 
 /**
  * Create expired JWT token
  */
 export function createExpiredToken(accountId: string): string {
-  return sign({ accountId }, JWT_SECRET, { expiresIn: '-1h' });
+  return sign({ accountId, tokenVersion: 0 }, JWT_SECRET, { expiresIn: '-1h' });
 }
 
 /**

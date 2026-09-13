@@ -55,6 +55,25 @@ export const config = {
     concurrency: env.WORKER_CONCURRENCY,
     maxRetries: env.WORKER_MAX_RETRIES,
   },
+
+  // SMS (TextBee)
+  sms: {
+    textbeeApiKey: env.TEXTBEE_API_KEY,
+  },
+
+  // SMTP (secondary password-reset OTP channel)
+  smtp: {
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    user: env.SMTP_USER,
+    password: env.SMTP_PASSWORD,
+    fromAddress: env.SMTP_FROM_ADDRESS,
+  },
+
+  // OTP delivery
+  otp: {
+    deliveryQueueName: env.OTP_DELIVERY_QUEUE_NAME,
+  },
 } as const;
 
 export type Config = typeof config;

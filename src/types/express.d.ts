@@ -6,7 +6,7 @@ declare global {
       requestId: string;
       user?: {
         id: string;
-        email: string;
+        phoneNumber: string;
       };
     }
   }

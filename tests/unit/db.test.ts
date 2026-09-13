@@ -13,6 +13,7 @@ describe('Database Client', () => {
     expect(prisma.person).toBeDefined();
     expect(prisma.task).toBeDefined();
     expect(prisma.taskResult).toBeDefined();
-    expect(prisma.passwordResetToken).toBeDefined();
+    expect(prisma.otpChallenge).toBeDefined();
+    expect(prisma.emailVerificationRequest).toBeDefined();
   });
 });
