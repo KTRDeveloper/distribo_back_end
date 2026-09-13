@@ -31,6 +31,10 @@ export const registerVerifySchema = z.object({
   code: otpCodeSchema,
 });
 
+export const registerResendSchema = z.object({
+  phoneNumber: phoneNumberSchema,
+});
+
 // Login is phone number + password only — no OTP.
 export const loginSchema = z.object({
   phoneNumber: phoneNumberSchema,
@@ -57,6 +61,7 @@ export const emailVerifyConfirmSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type RegisterVerifyInput = z.infer<typeof registerVerifySchema>;
+export type RegisterResendInput = z.infer<typeof registerResendSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type PasswordResetRequestInput = z.infer<typeof passwordResetRequestSchema>;
 export type PasswordResetConfirmInput = z.infer<typeof passwordResetConfirmSchema>;

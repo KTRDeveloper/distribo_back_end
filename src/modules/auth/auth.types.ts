@@ -15,6 +15,10 @@ export interface RegisterVerifyInput {
   code: string;
 }
 
+export interface RegisterResendInput {
+  phoneNumber: string;
+}
+
 export interface LoginInput {
   phoneNumber: string;
   password: string;

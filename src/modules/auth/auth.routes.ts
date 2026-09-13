@@ -17,6 +17,11 @@ authRoutes.post('/register/verify', (req, res, next) => {
   authController.verifyRegistration(req, res).catch(next);
 });
 
+// POST /auth/register/resend - Resend the registration OTP for an unverified phone number
+authRoutes.post('/register/resend', (req, res, next) => {
+  authController.resendRegistration(req, res).catch(next);
+});
+
 // POST /auth/login - Login with phone number + password (no OTP)
 authRoutes.post('/login', (req, res, next) => {
   authController.login(req, res).catch(next);

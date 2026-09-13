@@ -3,6 +3,7 @@ import { openApiRegistry, errorResponseSchema } from '../../lib/openapi/registry
 import {
   registerSchema,
   registerVerifySchema,
+  registerResendSchema,
   loginSchema,
   passwordResetRequestSchema,
   passwordResetConfirmSchema,
@@ -59,6 +60,23 @@ openApiRegistry.registerPath({
       content: { 'application/json': { schema: authResponseSchema } },
     },
     400: { description: 'Invalid or expired code', content: { 'application/json': { schema: errorResponseSchema } } },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/auth/register/resend',
+  tags: ['auth'],
+  summary: 'Resend the registration OTP for an unverified phone number',
+  request: { body: { content: { 'application/json': { schema: registerResendSchema } } } },
+  responses: {
+    202: {
+      description:
+        'Generic response — a new code was sent only if the phone number belongs to an existing, unverified, unlocked account',
+      content: { 'application/json': { schema: messageResponseSchema } },
+    },
+    423: { description: 'Account is locked', content: { 'application/json': { schema: errorResponseSchema } } },
+    429: { description: 'Too many resend requests', content: { 'application/json': { schema: errorResponseSchema } } },
   },
 });
 

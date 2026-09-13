@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/app.js';
 import {
@@ -10,6 +10,8 @@ import {
 } from '../helpers/database';
 import { uniquePhone } from '../helpers/phone';
 import { otpDeliveryQueue } from '../../src/lib/otp-delivery-queue';
+import { prisma } from '../setup';
+import { redis } from '../../src/lib/redis.js';
 
 /**
  * Extract the plaintext OTP job(s) enqueued for delivery. `bullmq` is
@@ -110,6 +112,113 @@ describe('Authentication Endpoints', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  describe('POST /auth/register/resend', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should send a new code that verifies successfully, invalidating the original one', async () => {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+      const originalCode = getLastOtpCode();
+
+      const resendResponse = await request(app)
+        .post('/auth/register/resend')
+        .send({ phoneNumber: data.phoneNumber });
+      expect(resendResponse.status).toBe(202);
+
+      const jobs = getOtpJobs();
+      expect(jobs).toHaveLength(2);
+      expect(jobs[1].channel).toBe('SMS');
+      expect(jobs[1].to).toBe(data.phoneNumber);
+
+      const staleAttempt = await request(app)
+        .post('/auth/register/verify')
+        .send({ phoneNumber: data.phoneNumber, code: originalCode });
+      expect(staleAttempt.status).toBe(400);
+      expect(staleAttempt.body.error.code).toBe('INVALID_OTP');
+
+      const newCode = getLastOtpCode();
+      const verifyResponse = await request(app)
+        .post('/auth/register/verify')
+        .send({ phoneNumber: data.phoneNumber, code: newCode });
+      expect(verifyResponse.status).toBe(200);
+      expect(verifyResponse.body).toHaveProperty('token');
+    });
+
+    it('should return the same generic response for an already-verified phone number without sending a code', async () => {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+      const code = getLastOtpCode();
+      await request(app).post('/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
+
+      const response = await request(app)
+        .post('/auth/register/resend')
+        .send({ phoneNumber: data.phoneNumber });
+
+      expect(response.status).toBe(202);
+      expect(getOtpJobs()).toHaveLength(1); // only the original registration job, nothing new
+    });
+
+    it('should return the same generic response for an unknown phone number without sending a code', async () => {
+      const response = await request(app)
+        .post('/auth/register/resend')
+        .send({ phoneNumber: uniquePhone() });
+
+      expect(response.status).toBe(202);
+      expect(getOtpJobs()).toHaveLength(0);
+    });
+
+    it('should return a generic response with the same shape whether or not a code was actually sent', async () => {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+
+      const unverifiedResendResponse = await request(app)
+        .post('/auth/register/resend')
+        .send({ phoneNumber: data.phoneNumber });
+      const unknownResendResponse = await request(app)
+        .post('/auth/register/resend')
+        .send({ phoneNumber: uniquePhone() });
+
+      expect(unverifiedResendResponse.status).toBe(unknownResendResponse.status);
+      expect(Object.keys(unverifiedResendResponse.body)).toEqual(Object.keys(unknownResendResponse.body));
+    });
+
+    it('should reject a resend while the account is locked', async () => {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+      const account = await getUserByPhoneNumber(data.phoneNumber);
+      await prisma.account.update({
+        where: { id: account!.id },
+        data: { lockedUntil: new Date(Date.now() + 10 * 60 * 1000) },
+      });
+
+      const response = await request(app)
+        .post('/auth/register/resend')
+        .send({ phoneNumber: data.phoneNumber });
+
+      expect(response.status).toBe(423);
+      expect(response.body.error.code).toBe('ACCOUNT_LOCKED');
+      expect(getOtpJobs()).toHaveLength(1); // only the original registration job
+    });
+
+    it('should reject a resend that exceeds the request cooldown', async () => {
+      const data = createRegistrationData();
+      await request(app).post('/auth/register').send(data);
+
+      // Simulate the cooldown key from the original register() call already being set.
+      vi.spyOn(redis, 'get').mockResolvedValueOnce('1');
+
+      const response = await request(app)
+        .post('/auth/register/resend')
+        .send({ phoneNumber: data.phoneNumber });
+
+      expect(response.status).toBe(429);
+      expect(response.body.error.code).toBe('OTP_COOLDOWN');
+      expect(getOtpJobs()).toHaveLength(1); // only the original registration job
     });
   });
 
