@@ -42,8 +42,18 @@ export interface EmailVerifyConfirmInput {
   code: string;
 }
 
+export interface RefreshInput {
+  refreshToken: string;
+}
+
+export interface LogoutInput {
+  refreshToken: string;
+}
+
 export interface AuthResponse {
-  token: string;
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresIn: number;
   user: {
     id: string;
     phoneNumber: string;

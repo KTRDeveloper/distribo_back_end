@@ -59,6 +59,14 @@ export const emailVerifyConfirmSchema = z.object({
   code: otpCodeSchema,
 });
 
+export const refreshSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+});
+
+export const logoutSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type RegisterVerifyInput = z.infer<typeof registerVerifySchema>;
 export type RegisterResendInput = z.infer<typeof registerResendSchema>;
@@ -67,3 +75,5 @@ export type PasswordResetRequestInput = z.infer<typeof passwordResetRequestSchem
 export type PasswordResetConfirmInput = z.infer<typeof passwordResetConfirmSchema>;
 export type EmailVerifyRequestInput = z.infer<typeof emailVerifyRequestSchema>;
 export type EmailVerifyConfirmInput = z.infer<typeof emailVerifyConfirmSchema>;
+export type RefreshInput = z.infer<typeof refreshSchema>;
+export type LogoutInput = z.infer<typeof logoutSchema>;

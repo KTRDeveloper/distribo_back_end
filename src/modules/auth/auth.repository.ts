@@ -1,5 +1,14 @@
 import { prisma } from '../../lib/db.js';
-import type { Account, Person, OtpChallenge, OtpPurpose, OtpChannel, EmailVerificationRequest } from '@prisma/client';
+import type {
+  Account,
+  Person,
+  OtpChallenge,
+  OtpPurpose,
+  OtpChannel,
+  EmailVerificationRequest,
+  RefreshToken,
+  RefreshTokenRevokedReason,
+} from '@prisma/client';
 
 /**
  * Authentication repository
@@ -170,9 +179,9 @@ export const authRepository = {
   },
 
   /**
-   * Update account password. Bumps `tokenVersion` (and `passwordChangedAt`
-   * for audit purposes) so every previously issued JWT — which carries the
-   * prior tokenVersion — is rejected by the auth middleware.
+   * Update account password (also records `passwordChangedAt` for audit
+   * purposes). Session revocation is handled separately by the caller via
+   * `revokeAllRefreshTokensForAccount` (specs/005-refresh-tokens/).
    */
   async updatePassword(accountId: string, hashedPassword: string) {
     return prisma.account.update({
@@ -180,7 +189,6 @@ export const authRepository = {
       data: {
         passwordHash: hashedPassword,
         passwordChangedAt: new Date(),
-        tokenVersion: { increment: 1 },
       },
     });
   },
@@ -296,6 +304,65 @@ export const authRepository = {
         where: { id: personId },
         data: { email, emailVerifiedAt: new Date() },
       });
+    });
+  },
+
+  // ---------------------------------------------------------------------
+  // Refresh tokens (sessions) — see specs/005-refresh-tokens/data-model.md
+  // ---------------------------------------------------------------------
+
+  /**
+   * Persist a newly issued refresh token (hash only — the raw value is
+   * never stored).
+   */
+  async createRefreshToken(data: {
+    accountId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<RefreshToken> {
+    return prisma.refreshToken.create({ data });
+  },
+
+  /**
+   * Find a refresh token by its hash regardless of state (rotated/revoked/
+   * expired) — reuse detection needs to see already-rotated rows too.
+   */
+  async findRefreshTokenByHash(tokenHash: string): Promise<RefreshToken | null> {
+    return prisma.refreshToken.findUnique({ where: { tokenHash } });
+  },
+
+  /**
+   * Mark a refresh token as rotated (exchanged for a new one). A rotated
+   * token being presented again is how token-theft/replay is detected.
+   */
+  async markRefreshTokenRotated(id: string): Promise<RefreshToken> {
+    return prisma.refreshToken.update({
+      where: { id },
+      data: { rotatedAt: new Date() },
+    });
+  },
+
+  /**
+   * Revoke a single refresh token (e.g. explicit single-device logout).
+   */
+  async revokeRefreshToken(id: string, reason: RefreshTokenRevokedReason): Promise<RefreshToken> {
+    return prisma.refreshToken.update({
+      where: { id },
+      data: { revokedAt: new Date(), revokedReason: reason },
+    });
+  },
+
+  /**
+   * Revoke every currently-valid refresh token for an account (logout-all,
+   * password reset, account lockout, or reuse-detected compromise).
+   */
+  async revokeAllRefreshTokensForAccount(
+    accountId: string,
+    reason: RefreshTokenRevokedReason
+  ): Promise<{ count: number }> {
+    return prisma.refreshToken.updateMany({
+      where: { accountId, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: reason },
     });
   },
 };

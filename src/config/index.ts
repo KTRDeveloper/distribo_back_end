@@ -27,7 +27,8 @@ export const config = {
   // JWT
   jwt: {
     secret: env.JWT_SECRET,
-    expiresIn: env.JWT_EXPIRES_IN,
+    accessTokenExpiresIn: env.ACCESS_TOKEN_EXPIRES_IN,
+    refreshTokenExpiresInDays: env.REFRESH_TOKEN_EXPIRES_IN_DAYS,
   },
 
   // CORS

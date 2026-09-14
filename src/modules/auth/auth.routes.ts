@@ -46,3 +46,18 @@ authRoutes.post('/email/verify/request', authMiddleware, (req, res, next) => {
 authRoutes.post('/email/verify/confirm', authMiddleware, (req, res, next) => {
   authController.confirmEmailVerification(req, res).catch(next);
 });
+
+// POST /auth/refresh - Exchange a valid refresh token for a new access/refresh pair
+authRoutes.post('/refresh', (req, res, next) => {
+  authController.refresh(req, res).catch(next);
+});
+
+// POST /auth/logout - Log out of the current device only (refresh token is the credential)
+authRoutes.post('/logout', (req, res, next) => {
+  authController.logout(req, res).catch(next);
+});
+
+// POST /auth/logout-all - Log out of every device for the authenticated account
+authRoutes.post('/logout-all', authMiddleware, (req, res, next) => {
+  authController.logoutAll(req, res).catch(next);
+});

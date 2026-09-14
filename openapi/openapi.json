@@ -346,8 +346,15 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "token": {
+                    "accessToken": {
                       "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    },
+                    "accessTokenExpiresIn": {
+                      "type": "integer",
+                      "description": "Access token lifetime in seconds"
                     },
                     "user": {
                       "type": "object",
@@ -393,7 +400,9 @@
                     }
                   },
                   "required": [
-                    "token",
+                    "accessToken",
+                    "refreshToken",
+                    "accessTokenExpiresIn",
                     "user"
                   ]
                 }
@@ -517,8 +526,15 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "token": {
+                    "accessToken": {
                       "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    },
+                    "accessTokenExpiresIn": {
+                      "type": "integer",
+                      "description": "Access token lifetime in seconds"
                     },
                     "user": {
                       "type": "object",
@@ -564,7 +580,9 @@
                     }
                   },
                   "required": [
-                    "token",
+                    "accessToken",
+                    "refreshToken",
+                    "accessTokenExpiresIn",
                     "user"
                   ]
                 }
@@ -809,6 +827,173 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Exchange a valid refresh token for a new access/refresh token pair",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "refreshToken"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New token pair issued; the submitted refresh token is now rotated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    },
+                    "accessTokenExpiresIn": {
+                      "type": "integer",
+                      "description": "Access token lifetime in seconds"
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "phoneNumber": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "emailVerifiedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "phoneNumber",
+                        "email",
+                        "name",
+                        "emailVerifiedAt",
+                        "createdAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "refreshToken",
+                    "accessTokenExpiresIn",
+                    "user"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh token missing, malformed, expired, or revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Log out of the current device only",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "refreshToken"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Session ended (or was already ended)"
+          }
+        }
+      }
+    },
+    "/auth/logout-all": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Log out of every device for the authenticated account",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "All sessions ended"
           },
           "401": {
             "description": "Missing or invalid token",

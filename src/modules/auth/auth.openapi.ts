@@ -9,6 +9,8 @@ import {
   passwordResetConfirmSchema,
   emailVerifyRequestSchema,
   emailVerifyConfirmSchema,
+  refreshSchema,
+  logoutSchema,
 } from './auth.schemas.js';
 
 /**
@@ -22,7 +24,9 @@ const messageResponseSchema = z.object({
 });
 
 const authResponseSchema = z.object({
-  token: z.string(),
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  accessTokenExpiresIn: z.number().int().openapi({ description: 'Access token lifetime in seconds' }),
   user: z.object({
     id: z.string(),
     phoneNumber: z.string(),
@@ -152,6 +156,47 @@ openApiRegistry.registerPath({
       description: 'Email verified successfully',
       content: { 'application/json': { schema: messageResponseSchema } },
     },
+    401: { description: 'Missing or invalid token', content: { 'application/json': { schema: errorResponseSchema } } },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/auth/refresh',
+  tags: ['auth'],
+  summary: 'Exchange a valid refresh token for a new access/refresh token pair',
+  request: { body: { content: { 'application/json': { schema: refreshSchema } } } },
+  responses: {
+    200: {
+      description: 'New token pair issued; the submitted refresh token is now rotated',
+      content: { 'application/json': { schema: authResponseSchema } },
+    },
+    401: {
+      description: 'Refresh token missing, malformed, expired, or revoked',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/auth/logout',
+  tags: ['auth'],
+  summary: 'Log out of the current device only',
+  request: { body: { content: { 'application/json': { schema: logoutSchema } } } },
+  responses: {
+    204: { description: 'Session ended (or was already ended)' },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/auth/logout-all',
+  tags: ['auth'],
+  summary: 'Log out of every device for the authenticated account',
+  security: [{ bearerAuth: [] }],
+  responses: {
+    204: { description: 'All sessions ended' },
     401: { description: 'Missing or invalid token', content: { 'application/json': { schema: errorResponseSchema } } },
   },
 });

@@ -1,10 +1,12 @@
 import bcrypt from 'bcrypt';
-import { authRepository, toAuthUser } from './auth.repository.js';
-import { signToken } from '../../lib/jwt.js';
+import { authRepository, toAuthUser, type AccountWithPerson } from './auth.repository.js';
+import { signToken, getAccessTokenExpiresInSeconds } from '../../lib/jwt.js';
 import { logger } from '../../lib/logger.js';
 import { generateOtp, hashOtp, verifyOtp } from '../../lib/otp.js';
+import { generateRefreshToken, hashRefreshToken } from '../../lib/refresh-token.js';
 import { enqueueOtpDelivery } from '../../lib/otp-delivery-queue.js';
 import { checkAndConsume } from '../../lib/rate-limit.js';
+import { config } from '../../config/index.js';
 import type {
   RegisterInput,
   RegisterVerifyInput,
@@ -14,6 +16,8 @@ import type {
   PasswordResetConfirmInput,
   EmailVerifyRequestInput,
   EmailVerifyConfirmInput,
+  RefreshInput,
+  LogoutInput,
   AuthResponse,
 } from './auth.types.js';
 
@@ -43,6 +47,39 @@ const EMAIL_VERIFICATION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function genericOtpSentResponse() {
   return { message: 'If the phone number is registered, a verification code has been sent' };
+}
+
+/**
+ * Issue a fresh access/refresh token pair for an account and persist the
+ * refresh token's hash. Shared by login, registration verification, and
+ * the refresh endpoint (specs/005-refresh-tokens/research.md §1, §2).
+ */
+async function issueTokenPair(account: AccountWithPerson): Promise<{
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresIn: number;
+}> {
+  const accessToken = signToken({
+    accountId: account.id,
+    phoneNumber: account.person.phoneNumber,
+  });
+
+  const refreshToken = generateRefreshToken();
+  const refreshTokenExpiresAt = new Date(
+    Date.now() + config.jwt.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000
+  );
+
+  await authRepository.createRefreshToken({
+    accountId: account.id,
+    tokenHash: hashRefreshToken(refreshToken),
+    expiresAt: refreshTokenExpiresAt,
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    accessTokenExpiresIn: getAccessTokenExpiresInSeconds(),
+  };
 }
 
 async function enforceOtpRequestRateLimit(phoneNumber: string, purpose: string) {
@@ -131,6 +168,8 @@ async function trackFailedOtpVerification(accountId: string, failedLoginAttempts
   if (newAttempts >= MAX_FAILED_ATTEMPTS) {
     const lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
     await authRepository.lockAccount(accountId, lockUntil);
+    // Locking the account also ends every existing session (FR-012).
+    await authRepository.revokeAllRefreshTokensForAccount(accountId, 'ACCOUNT_LOCKED');
     throw Object.assign(new Error('Too many failed attempts. Account locked for 30 minutes'), {
       statusCode: 423,
       code: 'ACCOUNT_LOCKED',
@@ -211,16 +250,12 @@ export const authService = {
 
     const verifiedAccount = await authRepository.findById(account.id);
 
-    const token = signToken({
-      accountId: account.id,
-      phoneNumber: account.person.phoneNumber,
-      tokenVersion: account.tokenVersion,
-    });
+    const tokenPair = await issueTokenPair(verifiedAccount!);
 
     logger.info({ accountId: account.id }, 'Phone number verified; account activated');
 
     return {
-      token,
+      ...tokenPair,
       user: toAuthUser(verifiedAccount!),
     };
   },
@@ -309,6 +344,8 @@ export const authService = {
       if (newAttempts >= MAX_FAILED_ATTEMPTS) {
         const lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
         await authRepository.lockAccount(account.id, lockUntil);
+        // Locking the account also ends every existing session (FR-012).
+        await authRepository.revokeAllRefreshTokensForAccount(account.id, 'ACCOUNT_LOCKED');
         logger.warn({ accountId: account.id }, 'Account locked due to failed login attempts');
         throw Object.assign(new Error('Too many failed attempts. Account locked for 30 minutes'), {
           statusCode: 423,
@@ -325,16 +362,12 @@ export const authService = {
 
     await authRepository.resetFailedLoginAttempts(account.id);
 
-    const token = signToken({
-      accountId: account.id,
-      phoneNumber: account.person.phoneNumber,
-      tokenVersion: account.tokenVersion,
-    });
+    const tokenPair = await issueTokenPair(account);
 
     logger.info({ accountId: account.id }, 'Account logged in successfully');
 
     return {
-      token,
+      ...tokenPair,
       user: toAuthUser(account),
     };
   },
@@ -422,10 +455,11 @@ export const authService = {
     }
 
     const hashedPassword = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
-    // updatePassword also bumps tokenVersion, which invalidates every
-    // previously issued JWT for this account (checked in the auth middleware).
     await authRepository.updatePassword(account.id, hashedPassword);
     await authRepository.resetFailedLoginAttempts(account.id);
+    // Revoke every existing session — equivalent to "log out of all
+    // devices" (FR-008).
+    await authRepository.revokeAllRefreshTokensForAccount(account.id, 'PASSWORD_RESET');
 
     logger.info({ accountId: account.id }, 'Password reset successfully via OTP');
 
@@ -508,5 +542,72 @@ export const authService = {
     logger.info({ accountId: account.id }, 'Email verified successfully');
 
     return { message: 'Email verified successfully' };
+  },
+
+  /**
+   * Exchange a valid, non-revoked refresh token for a new access/refresh
+   * pair, rotating the submitted token. Reuse of an already-rotated token
+   * is treated as a compromise signal and revokes every session on the
+   * account (FR-004, FR-005).
+   */
+  async refresh(input: RefreshInput): Promise<AuthResponse> {
+    const tokenHash = hashRefreshToken(input.refreshToken);
+    const existing = await authRepository.findRefreshTokenByHash(tokenHash);
+
+    const invalidError = Object.assign(new Error('Invalid or expired refresh token'), {
+      statusCode: 401,
+      code: 'INVALID_REFRESH_TOKEN',
+    });
+
+    if (!existing || existing.revokedAt || existing.expiresAt < new Date()) {
+      throw invalidError;
+    }
+
+    if (existing.rotatedAt) {
+      logger.warn(
+        { accountId: existing.accountId },
+        'Reused refresh token detected; revoking all sessions for account'
+      );
+      await authRepository.revokeAllRefreshTokensForAccount(existing.accountId, 'REUSE_DETECTED');
+      throw invalidError;
+    }
+
+    const account = await authRepository.findById(existing.accountId);
+    if (!account) {
+      throw invalidError;
+    }
+
+    await authRepository.markRefreshTokenRotated(existing.id);
+    const tokenPair = await issueTokenPair(account);
+
+    logger.info({ accountId: account.id }, 'Refresh token exchanged for a new token pair');
+
+    return {
+      ...tokenPair,
+      user: toAuthUser(account),
+    };
+  },
+
+  /**
+   * Log out of the current device only: revoke the refresh token
+   * identifying this session. Idempotent — never reveals whether the
+   * submitted token was ever valid (FR-006, FR-010).
+   */
+  async logout(input: LogoutInput): Promise<void> {
+    const tokenHash = hashRefreshToken(input.refreshToken);
+    const existing = await authRepository.findRefreshTokenByHash(tokenHash);
+
+    if (existing && !existing.revokedAt) {
+      await authRepository.revokeRefreshToken(existing.id, 'LOGOUT');
+      logger.info({ accountId: existing.accountId }, 'Device logged out');
+    }
+  },
+
+  /**
+   * Log out of every device for the account (FR-007).
+   */
+  async logoutAll(accountId: string): Promise<void> {
+    await authRepository.revokeAllRefreshTokensForAccount(accountId, 'LOGOUT_ALL');
+    logger.info({ accountId }, 'All devices logged out');
   },
 };

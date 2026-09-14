@@ -13,6 +13,12 @@ process.env.SMTP_USER = process.env.SMTP_USER || 'test-smtp-user';
 process.env.SMTP_PASSWORD = process.env.SMTP_PASSWORD || 'test-smtp-password';
 process.env.SMTP_FROM_ADDRESS = process.env.SMTP_FROM_ADDRESS || 'no-reply@test.local';
 process.env.OTP_DELIVERY_QUEUE_NAME = process.env.OTP_DELIVERY_QUEUE_NAME || 'otp-delivery-test';
+// The global express-rate-limit middleware shares one in-memory counter per
+// IP across the entire test run (no reset between tests/files), unrelated
+// to the Redis-backed, per-purpose OTP rate limits exercised deliberately
+// elsewhere. Raise it well above what any single test file's supertest
+// calls could reach, so it never interferes with functional assertions.
+process.env.RATE_LIMIT_MAX = process.env.RATE_LIMIT_MAX || '100000';
 
 import { beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';

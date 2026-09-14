@@ -9,6 +9,8 @@ import {
   passwordResetConfirmSchema,
   emailVerifyRequestSchema,
   emailVerifyConfirmSchema,
+  refreshSchema,
+  logoutSchema,
 } from './auth.schemas.js';
 
 /**
@@ -87,5 +89,31 @@ export const authController = {
     const input = emailVerifyConfirmSchema.parse(req.body);
     const result = await authService.confirmEmailVerification(req.user!.id, input);
     res.json(result);
+  },
+
+  /**
+   * POST /auth/refresh
+   */
+  async refresh(req: Request, res: Response) {
+    const input = refreshSchema.parse(req.body);
+    const result = await authService.refresh(input);
+    res.json(result);
+  },
+
+  /**
+   * POST /auth/logout
+   */
+  async logout(req: Request, res: Response) {
+    const input = logoutSchema.parse(req.body);
+    await authService.logout(input);
+    res.status(204).send();
+  },
+
+  /**
+   * POST /auth/logout-all
+   */
+  async logoutAll(req: Request, res: Response) {
+    await authService.logoutAll(req.user!.id);
+    res.status(204).send();
   },
 };

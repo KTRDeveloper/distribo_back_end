@@ -12,6 +12,9 @@ Auto-generated from all feature plans. Last updated: 2025-11-15
 - TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 7.0, Zod 3.23, Pino 10.1, bcrypt 6.0, jsonwebtoken 9.0, ioredis 5.8, BullMQ 5.63, Helmet 8.1, @textbee/sdk (SMS), nodemailer (SMTP email) (002-sms-otp-auth)
 - PostgreSQL via Prisma with new OtpChallenge and EmailVerificationRequest tables; PasswordResetToken removed (002-sms-otp-auth)
 
+- TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 7.0, Zod 3.23, jsonwebtoken 9.0.2 (access token signing), Node.js crypto module (refresh token generation/hashing), bcrypt 6.0 (password/OTP hashing only), Pino 10.1 (005-refresh-tokens)
+- PostgreSQL via Prisma — new RefreshToken table; Account.tokenVersion column retired (005-refresh-tokens)
+
 ## Project Structure
 
 ```text
@@ -28,6 +31,7 @@ npm test && npm run lint
 TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0: Follow standard conventions
 
 ## Recent Changes
+- 005-refresh-tokens: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 7.0, Zod 3.23, jsonwebtoken 9.0.2 (access token signing), Node.js crypto module (refresh token generation/hashing), bcrypt 6.0 (password/OTP hashing only), Pino 10.1
 - 002-sms-otp-auth: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 7.0, Zod 3.23, Pino 10.1, bcrypt 6.0, jsonwebtoken 9.0, ioredis 5.8, BullMQ 5.63, Helmet 8.1, @textbee/sdk (SMS), nodemailer (SMTP email)
 - 003-remote-config: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 6.19, Zod 3.23, Pino 10.1 (logging), Node.js crypto module (encryption)
 - 002-extensive-tests: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Vitest 4.0 (test runner), Supertest 7.1 (HTTP testing), pg-mem 3.0 (in-memory PostgreSQL), @vitest/coverage-v8 4.0 (coverage reporting)

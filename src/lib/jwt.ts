@@ -7,16 +7,39 @@ import { config } from '../config/index.js';
 export interface JwtPayload {
   accountId: string;
   phoneNumber: string;
-  tokenVersion: number;
 }
 
 /**
- * Sign a JWT token
+ * Sign an access token JWT. Short-lived and purely stateless — verification
+ * never hits the database (see specs/005-refresh-tokens/research.md §1);
+ * revocation instead happens at the refresh-token layer.
  */
 export function signToken(payload: JwtPayload): string {
   return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.expiresIn,
+    expiresIn: config.jwt.accessTokenExpiresIn,
   });
+}
+
+const DURATION_UNIT_SECONDS: Record<string, number> = {
+  s: 1,
+  m: 60,
+  h: 60 * 60,
+  d: 60 * 60 * 24,
+};
+
+/**
+ * Convert a jsonwebtoken-style expiry string (e.g. "15m", "7d", "900") into
+ * seconds, so clients can be told exactly how long their access token is
+ * valid for without having to parse the JWT themselves.
+ */
+export function getAccessTokenExpiresInSeconds(): number {
+  const value = config.jwt.accessTokenExpiresIn;
+  const match = /^(\d+)([smhd])?$/.exec(value.trim());
+  if (!match) {
+    throw new Error(`Invalid ACCESS_TOKEN_EXPIRES_IN value: ${value}`);
+  }
+  const [, amount, unit] = match;
+  return Number(amount) * (unit ? DURATION_UNIT_SECONDS[unit] : 1);
 }
 
 /**

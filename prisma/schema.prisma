@@ -112,6 +112,36 @@ model EmailVerificationRequest {
   @@map("email_verification_requests")
 }
 
+// Access/refresh token pair (005-refresh-tokens): superseded the
+// Account.tokenVersion all-or-nothing revocation with a per-session,
+// individually revocable refresh token.
+
+enum RefreshTokenRevokedReason {
+  LOGOUT
+  LOGOUT_ALL
+  REUSE_DETECTED
+  PASSWORD_RESET
+  ACCOUNT_LOCKED
+}
+
+model RefreshToken {
+  id            String                     @id @default(uuid())
+  accountId     String
+  tokenHash     String                     @unique
+  expiresAt     DateTime
+  createdAt     DateTime                   @default(now())
+  rotatedAt     DateTime?
+  revokedAt     DateTime?
+  revokedReason RefreshTokenRevokedReason?
+
+  // Relationships
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
 // Remote Configuration models
 
 // System configuration model
@@ -220,7 +250,6 @@ model Account {
   personId            String    @unique
   passwordHash        String
   passwordChangedAt   DateTime  @default(now())
-  tokenVersion        Int       @default(0)
   failedLoginAttempts Int       @default(0)
   lastFailedLoginAt   DateTime?
   lockedUntil         DateTime?
@@ -237,6 +266,7 @@ model Account {
   tasks                     Task[]
   otpChallenges             OtpChallenge[]
   emailVerificationRequests EmailVerificationRequest[]
+  refreshTokens             RefreshToken[]
 
   @@index([lockedUntil])
   @@index([deletedAt])

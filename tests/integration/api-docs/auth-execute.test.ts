@@ -37,7 +37,7 @@ describe('Executing a documented authenticated endpoint', () => {
     const verifyResponse = await request(app)
       .post('/auth/register/verify')
       .send({ phoneNumber, code });
-    const token = verifyResponse.body.token as string;
+    const token = verifyResponse.body.accessToken as string;
 
     const response = await request(app).get('/api/users/me').set('Authorization', `Bearer ${token}`);
 
