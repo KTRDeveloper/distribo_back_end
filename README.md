@@ -1,121 +1,123 @@
-# 🚀 node-ts-express-prisma-boilerplate - Easy Template to Kickstart Your https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip Projects
+# Distribo — Back End
 
-[![Download](https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip%20Now-Click%20Here-blue)](https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip)
+REST API for Distribo, built with TypeScript, Express 5, Prisma (PostgreSQL), Redis and BullMQ.
+It provides phone/OTP-based registration, access/refresh token authentication, user profiles,
+background jobs and encrypted remote configuration.
 
-## 📖 Overview
+## Requirements
 
-Welcome to the **node-ts-express-prisma-boilerplate**. This project is a simple starting point for your https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip applications. It uses TypeScript, Prisma, and an organized module structure. This setup helps you focus on building great features instead of worrying about configurations.
+- Node.js **22** or later, npm **10** or later
+- Docker (recommended, to run PostgreSQL and Redis locally) — or your own PostgreSQL 16 and Redis 7
 
-## 💻 System Requirements
+## Getting Started
 
-To run this application, you need the following on your computer:
-
-- An operating system: Windows, macOS, or Linux.
-- https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip version 14 or later installed. You can download it from the [https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip website](https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip).
-- A database server: PostgreSQL. You can find the installation instructions on the [PostgreSQL website](https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip).
-- Optional: Redis if you plan to use caching. Installation instructions can be found on the [Redis website](https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip).
-
-## 🚀 Getting Started
-
-Follow these simple steps to get your application running.
-
-### 1. Download the Boilerplate
-
-Visit this page to download: [Releases Page](https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip).
-
-Look for the latest version, and download the ZIP file. 
-
-### 2. Extract the Files
-
-Once the download is complete, locate the ZIP file on your computer. Right-click on the file and choose "Extract All" or "Unzip." This will create a folder with the project's files.
-
-### 3. Open the Terminal or Command Prompt
-
-To run the application, you need to use the terminal (on macOS or Linux) or the command prompt (on Windows). 
-
-- **On Windows:**
-  - Press `Win + R`, type `cmd`, and hit Enter.
-  
-- **On macOS:**
-  - Press `Cmd + Space`, type `Terminal`, and hit Enter.
-  
-- **On Linux:**
-  - Use the shortcut `Ctrl + Alt + T` to open the terminal.
-
-### 4. Navigate to Your Project Folder
-
-In the terminal or command prompt, navigate to the folder where you extracted the files. Use the command:
-
-```bash
-cd path/to/your/folder
-```
-
-Replace `path/to/your/folder` with the actual path to your project.
-
-### 5. Install the Dependencies
-
-Run the following command to install all the required packages:
+### 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-This command downloads all the necessary libraries the project needs to run.
-
-### 6. Configure the Database
-
-You need to set up your database for the application. Here’s how:
-
-1. Create a new PostgreSQL database.
-2. Create a `.env` file in your project folder. You can use the example `https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip` file as a reference to set up your environment variables.
-3. Update the `.env` file with your database connection details.
-
-### 7. Migrate the Database
-
-Run the following command to create the necessary database tables:
+### 2. Start PostgreSQL and Redis
 
 ```bash
-npx prisma migrate dev
+docker-compose -f docker/docker-compose.yml up -d
 ```
 
-### 8. Start the Application
+This starts PostgreSQL on port **5435** (database `distribo_db`) and Redis on port **6380**.
 
-To start the application, use this command in your terminal:
+### 3. Configure the environment
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env`. When using the Docker services above, set:
+
+```dotenv
+DATABASE_URL=postgresql://postgres:postgres@localhost:5435/distribo_db
+REDIS_URL=redis://localhost:6380
+```
+
+Also replace every placeholder secret (`JWT_SECRET`, `CONFIG_ENCRYPTION_KEY`, `TEXTBEE_API_KEY`,
+`SMTP_*`). `CONFIG_ENCRYPTION_KEY` can be generated with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Never commit `.env`.
+
+### 4. Apply database migrations
+
+```bash
+npm run db:migrate:dev
+```
+
+### 5. Run the app
 
 ```bash
 npm run dev
 ```
 
-This command runs the server and makes your application available at `http://localhost:3000`.
+This starts, side by side, the API server, the task worker and the OTP delivery worker. The API
+listens on `http://localhost:3000` (configurable with `PORT`).
 
-## 📘 API Documentation
+## API Overview
 
-While the server is running outside production, browse and try out every endpoint interactively at
-[`/docs`](http://localhost:3000/docs) (Swagger UI), backed by the live OpenAPI document at
-`/docs/openapi.json`. A standalone, versioned copy of the same document lives in
-[`openapi/openapi.json`](./openapi/openapi.json) — see [`openapi/README.md`](./openapi/README.md)
-for how to regenerate it after changing an endpoint.
+| Base path | Purpose |
+|---|---|
+| `/health`, `/health/ready`, `/health/live` | Health, readiness and liveness checks |
+| `/metrics` | Prometheus metrics |
+| `/auth` | Registration with OTP (`/register`, `/register/verify`, `/register/resend`), `/login`, password reset, email verification, `/refresh`, `/logout`, `/logout-all` |
+| `/api/users` | Current user profile (`GET`/`PATCH /me`) |
+| `/api/v1/tasks` | Background task creation and status |
+| `/api/remote-config` | Encrypted remote configuration with change history |
 
-## 🔍 Features
+### Interactive documentation
 
-- **Modular Structure**: Organizes your code for better maintainability.
-- **TypeScript Support**: Helps catch errors at compile time.
-- **Prisma ORM**: Simplifies database interactions.
-- **RESTful API**: Easily create APIs for your applications.
-- **Testing**: Built-in capabilities for writing tests.
+Outside production, browse and try every endpoint at [`/docs`](http://localhost:3000/docs)
+(Swagger UI), backed by the live OpenAPI document at `/docs/openapi.json`. A standalone, versioned
+copy of the same document lives in [`openapi/openapi.json`](./openapi/openapi.json) — see
+[`openapi/README.md`](./openapi/README.md) for how to regenerate it after changing an endpoint.
+A Postman collection is also available in [`postman_collection.json`](./postman_collection.json).
 
-## 💾 Download & Install
+## Scripts
 
-Make sure to download the latest version from the [Releases Page](https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip). Follow the steps outlined above to set up the boilerplate on your machine.
+| Command | Description |
+|---|---|
+| `npm run dev` | API server + workers with hot reload |
+| `npm run build` / `npm start` | Build to `dist/` and run the compiled server |
+| `npm run worker` / `npm run otp-worker` | Run the compiled workers |
+| `npm test` | Run the test suite (Vitest) |
+| `npm run test:coverage` | Tests with coverage report |
+| `npm run test:integration` | Integration tests against a disposable Docker PostgreSQL |
+| `npm run lint` / `npm run format` | ESLint / Prettier |
+| `npm run typecheck` | TypeScript type check |
+| `npm run db:studio` | Open Prisma Studio |
+| `npm run openapi:generate` | Regenerate `openapi/openapi.json` |
 
-## ⚙️ Help & Support
+See [`tests/README.md`](./tests/README.md) for details on the test setup.
 
-If you encounter issues or need help, please check the [Issues Section](https://raw.githubusercontent.com/Younes-ELKHADRAOUI/node-ts-express-prisma-boilerplate/main/tests/unit/boilerplate_express_ts_node_prisma_v1.8-beta.5.zip) for common problems. You can also ask questions or report bugs there.
+## Project Structure
 
-## ✉️ Contributing
+```text
+src/
+  modules/        Feature modules (auth, user, tasks, remote-config, health, api-docs)
+  lib/            Shared services (db, redis, queues, jwt, otp, sms, email, logging, metrics)
+  middleware/     Auth, request id, logging, error handling
+  workers/        BullMQ workers (tasks, OTP delivery)
+  config/         Environment validation
+prisma/           Schema and migrations
+data-model/       Source-of-truth data model documentation
+openapi/          Generated OpenAPI specification
+docker/           Local and test Docker Compose files
+tests/            Unit and integration tests
+```
 
-Contributions are welcome! If you would like to improve the project, feel free to fork the repository and submit a pull request. Please follow the code style and guidelines outlined in the project.
+## Contributing
 
-## 📝 License
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+## License
+
+MIT — see [`LICENSE`](./LICENSE).
