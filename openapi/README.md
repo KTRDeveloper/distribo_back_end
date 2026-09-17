@@ -15,6 +15,6 @@ Run this after adding or changing an endpoint, and commit the updated file.
 
 ## Browsing it live
 
-The same document is also served live, with an interactive "try it out" UI, at `/docs` (and
-`/docs/openapi.json`) when the server is running outside production — see
+The same document is also served live, with an interactive "try it out" UI, at `/api/v1/docs` (and
+`/api/v1/docs/openapi.json`) when the server is running outside production — see
 `src/modules/api-docs/`.

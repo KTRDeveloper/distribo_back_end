@@ -39,7 +39,7 @@ const authResponseSchema = z.object({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/register',
+  path: '/api/v1/auth/register',
   tags: ['auth'],
   summary: 'Register a new account (name + phone + password)',
   request: { body: { content: { 'application/json': { schema: registerSchema } } } },
@@ -54,7 +54,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/register/verify',
+  path: '/api/v1/auth/register/verify',
   tags: ['auth'],
   summary: 'Verify the registration OTP and sign in',
   request: { body: { content: { 'application/json': { schema: registerVerifySchema } } } },
@@ -69,7 +69,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/register/resend',
+  path: '/api/v1/auth/register/resend',
   tags: ['auth'],
   summary: 'Resend the registration OTP for an unverified phone number',
   request: { body: { content: { 'application/json': { schema: registerResendSchema } } } },
@@ -86,7 +86,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/login',
+  path: '/api/v1/auth/login',
   tags: ['auth'],
   summary: 'Login with phone number + password',
   request: { body: { content: { 'application/json': { schema: loginSchema } } } },
@@ -101,7 +101,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/password-reset/request',
+  path: '/api/v1/auth/password-reset/request',
   tags: ['auth'],
   summary: 'Request a password-reset OTP',
   request: { body: { content: { 'application/json': { schema: passwordResetRequestSchema } } } },
@@ -115,7 +115,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/password-reset/confirm',
+  path: '/api/v1/auth/password-reset/confirm',
   tags: ['auth'],
   summary: 'Confirm a password reset with the OTP',
   request: { body: { content: { 'application/json': { schema: passwordResetConfirmSchema } } } },
@@ -130,7 +130,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/email/verify/request',
+  path: '/api/v1/auth/email/verify/request',
   tags: ['auth'],
   summary: 'Request email verification for the signed-in account',
   security: [{ bearerAuth: [] }],
@@ -146,7 +146,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/email/verify/confirm',
+  path: '/api/v1/auth/email/verify/confirm',
   tags: ['auth'],
   summary: 'Confirm email verification for the signed-in account',
   security: [{ bearerAuth: [] }],
@@ -162,7 +162,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/refresh',
+  path: '/api/v1/auth/refresh',
   tags: ['auth'],
   summary: 'Exchange a valid refresh token for a new access/refresh token pair',
   request: { body: { content: { 'application/json': { schema: refreshSchema } } } },
@@ -180,7 +180,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/logout',
+  path: '/api/v1/auth/logout',
   tags: ['auth'],
   summary: 'Log out of the current device only',
   request: { body: { content: { 'application/json': { schema: logoutSchema } } } },
@@ -191,7 +191,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/auth/logout-all',
+  path: '/api/v1/auth/logout-all',
   tags: ['auth'],
   summary: 'Log out of every device for the authenticated account',
   security: [{ bearerAuth: [] }],

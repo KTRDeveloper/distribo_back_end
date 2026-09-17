@@ -19,7 +19,7 @@ const userProfileSchema = z.object({
 
 openApiRegistry.registerPath({
   method: 'get',
-  path: '/api/users/me',
+  path: '/api/v1/users/me',
   tags: ['user'],
   summary: "Get the signed-in user's profile",
   security: [{ bearerAuth: [] }],
@@ -34,7 +34,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'patch',
-  path: '/api/users/me',
+  path: '/api/v1/users/me',
   tags: ['user'],
   summary: "Update the signed-in user's profile",
   security: [{ bearerAuth: [] }],

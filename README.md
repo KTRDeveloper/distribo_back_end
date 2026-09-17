@@ -66,17 +66,17 @@ listens on `http://localhost:3000` (configurable with `PORT`).
 
 | Base path | Purpose |
 |---|---|
-| `/health`, `/health/ready`, `/health/live` | Health, readiness and liveness checks |
-| `/metrics` | Prometheus metrics |
-| `/auth` | Registration with OTP (`/register`, `/register/verify`, `/register/resend`), `/login`, password reset, email verification, `/refresh`, `/logout`, `/logout-all` |
-| `/api/users` | Current user profile (`GET`/`PATCH /me`) |
+| `/api/v1/health`, `/api/v1/health/ready`, `/api/v1/health/live` | Health, readiness and liveness checks |
+| `/api/v1/metrics` | Prometheus metrics |
+| `/api/v1/auth` | Registration with OTP (`/register`, `/register/verify`, `/register/resend`), `/login`, password reset, email verification, `/refresh`, `/logout`, `/logout-all` |
+| `/api/v1/users` | Current user profile (`GET`/`PATCH /me`) |
 | `/api/v1/tasks` | Background task creation and status |
-| `/api/remote-config` | Encrypted remote configuration with change history |
+| `/api/v1/remote-config` | Encrypted remote configuration with change history |
 
 ### Interactive documentation
 
-Outside production, browse and try every endpoint at [`/docs`](http://localhost:3000/docs)
-(Swagger UI), backed by the live OpenAPI document at `/docs/openapi.json`. A standalone, versioned
+Outside production, browse and try every endpoint at [`/api/v1/docs`](http://localhost:3000/api/v1/docs)
+(Swagger UI), backed by the live OpenAPI document at `/api/v1/docs/openapi.json`. A standalone, versioned
 copy of the same document lives in [`openapi/openapi.json`](./openapi/openapi.json) — see
 [`openapi/README.md`](./openapi/README.md) for how to regenerate it after changing an endpoint.
 A Postman collection is also available in [`postman_collection.json`](./postman_collection.json).

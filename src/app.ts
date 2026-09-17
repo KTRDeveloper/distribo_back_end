@@ -80,13 +80,6 @@ app.use(requestLogger);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Metrics endpoint (before other routes)
-app.get('/metrics', async (req, res) => {
-  res.setHeader('Content-Type', getMetricsContentType());
-  const metrics = await getMetrics();
-  res.send(metrics);
-});
-
 // Routes
 import { healthRoutes } from './modules/health/health.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
@@ -104,16 +97,27 @@ import './modules/user/user.openapi.js';
 import './modules/tasks/tasks.openapi.js';
 import './modules/remote-config/remote-config.openapi.js';
 
-app.use('/health', healthRoutes);
-app.use('/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/v1/tasks', tasksRoutes);
-app.use('/api/remote-config', remoteConfigRoutes);
+const v1Router = express.Router();
+
+// Metrics endpoint (before other routes)
+v1Router.get('/metrics', async (req, res) => {
+  res.setHeader('Content-Type', getMetricsContentType());
+  const metrics = await getMetrics();
+  res.send(metrics);
+});
+
+v1Router.use('/health', healthRoutes);
+v1Router.use('/auth', authRoutes);
+v1Router.use('/users', userRoutes);
+v1Router.use('/tasks', tasksRoutes);
+v1Router.use('/remote-config', remoteConfigRoutes);
 
 // Interactive API docs — never reachable in production (FR-008)
 if (config.docsEnabled) {
-  app.use('/docs', apiDocsRoutes);
+  v1Router.use('/docs', apiDocsRoutes);
 }
+
+app.use('/api/v1', v1Router);
 
 // 404 handler (must be after all routes)
 app.use(notFoundHandler);

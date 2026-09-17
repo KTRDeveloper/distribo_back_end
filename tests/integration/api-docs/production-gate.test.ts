@@ -22,8 +22,18 @@ const scriptPath = resolve(__dirname, '__docs-mount-check.mjs');
 
 const checkScript = `
 import { app } from '../../../src/app.ts';
-const stack = app.router ? app.router.stack : app._router.stack;
-const mounted = stack.some((layer) => layer.name === 'router' && layer.matchers?.some((m) => m('/docs')));
+const rootStack = app.router ? app.router.stack : app._router.stack;
+
+// Routes now live two levels deep: app -> v1Router (mounted at /api/v1,
+// always present) -> apiDocsRoutes (mounted at /docs inside it, only when
+// config.docsEnabled). A prefix match against '/api/v1' would also match
+// '/api/v1/docs' regardless of whether the docs sub-router is mounted, so
+// this drills into the v1 router's own stack and checks for '/docs' there.
+const v1Layer = rootStack.find(
+  (layer) => layer.name === 'router' && layer.matchers?.some((m) => m('/api/v1/docs'))
+);
+const v1Stack = v1Layer?.handle?.stack ?? [];
+const mounted = v1Stack.some((layer) => layer.name === 'router' && layer.matchers?.some((m) => m('/docs')));
 console.log(JSON.stringify({ mounted }));
 process.exit(0);
 `;

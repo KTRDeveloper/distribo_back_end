@@ -61,7 +61,7 @@ test('should create user and return token', async () => {
 
   // Act: Execute the operation being tested
   const response = await request(app)
-    .post('/auth/register')
+    .post('/api/v1/auth/register')
     .send(userData);
 
   // Assert: Verify the results

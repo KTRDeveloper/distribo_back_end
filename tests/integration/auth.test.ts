@@ -50,7 +50,7 @@ describe('Authentication Endpoints', () => {
     it('should create an unverified account and send an OTP', async () => {
       const data = createRegistrationData();
 
-      const response = await request(app).post('/auth/register').send(data);
+      const response = await request(app).post('/api/v1/auth/register').send(data);
 
       expect(response.status).toBe(201);
       expect(response.body).not.toHaveProperty('accessToken');
@@ -62,15 +62,15 @@ describe('Authentication Endpoints', () => {
 
     it('should not require an email address to register', async () => {
       const data = createRegistrationData();
-      const response = await request(app).post('/auth/register').send(data);
+      const response = await request(app).post('/api/v1/auth/register').send(data);
       expect(response.status).toBe(201);
     });
 
     it('should return 409 when the phone number already has an account', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
 
-      const response = await request(app).post('/auth/register').send(data);
+      const response = await request(app).post('/api/v1/auth/register').send(data);
 
       expect(response.status).toBe(409);
       expect(response.body.error.code).toBe('PHONE_EXISTS');
@@ -78,11 +78,11 @@ describe('Authentication Endpoints', () => {
 
     it('should verify the OTP, activate the phone number, and sign the user in', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const code = getLastOtpCode();
 
       const response = await request(app)
-        .post('/auth/register/verify')
+        .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code });
 
       expect(response.status).toBe(200);
@@ -97,10 +97,10 @@ describe('Authentication Endpoints', () => {
 
     it('should reject an incorrect registration OTP', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
 
       const response = await request(app)
-        .post('/auth/register/verify')
+        .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code: '000000' });
 
       expect(response.status).toBe(400);
@@ -109,7 +109,7 @@ describe('Authentication Endpoints', () => {
 
     it('should validate password strength', async () => {
       const response = await request(app)
-        .post('/auth/register')
+        .post('/api/v1/auth/register')
         .send(createRegistrationData({ password: 'weak' }));
 
       expect(response.status).toBe(400);
@@ -124,11 +124,11 @@ describe('Authentication Endpoints', () => {
 
     it('should send a new code that verifies successfully, invalidating the original one', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const originalCode = getLastOtpCode();
 
       const resendResponse = await request(app)
-        .post('/auth/register/resend')
+        .post('/api/v1/auth/register/resend')
         .send({ phoneNumber: data.phoneNumber });
       expect(resendResponse.status).toBe(202);
 
@@ -138,14 +138,14 @@ describe('Authentication Endpoints', () => {
       expect(jobs[1].to).toBe(data.phoneNumber);
 
       const staleAttempt = await request(app)
-        .post('/auth/register/verify')
+        .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code: originalCode });
       expect(staleAttempt.status).toBe(400);
       expect(staleAttempt.body.error.code).toBe('INVALID_OTP');
 
       const newCode = getLastOtpCode();
       const verifyResponse = await request(app)
-        .post('/auth/register/verify')
+        .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code: newCode });
       expect(verifyResponse.status).toBe(200);
       expect(verifyResponse.body).toHaveProperty('accessToken');
@@ -153,12 +153,12 @@ describe('Authentication Endpoints', () => {
 
     it('should return the same generic response for an already-verified phone number without sending a code', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const code = getLastOtpCode();
-      await request(app).post('/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
+      await request(app).post('/api/v1/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
 
       const response = await request(app)
-        .post('/auth/register/resend')
+        .post('/api/v1/auth/register/resend')
         .send({ phoneNumber: data.phoneNumber });
 
       expect(response.status).toBe(202);
@@ -167,7 +167,7 @@ describe('Authentication Endpoints', () => {
 
     it('should return the same generic response for an unknown phone number without sending a code', async () => {
       const response = await request(app)
-        .post('/auth/register/resend')
+        .post('/api/v1/auth/register/resend')
         .send({ phoneNumber: uniquePhone() });
 
       expect(response.status).toBe(202);
@@ -176,13 +176,13 @@ describe('Authentication Endpoints', () => {
 
     it('should return a generic response with the same shape whether or not a code was actually sent', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
 
       const unverifiedResendResponse = await request(app)
-        .post('/auth/register/resend')
+        .post('/api/v1/auth/register/resend')
         .send({ phoneNumber: data.phoneNumber });
       const unknownResendResponse = await request(app)
-        .post('/auth/register/resend')
+        .post('/api/v1/auth/register/resend')
         .send({ phoneNumber: uniquePhone() });
 
       expect(unverifiedResendResponse.status).toBe(unknownResendResponse.status);
@@ -191,7 +191,7 @@ describe('Authentication Endpoints', () => {
 
     it('should reject a resend while the account is locked', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const account = await getUserByPhoneNumber(data.phoneNumber);
       await prisma.account.update({
         where: { id: account!.id },
@@ -199,7 +199,7 @@ describe('Authentication Endpoints', () => {
       });
 
       const response = await request(app)
-        .post('/auth/register/resend')
+        .post('/api/v1/auth/register/resend')
         .send({ phoneNumber: data.phoneNumber });
 
       expect(response.status).toBe(423);
@@ -209,13 +209,13 @@ describe('Authentication Endpoints', () => {
 
     it('should reject a resend that exceeds the request cooldown', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
 
       // Simulate the cooldown key from the original register() call already being set.
       vi.spyOn(redis, 'get').mockResolvedValueOnce('1');
 
       const response = await request(app)
-        .post('/auth/register/resend')
+        .post('/api/v1/auth/register/resend')
         .send({ phoneNumber: data.phoneNumber });
 
       expect(response.status).toBe(429);
@@ -227,9 +227,9 @@ describe('Authentication Endpoints', () => {
   describe('POST /auth/login (phone + password, no OTP)', () => {
     async function registerAndVerify(overrides?: { name?: string; password?: string }) {
       const data = createRegistrationData(overrides);
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const code = getLastOtpCode();
-      await request(app).post('/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
+      await request(app).post('/api/v1/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
       return data;
     }
 
@@ -237,7 +237,7 @@ describe('Authentication Endpoints', () => {
       const data = await registerAndVerify();
 
       const response = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: data.phoneNumber, password: data.password });
 
       expect(response.status).toBe(200);
@@ -251,17 +251,17 @@ describe('Authentication Endpoints', () => {
       const data = await registerAndVerify();
       // No OTP request/verify call happens between register-verify and login.
       const response = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: data.phoneNumber, password: data.password });
       expect(response.status).toBe(200);
     });
 
     it('should reject login for an unverified phone number', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
 
       const response = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: data.phoneNumber, password: data.password });
 
       expect(response.status).toBe(403);
@@ -272,7 +272,7 @@ describe('Authentication Endpoints', () => {
       const data = await registerAndVerify();
 
       const response = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: data.phoneNumber, password: 'WrongPassword123' });
 
       expect(response.status).toBe(401);
@@ -281,7 +281,7 @@ describe('Authentication Endpoints', () => {
 
     it('should return 401 for an unknown phone number', async () => {
       const response = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: uniquePhone(), password: 'SecurePass123!' });
 
       expect(response.status).toBe(401);
@@ -294,7 +294,7 @@ describe('Authentication Endpoints', () => {
       let lastResponse;
       for (let i = 0; i < 5; i++) {
         lastResponse = await request(app)
-          .post('/auth/login')
+          .post('/api/v1/auth/login')
           .send({ phoneNumber: data.phoneNumber, password: 'WrongPassword123' });
       }
 
@@ -315,7 +315,7 @@ describe('Authentication Endpoints', () => {
       const user = await seedVerifiedAccount();
 
       const response = await request(app)
-        .post('/auth/password-reset/request')
+        .post('/api/v1/auth/password-reset/request')
         .send({ phoneNumber: user.phoneNumber });
 
       expect(response.status).toBe(202);
@@ -330,7 +330,7 @@ describe('Authentication Endpoints', () => {
       await markEmailVerified(account!.personId);
 
       const response = await request(app)
-        .post('/auth/password-reset/request')
+        .post('/api/v1/auth/password-reset/request')
         .send({ phoneNumber: user.phoneNumber });
 
       expect(response.status).toBe(202);
@@ -346,10 +346,10 @@ describe('Authentication Endpoints', () => {
     it('should reset the password successfully and allow login with the new password', async () => {
       const user = await seedVerifiedAccount();
 
-      await request(app).post('/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
+      await request(app).post('/api/v1/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
       const code = getLastOtpCode();
 
-      const confirmResponse = await request(app).post('/auth/password-reset/confirm').send({
+      const confirmResponse = await request(app).post('/api/v1/auth/password-reset/confirm').send({
         phoneNumber: user.phoneNumber,
         code,
         newPassword: 'NewPassword123',
@@ -357,7 +357,7 @@ describe('Authentication Endpoints', () => {
       expect(confirmResponse.status).toBe(200);
 
       const loginResponse = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: user.phoneNumber, password: 'NewPassword123' });
       expect(loginResponse.status).toBe(200);
     });
@@ -365,20 +365,20 @@ describe('Authentication Endpoints', () => {
     it('should revoke previously issued refresh tokens after a password reset (FR-008)', async () => {
       const user = await seedVerifiedAccount();
       const loginResponse = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: user.phoneNumber, password: 'OldPassword123' });
       const oldRefreshToken = loginResponse.body.refreshToken;
 
-      await request(app).post('/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
+      await request(app).post('/api/v1/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
       const code = getLastOtpCode();
-      await request(app).post('/auth/password-reset/confirm').send({
+      await request(app).post('/api/v1/auth/password-reset/confirm').send({
         phoneNumber: user.phoneNumber,
         code,
         newPassword: 'NewPassword123',
       });
 
       const response = await request(app)
-        .post('/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: oldRefreshToken });
 
       expect(response.status).toBe(401);
@@ -386,9 +386,9 @@ describe('Authentication Endpoints', () => {
 
     it('should reject an incorrect reset code', async () => {
       const user = await seedVerifiedAccount();
-      await request(app).post('/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
+      await request(app).post('/api/v1/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
 
-      const response = await request(app).post('/auth/password-reset/confirm').send({
+      const response = await request(app).post('/api/v1/auth/password-reset/confirm').send({
         phoneNumber: user.phoneNumber,
         code: '000000',
         newPassword: 'NewPassword123',
@@ -402,10 +402,10 @@ describe('Authentication Endpoints', () => {
   describe('POST /auth/refresh (005-refresh-tokens, US1)', () => {
     async function registerVerifyAndLogin() {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const code = getLastOtpCode();
       const verifyResponse = await request(app)
-        .post('/auth/register/verify')
+        .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code });
       return { phoneNumber: data.phoneNumber, ...verifyResponse.body };
     }
@@ -414,7 +414,7 @@ describe('Authentication Endpoints', () => {
       const { accessToken } = await registerVerifyAndLogin();
 
       const response = await request(app)
-        .post('/auth/email/verify/request')
+        .post('/api/v1/auth/email/verify/request')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({ email: 'someone@example.com' });
 
@@ -424,7 +424,7 @@ describe('Authentication Endpoints', () => {
     it('exchanges a valid refresh token for a new token pair and rotates it', async () => {
       const { refreshToken } = await registerVerifyAndLogin();
 
-      const response = await request(app).post('/auth/refresh').send({ refreshToken });
+      const response = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('accessToken');
@@ -435,31 +435,31 @@ describe('Authentication Endpoints', () => {
     it('rejects reuse of an already-rotated refresh token and revokes the whole account (FR-005)', async () => {
       const { refreshToken } = await registerVerifyAndLogin();
 
-      const firstRefresh = await request(app).post('/auth/refresh').send({ refreshToken });
+      const firstRefresh = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
       expect(firstRefresh.status).toBe(200);
       const rotatedRefreshToken = firstRefresh.body.refreshToken;
 
       // Replay the original (now-rotated) refresh token.
-      const replay = await request(app).post('/auth/refresh').send({ refreshToken });
+      const replay = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
       expect(replay.status).toBe(401);
 
       // The legitimate, already-rotated token is also revoked as a precaution.
       const followUp = await request(app)
-        .post('/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: rotatedRefreshToken });
       expect(followUp.status).toBe(401);
     });
 
     it('rejects an unknown or malformed refresh token', async () => {
       const response = await request(app)
-        .post('/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: 'not-a-real-refresh-token' });
 
       expect(response.status).toBe(401);
     });
 
     it('rejects a missing refresh token', async () => {
-      const response = await request(app).post('/auth/refresh').send({});
+      const response = await request(app).post('/api/v1/auth/refresh').send({});
 
       expect(response.status).toBe(400);
       expect(response.body.error.code).toBe('VALIDATION_ERROR');
@@ -469,15 +469,15 @@ describe('Authentication Endpoints', () => {
   describe('POST /auth/logout (005-refresh-tokens, US2)', () => {
     async function loginOnTwoDevices() {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const code = getLastOtpCode();
-      await request(app).post('/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
+      await request(app).post('/api/v1/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
 
       const deviceA = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: data.phoneNumber, password: data.password });
       const deviceB = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: data.phoneNumber, password: data.password });
 
       return { deviceA: deviceA.body, deviceB: deviceB.body };
@@ -487,17 +487,17 @@ describe('Authentication Endpoints', () => {
       const { deviceA, deviceB } = await loginOnTwoDevices();
 
       const logoutResponse = await request(app)
-        .post('/auth/logout')
+        .post('/api/v1/auth/logout')
         .send({ refreshToken: deviceA.refreshToken });
       expect(logoutResponse.status).toBe(204);
 
       const refreshA = await request(app)
-        .post('/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: deviceA.refreshToken });
       expect(refreshA.status).toBe(401);
 
       const refreshB = await request(app)
-        .post('/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: deviceB.refreshToken });
       expect(refreshB.status).toBe(200);
     });
@@ -505,16 +505,16 @@ describe('Authentication Endpoints', () => {
     it('is idempotent — logging out an already-invalid refresh token still succeeds (FR-010)', async () => {
       const { deviceA } = await loginOnTwoDevices();
 
-      const first = await request(app).post('/auth/logout').send({ refreshToken: deviceA.refreshToken });
+      const first = await request(app).post('/api/v1/auth/logout').send({ refreshToken: deviceA.refreshToken });
       expect(first.status).toBe(204);
 
-      const second = await request(app).post('/auth/logout').send({ refreshToken: deviceA.refreshToken });
+      const second = await request(app).post('/api/v1/auth/logout').send({ refreshToken: deviceA.refreshToken });
       expect(second.status).toBe(204);
     });
 
     it('succeeds gracefully for an unknown refresh token', async () => {
       const response = await request(app)
-        .post('/auth/logout')
+        .post('/api/v1/auth/logout')
         .send({ refreshToken: 'not-a-real-refresh-token' });
 
       expect(response.status).toBe(204);
@@ -524,14 +524,14 @@ describe('Authentication Endpoints', () => {
   describe('POST /auth/logout-all (005-refresh-tokens, US3)', () => {
     async function loginOnThreeDevices() {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const code = getLastOtpCode();
-      await request(app).post('/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
+      await request(app).post('/api/v1/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
 
       const devices = [];
       for (let i = 0; i < 3; i++) {
         const login = await request(app)
-          .post('/auth/login')
+          .post('/api/v1/auth/login')
           .send({ phoneNumber: data.phoneNumber, password: data.password });
         devices.push(login.body);
       }
@@ -542,34 +542,34 @@ describe('Authentication Endpoints', () => {
       const [deviceA, deviceB, deviceC] = await loginOnThreeDevices();
 
       const logoutAllResponse = await request(app)
-        .post('/auth/logout-all')
+        .post('/api/v1/auth/logout-all')
         .set('Authorization', `Bearer ${deviceA.accessToken}`);
       expect(logoutAllResponse.status).toBe(204);
 
       for (const device of [deviceA, deviceB, deviceC]) {
         const refresh = await request(app)
-          .post('/auth/refresh')
+          .post('/api/v1/auth/refresh')
           .send({ refreshToken: device.refreshToken });
         expect(refresh.status).toBe(401);
       }
     });
 
     it('requires a valid access token', async () => {
-      const response = await request(app).post('/auth/logout-all');
+      const response = await request(app).post('/api/v1/auth/logout-all');
 
       expect(response.status).toBe(401);
     });
 
     it('succeeds with only one active session', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const code = getLastOtpCode();
       const verifyResponse = await request(app)
-        .post('/auth/register/verify')
+        .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code });
 
       const response = await request(app)
-        .post('/auth/logout-all')
+        .post('/api/v1/auth/logout-all')
         .set('Authorization', `Bearer ${verifyResponse.body.accessToken}`);
 
       expect(response.status).toBe(204);
@@ -577,22 +577,22 @@ describe('Authentication Endpoints', () => {
 
     it('is also triggered by account lockout after too many failed login attempts (FR-012)', async () => {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const code = getLastOtpCode();
-      await request(app).post('/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
+      await request(app).post('/api/v1/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
 
       const login = await request(app)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ phoneNumber: data.phoneNumber, password: data.password });
       const { refreshToken } = login.body;
 
       for (let i = 0; i < 5; i++) {
         await request(app)
-          .post('/auth/login')
+          .post('/api/v1/auth/login')
           .send({ phoneNumber: data.phoneNumber, password: 'WrongPassword123' });
       }
 
-      const refresh = await request(app).post('/auth/refresh').send({ refreshToken });
+      const refresh = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
       expect(refresh.status).toBe(401);
     });
   });
@@ -600,10 +600,10 @@ describe('Authentication Endpoints', () => {
   describe('POST /auth/email/verify/request + /auth/email/verify/confirm', () => {
     async function registerVerifyAndLogin() {
       const data = createRegistrationData();
-      await request(app).post('/auth/register').send(data);
+      await request(app).post('/api/v1/auth/register').send(data);
       const code = getLastOtpCode();
       const verifyResponse = await request(app)
-        .post('/auth/register/verify')
+        .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code });
       return { phoneNumber: data.phoneNumber, accessToken: verifyResponse.body.accessToken as string };
     }
@@ -612,7 +612,7 @@ describe('Authentication Endpoints', () => {
       const { phoneNumber, accessToken } = await registerVerifyAndLogin();
 
       const requestResponse = await request(app)
-        .post('/auth/email/verify/request')
+        .post('/api/v1/auth/email/verify/request')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({ email: 'verified@example.com' });
       expect(requestResponse.status).toBe(202);
@@ -620,7 +620,7 @@ describe('Authentication Endpoints', () => {
       const code = getLastOtpCode();
 
       const confirmResponse = await request(app)
-        .post('/auth/email/verify/confirm')
+        .post('/api/v1/auth/email/verify/confirm')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({ code });
 
@@ -634,12 +634,12 @@ describe('Authentication Endpoints', () => {
     it('should reject an incorrect verification code', async () => {
       const { accessToken } = await registerVerifyAndLogin();
       await request(app)
-        .post('/auth/email/verify/request')
+        .post('/api/v1/auth/email/verify/request')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({ email: 'someone@example.com' });
 
       const response = await request(app)
-        .post('/auth/email/verify/confirm')
+        .post('/api/v1/auth/email/verify/confirm')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({ code: '000000' });
 
@@ -649,7 +649,7 @@ describe('Authentication Endpoints', () => {
 
     it('should require authentication', async () => {
       const response = await request(app)
-        .post('/auth/email/verify/request')
+        .post('/api/v1/auth/email/verify/request')
         .send({ email: 'someone@example.com' });
 
       expect(response.status).toBe(401);

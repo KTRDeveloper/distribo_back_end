@@ -74,7 +74,7 @@ const apiErrorSchema = z.object({ success: z.literal(false), error: z.string() }
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/api/remote-config',
+  path: '/api/v1/remote-config',
   tags: ['remote-config'],
   summary: 'Create a new configuration',
   request: { body: { content: { 'application/json': { schema: createConfigOpenApiSchema } } } },
@@ -90,7 +90,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'get',
-  path: '/api/remote-config',
+  path: '/api/v1/remote-config',
   tags: ['remote-config'],
   summary: 'List configurations with optional filtering',
   request: { query: listConfigsQuerySchema },
@@ -108,7 +108,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'get',
-  path: '/api/remote-config/{id}',
+  path: '/api/v1/remote-config/{id}',
   tags: ['remote-config'],
   summary: 'Get a configuration by ID',
   request: { params: configIdParam },
@@ -123,7 +123,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'get',
-  path: '/api/remote-config/category/{category}/key/{key}',
+  path: '/api/v1/remote-config/category/{category}/key/{key}',
   tags: ['remote-config'],
   summary: 'Get a configuration by category and key',
   request: { params: z.object({ category: z.string(), key: z.string() }) },
@@ -138,7 +138,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'put',
-  path: '/api/remote-config/{id}',
+  path: '/api/v1/remote-config/{id}',
   tags: ['remote-config'],
   summary: 'Update an existing configuration',
   request: {
@@ -156,7 +156,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'delete',
-  path: '/api/remote-config/{id}',
+  path: '/api/v1/remote-config/{id}',
   tags: ['remote-config'],
   summary: 'Delete a configuration',
   request: { params: configIdParam },
@@ -171,7 +171,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'get',
-  path: '/api/remote-config/{id}/history',
+  path: '/api/v1/remote-config/{id}/history',
   tags: ['remote-config'],
   summary: 'Get configuration change history',
   request: { params: configIdParam, query: getHistoryQuerySchema },
@@ -209,7 +209,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/api/remote-config/{id}/validate',
+  path: '/api/v1/remote-config/{id}/validate',
   tags: ['remote-config'],
   summary: 'Validate a configuration value',
   request: { params: configIdParam },
@@ -235,7 +235,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'post',
-  path: '/api/remote-config/migrate',
+  path: '/api/v1/remote-config/migrate',
   tags: ['remote-config'],
   summary: 'Migrate environment variables into the configuration database',
   request: { body: { content: { 'application/json': { schema: migrateRequestSchema } } } },

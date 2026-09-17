@@ -15,11 +15,11 @@ describe('Executing a documented public endpoint', () => {
   });
 
   it('executes GET /health as documented and gets the real response', async () => {
-    const docs = await request(app).get('/docs/openapi.json');
-    const operation = docs.body.paths['/health'].get;
+    const docs = await request(app).get('/api/v1/docs/openapi.json');
+    const operation = docs.body.paths['/api/v1/health'].get;
     expect(operation.responses['200']).toBeDefined();
 
-    const response = await request(app).get('/health');
+    const response = await request(app).get('/api/v1/health');
 
     expect(response.status).toBe(200);
     expect(response.body).toHaveProperty('status', 'ok');

@@ -5,7 +5,7 @@ import { app } from '../../src/app.js';
 describe('Health Endpoints', () => {
   describe('GET /health', () => {
     it('should return health status', async () => {
-      const response = await request(app).get('/health');
+      const response = await request(app).get('/api/v1/health');
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('status', 'ok');
@@ -17,7 +17,7 @@ describe('Health Endpoints', () => {
 
   describe('GET /health/live', () => {
     it('should return liveness status', async () => {
-      const response = await request(app).get('/health/live');
+      const response = await request(app).get('/api/v1/health/live');
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('status', 'alive');
@@ -27,7 +27,7 @@ describe('Health Endpoints', () => {
 
   describe('GET /health/ready', () => {
     it('should return readiness status', async () => {
-      const response = await request(app).get('/health/ready');
+      const response = await request(app).get('/api/v1/health/ready');
 
       // Status can be 200 (ready) or 503 (not ready) depending on dependencies
       expect([200, 503]).toContain(response.status);
@@ -42,7 +42,7 @@ describe('Health Endpoints', () => {
 
   describe('GET /metrics', () => {
     it('should return Prometheus metrics', async () => {
-      const response = await request(app).get('/metrics');
+      const response = await request(app).get('/api/v1/metrics');
 
       expect(response.status).toBe(200);
       expect(response.type).toBe('text/plain');

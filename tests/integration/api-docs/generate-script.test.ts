@@ -15,15 +15,15 @@ describe('npm run openapi:generate', () => {
 
     expect(generated.openapi).toMatch(/^3\.1/);
     expect(Object.keys(generated.paths).length).toBeGreaterThan(0);
-    expect(generated.paths).toHaveProperty('/health');
-    expect(generated.paths).toHaveProperty('/auth/login');
+    expect(generated.paths).toHaveProperty('/api/v1/health');
+    expect(generated.paths).toHaveProperty('/api/v1/auth/login');
   });
 
   it('matches the set of paths served live at /docs/openapi.json', async () => {
     execSync('npx tsx scripts/generate-openapi.ts', { cwd: process.cwd(), stdio: 'pipe' });
     const generated = JSON.parse(readFileSync(outputPath, 'utf-8'));
 
-    const liveResponse = await request(app).get('/docs/openapi.json');
+    const liveResponse = await request(app).get('/api/v1/docs/openapi.json');
 
     expect(Object.keys(generated.paths).sort()).toEqual(Object.keys(liveResponse.body.paths).sort());
   });

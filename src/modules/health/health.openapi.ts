@@ -9,7 +9,7 @@ import { healthResponseSchema, readinessResponseSchema, livenessResponseSchema }
 
 openApiRegistry.registerPath({
   method: 'get',
-  path: '/health',
+  path: '/api/v1/health',
   tags: ['health'],
   summary: 'Basic health check',
   responses: {
@@ -22,7 +22,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'get',
-  path: '/health/ready',
+  path: '/api/v1/health/ready',
   tags: ['health'],
   summary: 'Readiness check (database + Redis connectivity)',
   responses: {
@@ -39,7 +39,7 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'get',
-  path: '/health/live',
+  path: '/api/v1/health/live',
   tags: ['health'],
   summary: 'Liveness check',
   responses: {

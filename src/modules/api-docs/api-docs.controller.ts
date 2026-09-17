@@ -25,7 +25,7 @@ export const apiDocsController = {
  */
 export const swaggerUiOptions = {
   swaggerOptions: {
-    url: '/docs/openapi.json',
+    url: '/api/v1/docs/openapi.json',
     persistAuthorization: true,
   },
 };

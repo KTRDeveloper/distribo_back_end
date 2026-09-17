@@ -47,7 +47,7 @@
     "parameters": {}
   },
   "paths": {
-    "/health": {
+    "/api/v1/health": {
       "get": {
         "tags": [
           "health"
@@ -89,7 +89,7 @@
         }
       }
     },
-    "/health/ready": {
+    "/api/v1/health/ready": {
       "get": {
         "tags": [
           "health"
@@ -205,7 +205,7 @@
         }
       }
     },
-    "/health/live": {
+    "/api/v1/health/live": {
       "get": {
         "tags": [
           "health"
@@ -241,7 +241,7 @@
         }
       }
     },
-    "/auth/register": {
+    "/api/v1/auth/register": {
       "post": {
         "tags": [
           "auth"
@@ -309,7 +309,7 @@
         }
       }
     },
-    "/auth/register/verify": {
+    "/api/v1/auth/register/verify": {
       "post": {
         "tags": [
           "auth"
@@ -422,7 +422,7 @@
         }
       }
     },
-    "/auth/register/resend": {
+    "/api/v1/auth/register/resend": {
       "post": {
         "tags": [
           "auth"
@@ -489,7 +489,7 @@
         }
       }
     },
-    "/auth/login": {
+    "/api/v1/auth/login": {
       "post": {
         "tags": [
           "auth"
@@ -602,7 +602,7 @@
         }
       }
     },
-    "/auth/password-reset/request": {
+    "/api/v1/auth/password-reset/request": {
       "post": {
         "tags": [
           "auth"
@@ -649,7 +649,7 @@
         }
       }
     },
-    "/auth/password-reset/confirm": {
+    "/api/v1/auth/password-reset/confirm": {
       "post": {
         "tags": [
           "auth"
@@ -717,7 +717,7 @@
         }
       }
     },
-    "/auth/email/verify/request": {
+    "/api/v1/auth/email/verify/request": {
       "post": {
         "tags": [
           "auth"
@@ -779,7 +779,7 @@
         }
       }
     },
-    "/auth/email/verify/confirm": {
+    "/api/v1/auth/email/verify/confirm": {
       "post": {
         "tags": [
           "auth"
@@ -841,7 +841,7 @@
         }
       }
     },
-    "/auth/refresh": {
+    "/api/v1/auth/refresh": {
       "post": {
         "tags": [
           "auth"
@@ -949,7 +949,7 @@
         }
       }
     },
-    "/auth/logout": {
+    "/api/v1/auth/logout": {
       "post": {
         "tags": [
           "auth"
@@ -980,7 +980,7 @@
         }
       }
     },
-    "/auth/logout-all": {
+    "/api/v1/auth/logout-all": {
       "post": {
         "tags": [
           "auth"
@@ -1008,7 +1008,7 @@
         }
       }
     },
-    "/api/users/me": {
+    "/api/v1/users/me": {
       "get": {
         "tags": [
           "user"
@@ -1450,7 +1450,7 @@
         }
       }
     },
-    "/api/remote-config": {
+    "/api/v1/remote-config": {
       "post": {
         "tags": [
           "remote-config"
@@ -1860,7 +1860,7 @@
         }
       }
     },
-    "/api/remote-config/{id}": {
+    "/api/v1/remote-config/{id}": {
       "get": {
         "tags": [
           "remote-config"
@@ -2310,7 +2310,7 @@
         }
       }
     },
-    "/api/remote-config/category/{category}/key/{key}": {
+    "/api/v1/remote-config/category/{category}/key/{key}": {
       "get": {
         "tags": [
           "remote-config"
@@ -2491,7 +2491,7 @@
         }
       }
     },
-    "/api/remote-config/{id}/history": {
+    "/api/v1/remote-config/{id}/history": {
       "get": {
         "tags": [
           "remote-config"
@@ -2625,7 +2625,7 @@
         }
       }
     },
-    "/api/remote-config/{id}/validate": {
+    "/api/v1/remote-config/{id}/validate": {
       "post": {
         "tags": [
           "remote-config"
@@ -2720,7 +2720,7 @@
         }
       }
     },
-    "/api/remote-config/migrate": {
+    "/api/v1/remote-config/migrate": {
       "post": {
         "tags": [
           "remote-config"
