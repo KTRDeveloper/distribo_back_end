@@ -117,6 +117,9 @@ Entité générique représentant soit une **entreprise** (entrepreneur), soit u
 | type | enum `[BUSINESS / CONTRACTOR]` | |
 | name | string | |
 | owner_account_id | FK → Account | Le créateur, détenteur du poste "Propriétaire" implicite. Nécessairement un compte : une `Person` invitée ne peut pas posséder d'organisation |
+| phone_numbers | text/JSON, nullable | Un ou plusieurs numéros de contact. **Donnée publique**. Contrairement à `Person.phone_number` : pas de vérification OTP, pas d'unicité globale — coordonnée de contact, pas un mécanisme d'authentification |
+| description | text, nullable | **Donnée publique** — fiche de présentation de l'organisation |
+| email | string, nullable | Contact public/semi-public (support, demandes). À la différence de `Person.email`, qui est privé |
 | created_at | datetime | |
 
 *Note : un même `Account` peut posséder plusieurs `Organization` distinctes (plusieurs entreprises et/ou identités de sous-traitant), sans limite. Chacune reste totalement indépendante des autres — stock, clients, finances propres — aucune contrainte d'unicité n'est posée sur `owner_account_id`.*
@@ -184,7 +187,7 @@ Unité de gestion concrète d'un produit : combine une **gamme** (qualité/varia
 | range_name | string | ex: "Standard", "Premium" |
 | unit | string | ex: "kg", "carton", "litre", "boîte" |
 | catalog_price | decimal | Prix de référence public, propre à cette variante |
-| default_wholesale_price | decimal, nullable | Prix de gros par défaut, propre à cette variante (surchargeable via `ProductWholesalePrice`, voir 3.2) |
+| default_wholesale_price | decimal, nullable | Prix de gros par défaut, propre à cette variante (surchargeable via `ProductWholesalePrice`, voir 3.3) |
 | status | enum `[ACTIVE / INACTIVE]` | `INACTIVE` = suppression logique (retiré du catalogue) : invisible aux nouvelles commandes, mais conservée pour préserver l'intégrité des commandes/stocks historiques. Réactivable à tout moment sans validation supplémentaire |
 
 ### 2.3 `Stock`
@@ -216,33 +219,67 @@ Journal des entrées/sorties (traçabilité).
 
 ## 3. Partenariats et relations commerciales
 
+> **Note de version** — Le prix de revente a été retiré de `PartnershipAgreement` : il ne peut être fixé qu'au niveau du produit/de la variante, jamais comme valeur unique pour toute une relation couvrant des produits hétérogènes. L'autorisation d'un sous-traitant à opérer sur un produit donné est désormais portée par une entité dédiée, `PartnershipProduct` (3.2), avec un statut et une terminaison **indépendants par produit** — un sous-traitant peut cesser un produit sans que la relation dans son ensemble se termine. `ProductWholesalePrice` (désormais 3.3) référence cette nouvelle entité plutôt que l'accord directement.
+
 ### 3.1 `PartnershipAgreement`
-Relation contractuelle entre une entreprise et un sous-traitant. **Toujours un contrat de revente** : le sous-traitant achète la marchandise à l'entreprise (via une commande groupée), la détient dans son propre `Stock`, puis la revend à ses clients.
+Relation contractuelle-cadre entre une entreprise et un sous-traitant. **Toujours un contrat de revente** : le sous-traitant achète la marchandise à l'entreprise (via une commande groupée), la détient dans son propre `Stock`, puis la revend à ses clients. Ne porte que ce qui est réellement invariant à l'échelle de la relation entière — ni prix (dépend du produit/de la variante, voir 3.2 et 3.3), ni autorisation par produit (voir 3.2).
 
 | Champ | Type | Description |
 |---|---|---|
 | id | PK | |
 | business_id | FK → Organization | |
 | contractor_id | FK → Organization | |
-| default_wholesale_price | decimal, nullable | Peut être surchargé par produit (voir 3.2) |
 | payment_terms | enum `[BEFORE_DELIVERY / AFTER_COLLECTION]` | |
-| status | enum `[PENDING / ACTIVE / TERMINATED]` | PENDING tant que l'acceptation mutuelle n'est pas faite |
+| status | enum `[REQUESTED / ACTIVE / REFUSED / TERMINATED]` | REQUESTED tant que l'acceptation mutuelle n'est pas faite |
 | initiator_id | FK → Organization | Qui a lancé la demande (entreprise ou sous-traitant) |
+| initiator_note | string, nullable | Note laissée par `initiator_id` lors de la demande |
+| recipient_note | string, nullable | Note laissée par l'autre partie (ex. motif de refus, commentaire à l'acceptation) |
 | created_at | datetime | |
+| refused_at | datetime, nullable | |
 | terminated_at | datetime, nullable | |
-| termination_stock_cleared | boolean | Vrai quand le stock du sous-traitant est écoulé/retourné |
 
-### 3.2 `ProductWholesalePrice`
-Prix de gros négocié, par variante de produit, dans le cadre d'un accord — surcharge le `default_wholesale_price` de la `ProductVariant`.
+*Terminaison : `status = TERMINATED` met fin à la relation dans son ensemble et **résilie en cascade** toute ligne `PartnershipProduct` encore `ACTIVE` (voir 3.2). L'inverse n'est pas vrai : un sous-traitant peut cesser de vendre un produit particulier (résiliation au niveau de 3.2 uniquement) sans que l'accord-cadre se termine.*
+
+*`REFUSED` est un état terminal distinct de `TERMINATED` : un accord refusé n'a jamais été actif, donc aucun `PartnershipProduct` ne peut exister dessous.*
+
+### 3.2 `PartnershipProduct`
+Portée d'un produit précis au sein d'un accord : déclare qu'un sous-traitant est autorisé à commander/stocker/revendre **ce produit**, avec un statut et une terminaison propres — indépendants des autres produits couverts par le même accord.
+
+| Champ | Type | Description |
+|---|---|---|
+| id | PK | |
+| agreement_id | FK → PartnershipAgreement | |
+| product_id | FK → Product | Le produit autorisé, au niveau générique (même granularité que `CustomerChannelRelation`, pas la variante) |
+| status | enum `[REQUESTED / ACTIVE / REFUSED / TERMINATED]` | Indépendant du statut des autres produits de la même relation |
+| initiator_id | FK → Organization | Qui a demandé l'association de ce produit — doit être `agreement.business_id` ou `agreement.contractor_id` |
+| initiator_note | string, nullable | Note laissée par `initiator_id` lors de la demande |
+| recipient_note | string, nullable | Note laissée par l'autre partie (ex. motif de refus, commentaire à l'acceptation) |
+| added_at | datetime | |
+| refused_at | datetime, nullable | |
+| terminated_at | datetime, nullable | |
+| termination_stock_cleared | boolean | Vrai quand le stock du sous-traitant **pour ce produit** est écoulé/retourné |
+
+*Contrainte d'unicité : unique par (`agreement_id`, `product_id`).*
+
+*C'est cette ligne, et non `PartnershipAgreement`, qui autorise effectivement un sous-traitant à opérer sur un produit donné — voir la contrainte de cohérence avec `CustomerChannelRelation` en 3.4.*
+
+*`REFUSED` est un état terminal distinct de `TERMINATED` : un produit refusé n'a jamais été actif, donc pas de stock possible — `termination_stock_cleared` est sans objet dans ce cas.*
+
+*Politique v1 (sur le modèle de `CustomerPersonReassignment`, voir 1.5) : la contrainte d'unicité (`agreement_id`, `product_id`) est conservée telle quelle. Redemander un produit `REFUSED` réutilise la même ligne (repasse à `REQUESTED`), ce qui écrase la note de refus précédente. Une séparation en journal dédié (comme `ChannelChangeRequest`, voir 3.5) pourrait être introduite en v2 si l'historique des refus successifs devient nécessaire.*
+
+### 3.3 `ProductWholesalePrice`
+Prix de gros négocié, par variante de produit, pour un produit autorisé d'un accord — surcharge le `default_wholesale_price` de la `ProductVariant`.
 
 | Champ | Type |
 |---|---|
 | id | PK |
-| agreement_id | FK → PartnershipAgreement |
+| partnership_product_id | FK → PartnershipProduct |
 | product_variant_id | FK → ProductVariant |
 | wholesale_price | decimal |
 
-### 3.3 `CustomerChannelRelation`
+*Cohérence : la variante référencée doit appartenir au même produit que `PartnershipProduct.product_id`.*
+
+### 3.4 `CustomerChannelRelation`
 Modélise la règle d'exclusivité (personne, entreprise, produit) : un seul canal actif à la fois.
 
 | Champ | Type | Description |
@@ -262,7 +299,9 @@ Modélise la règle d'exclusivité (personne, entreprise, produit) : un seul can
 
 *Le fait qu'une personne soit invitée (sans `Account`) ne l'exempte pas de la règle : deux organisations saisissant le même numéro se rattachent à la même `Person`, donc l'exclusivité s'applique. Le seul cas résiduel de contournement est celui d'un numéro erroné ou absent au moment de la saisie.*
 
-### 3.4 `ChannelChangeRequest`
+*Cohérence avec le partenariat : si `channel_type = CONTRACTOR`, le couple (`contractor_id`, `product_id`) doit correspondre à une ligne `PartnershipProduct` au statut `ACTIVE` (via l'accord entre ce sous-traitant et `business_id`) — un client ne peut pas être routé vers un sous-traitant qui n'est pas autorisé à vendre ce produit.*
+
+### 3.5 `ChannelChangeRequest`
 | Champ | Type | Description |
 |---|---|---|
 | id | PK | |
@@ -301,6 +340,8 @@ Entité **unique et récursive** : une commande est une transaction entre un ém
 | entry_mode | enum `[SELF_SERVICE / ASSISTED]` | SELF_SERVICE si le client (ou le sous-traitant émetteur) a lui-même saisi la commande ; ASSISTED si saisie par un tiers pour son compte |
 | entered_by_id | FK → Account, nullable | Le collaborateur ayant effectivement saisi la commande. Renseigné uniquement si `entry_mode = ASSISTED` ; permet la traçabilité et sert de base à un futur mécanisme de validation/contestation en cas d'abus |
 | parent_order_id | FK → Order, nullable | Renseigné si cette commande a été créée automatiquement comme reliquat d'une livraison partielle d'une commande précédente |
+| issuer_note | string, nullable | Note laissée par l'émetteur (souhait particulier, contexte) |
+| recipient_note | string, nullable | Note laissée par le destinataire (ex. motif d'un `FAILED`/`CANCELLED`, remarque) |
 
 *Créneau souhaité : ces trois champs expriment un **souhait, jamais un engagement**. Aucune confirmation ni refus par le destinataire, aucun calcul de retard, aucune alerte de dépassement — le modèle ne comporte rien pour traiter un créneau non tenu. Trois combinaisons valides seulement : rien du tout (vente au comptoir, ou client sans préférence), une date seule, ou une date accompagnée des deux bornes horaires. Une heure sans date, ou une borne sans l'autre, est interdite.*
 
@@ -588,11 +629,16 @@ Rattachement optionnel d'une charge globale à un ensemble de commandes/livraiso
 |---|---|---|
 | id | PK | |
 | recipient_id | FK → Person | Vise la personne et non le compte : permet de notifier par SMS un invité sans `Account`. Le canal `IN_APP` n'est utilisable que si un `Account` existe |
+| organization_id | FK → Organization, nullable | Contexte de la notification (quelle organisation est concernée) — `recipient_id` reste toujours une `Person`, utile quand celle-ci collabore avec plusieurs organisations |
 | channel | enum `[IN_APP / SMS]` | |
 | content | text | |
 | source_event | string | ex: "order.status_changed" |
+| related_entity_type | string, nullable | ex: "Order", "PartnershipProduct", "PartnershipAgreement" |
+| related_entity_id | FK, nullable, polymorphe | L'entité précise ayant déclenché la notification (référence directe, sur le modèle de `Report.target_type`/`target_id`, voir 7.2) |
 | read_status | enum `[UNREAD / READ]` | |
 | date | datetime | |
+
+*`related_entity_type` et `related_entity_id` sont renseignés ensemble ou ni l'un ni l'autre. `source_event` reste la catégorisation du texte de la notification (et sert à sa traduction) ; `related_entity_type`/`related_entity_id` servent au lien direct vers l'entité concernée — les deux sont complémentaires.*
 
 ---
 
@@ -660,11 +706,13 @@ Customer (person_id + organization_id) ──┬── CustomerSharingException
                                            └── CustomerPersonReassignment
 
 Organization ──┬── Stock ── ProductVariant ── Product
-                ├── PartnershipAgreement (business ↔ contractor)
+                ├── PartnershipAgreement (business ↔ contractor) ── PartnershipProduct ── Product
+                │                                                    └── ProductWholesalePrice ── ProductVariant
                 ├── Order (en tant qu'issuer ou recipient)
                 ├── Customer (relations qu'elle gère)
                 ├── InfoSharingRule
                 ├── OperatingCost ── OperatingCostOrderLink ── Order
+                ├── Notification (contexte optionnel)
                 └── Subscription (si type BUSINESS)
 
 Order (issuer → recipient, récursif) ──┬── OrderLine ── ProductVariant
@@ -687,6 +735,12 @@ Récapitulatif des contraintes qui ne doivent pas rester applicatives :
 | `Account.person_id` unique | Un compte au maximum par personne |
 | `Customer` unique (`person_id`, `organization_id`) | Une relation par couple |
 | `CustomerChannelRelation` unique partiel (`person_id`, `business_id`, `product_id`) où `status = ACTIVE` | Règle d'exclusivité |
+| `PartnershipProduct` unique (`agreement_id`, `product_id`) | Un produit autorisé une seule fois par accord |
+| `CustomerChannelRelation.contractor_id` (si `channel_type = CONTRACTOR`) doit correspondre à un `PartnershipProduct.status = ACTIVE` pour ce `product_id` | Un client ne peut être routé que vers un sous-traitant réellement autorisé sur ce produit |
+| `PartnershipAgreement.refused_at` renseigné ⟺ `status = REFUSED` ; `terminated_at` renseigné ⟺ `status = TERMINATED` | Cohérence des dates de sortie avec le statut |
+| `PartnershipProduct.initiator_id` ∈ (`agreement.business_id`, `agreement.contractor_id`) | L'initiateur d'une demande de produit doit être une des deux parties de l'accord |
+| `PartnershipProduct.refused_at` renseigné ⟺ `status = REFUSED` ; `terminated_at`/`termination_stock_cleared` pertinents uniquement pour `status = TERMINATED` | Cohérence des dates de sortie avec le statut |
+| `Notification.related_entity_type` et `related_entity_id` renseignés ensemble ou ni l'un ni l'autre | Cohérence de la référence polymorphe |
 | `Rating` : `CHECK Person.phone_verified_at IS NOT NULL` | Anti auto-évaluation |
 | `Payment.amount_allocated <= amount` | Cohérence financière |
 | `Debt.amount_settled <= amount_due` | Cohérence financière |
@@ -721,7 +775,9 @@ Points de vigilance structurants identifiés pendant la conception :
 - **Poste de livreur : aucune structure dédiée** — le livreur est un `Account` en `Collaboration` sur un `Position` composé par l'organisation à partir du domaine de permissions `DELIVERY`. Aucune entité, aucun rôle en dur, aucune notion de tournée. Sa fonction tient dans trois actions : consulter ses livraisons et le pool, prendre une course, marquer la livraison en saisissant le montant reçu — ce dernier geste faisant passer `Order.status` à `DELIVERED` automatiquement. Le garde-fou financier n'est pas une permission séparée mais le **chemin d'accès** : le seul `Payment` qu'un livreur peut produire naît de la confirmation d'une livraison qui lui est assignée, dans la limite du montant dû. Un livreur externe (non collaborateur) n'est pas couvert par ce modèle.
 - **Chaîne de l'argent liquide** : trois points de contrôle, aucun entité nouvelle. La **consigne** (`Delivery.amount_to_collect`, figée au départ), le **constat** (`Delivery.amount_collected`, saisi par le livreur), la **remise** (`Payment.remitted_at`, saisi par le caissier). L'écart consigne/constat révèle les impayés et les encaissements imprévus ; l'absence de `remitted_at` révèle l'argent non versé. Sans le premier écart, un encaissement pourrait n'être jamais déclaré ; sans le second, une somme déclarée pourrait ne jamais rentrer en caisse.
 - **Créneau de livraison souhaité (`desired_delivery_date`, `desired_slot_start`, `desired_slot_end`)** : un souhait sans contrepartie. Aucune confirmation par le destinataire, aucun refus, aucun calcul de retard, aucune alerte. La date est le pivot — un créneau horaire ne peut exister sans elle, et les deux bornes vont toujours ensemble. Ce statut de simple souhait est à tenir : dès qu'un créneau devient un engagement affiché au client, il faut de quoi traiter son dépassement (motif, alerte, escalade), et le modèle n'en a rien. L'évolution naturelle, si le besoin apparaît, est un créneau confirmé en regard, renseigné par le destinataire à la confirmation de la commande.
-- **Partenariat en revente uniquement** : le champ `mode [RELAY / RESALE]` a été supprimé. Le modèle était de fait exclusivement en revente — `Stock` existe chez le sous-traitant, `default_wholesale_price` et `ProductWholesalePrice` fixent un prix d'achat, `termination_stock_cleared` attend l'écoulement de son stock, et la commande groupée sous-traitant→entreprise est un acte d'achat. Aucune structure n'accompagnait le mode relais, qui n'était donc qu'une valeur d'énumération orpheline annonçant une capacité inexistante. Le mode contractuel étant connu des deux parties et redemandable à tout moment, rien ne se perd à ne pas le stocker (contrairement à `entry_mode`, qui capture un fait irrécupérable a posteriori). Réintroduire un mode relais supposerait trois ajouts : un taux de commission sur l'accord, un marqueur de consignation sur `Stock` (marchandise détenue mais non possédée), et un flux financier où le sous-traitant encaisse pour le compte de l'entreprise plutôt que pour lui-même.
+- **Partenariat en revente uniquement** : le champ `mode [RELAY / RESALE]` a été supprimé. Le modèle était de fait exclusivement en revente — `Stock` existe chez le sous-traitant, `ProductVariant.default_wholesale_price` et `ProductWholesalePrice` fixent un prix d'achat, `PartnershipProduct.termination_stock_cleared` attend l'écoulement de son stock pour le produit concerné, et la commande groupée sous-traitant→entreprise est un acte d'achat. Aucune structure n'accompagnait le mode relais, qui n'était donc qu'une valeur d'énumération orpheline annonçant une capacité inexistante. Le mode contractuel étant connu des deux parties et redemandable à tout moment, rien ne se perd à ne pas le stocker (contrairement à `entry_mode`, qui capture un fait irrécupérable a posteriori). Réintroduire un mode relais supposerait trois ajouts : un taux de commission sur l'accord, un marqueur de consignation sur `Stock` (marchandise détenue mais non possédée), et un flux financier où le sous-traitant encaisse pour le compte de l'entreprise plutôt que pour lui-même.
+- **Partenariat scopé par produit (`PartnershipProduct`)** : `PartnershipAgreement` ne porte plus de prix — un decimal unique n'a pas de sens dès qu'une relation couvre plusieurs produits à échelles de prix différentes. `PartnershipProduct` déclare, produit par produit, ce qu'un sous-traitant est autorisé à commander/stocker/revendre, avec un statut et une terminaison indépendants du reste de la relation : un sous-traitant peut cesser un produit sans rompre l'accord-cadre, tandis que résilier l'accord-cadre résilie en cascade tous les produits encore actifs. Cette portée referme aussi un trou du modèle précédent : rien n'empêchait `CustomerChannelRelation` de router un client vers un sous-traitant pour un produit que celui-ci n'avait jamais négocié spécifiquement (voir la contrainte de cohérence ajoutée en 3.4).
+- **Négociation par produit (`PartnershipProduct.status`) et par accord (`PartnershipAgreement.status`)** : les deux entités partagent désormais le même cycle `[REQUESTED / ACTIVE / REFUSED / TERMINATED]`, avec `initiator_id`/`initiator_note`/`recipient_note` de part et d'autre. `REFUSED` est volontairement distinct de `TERMINATED` : un refus intervient avant toute activité (aucun stock, aucune commande possible), une terminaison intervient après. Politique v1 : redemander un produit refusé réutilise la même ligne `PartnershipProduct` (unique par `agreement_id`/`product_id`), ce qui écrase la note de refus précédente — un journal séparé, sur le modèle de `ChannelChangeRequest`, pourrait être introduit en v2 si l'historique des refus successifs devient nécessaire.
 - **Absence volontaire de réservation de stock** : `Stock.quantity_available` reflète la marchandise physiquement présente, jamais ce qui est promis. Aucune quantité n'est immobilisée par une commande confirmée. Ce choix est cohérent avec `PENDING_STOCK` et `PARTIALLY_DELIVERED`, qui font de la couverture insuffisante un cas nominal absorbé par la livraison partielle et le reliquat, plutôt qu'un incident à prévenir. Il évite trois décisions structurantes sans réponse évidente (moment de la réservation, blocage ou non en cas de dépassement, expiration) et un compteur dénormalisé susceptible de dériver. Si le besoin d'y voir plus clair apparaît, la quantité engagée se calcule à la volée comme somme des `OrderLine` des commandes `CONFIRMED` non encore livrées — une requête d'affichage, sans champ ni contrainte supplémentaires.
 - **Saisie assistée (`entry_mode` / `entered_by_id`)** : une organisation peut saisir une commande au nom d'une personne déjà enregistrée (ex: commande passée par téléphone). Aucun blocage ni confirmation n'est requis pour l'instant — la commande est immédiatement valide et apparaît dans l'historique du client comme les autres. Ces deux champs posent uniquement les bases d'une future distinction visuelle côté client, et d'un éventuel mécanisme de validation en cas d'abus signalés.
 - **Retour/échange après livraison** : aucun statut ni workflow dédié dans le modèle — traité hors application, avec un ajustement manuel par l'organisation. Quatre cas, tous couverts par l'existant : *retour en stock* → `StockMovement` de type `IN` sans `source_order_id` ; *annulation d'une dette encore due* → réduction de `Debt.amount_due` ; *remboursement en avoir* → contrepassation du `DebtSettlement`, le crédit libéré sur le `Payment` étant consommé lors du prochain achat ; *remboursement en espèces ou Mobile Money* → `Refund` (voir 5.4), entité dédiée au flux sortant.
