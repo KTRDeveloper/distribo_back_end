@@ -39,4 +39,5 @@ TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0: Fo
 - 001-node-ts-template: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 6.19, Redis (ioredis 5.8), BullMQ 5.63, bcrypt 6.0, jsonwebtoken 9.0, Pino 10.1, Helmet 8.1, Zod 3.23
 
 <!-- MANUAL ADDITIONS START -->
+@docs/stories/CONVENTIONS.md
 <!-- MANUAL ADDITIONS END -->

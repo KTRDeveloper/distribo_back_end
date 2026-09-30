@@ -5,7 +5,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 
 | ID | status | reviewer | note |
 |---|---|---|---|
-| FND-000 | todo | | Baseline needs lint fixes in ~39 files (676 problems, limit 15) plus 38 tsc errors in 12 files; decide: fix, relax type-checked rules, or raise limit |
+| FND-000 | done | | |
 | FND-001 | todo | | |
 | FND-002 | todo | | |
 | FND-003 | todo | | |
