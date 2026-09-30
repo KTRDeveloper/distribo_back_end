@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { app } from '../../../src/app.js';
 import { clearDatabase } from '../../helpers/database';
+import { bodyOf, type OpenApiDoc } from '../../helpers/body';
 
 /**
  * A "try it out" call from the Swagger UI is just a normal HTTP request to
@@ -16,8 +17,8 @@ describe('Executing a documented public endpoint', () => {
 
   it('executes GET /health as documented and gets the real response', async () => {
     const docs = await request(app).get('/api/v1/docs/openapi.json');
-    const operation = docs.body.paths['/api/v1/health'].get;
-    expect(operation.responses['200']).toBeDefined();
+    const operation = bodyOf<OpenApiDoc>(docs).paths['/api/v1/health'].get;
+    expect(operation.responses?.['200']).toBeDefined();
 
     const response = await request(app).get('/api/v1/health');
 

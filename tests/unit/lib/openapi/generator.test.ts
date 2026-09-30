@@ -20,7 +20,7 @@ describe('generateOpenApiDocument', () => {
 
     const doc = generateOpenApiDocument();
 
-    expect(doc.paths['/__test-only/deprecated-endpoint'].get.deprecated).toBe(true);
+    expect(doc.paths?.['/__test-only/deprecated-endpoint']?.get?.deprecated).toBe(true);
   });
 
   it('produces a document with the expected OpenAPI 3.1 info block', () => {

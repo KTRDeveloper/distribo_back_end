@@ -3,9 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { rateLimit } from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
 import { config } from './config/index.js';
-import { redis } from './lib/redis.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
@@ -100,7 +98,7 @@ import './modules/remote-config/remote-config.openapi.js';
 const v1Router = express.Router();
 
 // Metrics endpoint (before other routes)
-v1Router.get('/metrics', async (req, res) => {
+v1Router.get('/metrics', async (_req, res) => {
   res.setHeader('Content-Type', getMetricsContentType());
   const metrics = await getMetrics();
   res.send(metrics);

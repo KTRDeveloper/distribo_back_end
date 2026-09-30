@@ -53,28 +53,30 @@ async function start() {
 /**
  * Graceful shutdown
  */
-async function shutdown(signal: string) {
+function shutdown(signal: string) {
   logger.info({ signal }, 'Shutting down server');
 
-  server.close(async () => {
-    logger.info('HTTP server closed');
+  server.close(() => {
+    void (async () => {
+      logger.info('HTTP server closed');
 
-    try {
-      // Disconnect from database
-      await disconnectDb();
+      try {
+        // Disconnect from database
+        await disconnectDb();
 
-      // Disconnect from Redis
-      await disconnectRedis();
+        // Disconnect from Redis
+        await disconnectRedis();
 
-      // Shutdown OpenTelemetry
-      await shutdownOtel();
+        // Shutdown OpenTelemetry
+        await shutdownOtel();
 
-      logger.info('Graceful shutdown complete');
-      process.exit(0);
-    } catch (error) {
-      logger.error({ error }, 'Error during shutdown');
-      process.exit(1);
-    }
+        logger.info('Graceful shutdown complete');
+        process.exit(0);
+      } catch (error) {
+        logger.error({ error }, 'Error during shutdown');
+        process.exit(1);
+      }
+    })();
   });
 
   // Force shutdown after 10 seconds
@@ -85,8 +87,12 @@ async function shutdown(signal: string) {
 }
 
 // Handle shutdown signals
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => {
+  shutdown('SIGTERM');
+});
+process.on('SIGINT', () => {
+  shutdown('SIGINT');
+});
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
@@ -100,4 +106,4 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Start the server
-start();
+void start();

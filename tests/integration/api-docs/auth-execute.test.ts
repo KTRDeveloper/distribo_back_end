@@ -4,6 +4,7 @@ import { app } from '../../../src/app.js';
 import { clearDatabase } from '../../helpers/database';
 import { uniquePhone } from '../../helpers/phone';
 import { otpDeliveryQueue } from '../../../src/lib/otp-delivery-queue';
+import { bodyOf, type OpenApiDoc } from '../../helpers/body';
 
 function getLastOtpCode(): string {
   const calls = (otpDeliveryQueue.add as unknown as { mock: { calls: unknown[][] } }).mock.calls;
@@ -21,11 +22,13 @@ describe('Executing a documented authenticated endpoint', () => {
 
   it('marks the endpoint as requiring bearerAuth in the generated document', async () => {
     const docs = await request(app).get('/api/v1/docs/openapi.json');
-    const operation = docs.body.paths['/api/v1/users/me'].get;
+    const doc = bodyOf<OpenApiDoc>(docs);
+    const operation = doc.paths['/api/v1/users/me'].get;
+    const bearerAuth = doc.components?.securitySchemes?.bearerAuth;
 
     expect(operation.security).toEqual([{ bearerAuth: [] }]);
-    expect(docs.body.components.securitySchemes.bearerAuth.type).toBe('http');
-    expect(docs.body.components.securitySchemes.bearerAuth.scheme).toBe('bearer');
+    expect(bearerAuth?.type).toBe('http');
+    expect(bearerAuth?.scheme).toBe('bearer');
   });
 
   it('succeeds when a valid bearer token (as supplied via "Authorize") is sent', async () => {
@@ -37,7 +40,7 @@ describe('Executing a documented authenticated endpoint', () => {
     const verifyResponse = await request(app)
       .post('/api/v1/auth/register/verify')
       .send({ phoneNumber, code });
-    const token = verifyResponse.body.accessToken as string;
+    const token = bodyOf<{ accessToken: string }>(verifyResponse).accessToken;
 
     const response = await request(app).get('/api/v1/users/me').set('Authorization', `Bearer ${token}`);
 

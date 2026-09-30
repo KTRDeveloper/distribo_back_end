@@ -1,4 +1,4 @@
-import { sign } from 'jsonwebtoken';
+import { sign, type SignOptions } from 'jsonwebtoken';
 import { uniquePhone } from '../helpers/phone';
 
 /**
@@ -11,14 +11,20 @@ const JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key';
 /**
  * Create valid JWT access token
  */
-export function createAccessToken(accountId: string, expiresIn = '1h'): string {
+export function createAccessToken(
+  accountId: string,
+  expiresIn: SignOptions['expiresIn'] = '1h'
+): string {
   return sign({ accountId, tokenVersion: 0 }, JWT_SECRET, { expiresIn });
 }
 
 /**
  * Create valid JWT refresh token
  */
-export function createRefreshToken(accountId: string, expiresIn = '7d'): string {
+export function createRefreshToken(
+  accountId: string,
+  expiresIn: SignOptions['expiresIn'] = '7d'
+): string {
   return sign({ accountId, type: 'refresh', tokenVersion: 0 }, JWT_SECRET, { expiresIn });
 }
 
@@ -32,7 +38,10 @@ export function createExpiredToken(accountId: string): string {
 /**
  * Create JWT token with custom claims
  */
-export function createTokenWithClaims(claims: Record<string, any>, expiresIn = '1h'): string {
+export function createTokenWithClaims(
+  claims: Record<string, unknown>,
+  expiresIn: SignOptions['expiresIn'] = '1h'
+): string {
   return sign(claims, JWT_SECRET, { expiresIn });
 }
 
@@ -55,7 +64,7 @@ export function createTokenWithInvalidSignature(accountId: string): string {
  */
 export function createTamperedToken(accountId: string): string {
   const validToken = createAccessToken(accountId);
-  const [header, payload, signature] = validToken.split('.');
+  const [header, , signature] = validToken.split('.');
 
   // Tamper with the payload
   const tamperedPayload = Buffer.from(

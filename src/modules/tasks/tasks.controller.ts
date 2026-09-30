@@ -13,12 +13,13 @@ export const tasksController = {
    */
   async submitTask(req: Request, res: Response) {
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: {
           message: 'Unauthorized',
           code: 'UNAUTHORIZED',
         },
       });
+      return;
     }
 
     const input = taskSubmitSchema.parse(req.body);
@@ -31,12 +32,13 @@ export const tasksController = {
    */
   async getTask(req: Request, res: Response) {
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: {
           message: 'Unauthorized',
           code: 'UNAUTHORIZED',
         },
       });
+      return;
     }
 
     const task = await tasksService.getTask(req.params.id, req.user.id);
@@ -48,12 +50,13 @@ export const tasksController = {
    */
   async listTasks(req: Request, res: Response) {
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: {
           message: 'Unauthorized',
           code: 'UNAUTHORIZED',
         },
       });
+      return;
     }
 
     const tasks = await tasksService.listTasks(req.user.id);

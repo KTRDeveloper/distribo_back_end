@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/app.js';
+import { bodyOf, type ErrorBody } from '../helpers/body';
 
 describe('User Endpoints', () => {
   describe('GET /api/users/me', () => {
@@ -8,7 +9,7 @@ describe('User Endpoints', () => {
       const response = await request(app).get('/api/v1/users/me');
 
       expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('UNAUTHORIZED');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('UNAUTHORIZED');
     });
 
     it('should reject invalid token format', async () => {
@@ -17,7 +18,7 @@ describe('User Endpoints', () => {
         .set('Authorization', 'Invalid token');
 
       expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('UNAUTHORIZED');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('UNAUTHORIZED');
     });
 
     it('should reject malformed bearer token', async () => {
@@ -26,7 +27,7 @@ describe('User Endpoints', () => {
         .set('Authorization', 'Bearer invalid.token.here');
 
       expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('INVALID_TOKEN');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('INVALID_TOKEN');
     });
   });
 
@@ -37,7 +38,7 @@ describe('User Endpoints', () => {
       });
 
       expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('UNAUTHORIZED');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('UNAUTHORIZED');
     });
 
     it('should validate name length when provided', async () => {

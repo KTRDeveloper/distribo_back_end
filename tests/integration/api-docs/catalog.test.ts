@@ -1,20 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { app } from '../../../src/app.js';
+import { bodyOf, type OpenApiDoc } from '../../helpers/body';
 
 describe('GET /docs/openapi.json', () => {
   it('returns a valid OpenAPI document', async () => {
     const response = await request(app).get('/api/v1/docs/openapi.json');
 
     expect(response.status).toBe(200);
-    expect(response.body.openapi).toMatch(/^3\.1/);
-    expect(response.body.info).toHaveProperty('title');
-    expect(response.body.paths).toBeTypeOf('object');
+    const doc = bodyOf<OpenApiDoc>(response);
+    expect(doc.openapi).toMatch(/^3\.1/);
+    expect(doc.info).toHaveProperty('title');
+    expect(doc.paths).toBeTypeOf('object');
   });
 
   it('lists every current endpoint from every module', async () => {
     const response = await request(app).get('/api/v1/docs/openapi.json');
-    const paths = Object.keys(response.body.paths);
+    const paths = Object.keys(bodyOf<OpenApiDoc>(response).paths);
 
     expect(paths).toContain('/api/v1/health');
     expect(paths).toContain('/api/v1/health/ready');
@@ -40,7 +42,7 @@ describe('GET /docs/openapi.json', () => {
 
   it('groups endpoints by feature-area tags', async () => {
     const response = await request(app).get('/api/v1/docs/openapi.json');
-    const { paths } = response.body;
+    const { paths } = bodyOf<OpenApiDoc>(response);
 
     expect(paths['/api/v1/health'].get.tags).toContain('health');
     expect(paths['/api/v1/auth/login'].post.tags).toContain('auth');
@@ -51,9 +53,9 @@ describe('GET /docs/openapi.json', () => {
 
   it('describes each endpoint with request/response schema details', async () => {
     const response = await request(app).get('/api/v1/docs/openapi.json');
-    const registerOp = response.body.paths['/api/v1/auth/register'].post;
+    const registerOp = bodyOf<OpenApiDoc>(response).paths['/api/v1/auth/register'].post;
 
-    expect(registerOp.requestBody.content['application/json'].schema).toBeDefined();
-    expect(registerOp.responses['201']).toBeDefined();
+    expect(registerOp.requestBody?.content['application/json'].schema).toBeDefined();
+    expect(registerOp.responses?.['201']).toBeDefined();
   });
 });

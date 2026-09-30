@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/app.js';
+import { bodyOf, type ErrorBody, type TokenBody } from '../helpers/body';
 import {
   seedUser,
   clearDatabase,
@@ -73,7 +74,7 @@ describe('Authentication Endpoints', () => {
       const response = await request(app).post('/api/v1/auth/register').send(data);
 
       expect(response.status).toBe(409);
-      expect(response.body.error.code).toBe('PHONE_EXISTS');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('PHONE_EXISTS');
     });
 
     it('should verify the OTP, activate the phone number, and sign the user in', async () => {
@@ -89,7 +90,7 @@ describe('Authentication Endpoints', () => {
       expect(response.body).toHaveProperty('accessToken');
       expect(response.body).toHaveProperty('refreshToken');
       expect(response.body).toHaveProperty('accessTokenExpiresIn');
-      expect(response.body.user.phoneNumber).toBe(data.phoneNumber);
+      expect(bodyOf<TokenBody>(response).user.phoneNumber).toBe(data.phoneNumber);
 
       const account = await getUserByPhoneNumber(data.phoneNumber);
       expect(account!.person.phoneVerifiedAt).not.toBeNull();
@@ -104,7 +105,7 @@ describe('Authentication Endpoints', () => {
         .send({ phoneNumber: data.phoneNumber, code: '000000' });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('INVALID_OTP');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('INVALID_OTP');
     });
 
     it('should validate password strength', async () => {
@@ -113,7 +114,7 @@ describe('Authentication Endpoints', () => {
         .send(createRegistrationData({ password: 'weak' }));
 
       expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
     });
   });
 
@@ -141,7 +142,7 @@ describe('Authentication Endpoints', () => {
         .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code: originalCode });
       expect(staleAttempt.status).toBe(400);
-      expect(staleAttempt.body.error.code).toBe('INVALID_OTP');
+      expect(bodyOf<ErrorBody>(staleAttempt).error.code).toBe('INVALID_OTP');
 
       const newCode = getLastOtpCode();
       const verifyResponse = await request(app)
@@ -186,7 +187,9 @@ describe('Authentication Endpoints', () => {
         .send({ phoneNumber: uniquePhone() });
 
       expect(unverifiedResendResponse.status).toBe(unknownResendResponse.status);
-      expect(Object.keys(unverifiedResendResponse.body)).toEqual(Object.keys(unknownResendResponse.body));
+      expect(Object.keys(bodyOf<Record<string, unknown>>(unverifiedResendResponse))).toEqual(
+        Object.keys(bodyOf<Record<string, unknown>>(unknownResendResponse))
+      );
     });
 
     it('should reject a resend while the account is locked', async () => {
@@ -203,7 +206,7 @@ describe('Authentication Endpoints', () => {
         .send({ phoneNumber: data.phoneNumber });
 
       expect(response.status).toBe(423);
-      expect(response.body.error.code).toBe('ACCOUNT_LOCKED');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('ACCOUNT_LOCKED');
       expect(getOtpJobs()).toHaveLength(1); // only the original registration job
     });
 
@@ -219,7 +222,7 @@ describe('Authentication Endpoints', () => {
         .send({ phoneNumber: data.phoneNumber });
 
       expect(response.status).toBe(429);
-      expect(response.body.error.code).toBe('OTP_COOLDOWN');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('OTP_COOLDOWN');
       expect(getOtpJobs()).toHaveLength(1); // only the original registration job
     });
   });
@@ -244,7 +247,7 @@ describe('Authentication Endpoints', () => {
       expect(response.body).toHaveProperty('accessToken');
       expect(response.body).toHaveProperty('refreshToken');
       expect(response.body).toHaveProperty('accessTokenExpiresIn');
-      expect(response.body.user.phoneNumber).toBe(data.phoneNumber);
+      expect(bodyOf<TokenBody>(response).user.phoneNumber).toBe(data.phoneNumber);
     });
 
     it('should not require or accept an OTP to log in', async () => {
@@ -265,7 +268,7 @@ describe('Authentication Endpoints', () => {
         .send({ phoneNumber: data.phoneNumber, password: data.password });
 
       expect(response.status).toBe(403);
-      expect(response.body.error.code).toBe('PHONE_NOT_VERIFIED');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('PHONE_NOT_VERIFIED');
     });
 
     it('should reject an incorrect password', async () => {
@@ -276,7 +279,7 @@ describe('Authentication Endpoints', () => {
         .send({ phoneNumber: data.phoneNumber, password: 'WrongPassword123' });
 
       expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('INVALID_CREDENTIALS');
     });
 
     it('should return 401 for an unknown phone number', async () => {
@@ -285,21 +288,24 @@ describe('Authentication Endpoints', () => {
         .send({ phoneNumber: uniquePhone(), password: 'SecurePass123!' });
 
       expect(response.status).toBe(401);
-      expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('INVALID_CREDENTIALS');
     });
 
     it('should lock the account after too many failed password attempts', async () => {
       const data = await registerAndVerify();
 
-      let lastResponse;
+      const responses = [];
       for (let i = 0; i < 5; i++) {
-        lastResponse = await request(app)
-          .post('/api/v1/auth/login')
-          .send({ phoneNumber: data.phoneNumber, password: 'WrongPassword123' });
+        responses.push(
+          await request(app)
+            .post('/api/v1/auth/login')
+            .send({ phoneNumber: data.phoneNumber, password: 'WrongPassword123' })
+        );
       }
+      const lastResponse = responses[responses.length - 1];
 
-      expect(lastResponse!.status).toBe(423);
-      expect(lastResponse!.body.error.code).toBe('ACCOUNT_LOCKED');
+      expect(lastResponse.status).toBe(423);
+      expect(bodyOf<ErrorBody>(lastResponse).error.code).toBe('ACCOUNT_LOCKED');
     });
   });
 
@@ -367,7 +373,7 @@ describe('Authentication Endpoints', () => {
       const loginResponse = await request(app)
         .post('/api/v1/auth/login')
         .send({ phoneNumber: user.phoneNumber, password: 'OldPassword123' });
-      const oldRefreshToken = loginResponse.body.refreshToken;
+      const oldRefreshToken = bodyOf<TokenBody>(loginResponse).refreshToken;
 
       await request(app).post('/api/v1/auth/password-reset/request').send({ phoneNumber: user.phoneNumber });
       const code = getLastOtpCode();
@@ -395,7 +401,7 @@ describe('Authentication Endpoints', () => {
       });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('INVALID_OTP');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('INVALID_OTP');
     });
   });
 
@@ -407,7 +413,7 @@ describe('Authentication Endpoints', () => {
       const verifyResponse = await request(app)
         .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code });
-      return { phoneNumber: data.phoneNumber, ...verifyResponse.body };
+      return { phoneNumber: data.phoneNumber, ...bodyOf<TokenBody>(verifyResponse) };
     }
 
     it('authorizes a protected route with the issued access token', async () => {
@@ -429,7 +435,7 @@ describe('Authentication Endpoints', () => {
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('accessToken');
       expect(response.body).toHaveProperty('refreshToken');
-      expect(response.body.refreshToken).not.toBe(refreshToken);
+      expect(bodyOf<TokenBody>(response).refreshToken).not.toBe(refreshToken);
     });
 
     it('rejects reuse of an already-rotated refresh token and revokes the whole account (FR-005)', async () => {
@@ -437,7 +443,7 @@ describe('Authentication Endpoints', () => {
 
       const firstRefresh = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
       expect(firstRefresh.status).toBe(200);
-      const rotatedRefreshToken = firstRefresh.body.refreshToken;
+      const rotatedRefreshToken = bodyOf<TokenBody>(firstRefresh).refreshToken;
 
       // Replay the original (now-rotated) refresh token.
       const replay = await request(app).post('/api/v1/auth/refresh').send({ refreshToken });
@@ -462,7 +468,7 @@ describe('Authentication Endpoints', () => {
       const response = await request(app).post('/api/v1/auth/refresh').send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
     });
   });
 
@@ -480,7 +486,7 @@ describe('Authentication Endpoints', () => {
         .post('/api/v1/auth/login')
         .send({ phoneNumber: data.phoneNumber, password: data.password });
 
-      return { deviceA: deviceA.body, deviceB: deviceB.body };
+      return { deviceA: bodyOf<TokenBody>(deviceA), deviceB: bodyOf<TokenBody>(deviceB) };
     }
 
     it("ends only the current device's session (FR-006)", async () => {
@@ -528,12 +534,12 @@ describe('Authentication Endpoints', () => {
       const code = getLastOtpCode();
       await request(app).post('/api/v1/auth/register/verify').send({ phoneNumber: data.phoneNumber, code });
 
-      const devices = [];
+      const devices: TokenBody[] = [];
       for (let i = 0; i < 3; i++) {
         const login = await request(app)
           .post('/api/v1/auth/login')
           .send({ phoneNumber: data.phoneNumber, password: data.password });
-        devices.push(login.body);
+        devices.push(bodyOf<TokenBody>(login));
       }
       return devices;
     }
@@ -570,7 +576,7 @@ describe('Authentication Endpoints', () => {
 
       const response = await request(app)
         .post('/api/v1/auth/logout-all')
-        .set('Authorization', `Bearer ${verifyResponse.body.accessToken}`);
+        .set('Authorization', `Bearer ${bodyOf<TokenBody>(verifyResponse).accessToken}`);
 
       expect(response.status).toBe(204);
     });
@@ -584,7 +590,7 @@ describe('Authentication Endpoints', () => {
       const login = await request(app)
         .post('/api/v1/auth/login')
         .send({ phoneNumber: data.phoneNumber, password: data.password });
-      const { refreshToken } = login.body;
+      const { refreshToken } = bodyOf<TokenBody>(login);
 
       for (let i = 0; i < 5; i++) {
         await request(app)
@@ -605,7 +611,7 @@ describe('Authentication Endpoints', () => {
       const verifyResponse = await request(app)
         .post('/api/v1/auth/register/verify')
         .send({ phoneNumber: data.phoneNumber, code });
-      return { phoneNumber: data.phoneNumber, accessToken: verifyResponse.body.accessToken as string };
+      return { phoneNumber: data.phoneNumber, accessToken: bodyOf<TokenBody>(verifyResponse).accessToken };
     }
 
     it('should verify an email address and set it on the account', async () => {
@@ -644,7 +650,7 @@ describe('Authentication Endpoints', () => {
         .send({ code: '000000' });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('INVALID_VERIFICATION_CODE');
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('INVALID_VERIFICATION_CODE');
     });
 
     it('should require authentication', async () => {

@@ -30,7 +30,7 @@ const connection = {
  * Handles different task types
  */
 async function processTask(job: Job<TaskJobData>) {
-  const { taskId, parameters } = job.data;
+  const { taskId } = job.data;
 
   logger.info({ taskId, jobId: job.id, type: job.name }, 'Processing task');
 
@@ -44,7 +44,7 @@ async function processTask(job: Job<TaskJobData>) {
     let result;
     switch (job.name) {
       case 'echo':
-        result = await processEchoTask(job);
+        result = processEchoTask(job);
         break;
       case 'delay':
         result = await processDelayTask(job);
@@ -90,7 +90,7 @@ async function processTask(job: Job<TaskJobData>) {
  * Echo task processor
  * Simply returns the input parameters
  */
-async function processEchoTask(job: Job<TaskJobData>) {
+function processEchoTask(job: Job<TaskJobData>) {
   const { parameters } = job.data;
   return {
     type: 'echo',
@@ -134,7 +134,7 @@ worker.on('active', (job) => {
   queueJobsTotal.inc({ queue: 'tasks', status: 'active' });
 });
 
-worker.on('completed', (job, result) => {
+worker.on('completed', (job) => {
   logger.info({ jobId: job.id, type: job.name }, 'Job completed');
 });
 
@@ -164,7 +164,11 @@ async function shutdown(signal: string) {
   process.exit(0);
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => {
+  void shutdown('SIGTERM');
+});
+process.on('SIGINT', () => {
+  void shutdown('SIGINT');
+});
 
 logger.info({ concurrency: config.worker.concurrency }, 'Task worker started');

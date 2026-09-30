@@ -1,5 +1,5 @@
 import { prisma } from '../../lib/db.js';
-import { TaskStatus } from '@prisma/client';
+import { Prisma, TaskStatus } from '@prisma/client';
 
 /**
  * Tasks repository
@@ -20,7 +20,7 @@ export const tasksRepository = {
       data: {
         type: data.type,
         accountId: data.accountId,
-        parameters: data.parameters,
+        parameters: data.parameters as Prisma.InputJsonObject,
         priority: data.priority ?? 0,
         status: TaskStatus.QUEUED,
       },
@@ -86,7 +86,7 @@ export const tasksRepository = {
     expiresAt: Date;
   }) {
     return prisma.taskResult.create({
-      data,
+      data: { ...data, metadata: data.metadata as Prisma.InputJsonObject },
     });
   },
 };

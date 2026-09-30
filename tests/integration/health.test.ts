@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/app.js';
+import { bodyOf } from '../helpers/body';
 
 describe('Health Endpoints', () => {
   describe('GET /health', () => {
@@ -11,7 +12,7 @@ describe('Health Endpoints', () => {
       expect(response.body).toHaveProperty('status', 'ok');
       expect(response.body).toHaveProperty('timestamp');
       expect(response.body).toHaveProperty('uptime');
-      expect(response.body.uptime).toBeGreaterThan(0);
+      expect(bodyOf<{ uptime: number }>(response).uptime).toBeGreaterThan(0);
     });
   });
 
@@ -32,10 +33,11 @@ describe('Health Endpoints', () => {
       // Status can be 200 (ready) or 503 (not ready) depending on dependencies
       expect([200, 503]).toContain(response.status);
       expect(response.body).toHaveProperty('status');
-      expect(['ready', 'not_ready']).toContain(response.body.status);
+      const body = bodyOf<{ status: string; services: Record<string, unknown> }>(response);
+      expect(['ready', 'not_ready']).toContain(body.status);
       expect(response.body).toHaveProperty('services');
-      expect(response.body.services).toHaveProperty('database');
-      expect(response.body.services).toHaveProperty('redis');
+      expect(body.services).toHaveProperty('database');
+      expect(body.services).toHaveProperty('redis');
       expect(response.body).toHaveProperty('timestamp');
     });
   });

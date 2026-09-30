@@ -23,7 +23,7 @@ export type ConfigCategory =
   | 'feature_flags'
   | 'external_apis'
   | 'monitoring'
-  | string;
+  | (string & Record<never, never>);
 
 /**
  * Validation status enumeration

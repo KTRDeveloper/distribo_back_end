@@ -27,37 +27,38 @@ import { execSync } from 'child_process';
 
 // Mock Redis before any imports
 vi.mock('ioredis', () => {
-  return {
-    default: class Redis {
-      get = vi.fn().mockResolvedValue(null);
-      set = vi.fn().mockResolvedValue('OK');
-      setex = vi.fn().mockResolvedValue('OK');
-      del = vi.fn().mockResolvedValue(1);
-      exists = vi.fn().mockResolvedValue(0);
-      expire = vi.fn().mockResolvedValue(1);
-      ttl = vi.fn().mockResolvedValue(-1);
-      keys = vi.fn().mockResolvedValue([]);
-      flushall = vi.fn().mockResolvedValue('OK');
-      quit = vi.fn().mockResolvedValue('OK');
-      disconnect = vi.fn();
-      on = vi.fn();
-      once = vi.fn();
-      removeListener = vi.fn();
-      sendCommand = vi.fn().mockResolvedValue('OK');
-      defineCommand = vi.fn();
-      call = vi.fn().mockResolvedValue('OK');
-      multi = vi.fn().mockReturnValue({
-        exec: vi.fn().mockResolvedValue([[null, 'OK']]),
-      });
-      pipeline = vi.fn().mockReturnValue({
-        exec: vi.fn().mockResolvedValue([[null, 'OK']]),
-      });
+  class Redis {
+    get = vi.fn().mockResolvedValue(null);
+    set = vi.fn().mockResolvedValue('OK');
+    setex = vi.fn().mockResolvedValue('OK');
+    del = vi.fn().mockResolvedValue(1);
+    exists = vi.fn().mockResolvedValue(0);
+    expire = vi.fn().mockResolvedValue(1);
+    ttl = vi.fn().mockResolvedValue(-1);
+    keys = vi.fn().mockResolvedValue([]);
+    flushall = vi.fn().mockResolvedValue('OK');
+    quit = vi.fn().mockResolvedValue('OK');
+    disconnect = vi.fn();
+    on = vi.fn();
+    once = vi.fn();
+    removeListener = vi.fn();
+    sendCommand = vi.fn().mockResolvedValue('OK');
+    defineCommand = vi.fn();
+    call = vi.fn().mockResolvedValue('OK');
+    multi = vi.fn().mockReturnValue({
+      exec: vi.fn().mockResolvedValue([[null, 'OK']]),
+    });
+    pipeline = vi.fn().mockReturnValue({
+      exec: vi.fn().mockResolvedValue([[null, 'OK']]),
+    });
 
-      constructor() {
-        // No-op constructor
-      }
-    },
-  };
+    constructor() {
+      // No-op constructor
+    }
+  }
+
+  // src/lib/redis.ts uses the named export; keep `default` for any other consumer.
+  return { default: Redis, Redis };
 });
 
 // Mock rate-limit-redis
@@ -95,7 +96,7 @@ vi.mock('bullmq', () => {
 let prisma: PrismaClient;
 
 // Global test setup
-beforeAll(async () => {
+beforeAll(() => {
   // Initialize Prisma client (env vars already set above)
   // Prisma 7 requires an explicit driver adapter (no implicit datasource.url connection)
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -117,8 +118,6 @@ beforeAll(async () => {
     throw error;
   }
 
-  // Store for tests
-  (global as any).testPrisma = prisma;
 });
 
 beforeEach(async () => {

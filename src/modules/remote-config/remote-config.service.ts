@@ -13,6 +13,7 @@ import {
   configValidationTotal,
 } from '../../lib/metrics.js';
 import type {
+  ConfigAction,
   ConfigValue,
   CreateConfigRequest,
   UpdateConfigRequest,
@@ -24,6 +25,7 @@ import type {
   MigrationDetail,
   HistoryResponse,
   PaginatedHistoryResponse,
+  ValidationStatus,
 } from './remote-config.types.js';
 import { isSensitiveKeyName } from './remote-config.schemas.js';
 import type { SystemConfig } from '@prisma/client';
@@ -42,8 +44,8 @@ function serializeValue(value: ConfigValue): string {
  */
 function deserializeValue(value: string): ConfigValue {
   try {
-    return JSON.parse(value);
-  } catch (error) {
+    return JSON.parse(value) as ConfigValue;
+  } catch {
     // If not valid JSON, return as string
     logger.warn({ value: value.substring(0, 50) }, 'Failed to deserialize config value, returning as string');
     return value;
@@ -91,7 +93,7 @@ function toResponse(config: SystemConfig, includeValue: boolean = true): ConfigR
     },
     validation: {
       lastValidatedAt: config.lastValidatedAt,
-      status: config.validationStatus as any,
+      status: config.validationStatus as ValidationStatus | null,
       error: config.validationError,
     },
   };
@@ -243,7 +245,7 @@ export async function update(id: string, data: UpdateConfigRequest): Promise<Con
     }
 
     // Prepare update data
-    const updateData: any = {
+    const updateData: Parameters<typeof repository.update>[1] = {
       updatedBy: data.updatedBy,
     };
 
@@ -345,7 +347,7 @@ export async function getHistory(
     const historyItems: HistoryResponse[] = items.map((item) => ({
       id: item.id,
       configId: item.configId,
-      action: item.action as any,
+      action: item.action as ConfigAction,
       previousValue: item.previousValue ? deserializeValue(item.previousValue) : null,
       newValue: item.newValue ? deserializeValue(item.newValue) : null,
       changedAt: item.changedAt,
@@ -462,7 +464,7 @@ export async function migrate(request: MigrateRequest): Promise<MigrateResponse>
       // Parse env value (try JSON first, fallback to string)
       let parsedValue: ConfigValue = envValue;
       try {
-        parsedValue = JSON.parse(envValue);
+        parsedValue = JSON.parse(envValue) as ConfigValue;
       } catch {
         // Not JSON, use as string
       }
@@ -513,14 +515,16 @@ export async function migrate(request: MigrateRequest): Promise<MigrateResponse>
 export function getFromEnvironment(category: string, key: string): ConfigValue | null {
   // Pattern 1: CATEGORY_KEY
   const pattern1 = `${category.toUpperCase()}_${key.toUpperCase()}`;
-  if (process.env[pattern1]) {
-    return parseEnvValue(process.env[pattern1]!);
+  const value1 = process.env[pattern1];
+  if (value1) {
+    return parseEnvValue(value1);
   }
 
   // Pattern 2: KEY only
   const pattern2 = key.toUpperCase();
-  if (process.env[pattern2]) {
-    return parseEnvValue(process.env[pattern2]!);
+  const value2 = process.env[pattern2];
+  if (value2) {
+    return parseEnvValue(value2);
   }
 
   return null;
@@ -531,7 +535,7 @@ export function getFromEnvironment(category: string, key: string): ConfigValue |
  */
 function parseEnvValue(value: string): ConfigValue {
   try {
-    return JSON.parse(value);
+    return JSON.parse(value) as ConfigValue;
   } catch {
     return value;
   }

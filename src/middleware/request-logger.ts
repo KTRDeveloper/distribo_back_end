@@ -1,4 +1,5 @@
-import pinoHttp from 'pino-http';
+import type { Request, Response } from 'express';
+import { pinoHttp } from 'pino-http';
 import { logger } from '../lib/logger.js';
 import { config } from '../config/index.js';
 import { httpRequestDuration, httpRequestTotal } from '../lib/metrics.js';
@@ -10,7 +11,7 @@ import { httpRequestDuration, httpRequestTotal } from '../lib/metrics.js';
 export const requestLogger = pinoHttp({
   logger,
   autoLogging: config.env !== 'test',
-  customLogLevel: (req, res, err) => {
+  customLogLevel: (_req, res, err) => {
     if (res.statusCode >= 500 || err) {
       return 'error';
     }
@@ -26,7 +27,7 @@ export const requestLogger = pinoHttp({
     return `${req.method} ${req.url} ${res.statusCode} - ${err.message}`;
   },
   customProps: (req) => ({
-    requestId: req.requestId,
+    requestId: (req as Request).requestId,
   }),
   customAttributeKeys: {
     req: 'request',
@@ -35,7 +36,7 @@ export const requestLogger = pinoHttp({
     responseTime: 'duration',
   },
   serializers: {
-    req: (req) => ({
+    req: (req: Request & { id?: string }) => ({
       id: req.id,
       method: req.method,
       url: req.url,
@@ -46,7 +47,7 @@ export const requestLogger = pinoHttp({
       remoteAddress: req.socket.remoteAddress,
       requestId: req.requestId,
     }),
-    res: (res) => ({
+    res: (res: Response) => ({
       statusCode: res.statusCode,
     }),
   },
@@ -59,7 +60,8 @@ export const requestLogger = pinoHttp({
     const startTime = Date.now();
     res.on('finish', () => {
       const duration = (Date.now() - startTime) / 1000;
-      const route = req.route?.path || req.path;
+      const expressReq = req as Request;
+      const route = (expressReq.route as { path?: string } | undefined)?.path ?? expressReq.path;
 
       httpRequestDuration.observe(
         {

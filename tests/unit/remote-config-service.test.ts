@@ -2,7 +2,7 @@
  * Unit tests for remote config service
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { prisma } from '../setup.js';
 import * as service from '../../src/modules/remote-config/remote-config.service.js';
 import type { CreateConfigRequest } from '../../src/modules/remote-config/remote-config.types.js';
@@ -329,7 +329,7 @@ describe('RemoteConfigService', () => {
       await service.deleteConfig(created.id);
 
       // History should still exist (cascade doesn't apply to already-created entries)
-      const history = await prisma.configHistory.findMany({
+      await prisma.configHistory.findMany({
         where: { configId: created.id },
       });
 
@@ -520,7 +520,7 @@ describe('RemoteConfigService', () => {
   });
 
   describe('environment variable fallback', () => {
-    it('should try CATEGORY_KEY pattern first', async () => {
+    it('should try CATEGORY_KEY pattern first', () => {
       process.env.DATABASE_POOL_SIZE = '50';
 
       const value = service.getFromEnvironment('database', 'pool_size');
@@ -530,7 +530,7 @@ describe('RemoteConfigService', () => {
       delete process.env.DATABASE_POOL_SIZE;
     });
 
-    it('should try KEY pattern as fallback', async () => {
+    it('should try KEY pattern as fallback', () => {
       process.env.TIMEOUT = '5000';
 
       const value = service.getFromEnvironment('server', 'timeout');
@@ -540,7 +540,7 @@ describe('RemoteConfigService', () => {
       delete process.env.TIMEOUT;
     });
 
-    it('should parse JSON values from env vars', async () => {
+    it('should parse JSON values from env vars', () => {
       process.env.TEST_JSON = '{"key":"value"}';
 
       const value = service.getFromEnvironment('test', 'json');
@@ -550,7 +550,7 @@ describe('RemoteConfigService', () => {
       delete process.env.TEST_JSON;
     });
 
-    it('should return null if no env var found', async () => {
+    it('should return null if no env var found', () => {
       const value = service.getFromEnvironment('nonexistent', 'key');
 
       expect(value).toBeNull();

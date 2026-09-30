@@ -45,7 +45,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
     return res.status(err.statusCode).json({
       error: {
         message: err.message,
-        code: (err as any).code,
+        code: 'code' in err && typeof err.code === 'string' ? err.code : undefined,
         requestId,
       },
     } satisfies ErrorResponse);

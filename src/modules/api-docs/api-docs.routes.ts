@@ -12,7 +12,7 @@ import { apiDocsController, swaggerUiOptions } from './api-docs.controller.js';
 export const apiDocsRoutes = Router();
 
 // GET /docs/openapi.json - live-generated OpenAPI document
-apiDocsRoutes.get('/openapi.json', apiDocsController.getOpenApiJson);
+apiDocsRoutes.get('/openapi.json', (req, res) => apiDocsController.getOpenApiJson(req, res));
 
 // GET /docs - interactive Swagger UI, bound to /docs/openapi.json
 apiDocsRoutes.use('/', swaggerUi.serve, swaggerUi.setup(undefined, swaggerUiOptions));

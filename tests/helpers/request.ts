@@ -1,10 +1,12 @@
 import request from 'supertest';
 import { sign } from 'jsonwebtoken';
 
+type App = Parameters<typeof request>[0];
+
 /**
  * Create authenticated request with JWT token
  */
-export function createAuthenticatedRequest(app: any, accountId: string) {
+export function createAuthenticatedRequest(app: App, accountId: string) {
   const token = sign(
     { accountId, tokenVersion: 0 },
     process.env.JWT_SECRET || 'test-secret-key',
@@ -23,7 +25,7 @@ export function createAuthenticatedRequest(app: any, accountId: string) {
 /**
  * Create request with custom headers
  */
-export function createRequestWithHeaders(app: any, headers: Record<string, string>) {
+export function createRequestWithHeaders(app: App, headers: Record<string, string>) {
   return {
     get: (url: string) => request(app).get(url).set(headers),
     post: (url: string) => request(app).post(url).set(headers),

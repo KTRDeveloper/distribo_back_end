@@ -15,6 +15,11 @@ import {
   uuidSchema,
 } from './remote-config.schemas.js';
 import { logger } from '../../lib/logger.js';
+import type {
+  CreateConfigRequest,
+  UpdateConfigRequest,
+  MigrateRequest,
+} from './remote-config.types.js';
 
 /**
  * Create a new configuration
@@ -22,7 +27,7 @@ import { logger } from '../../lib/logger.js';
  */
 export async function create(req: Request, res: Response): Promise<void> {
   try {
-    const validatedData = createConfigSchema.parse(req.body) as any;
+    const validatedData = createConfigSchema.parse(req.body) as CreateConfigRequest;
     const config = await service.create(validatedData);
 
     res.status(201).json({
@@ -137,7 +142,7 @@ export async function getByCategoryAndKey(req: Request, res: Response): Promise<
 export async function update(req: Request, res: Response): Promise<void> {
   try {
     const id = uuidSchema.parse(req.params.id);
-    const validatedData = updateConfigSchema.parse(req.body) as any;
+    const validatedData = updateConfigSchema.parse(req.body) as UpdateConfigRequest;
     const config = await service.update(id, validatedData);
 
     res.status(200).json({
@@ -268,7 +273,7 @@ export async function validate(req: Request, res: Response): Promise<void> {
  */
 export async function migrate(req: Request, res: Response): Promise<void> {
   try {
-    const validatedData = migrateRequestSchema.parse(req.body) as any;
+    const validatedData = migrateRequestSchema.parse(req.body) as MigrateRequest;
     const result = await service.migrate(validatedData);
 
     const statusCode = result.success ? 200 : 207; // 207 Multi-Status if partial failure

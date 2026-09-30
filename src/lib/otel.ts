@@ -58,6 +58,6 @@ export async function shutdownOtel() {
 }
 
 // Handle process termination
-process.on('SIGTERM', async () => {
-  await shutdownOtel();
+process.on('SIGTERM', () => {
+  void shutdownOtel();
 });

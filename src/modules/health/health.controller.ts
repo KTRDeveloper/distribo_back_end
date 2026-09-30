@@ -12,7 +12,7 @@ import type { HealthStatus, ReadinessStatus, LivenessStatus } from './health.typ
  * Basic health check
  * Returns server status and uptime
  */
-export async function getHealth(req: Request, res: Response) {
+export function getHealth(_req: Request, res: Response) {
   const response: HealthStatus = {
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -26,7 +26,7 @@ export async function getHealth(req: Request, res: Response) {
  * Readiness check
  * Checks if service dependencies are ready (database, redis)
  */
-export async function getReadiness(req: Request, res: Response) {
+export async function getReadiness(_req: Request, res: Response) {
   let databaseStatus: 'connected' | 'disconnected' | 'error' = 'disconnected';
   let redisStatus: 'connected' | 'disconnected' | 'error' = 'disconnected';
 
@@ -34,7 +34,7 @@ export async function getReadiness(req: Request, res: Response) {
   try {
     await prisma.$queryRaw`SELECT 1`;
     databaseStatus = 'connected';
-  } catch (error) {
+  } catch {
     databaseStatus = 'error';
   }
 
@@ -42,7 +42,7 @@ export async function getReadiness(req: Request, res: Response) {
   try {
     const pong = await redis.ping();
     redisStatus = pong === 'PONG' ? 'connected' : 'error';
-  } catch (error) {
+  } catch {
     redisStatus = 'error';
   }
 
@@ -65,7 +65,7 @@ export async function getReadiness(req: Request, res: Response) {
  * Liveness check
  * Simple check to verify the service is alive
  */
-export async function getLiveness(req: Request, res: Response) {
+export function getLiveness(_req: Request, res: Response) {
   const response: LivenessStatus = {
     status: 'alive',
     timestamp: new Date().toISOString(),

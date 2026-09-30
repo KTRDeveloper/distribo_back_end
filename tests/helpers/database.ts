@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../setup';
 import { hash } from 'bcrypt';
 import { uniquePhone } from './phone';
@@ -50,7 +51,7 @@ export async function seedTask(taskData: {
   id?: string;
   type: string;
   accountId: string;
-  parameters?: any;
+  parameters?: Prisma.InputJsonObject;
   status?: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 }) {
   const task = await prisma.task.create({

@@ -39,7 +39,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 
     logger.debug({ requestId: req.requestId, accountId: payload.accountId }, 'User authenticated');
 
-    next();
+    return next();
   } catch (error) {
     logger.warn(
       { requestId: req.requestId, error },

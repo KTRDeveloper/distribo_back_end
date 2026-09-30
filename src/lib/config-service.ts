@@ -2,6 +2,13 @@ import { logger } from './logger.js';
 import type { ConfigValue } from '../modules/remote-config/remote-config.types.js';
 
 /**
+ * Minimal contract ConfigService needs from the remote config service
+ */
+export interface RemoteConfigLookup {
+  getByCategoryAndKey(category: string, key: string): Promise<{ value: ConfigValue } | null>;
+}
+
+/**
  * Cache entry for configuration values
  */
 interface CacheEntry {
@@ -21,7 +28,7 @@ class ConfigService {
   private cache: Map<string, CacheEntry> = new Map();
   private readonly cacheTTL = 5 * 60 * 1000; // 5 minutes
   private readonly maxCacheSize = 1000;
-  private remoteConfigService: any = null; // Will be set during initialization
+  private remoteConfigService: RemoteConfigLookup | null = null; // Will be set during initialization
 
   /**
    * Get a configuration value by category and key
@@ -94,14 +101,16 @@ class ConfigService {
   private getFromEnvironment(category: string, key: string): ConfigValue | null {
     // Pattern 1: CATEGORY_KEY
     const pattern1 = `${category.toUpperCase()}_${key.toUpperCase()}`;
-    if (process.env[pattern1]) {
-      return this.parseEnvValue(process.env[pattern1]!);
+    const value1 = process.env[pattern1];
+    if (value1) {
+      return this.parseEnvValue(value1);
     }
 
     // Pattern 2: KEY only
     const pattern2 = key.toUpperCase();
-    if (process.env[pattern2]) {
-      return this.parseEnvValue(process.env[pattern2]!);
+    const value2 = process.env[pattern2];
+    if (value2) {
+      return this.parseEnvValue(value2);
     }
 
     return null;
@@ -115,7 +124,7 @@ class ConfigService {
   private parseEnvValue(value: string): ConfigValue {
     // Try to parse as JSON (for numbers, booleans, objects, arrays)
     try {
-      return JSON.parse(value);
+      return JSON.parse(value) as ConfigValue;
     } catch {
       // If not valid JSON, return as string
       return value;
@@ -177,7 +186,7 @@ class ConfigService {
    * Set the remote config service instance
    * Called during application initialization
    */
-  setRemoteConfigService(service: any): void {
+  setRemoteConfigService(service: RemoteConfigLookup): void {
     this.remoteConfigService = service;
     logger.info('Remote config service registered with ConfigService');
   }

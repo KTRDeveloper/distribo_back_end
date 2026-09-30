@@ -13,12 +13,13 @@ export const userController = {
    */
   async getProfile(req: Request, res: Response) {
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: {
           message: 'Unauthorized',
           code: 'UNAUTHORIZED',
         },
       });
+      return;
     }
 
     const profile = await userService.getProfile(req.user.id);
@@ -30,12 +31,13 @@ export const userController = {
    */
   async updateProfile(req: Request, res: Response) {
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: {
           message: 'Unauthorized',
           code: 'UNAUTHORIZED',
         },
       });
+      return;
     }
 
     const input = updateProfileSchema.parse(req.body);

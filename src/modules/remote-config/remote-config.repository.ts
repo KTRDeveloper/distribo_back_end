@@ -5,7 +5,7 @@
  */
 
 import { prisma } from '../../lib/db.js';
-import type { SystemConfig, ConfigHistory } from '@prisma/client';
+import type { Prisma, SystemConfig, ConfigHistory } from '@prisma/client';
 import type { CreateConfigRequest } from './remote-config.types.js';
 import { logger } from '../../lib/logger.js';
 
@@ -75,7 +75,7 @@ export async function findMany(filters?: {
   includeDisabled?: boolean;
 }): Promise<SystemConfig[]> {
   try {
-    const where: any = {};
+    const where: Prisma.SystemConfigWhereInput = {};
 
     if (filters?.category) {
       where.category = filters.category;

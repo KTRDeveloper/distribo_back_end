@@ -10,7 +10,6 @@ import { logger } from './logger.js';
  * datasource.url connection) — see prisma.config.ts for the CLI/migrate side.
  */
 declare global {
-  // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
 }
 

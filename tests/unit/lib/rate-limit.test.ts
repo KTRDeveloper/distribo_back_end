@@ -5,12 +5,12 @@ function createFakeClient(): RateLimitClient & { store: Map<string, string> } {
   const store = new Map<string, string>();
   return {
     store,
-    async get(key: string) {
-      return store.get(key) ?? null;
+    get(key: string) {
+      return Promise.resolve(store.get(key) ?? null);
     },
-    async set(key: string, value: string) {
+    set(key: string, value: string) {
       store.set(key, value);
-      return 'OK';
+      return Promise.resolve('OK');
     },
   };
 }

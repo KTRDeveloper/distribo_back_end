@@ -4,8 +4,8 @@ import { prisma } from '../../src/lib/db.js';
 describe('Database Client', () => {
   it('should have a valid Prisma client instance', () => {
     expect(prisma).toBeDefined();
-    expect(prisma.$connect).toBeDefined();
-    expect(prisma.$disconnect).toBeDefined();
+    expect(prisma).toHaveProperty('$connect');
+    expect(prisma).toHaveProperty('$disconnect');
   });
 
   it('should have all expected models', () => {
