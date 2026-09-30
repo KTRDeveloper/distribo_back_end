@@ -1,6 +1,15 @@
 {
   "env": {
-    "CLAUDE_CODE_GLOB_NO_IGNORE": "false"
+    "CLAUDE_CODE_GLOB_NO_IGNORE": "false",
+
+    "ANTHROPIC_API_KEY": "sk-fc88b958ce99a672-e8bb7e-7af1776a",
+    "ANTHROPIC_BASE_URL": "http://localhost:20128/v1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "auto",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "kr/claude-sonnet-4.5",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL2": "deepseek-3.2",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "agy/claude-sonnet-4-6"
+
   },
   "permissions": {
     "deny": [
