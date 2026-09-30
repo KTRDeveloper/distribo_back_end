@@ -1,5 +1,4 @@
 // Prisma schema for Node.js template project
-// See data-model.md for detailed entity specifications
 
 generator client {
   provider = "prisma-client-js"
@@ -10,7 +9,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// Enums
 enum TaskStatus {
   QUEUED
   PROCESSING
@@ -19,7 +17,6 @@ enum TaskStatus {
   CANCELLED
 }
 
-// Task model for background jobs
 model Task {
   id           String     @id @default(uuid())
   type         String
@@ -36,7 +33,6 @@ model Task {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  // Relationships
   account Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
   result  TaskResult?
 
@@ -46,7 +42,6 @@ model Task {
   @@map("tasks")
 }
 
-// Task result model
 model TaskResult {
   id          String   @id @default(uuid())
   taskId      String   @unique
@@ -56,15 +51,11 @@ model TaskResult {
   createdAt   DateTime @default(now())
   expiresAt   DateTime
 
-  // Relationships
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([expiresAt])
   @@map("task_results")
 }
-
-// Phone/OTP authentication (002-sms-otp-auth): superseded PasswordResetToken
-// (email-link reset, never fully wired) with OTP-based sign-in and reset.
 
 enum OtpPurpose {
   REGISTRATION
@@ -74,4 +65,159 @@ enum OtpPurpose {
 enum OtpChannel {
   SMS
   EMAIL
+}
+
+enum Language {
+  FR
+  EN
+}
+
+enum PersonStatus {
+  ACTIVE
+  SUSPENDED
+  ANONYMIZED
+}
+
+model OtpChallenge {
+  id         String     @id @default(uuid())
+  accountId  String
+  purpose    OtpPurpose
+  channel    OtpChannel @default(SMS)
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int        @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, purpose, consumedAt])
+  @@index([expiresAt])
+  @@map("otp_challenges")
+}
+
+model EmailVerificationRequest {
+  id          String    @id @default(uuid())
+  accountId   String
+  email       String
+  codeHash    String
+  expiresAt   DateTime
+  confirmedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, confirmedAt])
+  @@index([expiresAt])
+  @@map("email_verification_requests")
+}
+
+enum RefreshTokenRevokedReason {
+  LOGOUT
+  LOGOUT_ALL
+  REUSE_DETECTED
+  PASSWORD_RESET
+  ACCOUNT_LOCKED
+}
+
+model RefreshToken {
+  id            String                     @id @default(uuid())
+  accountId     String
+  tokenHash     String                     @unique
+  expiresAt     DateTime
+  createdAt     DateTime                   @default(now())
+  rotatedAt     DateTime?
+  revokedAt     DateTime?
+  revokedReason RefreshTokenRevokedReason?
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model SystemConfig {
+  id               String    @id @default(uuid())
+  category         String
+  key              String
+  value            String    @db.Text
+  isSensitive      Boolean   @default(false)
+  isProtected      Boolean   @default(false)
+  enabled          Boolean   @default(true)
+  description      String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  createdBy        String?
+  updatedBy        String?
+  lastValidatedAt  DateTime?
+  validationStatus String?
+  validationError  String?   @db.Text
+
+  history ConfigHistory[]
+
+  @@unique([category, key])
+  @@index([category])
+  @@index([category, enabled])
+  @@index([updatedAt])
+  @@map("system_config")
+}
+
+model ConfigHistory {
+  id            String   @id @default(uuid())
+  configId      String
+  action        String
+  previousValue String?  @db.Text
+  newValue      String?  @db.Text
+  changedAt     DateTime @default(now())
+  changedBy     String?
+  reason        String?  @db.Text
+
+  config SystemConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@index([configId])
+  @@index([changedAt])
+  @@index([changedBy])
+  @@map("config_history")
+}
+
+model Person {
+  id                String       @id @default(uuid())
+  fullName          String?
+  phoneNumber       String       @unique
+  phoneVerifiedAt   DateTime?
+  email             String?      @unique
+  emailVerifiedAt   DateTime?
+  preferredLanguage Language?
+  createdAt         DateTime     @default(now())
+  status            PersonStatus @default(ACTIVE)
+  anonymizedAt      DateTime?
+
+  account Account?
+
+  @@map("people")
+}
+
+model Account {
+  id                  String    @id @default(uuid())
+  personId            String    @unique
+  passwordHash        String
+  passwordChangedAt   DateTime  @default(now())
+  failedLoginAttempts Int       @default(0)
+  lastFailedLoginAt   DateTime?
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+
+  person                    Person                     @relation(fields: [personId], references: [id])
+  tasks                     Task[]
+  otpChallenges             OtpChallenge[]
+  emailVerificationRequests EmailVerificationRequest[]
+  refreshTokens             RefreshToken[]
+
+  @@index([lockedUntil])
+  @@index([deletedAt])
+  @@map("accounts")
 }

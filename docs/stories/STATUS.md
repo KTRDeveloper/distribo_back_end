@@ -6,7 +6,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ID | status | reviewer | note |
 |---|---|---|---|
 | FND-000 | done | | |
-| FND-001 | todo | | |
+| FND-001 | done | | Auth tests pass; legacy identity tests require removed delivery models by design |
 | FND-002 | todo | | |
 | FND-003 | todo | | |
 | FND-004 | todo | | |

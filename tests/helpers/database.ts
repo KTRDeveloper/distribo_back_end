@@ -3,6 +3,8 @@ import { prisma } from '../setup';
 import { hash } from 'bcrypt';
 import { uniquePhone } from './phone';
 
+const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
+
 /**
  * Seed database with a test account (creates a Person + Account together)
  */
@@ -86,12 +88,25 @@ export async function clearTasks() {
  * Clear all data from database
  */
 export async function clearDatabase() {
-  await prisma.taskResult.deleteMany();
-  await prisma.task.deleteMany();
-  await prisma.otpChallenge.deleteMany();
-  await prisma.emailVerificationRequest.deleteMany();
-  await prisma.account.deleteMany();
-  await prisma.person.deleteMany();
+  if (process.env.NODE_ENV !== 'test' || process.env.DATABASE_URL !== TEST_DATABASE_URL) {
+    throw new Error('Refusing to clear a non-test database');
+  }
+
+  await prisma.$executeRaw`
+    DO $$
+    DECLARE
+      table_name text;
+    BEGIN
+      FOR table_name IN
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename <> '_prisma_migrations'
+      LOOP
+        EXECUTE format('TRUNCATE TABLE %I RESTART IDENTITY CASCADE', table_name);
+      END LOOP;
+    END $$;
+  `;
 }
 
 /**

@@ -25,6 +25,8 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { execSync } from 'child_process';
 
+const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
+
 // Mock Redis before any imports
 vi.mock('ioredis', () => {
   class Redis {
@@ -120,30 +122,30 @@ beforeAll(() => {
 
 });
 
+async function clearDatabase() {
+  if (process.env.NODE_ENV !== 'test' || process.env.DATABASE_URL !== TEST_DATABASE_URL) {
+    throw new Error('Refusing to clear a non-test database');
+  }
+
+  await prisma.$executeRaw`
+    DO $$
+    DECLARE
+      table_name text;
+    BEGIN
+      FOR table_name IN
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = 'public'
+          AND tablename <> '_prisma_migrations'
+      LOOP
+        EXECUTE format('TRUNCATE TABLE %I RESTART IDENTITY CASCADE', table_name);
+      END LOOP;
+    END $$;
+  `;
+}
+
 beforeEach(async () => {
-  // Clean database before each test
-  // Delete in reverse order of dependencies
-  await prisma.configHistory.deleteMany();
-  await prisma.systemConfig.deleteMany();
-  await prisma.taskResult.deleteMany();
-  await prisma.task.deleteMany();
-  await prisma.otpChallenge.deleteMany();
-  await prisma.emailVerificationRequest.deleteMany();
-
-  // Delivery domain models (specs/001-delivery-data-model/) — deepest
-  // dependents first, since Organization/Collaboration/Customer etc. all
-  // FK back to Account/Person and would otherwise block their deletion.
-  await prisma.customerPersonReassignment.deleteMany();
-  await prisma.positionPermission.deleteMany();
-  await prisma.collaboration.deleteMany();
-  await prisma.customer.deleteMany();
-  await prisma.phoneNumberChangeLog.deleteMany();
-  await prisma.position.deleteMany();
-  await prisma.permission.deleteMany();
-  await prisma.organization.deleteMany();
-
-  await prisma.account.deleteMany();
-  await prisma.person.deleteMany();
+  await clearDatabase();
 });
 
 afterAll(async () => {
