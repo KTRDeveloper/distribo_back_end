@@ -1,0 +1,55 @@
+kind: module
+module: accounts
+prefix: ACC
+title: Accounts
+responsibility: Owns accounts and their roles.
+entities: [Account]
+asvs_level: L2
+asvs_rationale: Holds login e-mails (personal data).
+classification:
+  - "Account.email | PII | never logged; returned only to its owner"
+threats:
+  - "T1 | S | Two accounts share an e-mail | unique index + validation | ACC-001 AB-1"
+contracts:
+  provides:
+    - name: AccountRepository
+      file: src/modules/accounts/account.repository.ts
+      story: ACC-001
+      items:
+        - "findAccountById(id: string): Promise<Account | null> — null when absent"
+      used_by: [catalog]
+stories:
+  - id: ACC-001
+    title: Create the account table
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [FND-000]
+    read_first: [docs/stories/modules/accounts/model.md]
+    design_refs: [comptes/account]
+    constraints: [Account:required, Account.email:unique, Account.role:enum]
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: create the `Account` table with its constraints so that later stories can store accounts."
+    fields: [Account.email, Account.role]
+    context: |
+      - Exists: walking skeleton (FND-000).
+    acceptance: |
+      Scenario: AC-1 Valid account is stored
+        When an account with email "a@example.test" and role SELLER is inserted
+        Then it is stored
+    abuse: |
+      Scenario: AB-1 Duplicate e-mail
+        Given an account with email "a@example.test"
+        When another account with the same email is inserted
+        Then the database rejects it
+    implementation:
+      create: [prisma/schema.prisma, src/modules/accounts/account.repository.ts, tests/accounts/account.table.test.ts]
+      pattern: src/modules/health/health.routes.ts
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the role column only accepts SELLER and ADMIN."
+    tests: |
+      insert valid | integration | AC-1, Account:required | full row → stored; row without email → rejected
+      unique email | integration | AB-1, Account.email:unique | same email twice → unique violation
+      role enum | integration | Account.role:enum, v5.0.0-2.2.1 | role "ROOT" → rejected; SELLER, ADMIN → stored
+    command: npx vitest run tests/accounts/account.table.test.ts

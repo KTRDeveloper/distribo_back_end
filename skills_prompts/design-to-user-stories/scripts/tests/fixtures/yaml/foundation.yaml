@@ -1,0 +1,35 @@
+kind: module
+module: foundation
+prefix: FND
+title: Foundation
+responsibility: Walking skeleton, tooling and CI shared by every module.
+entities: []
+asvs_level: L2
+asvs_rationale: Sets the baseline every module inherits.
+stories:
+  - id: FND-000
+    title: Walking skeleton
+    kind: technical
+    size: M
+    risk: medium
+    story: "Technical story: set up the project layout, CI and security scans so that every later story lands on a green build."
+    context: |
+      - Empty repository with the design in `docs/design.md`.
+      - Adds the layout, the health endpoint used as the pattern file, and CI.
+    acceptance: |
+      Scenario: AC-1 Health endpoint answers
+        When GET /health is called
+        Then the response is 200 with {"status": "ok"}
+      Scenario: AC-2 CI runs every check
+        When a commit is pushed
+        Then CI runs lint, typecheck, tests, SAST, secret scan and dependency audit
+    implementation:
+      create: [package.json, src/app.ts, src/server.ts, src/modules/health/health.routes.ts, tests/health/health.test.ts, .github/workflows/ci.yml, CLAUDE.md]
+      pattern: null
+      dependencies: [express, vitest, supertest]
+    tests: |
+      health ok | integration | AC-1 | GET /health → 200 {"status":"ok"}
+      ci config | unit | AC-2 | parse ci.yml → jobs lint, test, sast, secrets, audit exist
+    command: npx vitest run tests/health/health.test.ts
+    out_of_scope:
+      - Database setup (ACC-001).
