@@ -2757,8 +2757,7 @@
                           "pattern": "^[a-z][a-z0-9_]*$"
                         },
                         "isSensitive": {
-                          "type": "boolean",
-                          "default": false
+                          "type": "boolean"
                         },
                         "isProtected": {
                           "type": "boolean",

@@ -87,7 +87,8 @@ export const createConfigSchema = z.object({
   category: categorySchema,
   key: keySchema,
   value: configValueSchema,
-  isSensitive: z.boolean().optional().default(false),
+  // No default: when omitted, the service auto-detects from the key name.
+  isSensitive: z.boolean().optional(),
   isProtected: z.boolean().optional().default(false),
   enabled: z.boolean().optional().default(true),
   description: z.string().max(1000).optional(),
@@ -146,7 +147,8 @@ export const migrationMappingSchema = z.object({
   envVar: z.string().min(1, 'Environment variable name is required'),
   category: categorySchema,
   key: keySchema,
-  isSensitive: z.boolean().optional().default(false),
+  // No default: when omitted, the service auto-detects from the key name.
+  isSensitive: z.boolean().optional(),
   isProtected: z.boolean().optional().default(false),
   description: z.string().max(1000).optional(),
 });
