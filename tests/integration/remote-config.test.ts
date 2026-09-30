@@ -2,7 +2,7 @@
  * Integration tests for Remote Config API
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/app.js';
 import { bodyOf } from '../helpers/body';
@@ -165,7 +165,8 @@ describe('Remote Config API', () => {
   });
 
   describe('GET /api/remote-config', () => {
-    beforeAll(async () => {
+    // beforeEach, not beforeAll: tests/setup.ts empties every table before each test.
+    beforeEach(async () => {
       // Create test data
       await request(app).post('/api/v1/remote-config').send({
         category: 'cache',
@@ -254,7 +255,7 @@ describe('Remote Config API', () => {
   });
 
   describe('GET /api/remote-config/category/:category/key/:key', () => {
-    beforeAll(async () => {
+    beforeEach(async () => {
       await request(app).post('/api/v1/remote-config').send({
         category: 'storage',
         key: 'bucket_name',
@@ -537,9 +538,10 @@ describe('Remote Config API', () => {
       expect(bodyOf<Envelope<MigrateData>>(response).data.migratedCount).toBe(1);
       expect(bodyOf<Envelope<MigrateData>>(response).data.details[0].reason).toContain('Dry run');
 
-      // Should not actually create the config
+      // Should not actually create the config (DRY_RUN_TEST does not match the
+      // TEST_DRY_RUN / DRY_RUN env fallback names, so nothing is found either)
       const getResponse = await request(app).get('/api/v1/remote-config/category/test/key/dry_run');
-      expect(bodyOf<Envelope<ConfigData>>(getResponse).data.id).toBe('env-var'); // Falls back to env var
+      expect(getResponse.status).toBe(404);
 
       delete process.env.DRY_RUN_TEST;
     });
