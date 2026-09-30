@@ -1,0 +1,733 @@
+kind: module
+module: catalog
+prefix: CAT
+title: Catalog
+responsibility: Owns each organization's own articles, the negotiated price per customer, and the reference price an order line freezes.
+entities: [Product, CustomerPrice]
+depends_on: [foundation, person, notification, access, organization, relationship]
+asvs_level: L2
+asvs_rationale: Prices are business data; a customer must never see another customer's negotiated price, and only managers change prices.
+classification:
+  - "Product.price | internal | public to anyone who finds the business, as the default price"
+  - "CustomerPrice.price | confidential | visible to the supplier team and to that customer only"
+threats:
+  - "T1 | I | A customer reads another customer's negotiated price | the catalog view builds prices from the caller's own relationship only | CAT-007 AB-1"
+  - "T2 | E | A seller or driver changes prices or the catalog | product and price gestures need MANAGER online or OWNER | CAT-004 AB-1, CAT-008 AB-1"
+  - "T3 | E | A manager sets their own negotiated price | own customer record is refused | CAT-008 AB-2"
+  - "T4 | T | A price is written for a product of another business | the product must belong to the relationship's supplier | CAT-008 AB-3"
+constraints:
+  C-11: "`CustomerPrice` is unique per (relationship, product) among rows not deleted; the product belongs to the supplier of the relationship."
+  C-13: "`Product.price` > 0; `min_order_quantity` > 0 when set; `price_updated_at` is set by the server on every price change."
+  C-15: "Every order line is for an ACTIVE product of the relationship's supplier; on a customer-placed order the quantity is at least `min_order_quantity` when sent."
+  C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
+  CM-11: "Reference price of a line = negotiated price when one exists (even higher than the product price), else the product price."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+contracts:
+  provides:
+    - name: ReferencePrice
+      file: src/modules/catalog/catalog.repository.ts
+      story: CAT-003
+      items:
+        - "getReferencePrice(tx, relationshipId: string, productId: string): Promise<{ price: bigint; negotiated: boolean; changedAt: Date }> — negotiated price when a live one exists, else the product price"
+        - "getActiveProduct(tx, organizationId: string, productId: string): Promise<Product> — 404 unless ACTIVE and owned by the organization"
+      used_by: [order, sync]
+  consumes:
+    - "organization: loadActor, assertOrganizationActive (docs/stories/modules/organization/contracts.md)"
+    - "relationship: visibleRelationsWhere, projectForSupplier (docs/stories/modules/relationship/contracts.md)"
+    - "access: requireAbility, abilityFor, idempotent (docs/stories/modules/access/contracts.md)"
+stories:
+  - id: CAT-001
+    title: Products table
+    kind: technical
+    size: S
+    risk: low
+    depends_on: [ORG-001, FND-002, FND-005]
+    read_first: [prisma/schema.prisma, tests/integration/organization/organization-table.test.ts]
+    design_refs: [catalogue/product, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Product:required, Product.status:enum, Product:fk, C-13, C-01, C-35]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Product.{organization_id,name,unit,price,price_updated_at,min_order_quantity,description,category,status,created_at}"]
+    story: "Technical story: create the products table with its price rules so that each organization can own articles."
+    context: |
+      - Exists: `organizations`, `set_server_updated_at()`.
+      - Adds: table `products` (`price` bigint, `min_order_quantity` numeric(12,3) null, `status` default ACTIVE, `price_updated_at` and `created_at` default now, `server_updated_at`, `deleted_at`), CHECK `price > 0`, CHECK `min_order_quantity > 0` when set, and a trigger that sets `price_updated_at` to `now()` on insert and whenever `price` changes.
+    acceptance: |
+      Scenario: AC-1 Defaults
+        When a product is inserted with name, unit, price 3000
+        Then `status` is ACTIVE, `price_updated_at`, `created_at` and `server_updated_at` are set
+      Scenario Outline: AC-2 Price rules
+        When a row has <values>
+        Then the insert <result>
+        Examples:
+          | values                        | result          |
+          | price 1                       | accepts         |
+          | price 0                       | rejects (23514) |
+          | price -5                      | rejects (23514) |
+          | min_order_quantity 0.001      | accepts         |
+          | min_order_quantity 0          | rejects (23514) |
+          | min_order_quantity 1.0005     | rejects or rounds to 3 decimals |
+          | status "DELETED"              | rejects         |
+      Scenario: AC-3 Price change date
+        When the price is updated, and then only the name is updated
+        Then `price_updated_at` moves only for the price change
+      Scenario: AC-4 Required and key
+        When name, unit or price is null, or the organization is unknown
+        Then the insert fails with 23502 or 23503
+    implementation:
+      create: [prisma/migrations/<timestamp>_cat_001_products/migration.sql, tests/integration/catalog/product-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: price limits and the price date are enforced by the database."
+    tests: |
+      defaults | integration | AC-1, C-01, C-35 | insert → defaults; column types incl. numeric(12,3)
+      price rules | integration | AC-2, C-13, Product.status:enum | each Examples row → accepted or rejected
+      price date | integration | AC-3, C-13 | moves only on price change
+      required and key | integration | AC-4, Product:required, Product:fk | rejected
+    command: npx vitest run tests/integration/catalog/product-table.test.ts
+    out_of_scope:
+      - "Routes (CAT-004 onward)."
+  - id: CAT-002
+    title: Negotiated prices table
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [CAT-001, REL-002, PER-008]
+    read_first: [prisma/schema.prisma, tests/integration/relationship/relationship-table.test.ts]
+    design_refs: [relations-commerciales/customerprice, contraintes-a-poser-au-niveau-base-de]
+    constraints: [CustomerPrice:required, CustomerPrice:fk, C-11, C-04, C-01, C-35]
+    asvs: [v5.0.0-2.2.3, v5.0.0-8.2.2]
+    fields: ["CustomerPrice.{customer_relationship_id,product_id,price,set_by_id,set_at}"]
+    story: "Technical story: create the negotiated prices table so that one customer can have its own price for one article."
+    context: |
+      - Exists: `products` (CAT-001), `customer_relationships` (REL-001), `require_registered_person()`.
+      - Adds: table `customer_prices` (`set_at` default now, `server_updated_at`, `deleted_at`), partial unique index on (`customer_relationship_id`, `product_id`) where `deleted_at` is null, triggers `require_registered_person('set_by_id')` and `set_server_updated_at()`.
+      - A trigger refuses a row whose product does not belong to the supplier organization of the relationship (a relationship whose supplier is a person has no products). The application rule that a price is positive is in the routes (CAT-008).
+    acceptance: |
+      Scenario: AC-1 Row
+        When a price is inserted for a relationship and a product of the same supplier
+        Then the row is stored with `set_at` and `server_updated_at` set
+      Scenario Outline: AC-2 Uniqueness
+        When a second price for the same relationship and product is inserted while the first is <first>
+        Then the insert <result>
+        Examples:
+          | first    | result          |
+          | live     | rejects (23505) |
+          | deleted  | accepts         |
+      Scenario: AC-3 Product of another supplier
+        When the product belongs to a different organization than the relationship's supplier
+        Then the insert fails with 23514
+      Scenario: AC-4 Author and keys
+        When `set_by_id` is a guest, or a foreign key is unknown, or `price` is null
+        Then the insert fails with 23514, 23503 or 23502
+    abuse: |
+      Scenario: AB-1 Price for a foreign product by a crafted write (tampering)
+        When code inserts a price for another business's product
+        Then PostgreSQL refuses it, even though no validation ran
+    implementation:
+      create: [prisma/migrations/<timestamp>_cat_002_customer_prices/migration.sql, tests/integration/catalog/customer-price-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/relationship/relationship-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: supplier ownership of the product is checked in the database."
+      - "v5.0.0-8.2.2: one live price per pair."
+    tests: |
+      row | integration | AC-1, C-01, C-35 | stored; server time
+      uniqueness | integration | AC-2, C-11 | each Examples row → accepted or 23505
+      foreign product | integration | AC-3, C-11 | 23514
+      author and keys | integration | AC-4, CustomerPrice:required, CustomerPrice:fk, C-04 | rejected
+      crafted write | security | AB-1, CWE-20 | raw insert for a foreign product → 23514
+    command: npx vitest run tests/integration/catalog/customer-price-table.test.ts
+    out_of_scope:
+      - "Routes that write prices (CAT-008)."
+  - id: CAT-003
+    title: Reference price and active product lookup
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [CAT-002, REL-006]
+    read_first: [prisma/schema.prisma, src/modules/relationship/relationship.repository.ts]
+    design_refs: [relations-commerciales/customerprice, catalogue/product]
+    constraints: [CM-11, C-15]
+    asvs: [v5.0.0-2.2.3, v5.0.0-2.3.1]
+    story: "Technical story: provide the function that says which price an order line freezes, so that orders and sync compute it the same way."
+    context: |
+      - Exists: `products`, `customer_prices`.
+      - Adds: `src/modules/catalog/catalog.repository.ts` with `getReferencePrice(tx, relationshipId, productId)` and `getActiveProduct(tx, organizationId, productId)`.
+      - The reference price is the live negotiated price for the pair when one exists, even when higher than the product price; else `products.price`. It returns `{ price, negotiated, changedAt }` where `changedAt` is the negotiated `set_at` or the product's `price_updated_at`.
+      - `getActiveProduct` throws 404 `NOT_FOUND` unless the product belongs to the organization and is ACTIVE and not deleted.
+    acceptance: |
+      Scenario Outline: AC-1 Reference price
+        Given a product priced 3000
+        When the negotiated price is <negotiated> for the relationship
+        Then getReferencePrice returns price <price> and negotiated <flag>
+        Examples:
+          | negotiated        | price | flag  |
+          | none              | 3000  | false |
+          | 2800              | 2800  | true  |
+          | 3500 (higher)     | 3500  | true  |
+          | deleted (2800)    | 3000  | false |
+      Scenario: AC-2 Other customers do not matter
+        When another relationship has a negotiated price of 1000
+        Then the first relationship's reference price is unchanged
+      Scenario Outline: AC-3 Active product
+        When getActiveProduct receives <case>
+        Then <result>
+        Examples:
+          | case                                | result           |
+          | an ACTIVE product of the organization | it is returned |
+          | an INACTIVE product                 | 404 NOT_FOUND    |
+          | a deleted product                   | 404 NOT_FOUND    |
+          | a product of another organization   | 404 NOT_FOUND    |
+    abuse: |
+      Scenario: AB-1 Using another customer's price (information disclosure)
+        When getReferencePrice is called with relationship A
+        Then no price of relationship B is ever used
+    implementation:
+      create: [src/modules/catalog/catalog.repository.ts, tests/integration/catalog/reference-price.test.ts]
+      modify: []
+      pattern: src/modules/tasks/tasks.repository.ts
+      signatures:
+        - "getReferencePrice(tx: Prisma.TransactionClient, relationshipId: string, productId: string): Promise<{ price: bigint; negotiated: boolean; changedAt: Date }>"
+        - "getActiveProduct(tx: Prisma.TransactionClient, organizationId: string, productId: string): Promise<Product>"
+      types: []
+      errors: ["NOT_FOUND 404"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: prices are read on the server, from the database, inside the caller's transaction."
+    tests: |
+      reference price | integration | AC-1, CM-11 | each Examples row → price and flag
+      other customers | integration | AC-2 | unchanged
+      active product | integration | AC-3, C-15 | each Examples row → result
+      isolation | security | AB-1, CWE-200 | other relationship's price never used
+    command: npx vitest run tests/integration/catalog/reference-price.test.ts
+    out_of_scope:
+      - "Freezing prices on order lines (ORD module)."
+  - id: CAT-004
+    title: Manager creates a product
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [CAT-001, ORG-005, ACC-002, ACC-007, CAT-003, FND-003]
+    read_first: [src/modules/organization/organization.routes.ts, src/shared/money.ts]
+    design_refs: [catalogue/product]
+    constraints: [Product:required, C-13]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-2.2.1]
+    story: As a manager, I want to add an article to my catalog so that customers can order it.
+    context: |
+      - Exists: `products` (CAT-001); `loadActor`; `requireAbility('create', 'Product')` (ACC-002, online for MANAGER, always for OWNER); `parseQuantity`; `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/products` with `{ id, name, unit, price, min_order_quantity?, description?, category? }`; response 201 with the product view `{ id, name, unit, price, price_updated_at, min_order_quantity, description, category, status, created_at }`.
+      - Limits: `name` 1 to 100, `unit` 1 to 100, `category` up to 100, `description` up to 2000 (Q-027); `price` an integer of at least 1; `min_order_quantity` a decimal string or number greater than 0 with at most 3 decimals. The organization must be ACTIVE.
+    acceptance: |
+      Scenario: AC-1 Create
+        When a MANAGER posts name "Riz parfumé — sac 25 kg", unit "sac 25 kg" and price 15000
+        Then the response is 201 with status ACTIVE and price_updated_at set
+      Scenario Outline: AC-2 Limits
+        When the body has <field> = <value>
+        Then the response is <status>
+        Examples:
+          | field               | value       | status |
+          | name                | empty       | 400    |
+          | name                | 101 chars   | 400    |
+          | unit                | empty       | 400    |
+          | price               | 0           | 400    |
+          | price               | 1.5         | 400    |
+          | min_order_quantity  | 0           | 400    |
+          | min_order_quantity  | 0.0001      | 400    |
+          | min_order_quantity  | 2.5         | 201    |
+      Scenario: AC-3 Roles
+        Then a SELLER or DRIVER gets 403 and an OWNER gets 201
+      Scenario: AC-4 Inactive organization
+        When the organization is CLOSED or SUSPENDED
+        Then the response is 409 `ORGANIZATION_NOT_ACTIVE`
+      Scenario: AC-5 Repeat
+        When the same body is posted twice
+        Then one product exists and both answers are equal
+    abuse: |
+      Scenario: AB-1 Seller creates articles (vertical)
+        When a SELLER or DRIVER posts
+        Then the response is 403 and nothing is stored
+      Scenario: AB-2 Server-owned fields (mass assignment)
+        When the body contains status, organization_id or price_updated_at
+        Then the response is 400
+      Scenario: AB-3 Another business (horizontal)
+        When a member of A posts to business B
+        Then the response is 404
+    implementation:
+      create: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, tests/integration/catalog/create-product.test.ts]
+      modify: [src/modules/catalog/catalog.repository.ts, src/app.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "createProduct(actor: Actor, input: CreateProductInput): Promise<ProductView>"
+      types:
+        - "CreateProductInput = { id: string; name: string; unit: string; price: number; min_order_quantity?: number | string; description?: string; category?: string }"
+      errors: ["VALIDATION_ERROR 400", "ORGANIZATION_NOT_ACTIVE 409", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner, decided by the rules table."
+      - "v5.0.0-15.3.3: strict schema; status and organization come from the server."
+      - "v5.0.0-2.2.1: integer price and 3-decimal quantity checks before any database call."
+    tests: |
+      create | integration | AC-1, Product:required, C-13 | 201, ACTIVE
+      limits | integration | AC-2, C-13 | each Examples row → status
+      roles | integration | AC-3 | 403 and 201
+      inactive organization | integration | AC-4 | 409
+      repeat | integration | AC-5 | one row
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+      mass assignment | security | AB-2, CWE-915 | 400
+      other business | security | AB-3, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/catalog/create-product.test.ts
+    out_of_scope:
+      - "OpenAPI registration of the catalog routes (CAT-006)."
+  - id: CAT-005
+    title: Manager edits and retires a product
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [CAT-004, CAT-003]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.routes.ts]
+    design_refs: [catalogue/product]
+    constraints: [C-13, Product.status:enum]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-8.2.2]
+    story: As a manager, I want to change an article, including its price and its availability, so that my catalog stays right.
+    context: |
+      - Exists: `POST .../products` (CAT-004); rule `update` on Product (ACC-002).
+      - Adds: `PATCH /api/v1/organizations/{organizationId}/products/{productId}` with any of `name, unit, price, min_order_quantity (null clears), description, category, status` (ACTIVE or INACTIVE); response 200 with the product view and `negotiated_prices_to_review` (the number of live negotiated prices of this product whose `set_at` is older than the new `price_updated_at`; 0 when the price did not change).
+      - INACTIVE removes the article from sale; old orders keep their frozen lines. At least one field is required. Same limits as CAT-004.
+    acceptance: |
+      Scenario: AC-1 Change fields
+        When a MANAGER patches name and category
+        Then the response is 200 with the new values and price_updated_at unchanged
+      Scenario: AC-2 Price change
+        When the price goes from 15000 to 16000 and 3 customers have negotiated prices set before now
+        Then price_updated_at is now and negotiated_prices_to_review is 3
+      Scenario: AC-3 Retire and restore
+        When the status is set INACTIVE, then ACTIVE
+        Then both answers are 200 and the product follows
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                                   | status |
+          | price 0                                   | 400    |
+          | no field                                  | 400    |
+          | status "DELETED"                          | 400    |
+          | organization_id or price_updated_at sent  | 400    |
+          | a product of another organization         | 404    |
+          | a SELLER or DRIVER caller                 | 403    |
+    abuse: |
+      Scenario: AB-1 Seller changes a price (vertical)
+        When a SELLER patches price
+        Then the response is 403 and the price is unchanged
+      Scenario: AB-2 Editing another business's product (horizontal)
+        When a member of A patches a product of B under A's path
+        Then the response is 404 and B's product is unchanged
+    implementation:
+      create: [tests/integration/catalog/edit-product.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts]
+      pattern: src/modules/catalog/catalog.routes.ts
+      signatures:
+        - "editProduct(actor: Actor, productId: string, input: EditProductInput): Promise<ProductView & { negotiated_prices_to_review: number }>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+      - "v5.0.0-8.2.2: the product is selected by id and organization id together."
+      - "v5.0.0-15.3.3: strict schema."
+    tests: |
+      change fields | integration | AC-1 | 200, price_updated_at same
+      price change | integration | AC-2, C-13 | date moves, count 3
+      retire and restore | integration | AC-3, Product.status:enum | statuses follow
+      refusals | integration | AC-4 | each Examples row → status
+      seller price | security | AB-1, WSTG-ATHZ-03 | 403, unchanged
+      other business | security | AB-2, WSTG-ATHZ-04 | 404, unchanged
+    command: npx vitest run tests/integration/catalog/edit-product.test.ts
+    out_of_scope:
+      - "Notifying customers of new default prices: they see them at their next order."
+  - id: CAT-006
+    title: Seller lists the catalog
+    kind: feature
+    size: S
+    risk: low
+    depends_on: [CAT-004, FND-009, CAT-003]
+    read_first: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product]
+    constraints: [Product.status:enum]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1, v5.0.0-1.2.4]
+    story: As a seller, I want to list my organization's articles so that I can pick what to sell.
+    context: |
+      - Exists: products (CAT-004, CAT-005); pagination helpers.
+      - Adds: `GET /api/v1/organizations/{organizationId}/products?limit&cursor&status&category&q` (SELLER and above; DRIVER gets 403), newest first, product view. `q` matches the name, case-insensitive, up to 100 characters.
+      - Adds `catalog.openapi.ts` documenting this route and the product routes of CAT-004 and CAT-005; `catalog.routes.ts` imports it for its side effect.
+    acceptance: |
+      Scenario: AC-1 List articles
+        Given 3 ACTIVE and 1 INACTIVE product
+        When a SELLER lists
+        Then 4 items are returned newest first
+      Scenario Outline: AC-2 Filters
+        When the query has <query>
+        Then <count> items are returned
+        Examples:
+          | query              | count |
+          | status=ACTIVE      | 3     |
+          | status=INACTIVE    | 1     |
+          | q=riz              | 1     |
+          | category=Boissons  | 2     |
+      Scenario: AC-3 Pagination
+        When limit 2 is used with the cursor
+        Then the pages hold 2 and 2 items
+      Scenario: AC-4 Driver refused
+        Then a DRIVER gets 403
+    abuse: |
+      Scenario: AB-1 Another business's catalog (horizontal)
+        When a member of A lists the products of B
+        Then the response is 404
+      Scenario: AB-2 Injection through the search (injection)
+        When q is `'; DROP TABLE products; --`
+        Then the response is 200 with no item and the table exists
+    implementation:
+      create: [src/modules/catalog/catalog.openapi.ts, tests/integration/catalog/list-products.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.schemas.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "listProducts(actor: Actor, query: ListProductsQuery): Promise<{ items: ProductView[]; next_cursor: string | null }>"
+      types: []
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.2: the query filters on the actor's organization."
+      - "v5.0.0-1.2.4: `q` is a bound parameter."
+    tests: |
+      list | integration | AC-1 | 4 items
+      filters | integration | AC-2, Product.status:enum | each Examples row → count
+      paging | integration | AC-3 | 2 and 2
+      driver | integration | AC-4 | 403
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+      injection | security | AB-2, WSTG-INPV-05, CWE-89 | table intact
+    command: npx vitest run tests/integration/catalog/list-products.test.ts
+    out_of_scope:
+      - "The customer's view of a catalog (CAT-007)."
+  - id: CAT-007
+    title: Customer browses a supplier's catalog
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [CAT-003, CAT-006, REL-005]
+    read_first: [src/modules/catalog/catalog.repository.ts, src/modules/relationship/relationship.visibility.ts]
+    design_refs: [catalogue/product, relations-commerciales/customerprice]
+    constraints: [CM-11]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As a customer, I want to see a business's articles with my own prices so that I order at the right price.
+    context: |
+      - Exists: `getReferencePrice`, products, `visibleRelationsWhere`.
+      - Adds: `GET /api/v1/organizations/{organizationId}/catalog?limit&cursor&as_organization_id` for any signed-in person. It lists ACTIVE, not deleted products of an ACTIVE organization: `{ id, name, unit, price, min_order_quantity, description, category, price_is_negotiated }`.
+      - `price` is the caller's negotiated price when the caller's own live relationship with this supplier has one, else the product price. With `as_organization_id`, the customer is that organization: the caller must be its MANAGER or OWNER (else 404), and the organization's own relationship decides.
+      - A CLOSED or SUSPENDED organization, or an unknown id, answers 404. Nothing reveals other customers' prices, the supplier's own suppliers or inactive articles.
+    acceptance: |
+      Scenario: AC-1 Default prices
+        When a person with no relationship browses a business
+        Then ACTIVE articles are listed with the product price and price_is_negotiated false
+      Scenario: AC-2 Own negotiated price
+        Given the caller has a negotiated price of 2800 on an article priced 3000
+        Then that article shows 2800 and price_is_negotiated true, others show product prices
+      Scenario: AC-3 On behalf of an organization
+        When a MANAGER browses with as_organization_id of their business
+        Then the organization's negotiated prices apply
+      Scenario Outline: AC-4 Not found
+        When the request is for <case>
+        Then the response is 404 `NOT_FOUND`
+        Examples:
+          | case                                                       |
+          | a CLOSED or SUSPENDED organization                         |
+          | an unknown organization                                    |
+          | as_organization_id of an organization the caller does not manage |
+      Scenario: AC-5 Inactive and deleted articles
+        Then INACTIVE and deleted products never appear
+    abuse: |
+      Scenario: AB-1 Another customer's negotiated price (information disclosure)
+        When customers A and B have different negotiated prices for one article
+        Then each sees only their own and never the other's
+      Scenario: AB-2 Asking as another business (elevation)
+        When a SELLER passes as_organization_id of their business
+        Then the response is 404 because only a MANAGER or OWNER may act as customer
+    implementation:
+      create: [tests/integration/catalog/customer-catalog.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/catalog/catalog.routes.ts
+      signatures:
+        - "browseCatalog(personId: string, organizationId: string, query: BrowseQuery): Promise<{ items: CatalogItemView[]; next_cursor: string | null }>"
+      types:
+        - "CatalogItemView = { id: string; name: string; unit: string; price: number; min_order_quantity: string | null; description: string | null; category: string | null; price_is_negotiated: boolean }"
+      errors: ["NOT_FOUND 404", "VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: negotiated prices are joined on the caller's own relationship id only."
+      - "v5.0.0-8.2.3: field list excludes supplier-side data."
+      - "v5.0.0-15.3.1: minimal fields."
+    tests: |
+      default prices | integration | AC-1 | product prices, flag false
+      own price | integration | AC-2, CM-11 | 2800 and flag true
+      on behalf | integration | AC-3 | organization prices
+      not found | integration | AC-4 | each Examples row → 404
+      inactive | integration | AC-5 | absent
+      other customer's price | security | AB-1, WSTG-ATHZ-02, CWE-200 | each sees own only
+      wrong role | security | AB-2, WSTG-ATHZ-03 | 404
+    command: npx vitest run tests/integration/catalog/customer-catalog.test.ts
+    out_of_scope:
+      - "Placing an order (ORD module)."
+  - id: CAT-008
+    title: Owner or manager sets a negotiated price
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [CAT-002, CAT-006, REL-009, ACC-002, ACC-007, NTF-002, CAT-003]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/relationship/relationship.service.ts]
+    design_refs: [relations-commerciales/customerprice]
+    constraints: [C-11, C-04]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a manager, I want to set a customer's own price for an article so that a negotiation is kept.
+    context: |
+      - Exists: `customer_prices` (CAT-002); `requireAbility('create', 'CustomerPrice')` (MANAGER online, OWNER always); `getActiveProduct`; `notify`; `idempotent()`.
+      - Adds: `PUT /api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{productId}` with `{ id, price }` (integer of at least 1); response 200 `{ product_id, price, set_by_id, set_at }`.
+      - The relationship must be visible to the organization as supplier and not a PENDING invitation; the product must belong to the organization (any status). A live price for the pair is replaced (the last writer wins); otherwise one is created. `set_by_id` is the caller; `set_at` is server time.
+      - The caller may not be the customer person or manage the customer organization (403 `OWN_RECORD`). A registered customer gets a notification `price.negotiated_changed` naming the article.
+    acceptance: |
+      Scenario: AC-1 Create
+        When a MANAGER sets 2800 for an article priced 3000
+        Then the response is 200 and one live price exists with the caller as author
+      Scenario: AC-2 Replace
+        When another price 3200 is set for the same pair
+        Then one live price exists with 3200 and set_at later
+      Scenario: AC-3 Higher than the product price
+        When a negotiated price above the product price is set
+        Then it is stored
+      Scenario: AC-4 Customer notified
+        Then a registered customer has one unread notification `price.negotiated_changed`
+      Scenario Outline: AC-5 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                                        | status                |
+          | price 0 or 1.5                                 | 400 VALIDATION_ERROR  |
+          | a product of another business                  | 404 NOT_FOUND         |
+          | a SELLER or DRIVER caller                      | 403 FORBIDDEN         |
+          | a manager on their own customer record         | 403 OWN_RECORD        |
+          | a PENDING relationship                         | 409 RELATIONSHIP_NOT_ACTIVE |
+    abuse: |
+      Scenario: AB-1 Seller sets prices (vertical)
+        When a SELLER or DRIVER puts a price
+        Then the response is 403 and nothing is stored
+      Scenario: AB-2 Self-discount (elevation)
+        When a MANAGER who is the customer sets their own price
+        Then the response is 403 `OWN_RECORD`
+      Scenario: AB-3 Foreign product or relationship (horizontal)
+        When the product or the relationship belongs to another business
+        Then the response is 404 and nothing is stored
+    implementation:
+      create: [tests/integration/catalog/set-customer-price.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/catalog/catalog.routes.ts
+      signatures:
+        - "setCustomerPrice(actor: Actor, relationshipId: string, productId: string, input: { id: string; price: number }): Promise<CustomerPriceView>"
+      types: []
+      errors: ["OWN_RECORD 403", "RELATIONSHIP_NOT_ACTIVE 409", "VALIDATION_ERROR 400", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+      - "v5.0.0-8.2.2: relationship and product are both selected through the actor's organization."
+      - "v5.0.0-15.3.3: strict schema with two fields."
+    tests: |
+      create | integration | AC-1, C-11, C-04 | one live price, author
+      replace | integration | AC-2 | one row, 3200
+      higher price | integration | AC-3 | stored
+      customer notified | integration | AC-4 | notification
+      refusals | integration | AC-5 | each Examples row → status
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+      self discount | security | AB-2, CWE-639 | OWN_RECORD
+      foreign ids | security | AB-3, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/catalog/set-customer-price.test.ts
+    out_of_scope:
+      - "Removing a price (CAT-009). Suggesting to keep a price at sale time (DLV module screens)."
+  - id: CAT-009
+    title: Owner or manager removes a negotiated price and reads them
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [CAT-008, FND-009, CAT-003]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.routes.ts]
+    design_refs: [relations-commerciales/customerprice]
+    constraints: [C-11]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a manager, I want to list a customer's negotiated prices, flagged when the article price changed since, and remove one so that old deals do not eat my margin.
+    context: |
+      - Exists: `PUT .../prices/{productId}` (CAT-008).
+      - Adds: `GET /api/v1/organizations/{organizationId}/customers/{relationshipId}/prices` (SELLER and above; paginated; `{ product_id, product_name, price, product_price, set_by_id, set_at, to_review }`, where `to_review` is true when the product's `price_updated_at` is later than `set_at`); `DELETE .../prices/{productId}` (204, sets `deleted_at`, MANAGER online or OWNER, same own-record rule; a registered customer gets `price.negotiated_changed`).
+      - A missing live price answers 404.
+    acceptance: |
+      Scenario: AC-1 List with review flag
+        Given a price set at 8h and the product price changed at 9h
+        When a SELLER lists the customer's prices
+        Then the item has to_review true and product_price and price
+      Scenario: AC-2 Remove
+        When a MANAGER deletes a live price
+        Then the response is 204, the price is deleted, and the customer's reference price is the product price again
+      Scenario: AC-3 Set again after removal
+        When the price is set again
+        Then a new live row is created
+      Scenario Outline: AC-4 Refusals
+        When the delete has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                                   | status         |
+          | no live price for that product            | 404 NOT_FOUND  |
+          | a SELLER caller                           | 403 FORBIDDEN  |
+          | a manager on their own record             | 403 OWN_RECORD |
+    abuse: |
+      Scenario: AB-1 Another business's prices (horizontal)
+        When a member of A lists or deletes prices under a relationship of B
+        Then the response is 404 and nothing changes
+    implementation:
+      create: [tests/integration/catalog/list-remove-prices.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/catalog/catalog.routes.ts
+      signatures:
+        - "listCustomerPrices(actor: Actor, relationshipId: string, query: { limit: number; cursor?: string }): Promise<{ items: CustomerPriceListItem[]; next_cursor: string | null }>"
+        - "removeCustomerPrice(actor: Actor, relationshipId: string, productId: string): Promise<void>"
+      types: []
+      errors: ["NOT_FOUND 404", "FORBIDDEN 403", "OWN_RECORD 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: deletion needs manager online or owner."
+      - "v5.0.0-8.2.2: relationship selected through the actor's organization."
+    tests: |
+      list and flag | integration | AC-1 | to_review true
+      remove | integration | AC-2, C-11 | deleted; reference price back to product price
+      set again | integration | AC-3 | new live row
+      refusals | integration | AC-4 | each Examples row → status
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/catalog/list-remove-prices.test.ts
+    out_of_scope:
+      - "Copying prices (CAT-010)."
+  - id: CAT-010
+    title: Manager copies negotiated prices between customers
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [CAT-009, ACC-007, CAT-003]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [relations-commerciales/customerprice]
+    constraints: [C-11, C-04]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: As a manager, I want to copy one customer's negotiated prices to another so that similar customers get the same deals.
+    context: |
+      - Exists: prices (CAT-008, CAT-009); `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/copy` with `{ id, from_relationship_id }` (MANAGER online or OWNER); response 200 `{ copied: number }`.
+      - Both relationships must be the organization's own customers (ACTIVE or ENDED, not PENDING); the same own-record rule applies to the target. One transaction upserts each live source price onto the target (an existing target price is replaced) with the caller as author. The source is unchanged.
+    acceptance: |
+      Scenario: AC-1 Copy
+        Given a source with 3 negotiated prices and a target with 1 of them at another price
+        When a MANAGER copies
+        Then the response is `{ copied: 3 }` and the target has those 3 live prices, the source unchanged
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                       | status         |
+          | the same relationship as source and target    | 400            |
+          | a source of another business                  | 404            |
+          | a SELLER caller                               | 403            |
+          | the target is the manager's own record        | 403 OWN_RECORD |
+      Scenario: AC-3 Atomic and repeatable
+        When one row fails, or the same id is sent twice
+        Then nothing is copied, or the second answer equals the first
+    abuse: |
+      Scenario: AB-1 Copying from another business (horizontal)
+        When the source belongs to business B
+        Then the response is 404 and no price is copied
+    implementation:
+      create: [tests/integration/catalog/copy-prices.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/catalog/catalog.routes.ts
+      signatures:
+        - "copyCustomerPrices(actor: Actor, targetRelationshipId: string, input: { id: string; from_relationship_id: string }): Promise<{ copied: number }>"
+      types: []
+      errors: ["OWN_RECORD 403", "NOT_FOUND 404", "FORBIDDEN 403", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: both relationships are selected through the actor's organization."
+      - "v5.0.0-2.3.3: all upserts are one transaction."
+    tests: |
+      copy | integration | AC-1, C-11, C-04 | 3 copied, source unchanged
+      refusals | integration | AC-2 | each Examples row → status
+      atomic and repeat | integration | AC-3, CWE-362 | rollback; equal answers
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/catalog/copy-prices.test.ts
+    out_of_scope:
+      - "Copying a whole catalog."
+  - id: CAT-011
+    title: Reseller copies a purchased article into their catalog
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [CAT-004, REL-016, ACC-007, CAT-003, CAT-006, REL-006]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/relationship/relationship.repository.ts]
+    design_refs: [catalogue/product]
+    constraints: [Product:required, C-13]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a manager, I want to copy an article I buy into my own catalog so that I can resell it at my price.
+    context: |
+      - Exists: `POST .../products` (CAT-004); customer-side relationships (REL-016, REL-018).
+      - Adds: `POST /api/v1/organizations/{organizationId}/products/copy` with `{ id, source_product_id, price }` (MANAGER online or OWNER); response 201 product view.
+      - The source product must be ACTIVE and belong to a supplier organization for which the caller's organization is `customer_organization_id` in a live relationship (else 404). The copy takes `name`, `unit`, `description` and `category`, sets the caller's `price`, and keeps no link to the source. `min_order_quantity` is not copied.
+    acceptance: |
+      Scenario: AC-1 Copy
+        Given the organization buys from a supplier whose article has name "Pack 24", unit "carton de 24"
+        When a MANAGER copies it with price 9000
+        Then a new ACTIVE product of the caller's organization has those texts and price 9000
+      Scenario: AC-2 No link kept
+        Then the copy has no reference to the source, and renaming the source does not change it
+      Scenario Outline: AC-3 Refusals
+        When the source is <case>
+        Then the response is 404 `NOT_FOUND`
+        Examples:
+          | case                                                  |
+          | an INACTIVE product                                   |
+          | a product of a supplier the organization does not buy from |
+          | a product of the caller's own organization            |
+      Scenario: AC-4 Validation and roles
+        Then price 0 answers 400 and a SELLER answers 403
+    abuse: |
+      Scenario: AB-1 Copying a competitor's catalog (information disclosure)
+        When a business copies an article of a supplier it has no relationship with
+        Then the response is 404 and nothing is created
+    implementation:
+      create: [tests/integration/catalog/copy-product.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/catalog/catalog.routes.ts
+      signatures:
+        - "copyProduct(actor: Actor, input: { id: string; source_product_id: string; price: number }): Promise<ProductView>"
+      types: []
+      errors: ["NOT_FOUND 404", "FORBIDDEN 403", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the source is reachable only through a live relationship as customer."
+      - "v5.0.0-15.3.3: strict schema with three fields."
+    tests: |
+      copy | integration | AC-1, C-13, Product:required | new product with the texts and price
+      no link | integration | AC-2 | independent after source rename
+      refusals | integration | AC-3 | each Examples row → 404
+      validation and roles | integration | AC-4 | 400, 403
+      competitor | security | AB-1, WSTG-ATHZ-04, CWE-200 | 404, nothing created
+    command: npx vitest run tests/integration/catalog/copy-product.test.ts
+    out_of_scope:
+      - "Any link between the copy and the source (none is kept by design)."

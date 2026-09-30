@@ -1,0 +1,1193 @@
+kind: module
+module: organization
+prefix: ORG
+title: Organization
+responsibility: Owns businesses, their team with fixed roles and ownership, closing, public contact numbers and the subscription history.
+entities: [Organization, Collaboration, Subscription]
+depends_on: [foundation, person, notification, access, auth]
+asvs_level: L2
+asvs_rationale: Roles decide who can move money and change rights; team, ownership and closing gestures change other people's access.
+classification:
+  - "Organization.name, description, email | public | visible to anyone who finds the business"
+  - "Collaboration.amount_held | confidential | visible to the collaborator and the owner"
+  - "Collaboration.role | internal | visible to the team"
+threats:
+  - "T1 | E | A member of one business acts in another | every organization route loads the actor from an ACTIVE collaboration of that organization, else 404 | ORG-005 AB-1"
+  - "T2 | E | A manager or seller changes the team or the owner | team gestures need OWNER and the network | ORG-007 AB-1, ORG-009 AB-1, ORG-010 AB-1"
+  - "T3 | E | The owner is demoted, revoked or left with two owners | the database keeps exactly one active OWNER and the routes refuse to touch it | ORG-003 AB-1, ORG-010 AB-2"
+  - "T4 | S | Someone is found under a number that is not theirs | public contacts are ACTIVE collaborators with a verified active number who agreed | ORG-011 AB-1, ORG-018 AB-1"
+  - "T5 | I | Enumerating businesses by number | per-person lookup limit shared with person lookups | ORG-018 AB-2"
+constraints:
+  C-05: "`Collaboration` is unique per (`person_id`, `organization_id`); an ACTIVE collaboration needs a registered person; every organization has exactly one ACTIVE OWNER at the end of each transaction; `is_public_contact` needs ACTIVE status and a person with an active number."
+  C-31: "`Subscription` allows at most one ACTIVE row per organization (partial unique index); EXPIRED rows stay as history."
+  CM-03: "`Person.scope_version` is incremented by the server on every rights change."
+  C-37: "`CustomerRelationship.balance` and `Collaboration.amount_held` are updated by adding the effect of each operation inside its transaction, always relationship first then collaboration; a nightly check compares each total with the sum of its entries."
+  CM-09: "The OWNER can be neither demoted nor revoked; an ownership transfer makes the chosen ACTIVE collaborator OWNER and the former owner MANAGER in one transaction; a revocation takes effect immediately."
+  CM-10: "CLOSED (by the owner, reopenable): no new order or customer, not findable by number, pending orders refused with reason 'Commerce fermé', team revoked, subscription stopped; relations, balances and history stay visible and payments stay possible."
+  CM-26: "Finding an organization by number returns only ACTIVE organizations whose public-contact collaborators hold that active number; a number that is not a public organization number leads to an invitation for every person."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+contracts:
+  provides:
+    - name: OrganizationActor
+      file: src/middleware/load-actor.ts
+      story: ORG-005
+      items:
+        - "loadActor: RequestHandler — reads `req.params.organizationId` and `req.user.id`, sets `req.actor = { personId, organizationId, role }` from an ACTIVE collaboration, else 404 NOT_FOUND"
+        - "getActiveCollaboration(personId: string, organizationId: string): Promise<Collaboration | null>"
+        - "assertOrganizationActive(organizationId: string, tx?): Promise<void> — 409 ORGANIZATION_NOT_ACTIVE when SUSPENDED or CLOSED"
+      used_by: [relationship, catalog, order, finance, delivery, sync]
+    - name: AmountHeld
+      file: src/modules/organization/organization.repository.ts
+      story: ORG-003
+      items:
+        - "addAmountHeld(tx, personId: string, organizationId: string, delta: bigint): Promise<void> — `SET amount_held = amount_held + delta`"
+      used_by: [finance]
+    - name: PublicContacts
+      file: src/modules/organization/organization.repository.ts
+      story: ORG-018
+      items:
+        - "findOrganizationsByPublicNumber(e164: string): Promise<Array<{ id: string; name: string; description: string | null }>>"
+      used_by: [relationship]
+  consumes:
+    - "person: PersonRepository, require_registered_person (docs/stories/modules/person/contracts.md)"
+    - "access: requireAbility, idempotent, abilityFor (docs/stories/modules/access/contracts.md)"
+    - "notification: notify (docs/stories/modules/notification/contracts.md)"
+    - "auth: authMiddleware, revokeSessions (docs/stories/modules/auth/contracts.md)"
+stories:
+  - id: ORG-001
+    title: Organizations table
+    kind: technical
+    size: XS
+    risk: low
+    depends_on: [PER-002, FND-002, FND-005, NTF-001]
+    read_first: [prisma/schema.prisma, tests/integration/notification/notification-table.test.ts]
+    design_refs: [identite-et-organisation/organization, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Organization:required, Organization.status:enum, C-01, C-35]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Organization.{name,description,email,status,created_at}"]
+    story: "Technical story: create the organizations table so that businesses can exist."
+    context: |
+      - Exists: `set_server_updated_at()` (FND-002), `expectColumnType` (FND-005).
+      - Adds: table `organizations` with `server_updated_at` and `deleted_at`, status default ACTIVE, `created_at` default now. There is no owner column: ownership is the OWNER collaboration (ORG-003).
+    acceptance: |
+      Scenario: AC-1 Row with defaults
+        When an organization is inserted with a name
+        Then `status` is ACTIVE, `created_at` and `server_updated_at` are set, description and email are empty
+      Scenario Outline: AC-2 Required and enum
+        When a row has <values>
+        Then the insert <result>
+        Examples:
+          | values                    | result          |
+          | name empty (null)         | rejects (23502) |
+          | status SUSPENDED          | accepts         |
+          | status CLOSED             | accepts         |
+          | status "DELETED"          | rejects         |
+      Scenario: AC-3 Server time
+        When a row is updated
+        Then `server_updated_at` moves forward
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_001_organizations/migration.sql, tests/integration/organization/organization-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/notification/notification-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: status values are enforced by the database enum."
+    tests: |
+      defaults | integration | AC-1, C-01 | insert → defaults; column types
+      required and enum | integration | AC-2, Organization:required, Organization.status:enum | each Examples row → accepted or rejected
+      server time | integration | AC-3, C-35 | update → later server_updated_at
+    command: npx vitest run tests/integration/organization/organization-table.test.ts
+    out_of_scope:
+      - "Collaboration table (ORG-003). Creating organizations (ORG-004)."
+  - id: ORG-002
+    title: Notifications point to organizations
+    kind: change
+    size: XS
+    risk: low
+    depends_on: [ORG-001, NTF-001]
+    amends: [NTF-001]
+    read_first: [prisma/schema.prisma, tests/integration/notification/notification-table.test.ts]
+    design_refs: [notifications/notification]
+    constraints: [Notification:fk]
+    asvs: [v5.0.0-2.2.3]
+    story: "Technical story: add the foreign key from notifications to organizations, so that a notification's business context is always a real business."
+    context: |
+      - Exists: `notifications.organization_id` as a plain `uuid` column (NTF-001); `organizations` (ORG-001).
+      - Changes: a migration adds a foreign key `notifications.organization_id` to `organizations(id)`.
+    acceptance: |
+      Scenario: AC-1 Foreign key
+        When a notification references an unknown organization id
+        Then the insert fails with 23503
+      Scenario: AC-2 Valid and empty
+        When it references an existing organization, or none
+        Then the insert succeeds
+      Scenario: AC-3 Recipient key unchanged
+        When a notification references an unknown recipient
+        Then the insert still fails with 23503
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_002_notification_org_fk/migration.sql]
+      modify: [prisma/schema.prisma]
+      pattern: prisma/migrations/20260914130000_add_refresh_tokens/migration.sql
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma]
+    security:
+      - "v5.0.0-2.2.3: referential integrity in the database."
+    tests: |
+      unknown organization | integration | AC-1, Notification:fk | 23503
+      valid and empty | integration | AC-2 | accepted
+      recipient key | integration | AC-3, Notification:fk | 23503
+    command: npx vitest run tests/integration/notification/notification-table.test.ts
+    out_of_scope:
+      - "Anything else about notifications."
+    tests_to_update:
+      - "tests/integration/notification/notification-table.test.ts | inserts notifications with a random organization id, if it does | use an existing organization or none"
+  - id: ORG-003
+    title: Collaborations table
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [ORG-001, PER-008, FND-005]
+    read_first: [prisma/schema.prisma, tests/integration/person/registered-guard.test.ts]
+    design_refs: [identite-et-organisation/collaboration, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Collaboration:required, Collaboration.role:enum, Collaboration.status:enum, Collaboration:fk, C-05, CM-09, C-01, C-35]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.2.3]
+    fields: ["Collaboration.{person_id,organization_id,role,status,is_public_contact,invited_at,accepted_at,amount_held}"]
+    story: "Technical story: create the collaborations table with the ownership and public-contact rules in the database, so that roles cannot be corrupted by any code path."
+    context: |
+      - Exists: `people`, `organizations`, `require_registered_person()`.
+      - Adds: table `collaborations` (`is_public_contact` default false, `amount_held` bigint default 0, `invited_at` default now) with `server_updated_at` and `deleted_at`, unique (`person_id`, `organization_id`), partial unique index on (`organization_id`) where `role = 'OWNER'` and `status = 'ACTIVE'`.
+      - A trigger refuses `status = ACTIVE` for a person with empty `registered_at`, and `is_public_contact = true` unless the collaboration is ACTIVE and the person's `phone_number` is not null.
+      - A deferred constraint trigger checks that an organization with any collaboration has exactly one ACTIVE OWNER when the transaction ends.
+      - A trigger on `people` clears `is_public_contact` on the person's collaborations when their `phone_number` becomes null.
+    acceptance: |
+      Scenario Outline: AC-1 Table rules
+        When a collaboration is inserted with <values>
+        Then the database <result>
+        Examples:
+          | values                                                        | result          |
+          | a second row for the same person and organization             | rejects (23505) |
+          | status ACTIVE for a guest                                     | rejects (23514) |
+          | status INVITED for a guest                                    | accepts         |
+          | is_public_contact true, INVITED                               | rejects (23514) |
+          | is_public_contact true, ACTIVE, person with an active number  | accepts         |
+          | role "BOSS"                                                   | rejects         |
+      Scenario: AC-2 Exactly one owner
+        When an organization gets a second ACTIVE OWNER, or its only OWNER row is set to MANAGER, then the transaction commits
+        Then the commit fails
+      Scenario: AC-3 Ownership swap
+        When one transaction makes the OWNER a MANAGER and another ACTIVE collaborator the OWNER
+        Then the commit succeeds
+      Scenario: AC-4 Number released
+        When a person's `phone_number` becomes null
+        Then their collaborations have `is_public_contact` false
+    abuse: |
+      Scenario: AB-1 Owner removed by a crafted write (elevation)
+        When code sets the only OWNER's status to REVOKED and commits
+        Then PostgreSQL refuses the commit
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_003_collaborations/migration.sql, tests/integration/organization/collaboration-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/person/person-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: role and status rules live in the database, not only in routes."
+      - "v5.0.0-2.2.3: related columns are checked together by triggers."
+    tests: |
+      table rules | integration | AC-1, C-05, Collaboration:required, Collaboration.role:enum, Collaboration.status:enum, Collaboration:fk | each Examples row → accepted or rejected
+      one owner | integration | AC-2, C-05, CM-09 | second owner or owner demotion → commit error
+      swap | integration | AC-3, CM-09 | one transaction swap → commit succeeds
+      number released | integration | AC-4, C-05 | update people.phone_number to null → flag false
+      column types and defaults | integration | AC-1, C-01, C-35 | `expectColumnType` on ids and `amount_held`; `amount_held` defaults to 0; `server_updated_at` set
+      crafted owner removal | security | AB-1, CWE-269 | REVOKED only owner → commit refused
+    command: npx vitest run tests/integration/organization/collaboration-table.test.ts
+    out_of_scope:
+      - "Routes that write collaborations (ORG-004 onward)."
+  - id: ORG-004
+    title: Registered person creates an organization
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ORG-003, ACC-007, PER-005, NTF-002]
+    read_first: [docs/stories/modules/access/contracts.md, src/modules/tasks/tasks.routes.ts]
+    design_refs: [identite-et-organisation/organization, identite-et-organisation/collaboration]
+    constraints: [Organization:required, C-05, CM-03]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As a customer, I want to create my business with a name so that I become its owner.
+    context: |
+      - Exists: `idempotent()` (ACC-007), tables (ORG-001, ORG-003), `bumpScopeVersion` (PER-005), `authMiddleware`.
+      - Adds: `POST /api/v1/organizations` with `{ id, name, description?, email? }`; `id` is a UUIDv7 made by the phone. Response 201 `{ id, name, description, email, status, created_at, role: 'OWNER' }`.
+      - One transaction creates the organization and the creator's collaboration: role OWNER, status ACTIVE, `is_public_contact` true (the creator has an active number), `accepted_at` = now; then bumps the creator's `scope_version`.
+      - `name` 1 to 100 characters; `description` up to 2000; `email` a valid address (Q-027). A repeat of the same `id` returns the first response.
+    acceptance: |
+      Scenario: AC-1 Create
+        When a signed-in person posts a name
+        Then the response is 201, the organization is ACTIVE, and the caller has an ACTIVE OWNER collaboration with is_public_contact true
+      Scenario: AC-2 Scope version
+        Then the caller's `scope_version` increased by 1
+      Scenario Outline: AC-3 Limits
+        When the body has <field> = <value>
+        Then the response is <status>
+        Examples:
+          | field       | value      | status |
+          | name        | empty      | 400    |
+          | name        | 100 chars  | 201    |
+          | name        | 101 chars  | 400    |
+          | description | 2001 chars | 400    |
+          | email       | not-mail   | 400    |
+          | id          | a UUIDv4   | 400    |
+      Scenario: AC-4 Repeat
+        When the same body is posted twice
+        Then one organization exists and both responses are equal
+      Scenario: AC-5 Atomic
+        When the collaboration insert fails
+        Then no organization exists
+    abuse: |
+      Scenario: AB-1 Owner or status chosen by the client (mass assignment)
+        When the body contains status, role, owner or person_id
+        Then the response is 400 and nothing is stored
+      Scenario: AB-2 No token (unauthenticated)
+        When the request has no valid token
+        Then the response is 401
+    implementation:
+      create: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, tests/integration/organization/create.test.ts]
+      modify: [src/app.ts]
+      pattern: src/modules/tasks/tasks.routes.ts
+      signatures:
+        - "createOrganization(personId: string, input: CreateOrganizationInput): Promise<OrganizationView>"
+      types:
+        - "CreateOrganizationInput = { id: string; name: string; description?: string; email?: string }"
+        - "OrganizationView = { id: string; name: string; description: string | null; email: string | null; status: string; created_at: string; role: 'OWNER' }"
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-15.3.3: strict schema with four fields."
+      - "v5.0.0-2.3.3: organization, collaboration and scope bump are one transaction."
+      - "v5.0.0-8.2.1: the owner is the person from the token, never from the body."
+    tests: |
+      create | integration | AC-1, Organization:required, C-05 | 201, org and OWNER row
+      scope version | integration | AC-2, CM-03 | +1
+      limits | integration | AC-3 | each Examples row → status
+      repeat | integration | AC-4 | one row, equal responses
+      atomic | integration | AC-5 | forced failure → no org
+      mass assignment | security | AB-1, CWE-915 | forbidden fields → 400
+      no token | security | AB-2, WSTG-ATHN-04 | 401
+    command: npx vitest run tests/integration/organization/create.test.ts
+    out_of_scope:
+      - "The default counter 'Client de passage' (REL module)."
+      - "Renaming or editing an organization (Q-032)."
+      - "OpenAPI registration of this route (ORG-005)."
+  - id: ORG-005
+    title: Actor loading and reading my organizations
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORG-004, ACC-006]
+    read_first: [src/middleware/require-ability.ts, src/modules/organization/organization.routes.ts]
+    design_refs: [identite-et-organisation/collaboration, identite-et-organisation/organization]
+    constraints: [Collaboration.role:enum]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-8.4.1, v5.0.0-15.3.1]
+    story: As an owner, I want to see my organizations and their details so that I know where I work and with which role.
+    context: |
+      - Exists: `requireAbility` and the `Actor` type (ACC-006); `POST /organizations` (ORG-004).
+      - Adds: `src/middleware/load-actor.ts` (`loadActor`, `getActiveCollaboration`, `assertOrganizationActive`), and `organization.openapi.ts` documenting `POST /organizations` (ORG-004) and the two routes below; `organization.routes.ts` imports it for its side effect (`import './organization.openapi.js'`) so that `src/app.ts` needs no change; `GET /api/v1/organizations` (my ACTIVE collaborations: `id, name, status, role`, paginated) and `GET /api/v1/organizations/{organizationId}` (`id, name, description, email, status, created_at, role`).
+      - `loadActor` sets `req.actor` from the caller's ACTIVE collaboration in `req.params.organizationId`; without one it answers 404 `NOT_FOUND` (never 403, so an id is never confirmed).
+      - `assertOrganizationActive` throws 409 `ORGANIZATION_NOT_ACTIVE` when the status is SUSPENDED or CLOSED.
+    acceptance: |
+      Scenario: AC-1 My organizations
+        Given a person with two ACTIVE collaborations, one INVITED and one REVOKED
+        When they GET /api/v1/organizations
+        Then two items are returned, each with its role, newest first
+      Scenario: AC-2 Details
+        When a member GETs an organization of theirs
+        Then the response is 200 with the seven fields and their role
+      Scenario Outline: AC-3 Not a member
+        When the caller is <case>
+        Then GET /api/v1/organizations/{id} answers 404 `NOT_FOUND`
+        Examples:
+          | case                                  |
+          | not a collaborator                    |
+          | INVITED only                          |
+          | REVOKED                               |
+          | asking for an unknown id              |
+      Scenario: AC-4 Actor
+        Given a SELLER of organization A
+        When any route behind loadActor is called for A
+        Then `req.actor` is `{ personId, organizationId: A, role: 'SELLER' }`
+      Scenario: AC-5 Inactive organization
+        Then assertOrganizationActive throws ORGANIZATION_NOT_ACTIVE for SUSPENDED and CLOSED and passes for ACTIVE
+    abuse: |
+      Scenario: AB-1 Reading another business (horizontal)
+        When a member of A requests business B by id
+        Then the response is 404 and nothing of B is returned
+      Scenario: AB-2 Organization id in the body or header (tampering)
+        When a request carries another organization id in the body
+        Then the actor is still loaded from the path only
+    implementation:
+      create: [src/middleware/load-actor.ts, src/modules/organization/organization.openapi.ts, tests/integration/organization/actor-and-read.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts]
+      pattern: src/middleware/auth.ts
+      signatures:
+        - "loadActor: RequestHandler"
+        - "getActiveCollaboration(personId: string, organizationId: string): Promise<Collaboration | null>"
+        - "assertOrganizationActive(organizationId: string, tx?: Prisma.TransactionClient): Promise<void>"
+      types: []
+      errors: ["NOT_FOUND 404", "ORGANIZATION_NOT_ACTIVE 409", "UNAUTHORIZED 401"]
+      dependencies: [express, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: membership is looked up with the person id from the token and the id from the path."
+      - "v5.0.0-8.4.1: a non-member gets 404 for any organization."
+      - "v5.0.0-15.3.1: explicit field lists."
+    tests: |
+      my organizations | integration | AC-1 | two ACTIVE items with roles
+      details | integration | AC-2, Collaboration.role:enum | seven fields and role
+      not a member | integration | AC-3 | each Examples row → 404
+      actor | integration | AC-4 | req.actor as stated
+      inactive | integration | AC-5 | 409 for SUSPENDED and CLOSED
+      other business | security | AB-1, WSTG-ATHZ-04 | 404, no data
+      body id | security | AB-2, CWE-639 | actor from path only
+    command: npx vitest run tests/integration/organization/actor-and-read.test.ts
+    out_of_scope:
+      - "Team routes (ORG-008 onward)."
+  - id: ORG-006
+    title: Amount held helper
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [ORG-003, ORG-004]
+    read_first: [src/modules/organization/organization.repository.ts, tests/integration/organization/collaboration-table.test.ts]
+    design_refs: [finances/handover, identite-et-organisation/collaboration]
+    constraints: [C-37]
+    asvs: [v5.0.0-2.3.3, v5.0.0-2.3.4]
+    story: "Technical story: provide the one function that changes a collaborator's held money, so that two simultaneous operations never lose one."
+    context: |
+      - Exists: `collaborations.amount_held` bigint default 0 (ORG-003); `organization.repository.ts`.
+      - Adds: `addAmountHeld(tx, personId, organizationId, delta)` running one statement, `UPDATE collaborations SET amount_held = amount_held + $delta WHERE person_id = $p AND organization_id = $o`, inside the caller's transaction. A missing collaboration throws 404 `NOT_FOUND`. The value may go negative.
+    acceptance: |
+      Scenario: AC-1 Add and subtract
+        When addAmountHeld adds 5000 then -2000
+        Then `amount_held` is 3000
+      Scenario: AC-2 Simultaneous operations
+        When 20 calls each add 100 in parallel transactions
+        Then `amount_held` is 2000
+      Scenario: AC-3 Unknown collaboration
+        When the person is not a collaborator of the organization
+        Then the call throws `NOT_FOUND` and changes nothing
+      Scenario: AC-4 Rollback
+        When the caller's transaction rolls back
+        Then `amount_held` is unchanged
+    implementation:
+      create: [tests/integration/organization/amount-held.test.ts]
+      modify: [src/modules/organization/organization.repository.ts]
+      pattern: src/modules/organization/organization.repository.ts
+      signatures:
+        - "addAmountHeld(tx: Prisma.TransactionClient, personId: string, organizationId: string, delta: bigint): Promise<void>"
+      types: []
+      errors: ["NOT_FOUND 404"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.4: the increment is one SQL statement, never read then write."
+    tests: |
+      add and subtract | integration | AC-1, C-37 | +5000, -2000 → 3000
+      parallel | integration | AC-2, C-37 | 20 parallel +100 → 2000
+      unknown | integration | AC-3 | NOT_FOUND
+      rollback | integration | AC-4 | unchanged
+    command: npx vitest run tests/integration/organization/amount-held.test.ts
+    out_of_scope:
+      - "Callers (FIN module)."
+  - id: ORG-007
+    title: Owner invites a collaborator by phone number
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORG-005, ACC-005, ACC-007, PER-005, NTF-002]
+    read_first: [docs/stories/modules/organization/contracts.md, src/modules/organization/organization.routes.ts]
+    design_refs: [identite-et-organisation/collaboration]
+    constraints: [Collaboration.role:enum, Collaboration.status:enum, C-05]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-2.4.1]
+    story: As an owner, I want to invite someone by phone number with a role so that they can join my team when they register.
+    context: |
+      - Exists: `loadActor`, `assertOrganizationActive` (ORG-005); `requireAbility('manage', 'Collaboration')` (ACC-005, owner and network only); `idempotent()`; `findOrCreateByPhone`, `toPublicPerson` (PER-005); `notify`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/collaborators` with `{ id, phone_number, role }`, role MANAGER, SELLER or DRIVER. Response 201 `{ id, person: { public_name, phone_number, registered }, role, status: 'INVITED', invited_at }`.
+      - The person is found or created as a guest by the number. A new row is INVITED with `is_public_contact` false. A REVOKED row of the same person is reused: status INVITED, new role, `invited_at` = now, `accepted_at` emptied. An ACTIVE or INVITED row answers 409 `ALREADY_MEMBER`.
+      - A registered invitee gets a notification `collaboration.invited`. Sending the WhatsApp or SMS invitation is done by the owner's phone.
+    acceptance: |
+      Scenario: AC-1 Invite a guest
+        When the owner posts a new number and role SELLER
+        Then the response is 201, a guest exists for the number and the collaboration is INVITED
+      Scenario: AC-2 Invite a registered person
+        Then the invitee has one unread notification `collaboration.invited`
+      Scenario: AC-3 Re-invite after revocation
+        Given a REVOKED collaboration for the number
+        When the owner invites it again with role DRIVER
+        Then the same row is INVITED with role DRIVER
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                    | status                |
+          | role OWNER                                 | 400 VALIDATION_ERROR  |
+          | an ACTIVE or INVITED member's number       | 409 ALREADY_MEMBER    |
+          | a landline                                 | 400 VALIDATION_ERROR  |
+          | a SUSPENDED or CLOSED organization         | 409 ORGANIZATION_NOT_ACTIVE |
+      Scenario: AC-5 Repeat
+        When the same body is posted twice
+        Then one collaboration exists and both answers are equal
+    abuse: |
+      Scenario: AB-1 Non-owner invites (vertical)
+        When a MANAGER, SELLER or DRIVER posts an invitation
+        Then the response is 403 and nothing is stored
+      Scenario: AB-2 Invitation into another business (horizontal)
+        When a member of A posts to business B
+        Then the response is 404
+      Scenario: AB-3 Making an OWNER or an ACTIVE member by body (mass assignment)
+        When the body contains status ACTIVE or role OWNER
+        Then the response is 400
+    implementation:
+      create: [tests/integration/organization/invite.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "inviteCollaborator(actor: Actor, input: InviteInput): Promise<CollaborationView>"
+      types:
+        - "InviteInput = { id: string; phone_number: string; role: 'MANAGER' | 'SELLER' | 'DRIVER' }"
+      errors: ["ALREADY_MEMBER 409", "VALIDATION_ERROR 400", "FORBIDDEN 403", "NOT_FOUND 404", "ORGANIZATION_NOT_ACTIVE 409"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: route behind `loadActor` and `requireAbility('manage', 'Collaboration')`."
+      - "v5.0.0-15.3.3: strict schema with three fields."
+      - "v5.0.0-2.4.1: the person lookup limit of PER applies to the number."
+    tests: |
+      invite guest | integration | AC-1, C-05 | 201, guest, INVITED
+      notified | integration | AC-2 | notification row
+      re-invite | integration | AC-3, Collaboration.status:enum | same row INVITED, new role
+      refusals | integration | AC-4, Collaboration.role:enum | each Examples row → status
+      repeat | integration | AC-5 | one row, equal answers
+      non-owner | security | AB-1, WSTG-ATHZ-03 | 403
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+      mass assignment | security | AB-3, CWE-915 | 400
+    command: npx vitest run tests/integration/organization/invite.test.ts
+    out_of_scope:
+      - "Accepting the invitation (ORG-008). Sending the message (client)."
+  - id: ORG-008
+    title: Invited person answers an invitation
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORG-007]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/collaboration]
+    constraints: [C-05, CM-03]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a customer, I want to see my team invitations and accept or decline each one so that I choose which business I join.
+    context: |
+      - Exists: INVITED collaborations (ORG-007); `bumpScopeVersion`; `notify`.
+      - Adds: `GET /api/v1/collaborations?status=INVITED` (own invitations: `id, organization_id, organization_name, role, invited_at`, paginated); `POST /api/v1/collaborations/{id}/accept` and `POST /api/v1/collaborations/{id}/decline` (204).
+      - Accept: the caller must be the invited person, registered, and the collaboration INVITED; it becomes ACTIVE with `accepted_at` = now, the caller's `scope_version` is bumped and the owner gets a notification `collaboration.accepted`.
+      - Decline: the collaboration becomes REVOKED (it can be invited again later).
+      - Any other state or another person's id answers 404 `NOT_FOUND`.
+    acceptance: |
+      Scenario: AC-1 List
+        Given two invitations and one ACTIVE collaboration
+        When the invitee GETs the list
+        Then two items are returned with organization names
+      Scenario: AC-2 Accept
+        When the invitee accepts
+        Then the response is 204, the row is ACTIVE with accepted_at set, scope_version is +1 and the owner is notified
+      Scenario: AC-3 Decline
+        When the invitee declines
+        Then the response is 204 and the row is REVOKED
+      Scenario Outline: AC-4 Not possible
+        When the call is on <case>
+        Then the response is 404 `NOT_FOUND` and nothing changes
+        Examples:
+          | case                                      |
+          | an already ACTIVE collaboration           |
+          | a REVOKED collaboration                   |
+          | someone else's invitation                 |
+          | an unknown id                             |
+    abuse: |
+      Scenario: AB-1 Accepting someone else's invitation (horizontal)
+        When person A accepts an invitation addressed to person B
+        Then the response is 404 and B's invitation is unchanged
+      Scenario: AB-2 Choosing the role on accept (mass assignment)
+        When the accept call carries a body with role OWNER
+        Then the role is unchanged
+    implementation:
+      create: [tests/integration/organization/invitations.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "acceptInvitation(personId: string, collaborationId: string): Promise<void>"
+        - "declineInvitation(personId: string, collaborationId: string): Promise<void>"
+      types: []
+      errors: ["NOT_FOUND 404", "UNAUTHORIZED 401"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: updates filter on the collaboration id and the person id from the token."
+      - "v5.0.0-15.3.1: explicit fields in the list."
+    tests: |
+      list | integration | AC-1 | two items
+      accept | integration | AC-2, C-05, CM-03 | ACTIVE, scope +1, owner notified
+      decline | integration | AC-3 | REVOKED
+      not possible | integration | AC-4 | each Examples row → 404
+      other person | security | AB-1, WSTG-ATHZ-04 | 404, unchanged
+      body ignored | security | AB-2, CWE-915 | role unchanged
+    command: npx vitest run tests/integration/organization/invitations.test.ts
+    out_of_scope:
+      - "Registration showing invitations next to relationships (REL module)."
+  - id: ORG-009
+    title: Owner changes a collaborator's role
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ORG-008]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.routes.ts]
+    design_refs: [identite-et-organisation/collaboration]
+    constraints: [Collaboration.role:enum, CM-09, CM-03]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.3, v5.0.0-15.3.3]
+    story: As an owner, I want to change a collaborator's role so that their powers match their job.
+    context: |
+      - Exists: collaborators (ORG-007, ORG-008); `requireAbility('manage', 'Collaboration')`.
+      - Adds: `PATCH /api/v1/organizations/{organizationId}/collaborators/{collaborationId}` with `{ role }` (MANAGER, SELLER or DRIVER). Response 200 with the collaboration view.
+      - The OWNER row cannot be changed (409 `OWNER_PROTECTED`); the target must belong to the organization and not be REVOKED. An ACTIVE target gets `scope_version` +1 and a notification `collaboration.role_changed`.
+    acceptance: |
+      Scenario: AC-1 Change
+        When the owner sets a SELLER to MANAGER
+        Then the response is 200 with role MANAGER, the collaborator's scope_version is +1 and they are notified
+      Scenario Outline: AC-2 Refusals
+        When the owner targets <case>
+        Then the response is <status> and nothing changes
+        Examples:
+          | case                                  | status                |
+          | their own OWNER row                   | 409 OWNER_PROTECTED   |
+          | role OWNER in the body                | 400 VALIDATION_ERROR  |
+          | a REVOKED collaborator                | 404 NOT_FOUND         |
+          | a collaboration of another business   | 404 NOT_FOUND         |
+      Scenario: AC-3 Invited target
+        When the target is INVITED
+        Then the role changes and no scope_version bump happens
+    abuse: |
+      Scenario: AB-1 Manager promotes themselves (vertical)
+        When a MANAGER patches their own or another role
+        Then the response is 403 and nothing changes
+      Scenario: AB-2 Other fields in the body (mass assignment)
+        When the body contains status, person_id or amount_held
+        Then the response is 400
+    implementation:
+      create: [tests/integration/organization/change-role.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "changeRole(actor: Actor, collaborationId: string, role: 'MANAGER' | 'SELLER' | 'DRIVER'): Promise<CollaborationView>"
+      types: []
+      errors: ["OWNER_PROTECTED 409", "VALIDATION_ERROR 400", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: owner and network only."
+      - "v5.0.0-8.2.3: only `role` is writable."
+    tests: |
+      change | integration | AC-1, CM-03, Collaboration.role:enum | 200, scope +1, notification
+      refusals | integration | AC-2, CM-09 | each Examples row → status
+      invited target | integration | AC-3 | no bump
+      manager | security | AB-1, WSTG-ATHZ-03 | 403
+      extra fields | security | AB-2, CWE-915 | 400
+    command: npx vitest run tests/integration/organization/change-role.test.ts
+    out_of_scope:
+      - "Transferring ownership (ORG-012)."
+  - id: ORG-010
+    title: Owner revokes a collaborator
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ORG-008]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.routes.ts]
+    design_refs: [identite-et-organisation/collaboration]
+    constraints: [Collaboration.status:enum, CM-09, CM-03]
+    asvs: [v5.0.0-8.2.1, v5.0.0-7.4.2]
+    story: As an owner, I want to revoke a collaborator so that they lose access at once.
+    context: |
+      - Exists: collaborators (ORG-007, ORG-008); `requireAbility('manage', 'Collaboration')`; `bumpScopeVersion`.
+      - Adds: `DELETE /api/v1/organizations/{organizationId}/collaborators/{collaborationId}` (204). The row becomes REVOKED, `is_public_contact` false; an ACTIVE target gets `scope_version` +1 and a notification `collaboration.revoked`.
+      - The OWNER row answers 409 `OWNER_PROTECTED`. `amount_held` is kept. A REVOKED or foreign row answers 404.
+    acceptance: |
+      Scenario: AC-1 Revoke
+        When the owner revokes an ACTIVE seller
+        Then the response is 204, the row is REVOKED, the public-contact flag is false and the seller's scope_version is +1
+      Scenario: AC-2 Access ends at once
+        Then the revoked person's next call to an organization route answers 404
+      Scenario: AC-3 Money stays visible
+        Then `amount_held` is unchanged
+      Scenario Outline: AC-4 Refusals
+        When the owner targets <case>
+        Then the response is <status> and nothing changes
+        Examples:
+          | case                                 | status              |
+          | their own OWNER row                  | 409 OWNER_PROTECTED |
+          | an already REVOKED row               | 404 NOT_FOUND       |
+          | a row of another business            | 404 NOT_FOUND       |
+    abuse: |
+      Scenario: AB-1 Non-owner revokes (vertical)
+        When a MANAGER deletes a collaborator
+        Then the response is 403 and the row is unchanged
+      Scenario: AB-2 Revoking the owner by a crafted call (elevation)
+        When the OWNER row id is used
+        Then the response is 409 and the organization still has an ACTIVE OWNER
+    implementation:
+      create: [tests/integration/organization/revoke.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "revokeCollaborator(actor: Actor, collaborationId: string): Promise<void>"
+      types: []
+      errors: ["OWNER_PROTECTED 409", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express]
+    security:
+      - "v5.0.0-8.2.1: owner and network only."
+      - "v5.0.0-7.4.2: access ends on the next request because the actor is loaded from the database."
+    tests: |
+      revoke | integration | AC-1, Collaboration.status:enum, CM-03 | REVOKED, flag false, scope +1
+      immediate | integration | AC-2, CM-09 | 404 on the next call
+      money kept | integration | AC-3 | amount_held unchanged
+      refusals | integration | AC-4 | each Examples row → status
+      manager | security | AB-1, WSTG-ATHZ-03 | 403
+      owner protected | security | AB-2, CWE-269 | 409, owner still ACTIVE
+    command: npx vitest run tests/integration/organization/revoke.test.ts
+    out_of_scope:
+      - "Erasing the revoked phone's data (SYNC full resync)."
+  - id: ORG-011
+    title: Collaborator agrees to be a public contact
+    kind: feature
+    size: XS
+    risk: medium
+    depends_on: [ORG-008]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.routes.ts]
+    design_refs: [identite-et-organisation/collaboration]
+    constraints: [C-05]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a seller, I want to choose whether my number is published as a contact of my business so that I control who can find me.
+    context: |
+      - Exists: `is_public_contact` with its database rules (ORG-003); `loadActor`.
+      - Adds: `PATCH /api/v1/organizations/{organizationId}/collaborators/me` with `{ is_public_contact }`, for any ACTIVE member; response 200 with `{ is_public_contact }`. The OWNER starts with true (ORG-004), others with false.
+      - Without an active number the answer is 409 `NO_ACTIVE_NUMBER` when turning it on.
+    acceptance: |
+      Scenario: AC-1 Turn on and off
+        When an ACTIVE seller patches true, then false
+        Then the answers are 200 and the stored flag follows
+      Scenario: AC-2 No active number
+        Given the caller's number was released
+        When they patch true
+        Then the response is 409 `NO_ACTIVE_NUMBER`
+      Scenario: AC-3 Only the flag
+        When the body has any other key
+        Then the response is 400 `VALIDATION_ERROR`
+    abuse: |
+      Scenario: AB-1 Publishing someone else's number (spoofing)
+        When the owner or a manager tries to patch another collaborator's flag
+        Then no route allows it and the other flag is unchanged
+    implementation:
+      create: [tests/integration/organization/public-contact.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "setPublicContact(actor: Actor, value: boolean): Promise<{ is_public_contact: boolean }>"
+      types: []
+      errors: ["NO_ACTIVE_NUMBER 409", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the row is the caller's own, selected by person id and organization id."
+    tests: |
+      toggle | integration | AC-1, C-05 | true then false stored
+      no number | integration | AC-2 | 409
+      strict body | integration | AC-3 | extra key → 400
+      others' flags | security | AB-1, WSTG-ATHZ-04 | no route changes another's flag
+    command: npx vitest run tests/integration/organization/public-contact.test.ts
+    out_of_scope:
+      - "Finding an organization by number (ORG-018)."
+  - id: ORG-012
+    title: Subscription table
+    kind: technical
+    size: XS
+    risk: low
+    depends_on: [ORG-001, FND-005]
+    read_first: [prisma/schema.prisma, tests/integration/organization/organization-table.test.ts]
+    design_refs: [finances/subscription]
+    constraints: [Subscription:required, Subscription.status:enum, Subscription:fk, C-31, C-01]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Subscription.{organization_id,plan,status}"]
+    story: "Technical story: create the subscription history table so that an organization has at most one active subscription."
+    context: |
+      - Exists: `organizations` (ORG-001).
+      - Adds: table `subscriptions` with a partial unique index on `organization_id` where `status = 'ACTIVE'`. It has no `server_updated_at` or `deleted_at`: it is not synchronized to phones.
+    acceptance: |
+      Scenario: AC-1 Row
+        When a subscription is inserted with plan, status ACTIVE, starts_at and ends_at
+        Then the row is stored
+      Scenario Outline: AC-2 One active subscription
+        When an organization has <existing> and a row with status <new> is inserted
+        Then the insert <result>
+        Examples:
+          | existing               | new     | result          |
+          | no subscription        | ACTIVE  | accepts         |
+          | one ACTIVE             | ACTIVE  | rejects (23505) |
+          | one EXPIRED            | ACTIVE  | accepts         |
+          | one ACTIVE             | EXPIRED | accepts         |
+      Scenario: AC-3 Required, enum, key
+        When plan is null, status is "PAUSED" or the organization is unknown
+        Then the insert fails
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_012_subscriptions/migration.sql, tests/integration/organization/subscription-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: uniqueness of the active subscription is a database index."
+    tests: |
+      row | integration | AC-1, C-01 | stored; column types
+      one active | integration | AC-2, C-31 | each Examples row → accepted or 23505
+      required enum key | integration | AC-3, Subscription:required, Subscription.status:enum, Subscription:fk | rejected
+    command: npx vitest run tests/integration/organization/subscription-table.test.ts
+    out_of_scope:
+      - "Starting and ending subscriptions (ORG-013, ORG-014)."
+  - id: ORG-013
+    title: Owner starts a subscription
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ORG-012, ORG-005, ACC-005, ACC-007]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.routes.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-31]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: As an owner, I want to record a subscription for my business so that its plan and dates are on file.
+    context: |
+      - Exists: `subscriptions` (ORG-012); `requireAbility('manage', 'Subscription')`; `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/subscription` with `{ id, plan, ends_at }`; `plan` 1 to 100 characters; `starts_at` is now; `ends_at` is in the future. Response 201 `{ id, plan, status: 'ACTIVE', starts_at, ends_at }`. No payment is taken and no feature is limited (Q-011).
+      - In the same transaction an ACTIVE row whose `ends_at` has passed is set to EXPIRED first. A live ACTIVE row answers 409 `SUBSCRIPTION_EXISTS`.
+      - `GET /api/v1/organizations/{organizationId}/subscription` returns the current ACTIVE row or 404.
+    acceptance: |
+      Scenario: AC-1 Start
+        When the owner posts a plan and a future end
+        Then the response is 201 and one ACTIVE row exists
+      Scenario: AC-2 Second active subscription
+        When one is live and the owner posts another
+        Then the response is 409 `SUBSCRIPTION_EXISTS`
+      Scenario: AC-3 Lapsed subscription is replaced
+        Given an ACTIVE row whose ends_at is in the past
+        When the owner posts a new one
+        Then the old row is EXPIRED and the new one ACTIVE
+      Scenario Outline: AC-4 Validation
+        When the body has <problem>
+        Then the response is 400 `VALIDATION_ERROR`
+        Examples:
+          | problem                    |
+          | ends_at in the past        |
+          | plan empty                 |
+          | plan of 101 characters     |
+          | status in the body         |
+      Scenario: AC-5 Read
+        Then GET returns the ACTIVE row to any member, and 404 when none
+    abuse: |
+      Scenario: AB-1 Non-owner starts a subscription (vertical)
+        When a MANAGER, SELLER or DRIVER posts
+        Then the response is 403 and nothing is stored
+      Scenario: AB-2 Another business (horizontal)
+        When a member of A posts to business B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/organization/subscription-start.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "startSubscription(actor: Actor, input: { id: string; plan: string; ends_at: string }): Promise<SubscriptionView>"
+      types: []
+      errors: ["SUBSCRIPTION_EXISTS 409", "VALIDATION_ERROR 400", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: owner and network only."
+      - "v5.0.0-15.3.3: status and dates other than `ends_at` are not writable."
+    tests: |
+      start | integration | AC-1 | 201, one ACTIVE
+      second active | integration | AC-2, C-31 | 409
+      lapsed replaced | integration | AC-3 | old EXPIRED, new ACTIVE
+      validation | integration | AC-4 | each Examples row → 400
+      read | integration | AC-5 | member gets it; none → 404
+      non-owner | security | AB-1, WSTG-ATHZ-03 | 403
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/organization/subscription-start.test.ts
+    out_of_scope:
+      - "Payments and the free plan's limits (Q-011)."
+  - id: ORG-014
+    title: Owner ends the subscription
+    kind: feature
+    size: XS
+    risk: low
+    depends_on: [ORG-013]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.routes.ts]
+    design_refs: [finances/subscription]
+    constraints: [Subscription.status:enum]
+    asvs: [v5.0.0-8.2.1]
+    story: As an owner, I want to end my subscription so that the business falls back to the free plan.
+    context: |
+      - Exists: `POST` and `GET .../subscription` (ORG-013).
+      - Adds: `DELETE /api/v1/organizations/{organizationId}/subscription` (204): the ACTIVE row becomes EXPIRED with `ends_at` = now. History stays. No ACTIVE row answers 404.
+    acceptance: |
+      Scenario: AC-1 End
+        When the owner deletes the ACTIVE subscription
+        Then the response is 204, the row is EXPIRED and `ends_at` is now
+      Scenario: AC-2 Nothing to end
+        When no ACTIVE subscription exists
+        Then the response is 404 `NOT_FOUND`
+      Scenario: AC-3 History
+        Then the ended row stays and a new subscription can be started
+    abuse: |
+      Scenario: AB-1 Non-owner ends it (vertical)
+        When a MANAGER deletes the subscription
+        Then the response is 403 and the row stays ACTIVE
+    implementation:
+      create: [tests/integration/organization/subscription-end.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "endSubscription(actor: Actor): Promise<void>"
+      types: []
+      errors: ["NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express]
+    security:
+      - "v5.0.0-8.2.1: owner and network only."
+    tests: |
+      end | integration | AC-1, Subscription.status:enum | 204, EXPIRED, ends_at now
+      nothing to end | integration | AC-2 | 404
+      history | integration | AC-3 | row kept; new start works
+      non-owner | security | AB-1, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/organization/subscription-end.test.ts
+    out_of_scope:
+      - "Automatic expiry at `ends_at` (a lapsed row is replaced when a new one starts)."
+  - id: ORG-015
+    title: Owner transfers the ownership
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORG-008, ACC-005, ACC-007]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/collaboration]
+    constraints: [C-05, CM-09, CM-03]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: As an owner, I want to hand my business to another collaborator so that it can be sold or inherited without recreating it.
+    context: |
+      - Exists: the exactly-one-owner rule with a deferred check (ORG-003); `requireAbility('transfer_ownership', 'Organization')`; `bumpScopeVersion`; `notify`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/transfer-ownership` with `{ id, collaboration_id }`; response 200 `{ new_owner_collaboration_id }`.
+      - One transaction: the target ACTIVE collaboration becomes OWNER (its `is_public_contact` unchanged), the caller's becomes MANAGER, both people's `scope_version` +1; the new owner gets a notification `ownership.received`. The former owner's held money is handed over by FIN-017.
+      - Target must be ACTIVE, belong to the organization and not be the caller; an INVITED, REVOKED or foreign target answers 404.
+    acceptance: |
+      Scenario: AC-1 Transfer
+        When the owner names an ACTIVE manager
+        Then the manager is OWNER, the caller is MANAGER, and there is exactly one ACTIVE OWNER
+      Scenario: AC-2 Rights counters and notice
+        Then both people's `scope_version` is +1 and the new owner has one unread `ownership.received`
+      Scenario Outline: AC-3 Refusals
+        When the target is <case>
+        Then the response is <status> and nothing changes
+        Examples:
+          | case                                | status              |
+          | the caller                          | 400 VALIDATION_ERROR|
+          | INVITED                             | 404 NOT_FOUND       |
+          | REVOKED                             | 404 NOT_FOUND       |
+          | in another business                 | 404 NOT_FOUND       |
+      Scenario: AC-4 Atomic
+        When the second update fails
+        Then the caller is still OWNER and nobody else is
+      Scenario: AC-5 Repeat
+        When the same body is posted twice
+        Then the second answer equals the first
+    abuse: |
+      Scenario: AB-1 Manager takes the business (vertical)
+        When a MANAGER posts a transfer to themselves
+        Then the response is 403 and nothing changes
+      Scenario: AB-2 Transfer without the network (elevation)
+        Then the rule for transfer needs `online`, so a phone judging offline is refused
+    implementation:
+      create: [tests/integration/organization/transfer.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "transferOwnership(actor: Actor, input: { id: string; collaboration_id: string }): Promise<{ new_owner_collaboration_id: string }>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: owner and network only."
+      - "v5.0.0-2.3.3: both role changes and both scope bumps are one transaction."
+      - "v5.0.0-16.3.1: log `warn` event `ownership_transferred` with organization and both person ids."
+    tests: |
+      transfer | integration | AC-1, C-05, CM-09 | roles swapped, one owner
+      counters and notice | integration | AC-2, CM-03 | +1 each, notification
+      refusals | integration | AC-3 | each Examples row → status
+      atomic | integration | AC-4, CWE-362 | forced failure → unchanged
+      repeat | integration | AC-5 | equal answers
+      manager takes over | security | AB-1, WSTG-ATHZ-03 | 403
+      offline refused | security | AB-2, CWE-863 | ability with online false → refused
+    command: npx vitest run tests/integration/organization/transfer.test.ts
+    out_of_scope:
+      - "Automatic handover of the former owner's held money (FIN-017)."
+  - id: ORG-016
+    title: Owner closes the business
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORG-014, ORG-010, ACC-005, ACC-007]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/organization]
+    constraints: [Organization.status:enum, CM-10, CM-03]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: As an owner, I want to close my business so that it takes no new orders or customers while its history stays.
+    context: |
+      - Exists: statuses (ORG-001), team revocation (ORG-010), subscription end (ORG-014); `requireAbility('close', 'Organization')`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/close` with `{ id }`; response 200 `{ status: 'CLOSED' }`.
+      - One transaction: status becomes CLOSED (only from ACTIVE; a SUSPENDED or already CLOSED organization answers 409 `ORGANIZATION_NOT_ACTIVE`); every non-owner ACTIVE or INVITED collaboration becomes REVOKED with `is_public_contact` false and, for ACTIVE ones, `scope_version` +1 and a notification `organization.closed`; the ACTIVE subscription becomes EXPIRED with `ends_at` = now.
+      - The refusal of pending orders is added by ORD-018; relations, balances and history are untouched.
+    acceptance: |
+      Scenario: AC-1 Close
+        When the owner closes an ACTIVE organization
+        Then the status is CLOSED
+      Scenario: AC-2 Team and subscription
+        Then every non-owner collaboration is REVOKED with the flag false, ACTIVE ones were notified and had scope_version +1, and the subscription is EXPIRED
+      Scenario: AC-3 Owner keeps access
+        Then the owner's collaboration is still ACTIVE and can read the organization
+      Scenario Outline: AC-4 Refusals
+        When the organization is <status>
+        Then the response is 409 `ORGANIZATION_NOT_ACTIVE`
+        Examples:
+          | status    |
+          | SUSPENDED |
+          | CLOSED    |
+      Scenario: AC-5 Atomic
+        When any step fails
+        Then the organization is still ACTIVE and the team unchanged
+    abuse: |
+      Scenario: AB-1 Manager closes the business (vertical)
+        When a MANAGER posts to close
+        Then the response is 403 and the status is unchanged
+      Scenario: AB-2 Closing another business (horizontal)
+        When a member of A posts to close B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/organization/close.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "closeOrganization(actor: Actor, input: { id: string }): Promise<{ status: 'CLOSED' }>"
+      types: []
+      errors: ["ORGANIZATION_NOT_ACTIVE 409", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: owner and network only."
+      - "v5.0.0-2.3.3: status, team and subscription change together."
+      - "v5.0.0-16.3.1: log `warn` event `organization_closed` with organization and owner ids."
+    tests: |
+      close | integration | AC-1, Organization.status:enum, CM-10 | CLOSED
+      team and subscription | integration | AC-2, CM-03 | revoked, notified, expired
+      owner access | integration | AC-3 | still ACTIVE, readable
+      refusals | integration | AC-4 | 409
+      atomic | integration | AC-5, CWE-362 | forced failure → unchanged
+      manager | security | AB-1, WSTG-ATHZ-03 | 403
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/organization/close.test.ts
+    out_of_scope:
+      - "Refusing pending orders (ORD-018). Reopening (ORG-017)."
+  - id: ORG-017
+    title: Owner reopens the business
+    kind: feature
+    size: XS
+    risk: medium
+    depends_on: [ORG-016]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.routes.ts]
+    design_refs: [identite-et-organisation/organization]
+    constraints: [Organization.status:enum, CM-10]
+    asvs: [v5.0.0-8.2.1]
+    story: As an owner, I want to reopen a closed business so that it can trade again.
+    context: |
+      - Exists: `POST .../close` (ORG-016); `requireAbility('reopen', 'Organization')`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/reopen` with `{ id }`; response 200 `{ status: 'ACTIVE' }`. Only CLOSED can reopen; the team and the subscription are not restored.
+    acceptance: |
+      Scenario: AC-1 Reopen
+        When the owner reopens a CLOSED organization
+        Then the status is ACTIVE and the revoked collaborators stay REVOKED
+      Scenario Outline: AC-2 Refusals
+        When the organization is <status>
+        Then the response is 409 `ORGANIZATION_NOT_CLOSED`
+        Examples:
+          | status    |
+          | ACTIVE    |
+          | SUSPENDED |
+    abuse: |
+      Scenario: AB-1 Owner lifts a moderation suspension (elevation)
+        When the owner posts to reopen a SUSPENDED organization
+        Then the response is 409 and the suspension stays
+      Scenario: AB-2 Manager reopens (vertical)
+        When a MANAGER posts to reopen
+        Then the response is 403
+    implementation:
+      create: [tests/integration/organization/reopen.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "reopenOrganization(actor: Actor): Promise<{ status: 'ACTIVE' }>"
+      types: []
+      errors: ["ORGANIZATION_NOT_CLOSED 409", "FORBIDDEN 403"]
+      dependencies: [express]
+    security:
+      - "v5.0.0-8.2.1: owner and network only; a moderation suspension is never lifted here."
+    tests: |
+      reopen | integration | AC-1, Organization.status:enum, CM-10 | ACTIVE, team stays revoked
+      refusals | integration | AC-2 | 409
+      suspension stays | security | AB-1, CWE-284 | 409
+      manager | security | AB-2, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/organization/reopen.test.ts
+    out_of_scope:
+      - "Reactivation after suspension (ADM module)."
+  - id: ORG-018
+    title: Find a business by a public phone number
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ORG-011, PER-006]
+    read_first: [src/modules/person/person.routes.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/organization, relations-commerciales/customerrelationship]
+    constraints: [CM-26]
+    asvs: [v5.0.0-2.4.1, v5.0.0-15.3.1, v5.0.0-8.2.1]
+    story: As a customer, I want to find a business by one of its public numbers so that I can order from it.
+    context: |
+      - Exists: `is_public_contact` (ORG-011); the lookup limit key `lookup:<personId>`, 60 per hour, shared with `GET /people/lookup` (PER-006).
+      - Adds: `GET /api/v1/organizations/lookup?phone=<number>` for any signed-in person. Response 200 `{ items: [{ id, name, description }] }`: ACTIVE organizations that have an ACTIVE collaborator with `is_public_contact` true whose active number is that number. Otherwise an empty list. `findOrganizationsByPublicNumber(e164)` in `organization.repository.ts`.
+      - The same 60 per hour limit is consumed from the same key; over it answers 429 `RATE_LIMITED`.
+    acceptance: |
+      Scenario: AC-1 Found
+        Given a public-contact owner with number +237677123456
+        When a signed-in person looks up "6 77 12 34 56"
+        Then the response lists that organization with id, name and description only
+      Scenario Outline: AC-2 Not found
+        When the number belongs to <case>
+        Then the response is 200 with an empty list
+        Examples:
+          | case                                                    |
+          | a collaborator with is_public_contact false             |
+          | an INVITED or REVOKED collaborator                      |
+          | a CLOSED or SUSPENDED organization                      |
+          | a private person who is not a collaborator              |
+          | an unknown number                                       |
+      Scenario: AC-3 Several businesses
+        When one person is a public contact of two ACTIVE organizations
+        Then both are listed
+      Scenario: AC-4 Shared limit
+        When 60 person lookups and organization lookups are made in one hour
+        Then the 61st answers 429 `RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 Finding someone under a number that is not theirs (spoofing)
+        When a person's number is released
+        Then the organizations no longer list it
+      Scenario: AB-2 Enumeration (anti-automation)
+        When one person looks up 61 numbers in an hour
+        Then the 61st answers 429
+      Scenario: AB-3 Private data (information disclosure)
+        When a business is found
+        Then no collaborator name, id, role or number appears
+    implementation:
+      create: [tests/integration/organization/lookup.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/person/person.routes.ts
+      signatures:
+        - "findOrganizationsByPublicNumber(e164: string): Promise<Array<{ id: string; name: string; description: string | null }>>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "RATE_LIMITED 429", "UNAUTHORIZED 401"]
+      dependencies: [express, zod, ioredis]
+    security:
+      - "v5.0.0-2.4.1: shared per-person limit."
+      - "v5.0.0-15.3.1: three fields per business."
+      - "v5.0.0-8.2.1: route behind `authMiddleware`."
+    tests: |
+      found | integration | AC-1, CM-26 | organization with three fields
+      not found | integration | AC-2 | each Examples row → empty list
+      several | integration | AC-3 | both listed
+      shared limit | integration | AC-4 | 61st → 429
+      released number | security | AB-1, CWE-290 | not listed
+      enumeration | security | AB-2, WSTG-BUSL-07 | 429
+      private data | security | AB-3, CWE-200 | no collaborator data
+    command: npx vitest run tests/integration/organization/lookup.test.ts
+    out_of_scope:
+      - "Inviting a supplier by a non-public number (REL module)."
+  - id: ORG-019
+    title: Team list
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ORG-008]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.routes.ts]
+    design_refs: [identite-et-organisation/collaboration, finances/handover]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As an owner, I want to see my team with roles and statuses so that I know who can do what and who holds money.
+    context: |
+      - Exists: collaborators (ORG-007 to ORG-010); `loadActor`.
+      - Adds: `GET /api/v1/organizations/{organizationId}/collaborators` (paginated; `id, person: { public_name, phone_number, registered }, role, status, is_public_contact, invited_at, accepted_at`, and `amount_held`). OWNER and MANAGER may read the list; SELLER and DRIVER get 403.
+      - `amount_held` is present for the OWNER caller, and for a caller's own row; absent for others. REVOKED rows are listed so that money held by former members stays visible.
+    acceptance: |
+      Scenario: AC-1 Owner sees all
+        When the owner lists a team of owner, manager, seller and a revoked driver holding 5000
+        Then four items are returned including the revoked driver with amount_held 5000
+      Scenario: AC-2 Manager sees no money of others
+        When the manager lists
+        Then only the manager's own item has amount_held
+      Scenario Outline: AC-3 Roles
+        When the caller is <role>
+        Then the response is <status>
+        Examples:
+          | role    | status |
+          | OWNER   | 200    |
+          | MANAGER | 200    |
+          | SELLER  | 403    |
+          | DRIVER  | 403    |
+      Scenario: AC-4 Pagination
+        Given 5 collaborators
+        When the owner lists with limit 2 and the returned cursor
+        Then the pages hold 2, 2 and 1 items
+    abuse: |
+      Scenario: AB-1 Another business's team (horizontal)
+        When a member of A lists the team of B
+        Then the response is 404
+      Scenario: AB-2 Private fields (information disclosure)
+        When the list is read
+        Then no email, language or password data of any person appears
+    implementation:
+      create: [tests/integration/organization/team-list.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "listCollaborators(actor: Actor, query: { limit: number; cursor?: string }): Promise<{ items: CollaborationView[]; next_cursor: string | null }>"
+      types: []
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.3: `amount_held` is field-level restricted to the owner and the row's own person."
+      - "v5.0.0-15.3.1: person data goes through `toPublicPerson`."
+    tests: |
+      owner list | integration | AC-1 | four items, revoked driver with 5000
+      manager list | integration | AC-2 | only own amount_held
+      roles | integration | AC-3 | each Examples row → status
+      paging | integration | AC-4 | 2, 2, 1
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+      private fields | security | AB-2, CWE-200 | no email or language
+    command: npx vitest run tests/integration/organization/team-list.test.ts
+    out_of_scope:
+      - "Showing held money to the collaborator only (FIN module screens)."

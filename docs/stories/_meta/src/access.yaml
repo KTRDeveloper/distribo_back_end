@@ -1,0 +1,488 @@
+kind: module
+module: access
+prefix: ACC
+title: Access
+responsibility: Owns the rules table, the role order, the CASL ability builder, the ability middleware and the idempotency of online gestures.
+entities: []
+depends_on: [foundation, person]
+asvs_level: L2
+asvs_rationale: Every module trusts this one for authorization decisions; the rules refuse by default and a table of tests covers every role and situation.
+classification:
+  - "IdempotencyKey.response_body | confidential | stored 30 days, never logged"
+threats:
+  - "T1 | E | A lower role reaches a higher role's action | rules table, `atLeast` refuses unknown roles, table tests | ACC-001 AB-1, ACC-006 AB-1"
+  - "T2 | E | A manager power is used offline with a stale role | those rules are ONLINE or NETWORK only | ACC-002 AB-1, ACC-005 AB-1"
+  - "T3 | T | A gesture sent twice counts twice | idempotency key per person and gesture id | ACC-007 AB-1"
+constraints:
+  C-38: "Every online route that changes data carries the client-created id; an id already received changes nothing and returns the first result."
+contracts:
+  provides:
+    - name: AccessRules
+      file: src/shared/access/ability.ts
+      story: ACC-001
+      items:
+        - "ROLES, atLeast(role: string, min: string): boolean — false for an unknown role or minimum"
+        - "abilityFor(role: string, ctx: AccessContext): MongoAbility — deny by default"
+        - "AccessContext = { onServer: boolean; online: boolean; daysSinceSync: number }"
+      used_by: [organization, relationship, catalog, order, finance, delivery, sync]
+    - name: RequireAbility
+      file: src/middleware/require-ability.ts
+      story: ACC-006
+      items:
+        - "requireAbility(action: string, subjectType: string): RequestHandler — reads `req.actor`, context `{ onServer: false, online: true, daysSinceSync: 0 }`, answers 403 FORBIDDEN"
+      used_by: [organization, relationship, catalog, order, finance, delivery]
+    - name: Idempotent
+      file: src/middleware/idempotent.ts
+      story: ACC-007
+      items:
+        - "idempotent(): RequestHandler — first request runs, a repeat returns the stored status and body"
+      used_by: [organization, relationship, catalog, order, finance, delivery]
+  consumes:
+    - "person: `people` table (docs/stories/modules/person/contracts.md)"
+stories:
+  - id: ACC-001
+    title: Role order and ability builder
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [FND-000]
+    read_first: [docs/stories/CONVENTIONS.md, tests/unit/crypto.test.ts]
+    design_refs: [acces-et-securite/la-couche-d-acces-et-la-table-des-regles, annexe-la-table-des-regles/extrait-du-fichier]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.3.1]
+    story: "Technical story: provide the role order and the function that turns the rules table into a CASL ability, so that every permission decision comes from one place that refuses by default."
+    context: |
+      - Adds: `src/shared/access/roles.ts` (`ROLES = ['DRIVER','SELLER','MANAGER','OWNER']`, `atLeast`) and `src/shared/access/ability.ts` (`RULES`, `abilityFor`), no Node-only import, using `createMongoAbility` from `@casl/ability`.
+      - `RULES` is an array of `{ who, where, action, subject, fields?, conditions? }`; it starts with one rule, `{ who: 'SELLER', where: 'DAYS_3', action: 'create', subject: 'CustomerRelationship' }`; ACC-002 to ACC-005 add the others.
+      - Availability `where`: `ALWAYS` true; `DAYS_3` true for the owner, on the server, or when `daysSinceSync < 3`; `ONLINE` true for the owner or when `online`; `NETWORK` true only when `online`.
+      - `abilityFor(role, ctx)` keeps the rules with `atLeast(role, who)` and an open `where`, and drops `who` and `where` before giving them to CASL.
+    acceptance: |
+      Scenario Outline: AC-1 Role order
+        When atLeast is called with role <role> and minimum <min>
+        Then the result is <result>
+        Examples:
+          | role    | min     | result |
+          | DRIVER  | DRIVER  | true   |
+          | SELLER  | DRIVER  | true   |
+          | DRIVER  | SELLER  | false  |
+          | OWNER   | MANAGER | true   |
+          | ADMIN   | DRIVER  | false  |
+          | (empty) | DRIVER  | false  |
+          | OWNER   | BOSS    | false  |
+      Scenario Outline: AC-2 Availability
+        Given the rule `MANAGER` with where <where>
+        When abilityFor is built for role <role> with context <ctx>
+        Then can('create', subject) is <result>
+        Examples:
+          | where   | role    | ctx                                              | result |
+          | DAYS_3  | SELLER  | daysSinceSync 2, not online, not on server       | true   |
+          | DAYS_3  | SELLER  | daysSinceSync 3, not online, not on server       | false  |
+          | DAYS_3  | SELLER  | daysSinceSync 9, on server                       | true   |
+          | DAYS_3  | OWNER   | daysSinceSync 9, not online                      | true   |
+          | ONLINE  | MANAGER | online                                           | true   |
+          | ONLINE  | MANAGER | not online                                       | false  |
+          | ONLINE  | OWNER   | not online                                       | true   |
+          | NETWORK | OWNER   | not online                                       | false  |
+          | NETWORK | OWNER   | online                                           | true   |
+          | ALWAYS  | DRIVER  | not online, daysSinceSync 30                     | true   |
+      Scenario: AC-3 Deny by default
+        When abilityFor is built for an unknown role
+        Then can returns false for every action and subject
+    abuse: |
+      Scenario: AB-1 Unknown or forged role (elevation)
+        When abilityFor receives 'ADMIN', 'owner' in lower case or an empty role
+        Then the ability allows nothing
+    implementation:
+      create: [src/shared/access/roles.ts, src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+      modify: []
+      pattern: tests/unit/crypto.test.ts
+      signatures:
+        - "atLeast(role: string, min: string): boolean"
+        - "abilityFor(role: string, ctx: AccessContext): MongoAbility"
+      types:
+        - "Role = 'DRIVER' | 'SELLER' | 'MANAGER' | 'OWNER'"
+        - "Where = 'ALWAYS' | 'DAYS_3' | 'ONLINE' | 'NETWORK'"
+        - "AccessRule = { who: Role; where: Where; action: string; subject: string; fields?: string[]; conditions?: Record<string, unknown> }"
+      errors: []
+      dependencies: ["@casl/ability"]
+    security:
+      - "v5.0.0-8.2.1: an unknown role or an unknown minimum is refused, never defaulted."
+      - "v5.0.0-8.3.1: CASL is given no rule that the role and context do not allow."
+    tests: |
+      role order | unit | AC-1 | each Examples row → result
+      availability | unit | AC-2 | each Examples row → result
+      deny by default | unit | AC-3 | unknown role → can false for a sample of 5 actions
+      forged roles | security | AB-1, WSTG-ATHZ-03 | 'ADMIN', 'owner', '' → nothing allowed
+    command: npx vitest run tests/unit/access/ability.test.ts
+    out_of_scope:
+      - "The full rules (ACC-002 to ACC-005) and the middleware (ACC-006)."
+  - id: ACC-002
+    title: Rules for relationships, catalog and prices
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ACC-001]
+    read_first: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+    design_refs: [annexe-la-table-des-regles/qui-et-ou, relations-commerciales/customerrelationship]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.3]
+    story: "Technical story: add the rules that govern customers, catalog and negotiated prices, so that those routes have a decision to ask for."
+    context: |
+      - Exists: `RULES`, `abilityFor`, `atLeast` (ACC-001).
+      - Adds these rules (who, where, action, subject, fields):
+        SELLER, DAYS_3, create, CustomerRelationship;
+        SELLER, DAYS_3, update, CustomerRelationship, fields customer_label, delivery_address, supplier_notes (Q-030);
+        MANAGER, ONLINE, update, CustomerRelationship, fields credit_limit;
+        MANAGER, ONLINE, reassign, CustomerRelationship;
+        MANAGER, ONLINE, end, CustomerRelationship; MANAGER, ONLINE, reopen, CustomerRelationship (Q-030);
+        MANAGER, ONLINE, create, CustomerRelationship, condition `counter: true` (extra counters, Q-029);
+        MANAGER, ONLINE, create and update, Product; MANAGER, ONLINE, create, update and delete, CustomerPrice.
+    acceptance: |
+      Scenario Outline: AC-1 Who can do what, and where
+        When abilityFor is built for <role> in <ctx> and asked <action> on <subject> (field <field>)
+        Then the answer is <result>
+        Examples:
+          | role    | ctx                    | action | subject              | field        | result |
+          | DRIVER  | any                    | create | CustomerRelationship |              | false  |
+          | SELLER  | phone, 2 days          | create | CustomerRelationship |              | true   |
+          | SELLER  | phone, 4 days          | create | CustomerRelationship |              | false  |
+          | SELLER  | phone, 2 days          | update | CustomerRelationship | customer_label | true |
+          | SELLER  | phone, 2 days          | update | CustomerRelationship | credit_limit | false  |
+          | MANAGER | online                 | update | CustomerRelationship | credit_limit | true   |
+          | MANAGER | phone, 0 days          | update | CustomerRelationship | credit_limit | false  |
+          | OWNER   | phone offline          | update | CustomerRelationship | credit_limit | true   |
+          | MANAGER | phone, 0 days          | create | Product              |              | false  |
+          | OWNER   | phone offline          | create | Product              |              | true   |
+          | SELLER  | online                 | create | CustomerPrice        |              | false  |
+      Scenario: AC-2 Complete matrix
+        When every role in DRIVER, SELLER, MANAGER, OWNER meets every context in `phone 0 days`, `phone 4 days`, `online`, `server judging a sync`
+        Then each rule of this story gives the answer its `who` and `where` columns predict, and every action not listed is refused
+    abuse: |
+      Scenario: AB-1 Manager power used offline (elevation)
+        When a MANAGER on a phone 0 days from sync asks to update `credit_limit`, create a Product or reassign a relationship
+        Then each answer is false
+    implementation:
+      create: []
+      modify: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+      pattern: src/shared/access/ability.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@casl/ability"]
+    security:
+      - "v5.0.0-8.2.3: field-level rules list the fields; no rule allows `update` without a field list on CustomerRelationship."
+    tests: |
+      examples | unit | AC-1 | each Examples row → result
+      matrix | unit | AC-2 | 4 roles x 4 contexts x every rule → predicted answers; unlisted actions false
+      manager offline | security | AB-1, WSTG-ATHZ-03 | MANAGER phone 0 days → credit_limit, Product create, reassign all false
+    command: npx vitest run tests/unit/access/ability.test.ts
+    out_of_scope:
+      - "Rules for orders, money and team (ACC-003 to ACC-005)."
+      - "Customer-side rights, which the relationship module decides by party."
+  - id: ACC-003
+    title: Rules for orders and deliveries
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ACC-002]
+    read_first: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+    design_refs: [annexe-la-table-des-regles/qui-et-ou, annexe-la-table-des-regles/etapes-d-une-commande]
+    constraints: [CM-12]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.1]
+    story: "Technical story: add the rules for the steps of an order and for deliveries, so that each step has a role and an availability."
+    context: |
+      - Exists: `RULES` with the ACC-002 rules.
+      - Adds (who, where, action, subject, condition): DRIVER, DAYS_3, depart, Order, status CONFIRMED; DRIVER, ALWAYS, deliver, Order, status IN_DELIVERY; DRIVER, ALWAYS, fail_delivery, Order, status IN_DELIVERY;
+        SELLER, DAYS_3, create, Order; SELLER, DAYS_3, accept, Order, status PENDING; SELLER, DAYS_3, refuse, Order, status PENDING; SELLER, DAYS_3, cancel, Order, status in PENDING or CONFIRMED; SELLER, DAYS_3, deliver, Order, status CONFIRMED;
+        SELLER, DAYS_3, update, Order, fields supplier_note; SELLER, DAYS_3, update, OrderLine, fields unit_price_applied; MANAGER, ONLINE, assign, Delivery.
+    acceptance: |
+      Scenario Outline: AC-1 Steps of an order
+        When abilityFor is built for <role> in <ctx> and asked <action> on an Order with status <status>
+        Then the answer is <result>
+        Examples:
+          | role    | ctx           | action        | status      | result |
+          | DRIVER  | phone, 2 days | depart        | CONFIRMED   | true   |
+          | DRIVER  | phone, 4 days | depart        | CONFIRMED   | false  |
+          | DRIVER  | phone, 4 days | deliver       | IN_DELIVERY | true   |
+          | DRIVER  | phone, 4 days | fail_delivery | IN_DELIVERY | true   |
+          | DRIVER  | phone, 0 days | deliver       | CONFIRMED   | false  |
+          | DRIVER  | phone, 0 days | cancel        | CONFIRMED   | false  |
+          | SELLER  | phone, 2 days | cancel        | CONFIRMED   | true   |
+          | SELLER  | phone, 2 days | cancel        | DELIVERED   | false  |
+          | SELLER  | phone, 2 days | deliver       | CONFIRMED   | true   |
+          | SELLER  | phone, 2 days | accept        | PENDING     | true   |
+          | SELLER  | phone, 2 days | accept        | CONFIRMED   | false  |
+      Scenario: AC-2 Assigning a delivery
+        Then a MANAGER online can assign, a SELLER cannot, and a MANAGER on a phone 0 days from sync cannot
+      Scenario: AC-3 Complete matrix
+        When every role meets every context
+        Then each rule of this story gives its predicted answer and every unlisted action is refused
+    abuse: |
+      Scenario: AB-1 Driver acts beyond deliveries (vertical)
+        When a DRIVER asks to accept, refuse, cancel, create an Order or update an OrderLine
+        Then each answer is false
+    implementation:
+      create: []
+      modify: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+      pattern: src/shared/access/ability.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@casl/ability"]
+    security:
+      - "v5.0.0-2.3.1: state conditions live in the rule, so an out-of-order step is refused by the same decision."
+    tests: |
+      steps | unit | AC-1, CM-12 | each Examples row → result
+      assign | unit | AC-2 | MANAGER online true; SELLER false; MANAGER phone 0 days false
+      matrix | unit | AC-3 | 4 roles x 4 contexts x every rule → predicted answers
+      driver limits | security | AB-1, WSTG-ATHZ-03 | driver → accept, refuse, cancel, create Order, update OrderLine all false
+    command: npx vitest run tests/unit/access/ability.test.ts
+    out_of_scope:
+      - "Customer-placed orders (the customer is not a collaborator)."
+  - id: ACC-004
+    title: Rules for money
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ACC-003]
+    read_first: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+    design_refs: [annexe-la-table-des-regles/qui-et-ou, finances/ledgerentry]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.3]
+    story: "Technical story: add the rules for ledger entries, expenses and handovers, so that money gestures have a role and an availability."
+    context: |
+      - Exists: `RULES` with the ACC-003 rules.
+      - Adds (who, where, action, subject, condition): DRIVER, ALWAYS, create, LedgerEntry, kind in SALE or PAYMENT (only through the delivery gesture, enforced by the route);
+        SELLER, ALWAYS, create, LedgerEntry, kind PAYMENT;
+        MANAGER, ONLINE, create, LedgerEntry, kind in CREDIT_NOTE, REFUND or OPENING_BALANCE; MANAGER, ONLINE, reverse, LedgerEntry;
+        MANAGER, ONLINE, create, Expense; MANAGER, ONLINE, cancel, Expense; MANAGER, ONLINE, create, Handover; MANAGER, ONLINE, cancel, Handover.
+    acceptance: |
+      Scenario Outline: AC-1 Money gestures
+        When abilityFor is built for <role> in <ctx> and asked <action> on a LedgerEntry of kind <kind>
+        Then the answer is <result>
+        Examples:
+          | role    | ctx             | action  | kind            | result |
+          | DRIVER  | phone, 30 days  | create  | PAYMENT         | true   |
+          | DRIVER  | phone, 30 days  | create  | REFUND          | false  |
+          | DRIVER  | phone, 30 days  | create  | CREDIT_NOTE     | false  |
+          | SELLER  | phone, 30 days  | create  | PAYMENT         | true   |
+          | SELLER  | phone, 30 days  | create  | REFUND          | false  |
+          | MANAGER | online          | create  | REFUND          | true   |
+          | MANAGER | phone, 0 days   | create  | REFUND          | false  |
+          | MANAGER | online          | create  | OPENING_BALANCE | true   |
+          | OWNER   | phone offline   | reverse | any             | true   |
+          | SELLER  | online          | reverse | any             | false  |
+      Scenario: AC-2 Expenses and handovers
+        Then MANAGER online and OWNER may create and cancel an Expense and a Handover, and SELLER and DRIVER may not in any context
+      Scenario: AC-3 Complete matrix
+        When every role meets every context
+        Then each rule of this story gives its predicted answer and every unlisted action is refused
+    abuse: |
+      Scenario: AB-1 Driver or seller moves money they should not (vertical)
+        When a DRIVER or SELLER asks to reverse an entry, refund, grant a credit note, create an Expense or a Handover
+        Then each answer is false
+    implementation:
+      create: []
+      modify: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+      pattern: src/shared/access/ability.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@casl/ability"]
+    security:
+      - "v5.0.0-8.2.3: a ledger rule always carries a `kind` condition; there is no unconditional create on LedgerEntry."
+    tests: |
+      money gestures | unit | AC-1 | each Examples row → result
+      expense and handover | unit | AC-2 | roles and contexts → predicted answers
+      matrix | unit | AC-3 | 4 roles x 4 contexts x every rule → predicted answers
+      no money for lower roles | security | AB-1, WSTG-ATHZ-03 | driver and seller → reverse, refund, credit note, expense, handover all false
+    command: npx vitest run tests/unit/access/ability.test.ts
+    out_of_scope:
+      - "Reversal limits (once, not of a reversal): FIN stories."
+  - id: ACC-005
+    title: Rules for team, subscription and organization
+    kind: technical
+    size: XS
+    risk: high
+    depends_on: [ACC-004]
+    read_first: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+    design_refs: [annexe-la-table-des-regles/qui-et-ou, identite-et-organisation/collaboration]
+    constraints: []
+    asvs: [v5.0.0-8.2.1]
+    story: "Technical story: add the rules for the team, the subscription, closing the business and ordering from suppliers, so that gestures that change other people's rights always need the network."
+    context: |
+      - Exists: `RULES` with the ACC-004 rules.
+      - Adds (who, where, action, subject): OWNER, NETWORK, manage, Collaboration; OWNER, NETWORK, manage, Subscription; OWNER, NETWORK, transfer_ownership, Organization; OWNER, NETWORK, close, Organization; OWNER, NETWORK, reopen, Organization;
+        MANAGER, NETWORK, order_from_supplier, CustomerRelationship; MANAGER, NETWORK, invite_supplier, CustomerRelationship.
+    acceptance: |
+      Scenario Outline: AC-1 Network-only gestures
+        When abilityFor is built for <role> with <ctx> and asked <action> on <subject>
+        Then the answer is <result>
+        Examples:
+          | role    | ctx       | action              | subject              | result |
+          | OWNER   | online    | manage              | Collaboration        | true   |
+          | OWNER   | offline   | manage              | Collaboration        | false  |
+          | MANAGER | online    | manage              | Collaboration        | false  |
+          | OWNER   | offline   | close               | Organization         | false  |
+          | OWNER   | online    | close               | Organization         | true   |
+          | MANAGER | online    | invite_supplier     | CustomerRelationship | true   |
+          | MANAGER | offline   | order_from_supplier | CustomerRelationship | false  |
+          | SELLER  | online    | invite_supplier     | CustomerRelationship | false  |
+      Scenario: AC-2 Complete matrix
+        When every role meets every context
+        Then each rule of this story gives its predicted answer and every unlisted action is refused
+    abuse: |
+      Scenario: AB-1 Manager changes rights (elevation)
+        When a MANAGER asks to manage Collaboration or Subscription, close or transfer the Organization
+        Then each answer is false in every context
+    implementation:
+      create: []
+      modify: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+      pattern: src/shared/access/ability.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@casl/ability"]
+    security:
+      - "v5.0.0-8.2.1: NETWORK rules are never available offline, even for the owner."
+    tests: |
+      network only | unit | AC-1 | each Examples row → result
+      matrix | unit | AC-2 | 4 roles x 4 contexts x every rule → predicted answers
+      manager cannot change rights | security | AB-1, WSTG-ATHZ-03 | manager → all false
+    command: npx vitest run tests/unit/access/ability.test.ts
+    out_of_scope:
+      - "Routes that use these rules (ORG and REL modules)."
+  - id: ACC-006
+    title: Ability middleware
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ACC-005, FND-006]
+    read_first: [src/middleware/auth.ts, src/types/express.d.ts]
+    design_refs: [acces-et-securite/la-couche-d-acces-et-la-table-des-regles]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.3.2]
+    story: "Technical story: provide `requireAbility`, which refuses a request when the caller's role in the organization may not do the action, so that routes declare their permission in one line."
+    context: |
+      - Exists: `abilityFor` with the complete rules (ACC-001 to ACC-005); `httpError`; `req.user` from `authMiddleware`.
+      - Adds: `src/middleware/require-ability.ts` and the `req.actor` type in `src/types/express.d.ts`: `{ personId: string; organizationId: string; role: Role }`, set later by the organization module (ORG-005).
+      - `requireAbility(action, subjectType, conditionsFrom?)` builds the ability with context `{ onServer: false, online: true, daysSinceSync: 0 }` and role from `req.actor`; when `conditionsFrom(req)` is given, its result is the subject instance used for the check.
+      - A missing `req.actor` answers 403 `FORBIDDEN`. A refusal logs `warn` event `permission_refused` with person id, action and subject type.
+    acceptance: |
+      Scenario: AC-1 Allowed
+        Given `req.actor.role` is OWNER
+        When a route guarded by requireAbility('close', 'Organization') is called
+        Then the handler runs
+      Scenario: AC-2 Refused
+        Given `req.actor.role` is SELLER
+        When the same route is called
+        Then the response is 403 `FORBIDDEN` and the handler does not run
+      Scenario: AC-3 No actor
+        When `req.actor` is missing
+        Then the response is 403 `FORBIDDEN`
+      Scenario: AC-4 Condition on the subject
+        Given requireAbility('cancel', 'Order', (req) => ({ status: 'DELIVERED' }))
+        When a SELLER calls it
+        Then the response is 403; with status CONFIRMED it is allowed
+    abuse: |
+      Scenario: AB-1 Role sent by the client (elevation)
+        When the request body or header carries `role: OWNER`
+        Then the decision still uses `req.actor.role` and the response is 403 for a SELLER
+      Scenario: AB-2 Refusals are traced (repudiation)
+        When a request is refused
+        Then a `warn` log with event `permission_refused` and no personal data exists
+    implementation:
+      create: [src/middleware/require-ability.ts, tests/unit/access/require-ability.test.ts]
+      modify: [src/types/express.d.ts]
+      pattern: src/middleware/auth.ts
+      signatures:
+        - "requireAbility(action: string, subjectType: string, conditionsFrom?: (req: Request) => Record<string, unknown>): RequestHandler"
+      types:
+        - "Actor = { personId: string; organizationId: string; role: Role }"
+      errors: ["FORBIDDEN 403"]
+      dependencies: [express, "@casl/ability", pino]
+    security:
+      - "v5.0.0-8.2.1: the role comes only from `req.actor`, never from the request."
+      - "v5.0.0-16.3.2: every refusal is logged with a fixed event name."
+    tests: |
+      allowed | unit | AC-1 | OWNER actor → next called
+      refused | unit | AC-2 | SELLER actor → 403 FORBIDDEN, handler not called
+      no actor | unit | AC-3 | none → 403
+      condition | unit | AC-4 | DELIVERED → 403; CONFIRMED → next
+      forged role | security | AB-1, CWE-269 | body role OWNER, actor SELLER → 403
+      refusal log | security | AB-2, CWE-778 | refused call → one warn entry with event permission_refused
+    command: npx vitest run tests/unit/access/require-ability.test.ts
+    out_of_scope:
+      - "Loading `req.actor` from the database (ORG-005)."
+  - id: ACC-007
+    title: Idempotency of online gestures
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [ACC-006, FND-005, FND-002, PER-002]
+    read_first: [docs/stories/modules/foundation/contracts.md, src/middleware/auth.ts]
+    design_refs: [acces-et-securite/la-couche-d-acces-et-la-table-des-regles, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-38]
+    asvs: [v5.0.0-2.3.3, v5.0.0-2.3.4]
+    story: "Technical story: make an online gesture that arrives twice count once, so that a lost response and a retry never move money twice."
+    context: |
+      - Exists: `uuidV7Schema` (FND-005); `req.user.id` (authMiddleware).
+      - Adds: table `idempotency_keys` (`person_id` uuid foreign key to `people`, `key` uuid, `status_code` int null, `response_body` jsonb null, `created_at` timestamptz), primary key (`person_id`, `key`); middleware `idempotent()` in `src/middleware/idempotent.ts`; repository `src/modules/access/idempotency.repository.ts` (Q-023).
+      - The gesture id is `req.body.id`, a UUIDv7 created by the phone. Flow: insert the key with `ON CONFLICT DO NOTHING`; new key: run the handler, store status and body; existing key with a stored response: send it again with header `Idempotent-Replay: true`; existing key without a response yet: 409 `REQUEST_IN_PROGRESS`; a handler that ends with status 500 or higher deletes its key.
+    acceptance: |
+      Scenario: AC-1 First request runs
+        When a POST with a new id reaches a guarded route
+        Then the handler runs once and the response is stored
+      Scenario: AC-2 Repeat returns the first response
+        When the same person sends the same id again
+        Then the handler does not run, the status and body equal the first response, and header `Idempotent-Replay: true` is set
+      Scenario: AC-3 Same id, other person
+        When another person sends the same id
+        Then the handler runs for that person
+      Scenario: AC-4 Two at once
+        When two requests with one id arrive together
+        Then the handler runs once and the other answers 409 `REQUEST_IN_PROGRESS` or the stored response
+      Scenario Outline: AC-5 Invalid id
+        When the body id is <id>
+        Then the response is 400 `VALIDATION_ERROR`
+        Examples:
+          | id                |
+          | missing           |
+          | 123               |
+          | a UUIDv4          |
+      Scenario: AC-6 Failure can be retried
+        When the handler ends with a 500
+        Then the key is removed and a retry runs the handler again
+    abuse: |
+      Scenario: AB-1 Double spend by retry (tampering)
+        When a refund request is sent twice with one id
+        Then the side effect happens once and both responses are equal
+      Scenario: AB-2 Replaying another person's response (information disclosure)
+        When person B sends an id used by person A
+        Then B never receives A's stored response
+    implementation:
+      create: [src/middleware/idempotent.ts, src/modules/access/idempotency.repository.ts, prisma/migrations/<timestamp>_acc_007_idempotency_keys/migration.sql, tests/integration/access/idempotent.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: src/modules/tasks/tasks.repository.ts
+      signatures:
+        - "idempotent(): RequestHandler"
+      types:
+        - "IdempotencyRecord = { personId: string; key: string; statusCode: number | null; responseBody: unknown | null }"
+      errors: ["VALIDATION_ERROR 400", "REQUEST_IN_PROGRESS 409"]
+      dependencies: [express, "@prisma/client", zod]
+    security:
+      - "v5.0.0-2.3.3: the key insert and the conflict check are one SQL statement."
+      - "v5.0.0-2.3.4: the primary key (person id, key) decides who runs when two requests race."
+    tests: |
+      first runs | integration | AC-1, C-38 | new id → handler count 1, row with status stored
+      repeat replays | integration | AC-2, C-38 | same id → handler count still 1, equal body, replay header
+      other person | integration | AC-3 | same id, person B → handler runs
+      concurrent | integration | AC-4 | two parallel calls → handler count 1
+      invalid id | integration | AC-5 | each Examples row → 400
+      retry after 500 | integration | AC-6 | 500 then retry → handler runs twice, key removed after the first
+      double spend | security | AB-1, CWE-362 | two refund posts → one side effect
+      no cross-person replay | security | AB-2, CWE-639 | B gets a fresh run, never A's body
+    command: npx vitest run tests/integration/access/idempotent.test.ts
+    out_of_scope:
+      - "The 30-day purge of old keys (PRIV module)."
+      - "Sync pushes, which are idempotent by record id (SYNC module)."

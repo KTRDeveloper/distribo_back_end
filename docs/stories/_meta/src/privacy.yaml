@@ -1,0 +1,239 @@
+kind: module
+module: privacy
+prefix: PRIV
+title: Privacy
+responsibility: Owns account deletion by anonymization and the daily purge of data that has reached its retention period.
+entities: []
+depends_on: [foundation, person, notification, access, auth, organization, relationship, order, finance, sync]
+asvs_level: L2
+asvs_rationale: Personal data must be erased or anonymized when the law and the design say so, without breaking the commercial history of businesses.
+classification:
+  - "Person.* | PII | erased at anonymization except the released number kept for organization history"
+threats:
+  - "T1 | T | Someone deletes another person's account | deletion needs the signed-in person's password | PRIV-002 AB-1"
+  - "T2 | R | An owner deletes their account leaving a business without an owner | deletion is blocked until every owned business is transferred or closed | PRIV-001 AB-1"
+  - "T3 | I | Personal data survives deletion | every personal column is erased and sessions and codes removed | PRIV-002 AB-2"
+  - "T4 | T | The purge deletes commercial history | the purge touches only the tables and periods of the retention table | PRIV-003 AB-1"
+constraints:
+  CM-01: "Anonymization erases full_name, email, email_verified_at, preferred_language and password_hash, releases the number (moves it to released_phone_number), sets status ANONYMIZED and anonymized_at."
+  CM-02: "Account deletion is refused while the person has a positive balance on a relation where they are the customer, or owns an organization that is neither transferred nor closed."
+  CM-35: "Retention: commercial data and journals at least 10 years; notifications 24 months; SyncArchive 90 days; expired or revoked verification codes and tokens 30 days; the daily purge runs under the migration account."
+  C-03: "A registered person (`registered_at` set) who is not ANONYMIZED has `full_name` and `password_hash`, and `phone_verified_at` when `phone_number` is set; empty `phone_number` means empty `phone_verified_at`; empty `email` means empty `email_verified_at`."
+  C-02: "`phone_number` is unique, E.164; exactly one of `phone_number` and `released_phone_number` is set; status ANONYMIZED means `phone_number` is empty."
+contracts:
+  provides:
+    - name: AnonymizePerson
+      file: src/modules/privacy/privacy.service.ts
+      story: PRIV-002
+      items:
+        - "anonymizePerson(personId: string): Promise<void>"
+      used_by: []
+  consumes:
+    - "auth: revokeSessions, verifyPassword (docs/stories/modules/auth/contracts.md)"
+    - "organization: collaborations (docs/stories/modules/organization/contracts.md)"
+stories:
+  - id: PRIV-001
+    title: Person checks whether they can delete their account
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ORG-005, REL-016]
+    read_first: [src/modules/user/user.routes.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/person, donnees-personnelles-et-conservation/cadre-juridique-le-cameroun]
+    constraints: [CM-02]
+    asvs: [v5.0.0-8.2.2, v5.0.0-14.2.4]
+    story: As a customer, I want to know what blocks the deletion of my account so that I can fix it first.
+    context: |
+      - Exists: relationships as customer (REL module); organizations and roles (ORG module); `authMiddleware`.
+      - Adds: `GET /api/v1/users/me/deletion-check` returning `{ can_delete, blockers: [{ code, label }] }`. Blockers: `POSITIVE_BALANCE` for each relationship where the caller is `customer_person_id` and `balance` is above 0 (label: the supplier's name), and `OWNS_ORGANIZATION` for each ACTIVE or SUSPENDED organization the caller owns (label: its name; the message is "Transférez ou fermez d'abord <name>"). CLOSED organizations and PENDING invitations never block.
+      - Files: `src/modules/privacy/privacy.routes.ts`, `privacy.service.ts`, `privacy.repository.ts`, `privacy.schemas.ts`, and the mount in `src/app.ts`.
+    acceptance: |
+      Scenario: AC-1 Nothing blocks
+        When a person with no debt and no business calls the route
+        Then `can_delete` is true and blockers is empty
+      Scenario: AC-2 Debt blocks
+        Given the person owes 5000 to a supplier
+        Then blockers has one POSITIVE_BALANCE naming the supplier and can_delete is false
+      Scenario Outline: AC-3 Not blockers
+        When the person's state is <state>
+        Then it does not block
+        Examples:
+          | state                                              |
+          | a balance of 0 or negative (an advance)            |
+          | ownership of a CLOSED organization                 |
+          | a MANAGER role in an organization                  |
+      Scenario: AC-4 Owner blocks
+        Given the person owns an ACTIVE organization named "Boutique Fotso"
+        Then blockers has OWNS_ORGANIZATION with that name
+    abuse: |
+      Scenario: AB-1 Reading another person's blockers (horizontal)
+        When person A calls the route
+        Then only A's relationships and organizations are considered
+      Scenario: AB-2 No token (unauthenticated)
+        Then the response is 401
+    implementation:
+      create: [src/modules/privacy/privacy.routes.ts, src/modules/privacy/privacy.service.ts, src/modules/privacy/privacy.repository.ts, src/modules/privacy/privacy.schemas.ts, tests/integration/privacy/deletion-check.test.ts]
+      modify: [src/app.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "deletionCheck(personId: string): Promise<{ can_delete: boolean; blockers: Array<{ code: string; label: string }> }>"
+      types: []
+      errors: ["UNAUTHORIZED 401"]
+      dependencies: [express]
+    security:
+      - "v5.0.0-8.2.2: every query filters on the person id from the token."
+    tests: |
+      nothing blocks | integration | AC-1, CM-02 | true
+      debt | integration | AC-2 | blocker
+      not blockers | integration | AC-3 | each Examples row → no blocker
+      owner | integration | AC-4 | blocker with name
+      other person | security | AB-1, WSTG-ATHZ-04 | own data only
+      no token | security | AB-2, WSTG-ATHN-04 | 401
+    command: npx vitest run tests/integration/privacy/deletion-check.test.ts
+    out_of_scope:
+      - "The deletion itself (PRIV-002)."
+  - id: PRIV-002
+    title: Person deletes their account by anonymization
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [PRIV-001, AUTH-008, AUTH-005]
+    read_first: [src/modules/privacy/privacy.service.ts, src/modules/auth/session.service.ts]
+    design_refs: [identite-et-organisation/person, donnees-personnelles-et-conservation/durees-de-conservation]
+    constraints: [CM-01, CM-02, C-02, C-03]
+    asvs: [v5.0.0-6.2.3, v5.0.0-7.4.2, v5.0.0-14.2.4, v5.0.0-16.3.1]
+    story: As a customer, I want to delete my account so that my personal data is erased while the businesses keep their history.
+    context: |
+      - Exists: `deletionCheck` (PRIV-001), `verifyPassword`, `revokeSessions`.
+      - Adds: `DELETE /api/v1/users/me` with `{ password }`; response 204. Refused with 409 `DELETION_BLOCKED` and the blockers when `deletionCheck` finds any; a wrong password answers 401 `INVALID_CREDENTIALS` (attempts counted with the login counter for the person's number).
+      - `anonymizePerson(personId)` in one transaction: `full_name`, `email`, `email_verified_at`, `preferred_language` and `password_hash` set to null; `phone_number` moved to `released_phone_number`, `phone_verified_at` null; `status` ANONYMIZED, `anonymized_at` now; every session revoked; every ACTIVE or INVITED collaboration REVOKED with `is_public_contact` false (their held money stays visible to the owner); their notifications, one-time codes and device push tokens deleted or cleared; their `Task` rows deleted. Relationships, orders, ledger entries and journals stay and keep pointing to the person.
+      - Logs `info` event `account_anonymized` with the person id.
+    acceptance: |
+      Scenario: AC-1 Anonymize
+        When a person with nothing blocking deletes their account with the right password
+        Then the response is 204 and the row has the personal columns empty, phone_number empty, released_phone_number holding the old number, status ANONYMIZED and anonymized_at set
+      Scenario: AC-2 Sessions and traces
+        Then every device is revoked, notifications and one-time codes of the person are gone, push tokens are empty
+      Scenario: AC-3 Team and history
+        Then their collaborations are REVOKED with the flag false, and their orders, entries and relationships still point to them
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                   | status                     |
+          | a positive balance as customer            | 409 DELETION_BLOCKED |
+          | an owned ACTIVE organization              | 409 DELETION_BLOCKED       |
+          | a wrong password                          | 401 INVALID_CREDENTIALS    |
+          | no password                               | 400 VALIDATION_ERROR       |
+      Scenario: AC-5 Cannot sign in afterwards
+        Then a login with the old number or password answers the generic 401
+      Scenario: AC-6 Atomic
+        When any step fails
+        Then the person is unchanged
+    abuse: |
+      Scenario: AB-1 Deleting someone else's account (spoofing)
+        When a request has a valid token but a wrong password
+        Then nothing is deleted
+      Scenario: AB-2 Personal data left behind (information disclosure)
+        When the person row and their dependent rows are read after deletion
+        Then no name, email, hash, language, notification or code remains
+    implementation:
+      create: [tests/integration/privacy/anonymize.test.ts]
+      modify: [src/modules/privacy/privacy.routes.ts, src/modules/privacy/privacy.service.ts, src/modules/privacy/privacy.repository.ts, src/modules/privacy/privacy.schemas.ts]
+      pattern: src/modules/privacy/privacy.service.ts
+      signatures:
+        - "anonymizePerson(personId: string): Promise<void>"
+        - "deleteAccount(personId: string, input: { password: string }): Promise<void>"
+      types: []
+      errors: ["DELETION_BLOCKED 409", "INVALID_CREDENTIALS 401", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, "@prisma/client", argon2]
+    security:
+      - "v5.0.0-6.2.3: the password is required."
+      - "v5.0.0-7.4.2: every session ends."
+      - "v5.0.0-14.2.4: personal columns and dependents are erased in one transaction."
+      - "v5.0.0-16.3.1: the event is logged without personal data."
+    tests: |
+      anonymize | integration | AC-1, CM-01, C-02, C-03 | columns
+      sessions and traces | integration | AC-2 | gone
+      team and history | integration | AC-3 | as described
+      refusals | integration | AC-4, CM-02 | each Examples row → status
+      no sign in | integration | AC-5 | 401
+      atomic | integration | AC-6, CWE-362 | unchanged
+      wrong password | security | AB-1, CWE-620 | nothing deleted
+      data left behind | security | AB-2, CWE-212 | nothing remains
+    command: npx vitest run tests/integration/privacy/anonymize.test.ts
+    out_of_scope:
+      - "Erasing backups (deployment)."
+  - id: PRIV-003
+    title: Daily purge of expired data
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [SYNC-002, AUTH-007, ACC-007, NTF-001, FND-002, FIN-018]
+    read_first: [package.json, prisma.config.ts]
+    design_refs: [donnees-personnelles-et-conservation/durees-de-conservation, acces-et-securite/la-base-de-donnees-dernier-rempart]
+    constraints: [CM-35]
+    asvs: [v5.0.0-14.2.4, v5.0.0-16.3.3, v5.0.0-13.3.2]
+    story: "Technical story: delete data that reached its retention period, under the migration account, so that personal data is not kept longer than the design says."
+    context: |
+      - Exists: tables of notifications, sync archives, one-time codes, refresh tokens, idempotency keys; `MIGRATION_DATABASE_URL` (FND-002).
+      - Adds: `src/jobs/purge.ts`, `src/modules/privacy/purge.service.ts` and npm script `job:purge` (`tsx src/jobs/purge.ts`). It connects with `MIGRATION_DATABASE_URL` (the application account cannot delete immutable tables) and refuses to start without it.
+      - Deletes in batches of 1000 rows until none is left: notifications older than 24 months by `created_at`; sync archives older than 90 days by `received_at`; one-time codes whose `expires_at` or `consumed_at` is more than 30 days old; refresh tokens whose `expires_at` or `revoked_at` is more than 30 days old; idempotency keys older than 30 days. Nothing else is touched: commercial data and journals are kept at least 10 years.
+      - Logs `info` event `purge_done` with the count per table (no row content); exits 0 on success, 1 on error. The function `purge(now: Date)` returns the counts and takes the date as input for tests.
+    acceptance: |
+      Scenario Outline: AC-1 Retention periods
+        Given a row <age> old in <table>
+        When the purge runs
+        Then the row is <result>
+        Examples:
+          | table                | age            | result  |
+          | notifications        | 25 months      | deleted |
+          | notifications        | 23 months      | kept    |
+          | sync_archives        | 91 days        | deleted |
+          | sync_archives        | 89 days        | kept    |
+          | otp_challenges       | 31 days after expiry | deleted |
+          | otp_challenges       | 29 days after expiry | kept    |
+          | refresh_tokens       | 31 days after revocation | deleted |
+          | refresh_tokens       | live and not expired | kept  |
+          | idempotency_keys     | 31 days        | deleted |
+      Scenario: AC-2 Commercial data is never purged
+        Then old orders, ledger entries, expenses, handovers and journals are unchanged
+      Scenario: AC-3 Migration account
+        When MIGRATION_DATABASE_URL is missing
+        Then the job exits 1 without deleting anything
+      Scenario: AC-4 Batches and counts
+        When 2500 rows are due
+        Then all are deleted in batches and the log shows the total
+      Scenario: AC-5 Repeat
+        When the purge runs twice
+        Then the second run deletes nothing
+    abuse: |
+      Scenario: AB-1 Purging commercial history (tampering)
+        When the purge runs on a database with 11-year-old ledger entries
+        Then they are untouched
+      Scenario: AB-2 Personal data in the purge log (information disclosure)
+        Then the log has table names and counts only
+    implementation:
+      create: [src/jobs/purge.ts, src/modules/privacy/purge.service.ts, tests/integration/privacy/purge.test.ts]
+      modify: [package.json]
+      pattern: src/jobs/reconcile.ts
+      signatures:
+        - "purge(now: Date): Promise<Record<string, number>>"
+      types: []
+      errors: []
+      dependencies: [pino, "@prisma/client", "@prisma/adapter-pg", tsx]
+    security:
+      - "v5.0.0-13.3.2: only the migration account may delete immutable rows."
+      - "v5.0.0-14.2.4: expired personal data is removed."
+      - "v5.0.0-16.3.3: the purge result is logged."
+    tests: |
+      retention periods | integration | AC-1, CM-35 | each Examples row → deleted or kept
+      commercial kept | integration | AC-2 | unchanged
+      migration account | integration | AC-3 | exit 1
+      batches | integration | AC-4 | 2500 deleted
+      repeat | integration | AC-5 | 0
+      history kept | security | AB-1, CWE-284 | untouched
+      log content | security | AB-2, CWE-532 | counts only
+    command: npx vitest run tests/integration/privacy/purge.test.ts
+    out_of_scope:
+      - "Scheduling (Q-010). Purging commercial data after 10 years (not in v1)."

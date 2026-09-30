@@ -1,0 +1,1687 @@
+kind: module
+module: auth
+prefix: AUTH
+title: Authentication
+responsibility: Owns registration, login with a code on every sign-in, one session per phone, password and email and phone-number changes, and the one-time codes behind them.
+entities: [OtpChallenge, Device, RefreshToken]
+depends_on: [foundation, person, notification, access]
+asvs_level: L2
+asvs_rationale: Accounts and sessions protect business and money data; sign-in needs the password and the SIM, and codes cost money to send.
+classification:
+  - "Person.password_hash | credential | Argon2id hash, never returned or logged"
+  - "OtpChallenge.code_hash | credential | hash only, never logged"
+  - "OtpChallenge.target | PII | phone number or email, never logged"
+  - "RefreshToken.token_hash | credential | SHA-256 hash of a random token, never logged"
+  - "Device.push_token | credential | stored, never returned to others"
+threats:
+  - "T1 | S | Password guessing or credential stuffing | 5 failures lock the account for LOGIN_LOCK_MINUTES, a code is needed anyway | AUTH-013 AB-1"
+  - "T2 | S | Code guessing | 5 attempts per code, single use, 10 minute expiry | AUTH-003 AB-1"
+  - "T3 | D | SMS pumping and code flooding | +237 only, 3 per hour per number, 60 seconds apart, device and IP caps | AUTH-002 AB-1, AUTH-004 AB-1"
+  - "T4 | S | Stolen refresh token replayed | rotation at every use, reuse revokes that device | AUTH-016 AB-1"
+  - "T5 | I | Account enumeration by login errors | one generic error for unknown, guest and wrong password | AUTH-013 AB-2"
+  - "T6 | E | Recycled number lets a new holder take the old account | the new holder gets a new person; the old one keeps the account and history | AUTH-011 AB-1"
+  - "T7 | R | Sensitive account changes leave no trace | login alerts, immutable number-change journal, security log events | AUTH-014 AB-2, AUTH-025 AB-2"
+constraints:
+  C-33: "`OtpChallenge` allows 5 attempts at most; a consumed or expired code is never accepted; SMS goes only to +237 mobile numbers; an EMAIL code goes to the person's verified email, or to the administrator's recovery address, except for EMAIL_VERIFICATION."
+  C-34: "`Device.last_synced_at` and `Device.scope_version_seen` are set by the server only; `RefreshToken.token_hash` is unique; `revoked_reason` is set if and only if `revoked_at` is set."
+  CM-05: "Password: 8 to 64 characters, spaces allowed, no composition rules, refused when on the blocklist, hashed with Argon2id; 5 failed attempts force a wait."
+  CM-06: "A code expires 10 minutes after sending and works once."
+  CM-07: "Sending limits: 3 codes per hour per number, 1 minute before a resend, caps per device and per IP address, a global daily cap that alerts the team; SMS only to +237 mobiles."
+  CM-08: "Access token (JWT) lives 15 minutes and is not stored; refresh token lives 90 days, extended at each use, replaced at each use; a reused token revokes only its own device session (REUSE_DETECTED)."
+  CM-04: "Releasing a number moves it from phone_number to released_phone_number and clears phone_verified_at; lookups, SMS and registration read only the active number."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+contracts:
+  provides:
+    - name: OtpService
+      file: src/modules/auth/otp.service.ts
+      story: AUTH-002
+      items:
+        - "issueCode(input: { personId: string | null; target: string; purpose: OtpPurpose; channel: OtpChannel }): Promise<{ challengeId: string; expiresAt: Date }>"
+        - "verifyCode(input: { target: string; purpose: OtpPurpose; code: string }): Promise<{ challengeId: string; personId: string | null }>"
+      used_by: [admin]
+    - name: PasswordLib
+      file: src/lib/password.ts
+      story: AUTH-005
+      items:
+        - "hashPassword(plain: string): Promise<string> — Argon2id"
+        - "verifyPassword(hash: string, plain: string): Promise<boolean>"
+        - "validatePasswordRules(plain: string): Promise<string[]> — list of broken rule codes, empty when valid"
+      used_by: [admin]
+    - name: SessionService
+      file: src/modules/auth/session.service.ts
+      story: AUTH-008
+      items:
+        - "issueSession(personId: string, device: DeviceInfo, tx?): Promise<SessionTokens>"
+        - "revokeSessions(personId: string, reason: RevokedReason, options?: { exceptDeviceId?: string }): Promise<number>"
+      used_by: [admin, sync]
+    - name: AuthMiddleware
+      file: src/middleware/auth.ts
+      story: AUTH-006
+      items:
+        - "authMiddleware sets `req.user = { id: personId, deviceId }` from a verified HS256 access token"
+      used_by: [every module]
+  consumes:
+    - "person: PersonRepository, `people` table (docs/stories/modules/person/contracts.md)"
+    - "notification: notify, recipientLanguage (docs/stories/modules/notification/contracts.md)"
+    - "foundation: normalizeE164, isCameroonMobile, newId, httpError (docs/stories/modules/foundation/contracts.md)"
+stories:
+  - id: AUTH-001
+    title: One-time code table
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [PER-003, FND-005]
+    read_first: [prisma/schema.prisma, tests/integration/person/person-table.test.ts]
+    design_refs: [acces-et-securite/otpchallenge, contraintes-a-poser-au-niveau-base-de]
+    constraints: [OtpChallenge:required, OtpChallenge:fk, OtpChallenge.purpose:enum, OtpChallenge.channel:enum, C-33, C-01]
+    asvs: [v5.0.0-6.5.1, v5.0.0-6.5.3]
+    fields: ["OtpChallenge.{person_id,target,purpose,channel,code_hash,expires_at,attempts,consumed_at,created_at}"]
+    story: "Technical story: create the table that holds one-time codes as hashes, with the limits the database can enforce."
+    context: |
+      - Exists: `people` (PER-002); the old `otp_challenges` table was dropped there.
+      - Adds: table `otp_challenges` (`person_id` nullable, `channel` default SMS, `attempts` default 0), CHECK `attempts <= 5`, CHECK that a SMS `target` starts with `+237`, and an index on (`target`, `purpose`, `created_at` desc).
+      - Enforced later in code: a consumed or expired code is refused (AUTH-003); an EMAIL code goes to a verified email (AUTH-023, ADM).
+    acceptance: |
+      Scenario: AC-1 Row with defaults
+        When a code row is inserted for a person, target +237677123456, purpose LOGIN, a hash and an expiry
+        Then `channel` is SMS, `attempts` is 0, `consumed_at` is empty and `created_at` is set
+      Scenario Outline: AC-2 Database limits
+        When a row has <values>
+        Then the insert <result>
+        Examples:
+          | values                                   | result          |
+          | attempts 5                               | accepts         |
+          | attempts 6                               | rejects (23514) |
+          | person_id empty, purpose REGISTRATION    | accepts         |
+          | channel SMS, target +33612345678         | rejects (23514) |
+          | channel SMS, target +237677123456        | accepts         |
+          | channel EMAIL, target a@example.test     | accepts         |
+      Scenario: AC-3 Enums and foreign key
+        When purpose is "NEW_DEVICE", channel is "PUSH" or the person id is unknown
+        Then the insert fails
+    implementation:
+      create: [prisma/migrations/<timestamp>_auth_001_otp_challenges/migration.sql, tests/integration/auth/otp-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/person/person-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-6.5.1: only a hash of the code is stored; there is no plain-code column."
+      - "v5.0.0-6.5.3: the attempts limit is a CHECK, so code paths cannot exceed it."
+    tests: |
+      defaults | integration | AC-1, OtpChallenge:required, C-01 | insert → defaults; `expectColumnType` on id, expires_at
+      limits | integration | AC-2, C-33 | each Examples row → accepted or 23514
+      enums and fk | integration | AC-3, OtpChallenge.purpose:enum, OtpChallenge.channel:enum, OtpChallenge:fk | bad enum values and unknown person → rejected
+    command: npx vitest run tests/integration/auth/otp-table.test.ts
+    out_of_scope:
+      - "Issuing and verifying codes (AUTH-002, AUTH-003)."
+  - id: AUTH-002
+    title: Issue a one-time code
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [AUTH-001, FND-004, FND-006, NTF-002]
+    read_first: [src/lib/otp.ts, src/lib/otp-delivery-queue.ts]
+    design_refs: [acces-et-securite/otpchallenge]
+    constraints: [CM-06, CM-07, C-33]
+    asvs: [v5.0.0-6.5.4, v5.0.0-6.6.1, v5.0.0-2.4.1, v5.0.0-11.4.2]
+    story: "Technical story: create and send a one-time code with the sending limits, so that no flow can flood a phone or the SMS budget."
+    context: |
+      - Exists: `generateOtp`, `hashOtp` (bcrypt) in `src/lib/otp.ts`; `enqueueOtpDelivery({ channel, to, message, subject? })`; `checkAndConsume(key, limit, windowSeconds)` in `src/lib/rate-limit.ts`; `otp_challenges` (AUTH-001); `isCameroonMobile`.
+      - Adds: `src/modules/auth/otp.repository.ts` and `otp.service.ts` with `issueCode`; `hashOtp` and `verifyOtp` in `src/lib/otp.ts` now use Argon2id (`argon2`) with memory 19456 KiB, time 2, parallelism 1.
+      - `issueCode`: refuse a SMS target that is not a Cameroon mobile (400 `UNSUPPORTED_NUMBER`); allow 3 codes per hour per target (key `otp:hour:<target>`) and one per 60 seconds per target and purpose (key `otp:cooldown:<purpose>:<target>`), else 429 `OTP_RATE_LIMITED`; store a 6-digit code as a hash valid 10 minutes; queue the message.
+      - Message text: French "Votre code Distribo : <code>. Il expire dans 10 minutes." or English "Your Distribo code: <code>. It expires in 10 minutes." from `recipientLanguage` when the person is known, else French. Email codes carry subject "Distribo".
+    acceptance: |
+      Scenario: AC-1 Code issued and queued
+        When issueCode is called for a Cameroon number with purpose LOGIN
+        Then one challenge exists with a hash, `expires_at` 10 minutes ahead, attempts 0
+        And one delivery job is queued to that number whose message contains the 6-digit code
+      Scenario Outline: AC-2 Sending limits
+        Given <history>
+        When issueCode is called
+        Then the result is <result>
+        Examples:
+          | history                                       | result                          |
+          | no code sent                                  | issued                          |
+          | one code sent 30 seconds ago, same purpose    | 429 OTP_RATE_LIMITED            |
+          | one code sent 61 seconds ago, same purpose    | issued                          |
+          | three codes sent in the last hour             | 429 OTP_RATE_LIMITED            |
+      Scenario: AC-3 Foreign numbers refused
+        When the target is +33612345678 with channel SMS
+        Then the result is 400 `UNSUPPORTED_NUMBER`, nothing is stored and nothing is queued
+      Scenario: AC-4 No plain code stored
+        Then the stored hash is an Argon2id string and never equals the code
+    abuse: |
+      Scenario: AB-1 SMS pumping (denial of service)
+        When a bot requests codes for 100 different foreign numbers
+        Then no SMS is queued
+      Scenario: AB-2 Code in logs (information disclosure)
+        When a code is issued
+        Then no log entry contains the code or the target
+    implementation:
+      create: [src/modules/auth/otp.repository.ts, src/modules/auth/otp.service.ts, tests/integration/auth/otp-issue.test.ts]
+      modify: [src/lib/otp.ts]
+      pattern: src/modules/tasks/tasks.repository.ts
+      signatures:
+        - "issueCode(input: IssueCodeInput): Promise<{ challengeId: string; expiresAt: Date }>"
+      types:
+        - "OtpPurpose = 'REGISTRATION' | 'LOGIN' | 'PASSWORD_RESET' | 'PHONE_CHANGE' | 'EMAIL_VERIFICATION' | 'TOTP_RECOVERY'"
+        - "IssueCodeInput = { personId: string | null; target: string; purpose: OtpPurpose; channel: 'SMS' | 'EMAIL' }"
+      errors: ["OTP_RATE_LIMITED 429", "UNSUPPORTED_NUMBER 400"]
+      dependencies: [argon2, ioredis, bullmq, "@prisma/client"]
+    security:
+      - "v5.0.0-6.5.4: codes are 6 digits from `crypto.randomInt`."
+      - "v5.0.0-6.6.1: SMS only to +237 mobiles."
+      - "v5.0.0-2.4.1: limits are checked before the row is written and before anything is queued."
+      - "v5.0.0-11.4.2: codes hashed with Argon2id."
+    tests: |
+      issue | integration | AC-1, CM-06 | LOGIN code → row, 10 minute expiry, queued message has 6 digits
+      limits | integration | AC-2, CM-07 | each Examples row (rate-limit module mocked with a fake clock) → result
+      foreign number | integration | AC-3, C-33 | +33 number → 400, no row, no job
+      hash only | integration | AC-4 | stored hash starts with `$argon2id$` and differs from the code
+      sms pumping | security | AB-1, WSTG-BUSL-07, CWE-770 | 100 foreign targets → 0 jobs
+      no code in logs | security | AB-2, CWE-532 | capture logger output → no code, no number
+    command: npx vitest run tests/integration/auth/otp-issue.test.ts tests/unit/auth/otp.test.ts
+    out_of_scope:
+      - "Verifying a code (AUTH-003). Device, IP and daily caps (AUTH-004)."
+  - id: AUTH-003
+    title: Verify a one-time code
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [AUTH-002]
+    read_first: [src/modules/auth/otp.service.ts, src/modules/auth/otp.repository.ts]
+    design_refs: [acces-et-securite/otpchallenge]
+    constraints: [CM-06, C-33]
+    asvs: [v5.0.0-6.5.1, v5.0.0-6.5.3, v5.0.0-6.6.3, v5.0.0-2.3.4]
+    story: "Technical story: check a submitted code against the latest one issued, so that a code works once, expires, and cannot be guessed by repeated tries."
+    context: |
+      - Exists: `issueCode` (AUTH-002); the challenge with the latest `created_at` for a (target, purpose) is the current one.
+      - Adds: `verifyCode({ target, purpose, code })` returning `{ challengeId, personId }`.
+      - Order: no challenge, or consumed -> 400 `OTP_INVALID`; expired -> 400 `OTP_EXPIRED`; already 5 attempts -> 429 `OTP_LOCKED`; wrong code -> attempts + 1 and 400 `OTP_INVALID`; right code -> set `consumed_at`.
+      - Attempts and consumption are single SQL updates (`UPDATE ... WHERE attempts < 5` and `WHERE consumed_at IS NULL`), so parallel calls cannot exceed 5 tries or use a code twice.
+    acceptance: |
+      Scenario: AC-1 Right code
+        When verifyCode receives the right code within 10 minutes
+        Then it returns the challenge id and person id and `consumed_at` is set
+      Scenario: AC-2 Single use
+        When the same right code is verified a second time
+        Then the result is 400 `OTP_INVALID`
+      Scenario: AC-3 Expiry
+        When the right code is verified after `expires_at`
+        Then the result is 400 `OTP_EXPIRED` and the challenge is not consumed
+      Scenario: AC-4 Attempts
+        When five wrong codes are sent, then the right code
+        Then the first five answer 400 `OTP_INVALID`, the sixth try answers 429 `OTP_LOCKED`, and the row shows attempts 5 and no `consumed_at`
+      Scenario: AC-5 Newest code only
+        Given two codes issued for one target and purpose
+        When the older code is verified
+        Then the result is 400 `OTP_INVALID`
+    abuse: |
+      Scenario: AB-1 Guessing a code (spoofing)
+        When 1000 wrong codes are sent in parallel
+        Then at most 5 are counted, the rest answer 429, and the challenge stays unconsumed
+      Scenario: AB-2 Parallel use of one right code (tampering)
+        When the right code is verified twice at the same time
+        Then exactly one call succeeds
+    implementation:
+      create: [tests/integration/auth/otp-verify.test.ts]
+      modify: [src/modules/auth/otp.service.ts, src/modules/auth/otp.repository.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "verifyCode(input: { target: string; purpose: OtpPurpose; code: string }): Promise<{ challengeId: string; personId: string | null }>"
+      types: []
+      errors: ["OTP_INVALID 400", "OTP_EXPIRED 400", "OTP_LOCKED 429"]
+      dependencies: [argon2, "@prisma/client"]
+    security:
+      - "v5.0.0-6.5.3: a code works once; consumption is an atomic conditional update."
+      - "v5.0.0-6.6.3: 5 attempts per code, counted atomically."
+      - "v5.0.0-2.3.4: attempts and consumption use `WHERE` guards, not read-then-write."
+    tests: |
+      right code | integration | AC-1 | verify → ids returned, consumed_at set
+      single use | integration | AC-2, CM-06 | second verify → OTP_INVALID
+      expiry | integration | AC-3, CM-06 | after expiry → OTP_EXPIRED, not consumed
+      attempts | integration | AC-4, C-33 | 5 wrong then right → 5 invalid then OTP_LOCKED, attempts 5
+      newest only | integration | AC-5 | older code → OTP_INVALID
+      guessing | security | AB-1, WSTG-ATHN-03, CWE-307 | 1000 parallel wrong codes → attempts 5, the rest 429
+      parallel use | security | AB-2, CWE-362 | two parallel right codes → one success
+    command: npx vitest run tests/integration/auth/otp-verify.test.ts
+    out_of_scope:
+      - "Endpoints that call it (AUTH-011 onward)."
+  - id: AUTH-004
+    title: Device, IP and daily caps on code sending
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [AUTH-003]
+    read_first: [src/modules/auth/otp.service.ts, src/lib/config-service.ts]
+    design_refs: [acces-et-securite/otpchallenge]
+    constraints: [CM-07]
+    asvs: [v5.0.0-2.4.1, v5.0.0-16.3.3]
+    story: "Technical story: cap code sending per device, per IP address and per day, so that a flood spread over many numbers still stops."
+    context: |
+      - Exists: `issueCode` with the per-number limits (AUTH-002); `configService.get(category, key)` returns null when unset (Q-006).
+      - Adds: optional `clientKeys: { deviceId?: string; ip?: string }` on `issueCode`. Limits come from remote-config category `otp`: `max_per_device_per_hour`, `max_per_ip_per_hour`, `max_per_day`. A limit that is unset is off.
+      - Counters: `otp:device:<deviceId>`, `otp:ip:<ip>` (window 3600 s), `otp:day` (window 86400 s). A refusal is 429 `OTP_RATE_LIMITED`.
+      - When the daily cap is reached the first time in a day, log `error` with event `otp_daily_cap_reached` and increment Prometheus counter `otp_daily_cap_reached_total` (Q-009).
+    acceptance: |
+      Scenario Outline: AC-1 Caps
+        Given cap <cap> is set to 2 and unset caps are off
+        When 3 codes are requested for different numbers with the same <key>
+        Then the third is <result>
+        Examples:
+          | cap                    | key       | result              |
+          | max_per_device_per_hour| device id | 429 OTP_RATE_LIMITED|
+          | max_per_ip_per_hour    | ip        | 429 OTP_RATE_LIMITED|
+          | max_per_day            | any       | 429 OTP_RATE_LIMITED|
+      Scenario: AC-2 Caps unset
+        When no cap is configured and 50 codes are requested from one device
+        Then no request is refused by these caps
+      Scenario: AC-3 Alert
+        When the daily cap is reached
+        Then one `error` log with event `otp_daily_cap_reached` and one counter increment exist for that day
+    abuse: |
+      Scenario: AB-1 Distributed SMS pumping (denial of service)
+        When one device requests codes for 20 valid numbers with a per-device cap of 5
+        Then only 5 are queued
+    implementation:
+      create: [tests/integration/auth/otp-caps.test.ts]
+      modify: [src/modules/auth/otp.service.ts, src/lib/metrics.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "issueCode(input: IssueCodeInput, clientKeys?: { deviceId?: string; ip?: string }): Promise<{ challengeId: string; expiresAt: Date }>"
+      types: []
+      errors: ["OTP_RATE_LIMITED 429"]
+      dependencies: [ioredis, prom-client]
+    security:
+      - "v5.0.0-2.4.1: caps are read at each call, so an operator can change them without a deploy."
+      - "v5.0.0-16.3.3: reaching the daily cap is logged with a fixed event name."
+    tests: |
+      caps | integration | AC-1, CM-07 | each Examples row → third request 429
+      unset caps | integration | AC-2 | 50 requests → none refused by caps
+      alert | integration | AC-3 | daily cap reached → one error log, counter +1
+      distributed pumping | security | AB-1, WSTG-BUSL-07, CWE-770 | cap 5, 20 numbers → 5 queued
+    command: npx vitest run tests/integration/auth/otp-caps.test.ts
+    out_of_scope:
+      - "Choosing the cap values (Q-006, set by an operator in remote-config)."
+  - id: AUTH-005
+    title: Password rules and Argon2id hashing
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [FND-000]
+    read_first: [docs/stories/CONVENTIONS.md, src/lib/crypto.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-05]
+    asvs: [v5.0.0-6.2.1, v5.0.0-6.2.4, v5.0.0-6.2.5, v5.0.0-6.2.8, v5.0.0-6.2.9, v5.0.0-11.4.2]
+    story: "Technical story: provide password hashing and the password rules of the design, so that every flow checks passwords the same way."
+    context: |
+      - Adds: `src/lib/password.ts` (`hashPassword`, `verifyPassword`, `validatePasswordRules`) and `src/lib/password-blocklist.ts` (`isBlockedPassword(plain)`), plus `data/common-passwords.txt` (one lower-case password per line; start with at least these 20: 123456, 12345678, password, motdepasse, azerty, azerty123, qwerty, qwerty123, 111111, 000000, abc123, iloveyou, admin, welcome, letmein, monkey, dragon, football, bonjour, cameroun). The real list is supplied before release (Q-004).
+      - Argon2id parameters: memory 19456 KiB, time 2, parallelism 1. The hash is verified against the password exactly as typed (no trim, no case change).
+      - Rules: length 8 to 64 characters counted in Unicode code points, spaces allowed, no composition rule, refused when the lower-cased password is in the blocklist. Broken rules are returned as codes `TOO_SHORT`, `TOO_LONG`, `BLOCKED`.
+    acceptance: |
+      Scenario Outline: AC-1 Rules
+        When validatePasswordRules receives <password>
+        Then the result is <result>
+        Examples:
+          | password                       | result        |
+          | 1234567                        | TOO_SHORT     |
+          | abcdefgh                       | valid         |
+          | le riz aime la pluie           | valid         |
+          | 64 characters                  | valid         |
+          | 65 characters                  | TOO_LONG      |
+          | Password                       | BLOCKED       |
+          | 12345678                       | BLOCKED       |
+          | 8 emoji characters             | valid         |
+      Scenario: AC-2 Hash and verify
+        When hashPassword hashes "le riz aime la pluie" twice
+        Then both hashes start with `$argon2id$`, differ from each other, and verifyPassword accepts the password against each
+        And verifyPassword rejects "le riz aime la pluie " with a trailing space
+      Scenario: AC-3 Garbage hash
+        When verifyPassword receives a hash that is not Argon2id
+        Then it returns false and does not throw
+    abuse: |
+      Scenario: AB-1 Composition rules would push predictable passwords (design conflict)
+        When a lower-case password of 8 letters that is not on the blocklist is validated
+        Then it is valid
+    implementation:
+      create: [src/lib/password.ts, src/lib/password-blocklist.ts, data/common-passwords.txt, tests/unit/auth/password.test.ts]
+      modify: []
+      pattern: src/lib/crypto.ts
+      signatures:
+        - "hashPassword(plain: string): Promise<string>"
+        - "verifyPassword(hash: string, plain: string): Promise<boolean>"
+        - "validatePasswordRules(plain: string): Promise<Array<'TOO_SHORT' | 'TOO_LONG' | 'BLOCKED'>>"
+        - "isBlockedPassword(plain: string): Promise<boolean>"
+      types: []
+      errors: []
+      dependencies: [argon2]
+    security:
+      - "v5.0.0-11.4.2: Argon2id with the stated parameters."
+      - "v5.0.0-6.2.5: no rule about character types."
+      - "v5.0.0-6.2.8: no trimming or normalization of the password."
+    tests: |
+      rules | unit | AC-1, CM-05 | each Examples row → result
+      hash and verify | unit | AC-2, CM-05 | two hashes differ, both verify; trailing space fails
+      garbage hash | unit | AC-3 | bcrypt-looking string → false, no throw
+      no composition | unit | AB-1 | 8 lower-case letters off the list → valid
+    command: npx vitest run tests/unit/auth/password.test.ts
+    out_of_scope:
+      - "The full blocklist file (Q-004). Lockout after failures (AUTH-014)."
+  - id: AUTH-006
+    title: Access token carries the person and the device
+    kind: change
+    size: S
+    risk: high
+    depends_on: [PER-002, FND-006]
+    amends: [FND-001]
+    read_first: [src/lib/jwt.ts, src/middleware/auth.ts]
+    design_refs: [acces-et-securite/refreshtoken, identite-et-organisation/person]
+    constraints: [CM-08]
+    asvs: [v5.0.0-9.1.1, v5.0.0-9.1.2, v5.0.0-9.2.1, v5.0.0-9.2.2]
+    story: "Technical story: put the person id and the device id in the access token and stop putting the phone number in it, so that the token is small, private and tied to one session."
+    context: |
+      - Exists: `signToken({ accountId, phoneNumber })` and `verifyToken` in `src/lib/jwt.ts`; `authMiddleware` sets `req.user = { id, phoneNumber }`; `src/types/express.d.ts`; `tests/helpers/request.ts` signs `{ accountId, tokenVersion }`.
+      - Changes: the payload is `{ sub: personId, did: deviceId, typ: 'access' }`, signed HS256, lifetime from `ACCESS_TOKEN_EXPIRES_IN` (default 15m); verification accepts only HS256 and requires `sub`, `did` and `typ` = access; `req.user = { id: sub, deviceId: did }`.
+      - The test helpers sign the new payload; a helper argument `deviceId` defaults to a fixed UUID.
+    acceptance: |
+      Scenario: AC-1 New payload
+        When signAccessToken signs for a person and a device
+        Then the decoded payload has `sub`, `did`, `typ` access, `iat`, `exp` 15 minutes later and no phone number
+      Scenario Outline: AC-2 Verification
+        When verifyAccessToken receives <token>
+        Then the result is <result>
+        Examples:
+          | token                                            | result   |
+          | a fresh valid token                              | accepted |
+          | an expired token                                 | rejected |
+          | signed with another secret                       | rejected |
+          | algorithm none                                   | rejected |
+          | signed HS512 with the right secret               | rejected |
+          | missing `did`                                    | rejected |
+          | `typ` refresh                                    | rejected |
+      Scenario: AC-3 Middleware
+        When a request carries a valid token
+        Then `req.user` is `{ id, deviceId }` and the next handler runs
+        And an invalid token answers 401 `INVALID_TOKEN`, a missing header 401 `UNAUTHORIZED`
+    abuse: |
+      Scenario: AB-1 Algorithm confusion (spoofing)
+        When a token with `alg: none` or signed HS512 is presented
+        Then the response is 401 `INVALID_TOKEN`
+    implementation:
+      create: [tests/unit/auth/access-token.test.ts]
+      modify: [src/lib/jwt.ts, src/middleware/auth.ts, src/types/express.d.ts, tests/helpers/request.ts]
+      pattern: src/lib/jwt.ts
+      signatures:
+        - "signAccessToken(payload: { personId: string; deviceId: string }): string"
+        - "verifyAccessToken(token: string): { personId: string; deviceId: string }"
+      types:
+        - "req.user: { id: string; deviceId: string }"
+      errors: ["INVALID_TOKEN 401", "UNAUTHORIZED 401"]
+      dependencies: [jsonwebtoken, express]
+    security:
+      - "v5.0.0-9.1.2: `jwt.verify` is called with `algorithms: ['HS256']`."
+      - "v5.0.0-9.2.2: `typ` must be `access`."
+      - "v5.0.0-9.1.1: the signature is checked before any claim is read."
+    tests: |
+      payload | unit | AC-1, CM-08 | sign → decoded claims, no phone, 15 minute expiry
+      verification | unit | AC-2 | each Examples row → accepted or rejected
+      middleware | integration | AC-3 | valid → req.user set; invalid → INVALID_TOKEN; none → UNAUTHORIZED
+      algorithm confusion | security | AB-1, WSTG-SESS-10, CWE-347 | none and HS512 tokens → 401
+    command: npx vitest run tests/unit/auth/access-token.test.ts tests/integration/user.test.ts
+    out_of_scope:
+      - "Issuing tokens at login (AUTH-008)."
+    tests_to_update:
+      - "tests/helpers/request.ts | signs `{ accountId, tokenVersion }` | signs `{ sub, did, typ: 'access' }`"
+  - id: AUTH-007
+    title: Device and refresh token tables
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [PER-003, FND-005, AUTH-001]
+    read_first: [prisma/schema.prisma, tests/integration/auth/otp-table.test.ts]
+    design_refs: [acces-et-securite/device, acces-et-securite/refreshtoken, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Device:required, Device:fk, Device.platform:enum, RefreshToken:required, RefreshToken:fk, RefreshToken.revoked_reason:enum, RefreshToken.token_hash:unique, C-34, C-01]
+    asvs: [v5.0.0-7.2.2, v5.0.0-7.4.1]
+    fields: ["Device.{person_id,platform,model,push_token,app_version,last_synced_at,scope_version_seen,integrity_verdict,created_at,revoked_at}", "RefreshToken.{person_id,device_id,token_hash,expires_at,created_at,rotated_at,revoked_at,revoked_reason}"]
+    story: "Technical story: create the tables of sessions, one device per login and its refresh tokens, so that each phone can be signed out on its own."
+    context: |
+      - Exists: `people` (PER-002); the old `refresh_tokens` table was dropped there.
+      - Adds: `devices` (`scope_version_seen` int default 0, `revoked_at` null) and `refresh_tokens` (`token_hash` unique, `revoked_reason` null) with a CHECK that `revoked_reason` and `revoked_at` are set together, foreign keys to `people` and `devices`, and indexes on `refresh_tokens(person_id)`, `refresh_tokens(device_id)`, `refresh_tokens(expires_at)`, `devices(person_id)` where `revoked_at` is null.
+      - `last_synced_at` and `scope_version_seen` are written only by the sync endpoint (SYNC module); no request body may set them.
+    acceptance: |
+      Scenario: AC-1 Device row
+        When a device is inserted for a registered person with platform ANDROID and app_version "1.0.0"
+        Then `scope_version_seen` is 0, `last_synced_at` and `revoked_at` are empty and `created_at` is set
+      Scenario Outline: AC-2 Refresh token rules
+        When a token row has <values>
+        Then the insert <result>
+        Examples:
+          | values                                       | result          |
+          | revoked_at set, revoked_reason LOGOUT        | accepts         |
+          | revoked_at set, revoked_reason empty         | rejects (23514) |
+          | revoked_at empty, revoked_reason LOGOUT      | rejects (23514) |
+          | token_hash equal to an existing one          | rejects (23505) |
+          | revoked_reason "EXPIRED"                     | rejects         |
+      Scenario: AC-3 Enums and keys
+        When platform is "WINDOWS", or a foreign key is unknown
+        Then the insert fails
+    implementation:
+      create: [prisma/migrations/<timestamp>_auth_007_devices_refresh_tokens/migration.sql, tests/integration/auth/session-tables.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/auth/otp-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-7.2.2: only a hash of the refresh token is stored, in a unique column."
+    tests: |
+      device defaults | integration | AC-1, Device:required, C-01 | insert → defaults; column types
+      token rules | integration | AC-2, C-34, RefreshToken:required, RefreshToken.token_hash:unique | each Examples row → accepted or SQLSTATE
+      enums and keys | integration | AC-3, Device.platform:enum, RefreshToken.revoked_reason:enum, Device:fk, RefreshToken:fk | bad values → rejected
+    command: npx vitest run tests/integration/auth/session-tables.test.ts
+    out_of_scope:
+      - "Issuing and revoking sessions (AUTH-008)."
+  - id: AUTH-008
+    title: Issue and revoke sessions
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [AUTH-007, AUTH-006, AUTH-005]
+    read_first: [src/lib/refresh-token.ts, src/config/env.ts]
+    design_refs: [acces-et-securite/device, acces-et-securite/refreshtoken]
+    constraints: [CM-08, C-34]
+    asvs: [v5.0.0-7.2.2, v5.0.0-7.2.4, v5.0.0-7.4.2]
+    story: "Technical story: open a session (device, refresh token, access token) and end sessions, so that every sign-in path creates and ends sessions the same way."
+    context: |
+      - Exists: tables (AUTH-007); `signAccessToken` (AUTH-006); `generateRefreshToken`, `hashRefreshToken` in `src/lib/refresh-token.ts`; env `REFRESH_TOKEN_EXPIRES_IN_DAYS` (default 30 today).
+      - Adds: `src/modules/auth/session.repository.ts` and `session.service.ts`; `REFRESH_TOKEN_EXPIRES_IN_DAYS` defaults to 90 in `src/config/env.ts`.
+      - `issueSession(personId, device, tx?)` creates a `Device` from `DeviceInfo = { platform: ANDROID|IOS; model?: string(100); app_version: string(32); push_token?: string(512); integrity_verdict?: string(100) }`, one refresh token expiring in 90 days, and an access token; returns `{ deviceId, accessToken, refreshToken, expiresIn }`.
+      - `revokeSessions(personId, reason, { exceptDeviceId? })` sets `revoked_at` on the person's live devices and `revoked_at` and `revoked_reason` on their live refresh tokens, and returns the number of devices ended.
+    acceptance: |
+      Scenario: AC-1 Issue
+        When issueSession runs for a registered person with device info
+        Then one device and one refresh token exist, the token hash is the SHA-256 of the returned refresh token, `expires_at` is 90 days ahead, and the access token carries the person id and device id
+      Scenario: AC-2 One device per session
+        When issueSession runs twice for the same person
+        Then two devices and two refresh tokens exist
+      Scenario Outline: AC-3 Revoke
+        Given a person with devices A, B and C
+        When revokeSessions is called with reason <reason> and exceptDeviceId <except>
+        Then <ended> devices end and the ended devices' tokens carry the reason
+        Examples:
+          | reason         | except | ended |
+          | LOGOUT_ALL     | none   | 3     |
+          | PASSWORD_RESET | B      | 2     |
+      Scenario: AC-4 Only the named person
+        When revokeSessions runs for person X
+        Then the devices of person Y are unchanged
+      Scenario: AC-5 Invalid device info
+        When platform is "WINDOWS" or app_version is empty
+        Then issueSession throws `httpError(400, 'VALIDATION_ERROR', ...)` and creates nothing
+    abuse: |
+      Scenario: AB-1 Reading a refresh token from the database (information disclosure)
+        When the tables are dumped
+        Then no refresh token can be derived without the raw value
+    implementation:
+      create: [src/modules/auth/session.repository.ts, src/modules/auth/session.service.ts, tests/integration/auth/session-service.test.ts]
+      modify: [src/config/env.ts]
+      pattern: src/modules/tasks/tasks.repository.ts
+      signatures:
+        - "issueSession(personId: string, device: DeviceInfo, tx?: Prisma.TransactionClient): Promise<{ deviceId: string; accessToken: string; refreshToken: string; expiresIn: number }>"
+        - "revokeSessions(personId: string, reason: RevokedReason, options?: { exceptDeviceId?: string }): Promise<number>"
+      types:
+        - "RevokedReason = 'LOGOUT' | 'DEVICE_REMOVED' | 'LOGOUT_ALL' | 'REUSE_DETECTED' | 'PASSWORD_RESET' | 'ACCOUNT_SUSPENDED'"
+        - "DeviceInfo = { platform: 'ANDROID' | 'IOS'; model?: string; app_version: string; push_token?: string; integrity_verdict?: string }"
+      errors: ["VALIDATION_ERROR 400"]
+      dependencies: [jsonwebtoken, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-7.2.4: every sign-in creates a new device, refresh token and access token."
+      - "v5.0.0-7.4.2: `revokeSessions` ends all live sessions of a person in one transaction."
+      - "v5.0.0-7.2.2: the refresh token is 32 random bytes; only its SHA-256 is stored."
+    tests: |
+      issue | integration | AC-1, CM-08 | session → rows, hash matches, 90 days, claims
+      two sessions | integration | AC-2 | two calls → 2 devices, 2 tokens
+      revoke | integration | AC-3, C-34 | each Examples row → count and reasons
+      other person | integration | AC-4 | Y unchanged
+      invalid device | integration | AC-5 | bad platform, empty version → 400, no rows
+      hash only | security | AB-1, CWE-312 | dump refresh_tokens → no column equals the raw token
+    command: npx vitest run tests/integration/auth/session-service.test.ts
+    out_of_scope:
+      - "Rotation at refresh (AUTH-015). Routes (later stories)."
+  - id: AUTH-009
+    title: Visitor asks for a registration code
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [AUTH-004, PER-005, NTF-002]
+    read_first: [src/modules/person/person.repository.ts, src/modules/auth/otp.service.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-07]
+    asvs: [v5.0.0-6.6.1, v5.0.0-2.4.1, v5.0.0-6.3.8]
+    story: As a visitor, I want a code sent to my phone number so that I can prove the number is mine before registering.
+    context: |
+      - Exists: `issueCode` with caps (AUTH-004); `findByActivePhone`, `normalizeE164`, `isCameroonMobile`.
+      - Adds: `POST /api/v1/auth/register/request` with body `{ phone_number }`; response 202 `{ sent: true, expires_in: 600, existing_account: null | { masked_name } }`.
+      - The code goes to the number in every case, with purpose REGISTRATION; `personId` is the holder's id when the number has an active holder, else null.
+      - `existing_account` is set only when the holder is registered; `masked_name` = first word of `full_name` in full, then the first letter of each further word and "…" (for one word: its first letter and "…"). Example: "Béatrice Ngono" gives "Béatrice N…". This is the one deliberate disclosure the design makes.
+    acceptance: |
+      Scenario: AC-1 Unknown number
+        When a visitor posts "6 77 12 34 56"
+        Then the response is 202 with existing_account null and one REGISTRATION code is queued to +237677123456
+      Scenario: AC-2 Guest number
+        Given a guest holds the number
+        Then the response is 202 with existing_account null and the challenge points to the guest
+      Scenario: AC-3 Registered number
+        Given a registered person "Béatrice Ngono" holds the number
+        Then the response is 202 with masked_name "Béatrice N…" and the code is queued
+      Scenario Outline: AC-4 Invalid numbers
+        When the number is <number>
+        Then the response is <status>
+        Examples:
+          | number         | status                   |
+          | missing        | 400 VALIDATION_ERROR     |
+          | 12345          | 400 VALIDATION_ERROR     |
+          | +33612345678   | 400 UNSUPPORTED_NUMBER   |
+      Scenario: AC-5 Limits
+        When a fourth code is requested for one number within an hour
+        Then the response is 429 `OTP_RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 SMS pumping through this route (denial of service)
+        When 50 requests come from one IP with different foreign numbers
+        Then no SMS is queued
+      Scenario: AB-2 Name disclosure is limited (information disclosure)
+        When a registered number is requested
+        Then only `masked_name` is returned, never the full name, email or ids
+    implementation:
+      create: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts, tests/integration/auth/register-request.test.ts]
+      modify: [src/app.ts]
+      pattern: src/modules/tasks/tasks.routes.ts
+      signatures:
+        - "requestRegistrationCode(input: { phone_number: string }, clientKeys: { ip?: string }): Promise<{ sent: true; expires_in: number; existing_account: { masked_name: string } | null }>"
+        - "maskName(fullName: string): string"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "UNSUPPORTED_NUMBER 400", "OTP_RATE_LIMITED 429"]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-6.6.1: SMS only to +237 mobiles."
+      - "v5.0.0-2.4.1: the IP address is passed as a cap key."
+      - "v5.0.0-6.3.8: the response differs only by `masked_name`, which the design requires."
+    tests: |
+      unknown | integration | AC-1 | 202, queued to normalized number
+      guest | integration | AC-2 | 202, existing_account null, challenge person = guest
+      registered | integration | AC-3 | masked_name "Béatrice N…"
+      invalid | integration | AC-4 | each Examples row → status
+      limits | integration | AC-5, CM-07 | 4th request → 429
+      pumping | security | AB-1, WSTG-BUSL-07, CWE-770 | 50 foreign numbers → 0 queued
+      disclosure | security | AB-2, CWE-200 | response keys exactly sent, expires_in, existing_account.masked_name
+    command: npx vitest run tests/integration/auth/register-request.test.ts
+    out_of_scope:
+      - "Completing the registration (AUTH-010)."
+  - id: AUTH-010
+    title: Visitor registers with the code
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [AUTH-009, AUTH-008, AUTH-005]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/person/person.repository.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-05, C-02, C-03]
+    asvs: [v5.0.0-6.2.1, v5.0.0-6.2.4, v5.0.0-7.2.4, v5.0.0-16.3.1]
+    story: As a visitor, I want to register with my name, my password and the code so that I get an account and am signed in on my phone.
+    context: |
+      - Exists: `verifyCode` (AUTH-003), `validatePasswordRules`, `hashPassword` (AUTH-005), `issueSession` (AUTH-008), `findByActivePhone` (PER-005), `POST /auth/register/request` (AUTH-009).
+      - Adds: `POST /api/v1/auth/register` with body `{ phone_number, code, full_name, password, device }` (`device` as `DeviceInfo`, AUTH-008). Response 201 `{ access_token, refresh_token, expires_in, token_type: 'Bearer', person: { id, full_name } }`.
+      - Creates a registered person, or completes a guest that holds the number: `full_name`, `password_hash`, `registered_at` = now, `phone_verified_at` = now. No foreign key changes: relations and invitations already point to this person.
+      - A registered holder answers 409 `ACCOUNT_EXISTS`. Two registrations racing for one number: the loser gets 409 `ACCOUNT_EXISTS`.
+      - Logs `info` event `registered` with the person id.
+    acceptance: |
+      Scenario: AC-1 New person
+        Given a valid code for an unused number
+        When the visitor registers with name "Béatrice Ngono", a valid password and device info
+        Then the response is 201 with tokens, the person is registered with a verified number, and the password hash is Argon2id
+      Scenario: AC-2 Guest completed
+        Given a guest holds the number and has a relationship pointing to it
+        When the visitor registers
+        Then the guest row becomes the registered person with the same id, and nothing pointing to it changes
+      Scenario: AC-3 Registered holder
+        When the number belongs to a registered person
+        Then the response is 409 `ACCOUNT_EXISTS` and nothing changes
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and no person is created
+        Examples:
+          | problem                          | status                 |
+          | a wrong code                     | 400 OTP_INVALID        |
+          | an expired code                  | 400 OTP_EXPIRED        |
+          | password 1234567                 | 400 WEAK_PASSWORD      |
+          | password "12345678"              | 400 WEAK_PASSWORD      |
+          | full_name empty                  | 400 VALIDATION_ERROR   |
+          | full_name of 101 characters      | 400 VALIDATION_ERROR   |
+          | device platform "WINDOWS"        | 400 VALIDATION_ERROR   |
+    abuse: |
+      Scenario: AB-1 Registering someone else's number (spoofing)
+        When a visitor submits a number without having its code
+        Then no person is created or completed
+      Scenario: AB-2 Server-owned fields in the body (mass assignment)
+        When the body contains id, status, registered_at or scope_version
+        Then the response is 400 and nothing is stored
+      Scenario: AB-3 Password in logs (information disclosure)
+        When a registration succeeds or fails
+        Then no log line contains the password or the code
+    implementation:
+      create: [src/modules/auth/auth.repository.ts, tests/integration/auth/register.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "register(input: RegisterInput): Promise<SessionResponse>"
+      types:
+        - "RegisterInput = { phone_number: string; code: string; full_name: string; password: string; device: DeviceInfo }"
+        - "SessionResponse = { access_token: string; refresh_token: string; expires_in: number; token_type: 'Bearer'; person: { id: string; full_name: string | null } }"
+      errors: ["ACCOUNT_EXISTS 409", "OTP_INVALID 400", "OTP_EXPIRED 400", "WEAK_PASSWORD 400", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, argon2, "@prisma/client"]
+    security:
+      - "v5.0.0-6.2.1: password 8 to 64 characters; rules from `validatePasswordRules`."
+      - "v5.0.0-7.2.4: a new device and new tokens are created."
+      - "v5.0.0-16.3.1: registration success and failure are logged with fixed event names and no personal data."
+    tests: |
+      new person | integration | AC-1, CM-05, C-03 | register → 201, registered row, argon2id hash
+      guest completed | integration | AC-2, C-02 | same id, dependants unchanged
+      registered holder | integration | AC-3 | 409, row unchanged
+      refusals | integration | AC-4 | each Examples row → status, no row
+      wrong owner | security | AB-1, WSTG-ATHN-04 | no code → no person
+      mass assignment | security | AB-2, CWE-915 | forbidden fields → 400
+      no secrets in logs | security | AB-3, CWE-532 | logger output has no password or code
+    command: npx vitest run tests/integration/auth/register.test.ts
+    out_of_scope:
+      - "Recycled numbers (AUTH-011). Showing what is attached to the number (REL and ORG modules)."
+  - id: AUTH-011
+    title: New holder of a recycled number registers
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [AUTH-010, NTF-002]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [C-02, CM-04, CM-03]
+    asvs: [v5.0.0-6.4.3, v5.0.0-16.3.1, v5.0.0-8.2.2]
+    story: As a visitor, I want to say "this number is new to me" so that I get a new account and the previous holder keeps theirs.
+    context: |
+      - Exists: `POST /api/v1/auth/register` (AUTH-010); `bumpScopeVersion`, `releasePhoneNumber` rule of PER (CM-04); `notify`; `enqueueOtpDelivery` for the email.
+      - Adds: optional `new_holder: true` in the register body. With it, a registered holder of the number is released in one transaction: `phone_number` moves to `released_phone_number`, `phone_verified_at` is emptied, `scope_version` is bumped; then a new registered person takes the number (as AUTH-010).
+      - The previous holder is notified: a notification `phone.taken_over` (content: "Votre numéro est maintenant utilisé par quelqu'un d'autre. Ajoutez votre nouveau numéro.") and, when their email is verified, an email with the same text and no number. Their account, history and sessions are untouched.
+      - `new_holder: true` with a guest or unused number behaves as a normal registration. The code is still required.
+    acceptance: |
+      Scenario: AC-1 Recycled number
+        Given a registered person P holds +237677123456 and a visitor proves the number with a code
+        When the visitor registers with new_holder true
+        Then P has phone_number empty, released_phone_number +237677123456, phone_verified_at empty and scope_version increased by 1
+        And a new registered person holds the number and receives tokens
+      Scenario: AC-2 Previous holder is told
+        Then P has an unread notification with source_event `phone.taken_over`
+        And when P's email is verified one email job is queued without the phone number in its text
+      Scenario: AC-3 History is kept
+        Then P keeps id, name, relationships and sessions, and P's relationships still point to P
+      Scenario: AC-4 Without a code
+        When new_holder is true and the code is wrong
+        Then the response is 400 `OTP_INVALID` and nobody is released
+      Scenario: AC-5 Atomic
+        When the new person's insert fails
+        Then P still holds the number
+    abuse: |
+      Scenario: AB-1 Taking over an account by claiming a number is new (elevation)
+        When an attacker with the SIM registers with new_holder true
+        Then the attacker gets a new empty person and no data, relationship or session of P
+      Scenario: AB-2 Released number stays out of lookups (information disclosure)
+        When someone looks up the released number
+        Then it answers as an unknown number
+    implementation:
+      create: [tests/integration/auth/register-new-holder.test.ts]
+      modify: [src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "releaseHolderAndRegister(input: RegisterInput): Promise<SessionResponse>"
+      types:
+        - "RegisterInput = RegisterInput & { new_holder?: boolean }"
+      errors: ["OTP_INVALID 400", "ACCOUNT_EXISTS 409"]
+      dependencies: ["@prisma/client", zod, bullmq]
+    security:
+      - "v5.0.0-6.4.3: the code proves the SIM; the previous holder is warned on every channel we have."
+      - "v5.0.0-8.2.2: nothing owned by the previous holder is reassigned."
+      - "v5.0.0-16.3.1: log event `phone_released` with both person ids."
+    tests: |
+      recycled | integration | AC-1, CM-04, CM-03, C-02 | release and new person as described
+      previous holder told | integration | AC-2 | notification row; email job without number
+      history kept | integration | AC-3 | ids and relations unchanged
+      no code | integration | AC-4 | wrong code → nobody released
+      atomic | integration | AC-5 | forced insert failure → P unchanged
+      takeover attempt | security | AB-1, CWE-287 | attacker gets an empty new person only
+      lookup | security | AB-2, CWE-200 | released number → looks unknown
+    command: npx vitest run tests/integration/auth/register-new-holder.test.ts
+    out_of_scope:
+      - "Public-contact flag cleared for the previous holder (ORG-003)."
+      - "Signing in by verified email (AUTH-014)."
+  - id: AUTH-012
+    title: Failed-attempt counter and lock duration
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [AUTH-005]
+    read_first: [src/lib/rate-limit.ts, src/config/env.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-05]
+    asvs: [v5.0.0-6.3.1, v5.0.0-2.4.1]
+    story: "Technical story: count failed password attempts per key and read the wait time from the environment, so that login can lock after 5 failures."
+    context: |
+      - Exists: `checkAndConsume`, `RateLimitClient` in `src/lib/rate-limit.ts`; env parsed in `src/config/env.ts`, exposed by `src/config/index.ts`.
+      - Adds: `getCount(key, client?)` and `resetKey(key, client?)` in `rate-limit.ts` (a missing key counts 0); env `LOGIN_LOCK_MINUTES` (positive integer, default 5, provisional, Q-005) exposed as `config.auth.loginLockMinutes`.
+    acceptance: |
+      Scenario: AC-1 Counting
+        When consume is called 3 times on one key, then getCount is read
+        Then getCount returns 3 and a different key returns 0
+      Scenario: AC-2 Reset
+        When resetKey is called on a key with count 3
+        Then getCount returns 0
+      Scenario Outline: AC-3 Environment
+        When `LOGIN_LOCK_MINUTES` is <value>
+        Then config.auth.loginLockMinutes is <result>
+        Examples:
+          | value    | result                  |
+          | missing  | 5                       |
+          | 10       | 10                      |
+          | 0        | startup fails           |
+          | abc      | startup fails           |
+    implementation:
+      create: [tests/unit/auth/attempt-counter.test.ts]
+      modify: [src/lib/rate-limit.ts, src/config/env.ts, src/config/index.ts]
+      pattern: src/lib/rate-limit.ts
+      signatures:
+        - "getCount(key: string, client?: RateLimitClient): Promise<number>"
+        - "resetKey(key: string, client?: RateLimitClient): Promise<void>"
+      types: []
+      errors: []
+      dependencies: [ioredis, zod]
+    security:
+      - "v5.0.0-6.3.1: the lock duration is configuration, validated at startup."
+    tests: |
+      counting | unit | AC-1 | fake client → 3 and 0
+      reset | unit | AC-2 | reset → 0
+      environment | unit | AC-3, CM-05 | each Examples row → value or startup error
+    command: npx vitest run tests/unit/auth/attempt-counter.test.ts tests/unit/lib/rate-limit.test.ts
+    out_of_scope:
+      - "Using the counter (AUTH-013)."
+  - id: AUTH-013
+    title: Person signs in with number and password
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [AUTH-012, AUTH-004, PER-005]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
+    design_refs: [identite-et-organisation/person, acces-et-securite/connexion-verrouillage-et-telephone]
+    constraints: [CM-05, C-33]
+    asvs: [v5.0.0-6.3.1, v5.0.0-6.3.3, v5.0.0-6.3.8, v5.0.0-6.5.1, v5.0.0-16.3.1]
+    story: As a customer, I want to enter my number and password and receive a code so that signing in needs both my password and my SIM.
+    context: |
+      - Exists: `verifyPassword` (AUTH-005); attempt counter (AUTH-012); `issueCode` (AUTH-004); `findByActivePhone`; `register` route file (AUTH-010).
+      - Adds: `POST /api/v1/auth/login` with `{ phone_number, password, use_email? }`. Success: 202 `{ sent: true, channel: 'SMS' | 'EMAIL', expires_in: 600 }` and a LOGIN code.
+      - Order: normalize the number; if the counter for that number is 5 or more answer 429 `LOGIN_LOCKED`; find the holder; verify the password (for an unknown number, a guest or a person without hash, verify against a fixed dummy Argon2id hash so timing matches); a failure adds 1 to the counter (window = `loginLockMinutes`) and answers 401 `INVALID_CREDENTIALS`; success resets the counter.
+      - A suspended person answers 403 `ACCOUNT_SUSPENDED` after a right password. `use_email: true` sends the code to the verified email, else 400 `EMAIL_NOT_VERIFIED`.
+      - Logs `warn` event `login_failed` (person id if known, no number) and `info` event `login_code_sent`.
+    acceptance: |
+      Scenario: AC-1 Right password
+        Given a registered person with a verified number
+        When they post the number and password
+        Then the response is 202 with channel SMS and one LOGIN code is queued to the number
+      Scenario: AC-2 Email channel
+        Given a verified email
+        When they post with use_email true
+        Then the code is queued by email and the response says channel EMAIL
+      Scenario: AC-3 Email not verified
+        When use_email is true and the email is unverified or empty
+        Then the response is 400 `EMAIL_NOT_VERIFIED` and nothing is queued
+      Scenario Outline: AC-4 Failures look alike
+        When the login uses <case>
+        Then the response is 401 `INVALID_CREDENTIALS` with the same body
+        Examples:
+          | case                     |
+          | an unknown number        |
+          | a guest's number         |
+          | a wrong password         |
+          | a released number        |
+      Scenario: AC-5 Lock after 5 failures
+        When 5 wrong passwords are sent for one number, then the right one
+        Then the sixth attempt answers 429 `LOGIN_LOCKED` and no code is queued
+        And after the lock window the right password works and clears the counter
+      Scenario: AC-6 Suspended
+        When a suspended person sends the right password
+        Then the response is 403 `ACCOUNT_SUSPENDED` and no code is queued
+    abuse: |
+      Scenario: AB-1 Credential stuffing (spoofing)
+        When 100 wrong passwords are sent for one number
+        Then at most 5 are checked and the rest answer 429
+      Scenario: AB-2 Account enumeration (information disclosure)
+        When known and unknown numbers are tried with a wrong password
+        Then bodies and status codes are identical and timings do not separate them by more than one Argon2 verification
+    implementation:
+      create: [tests/integration/auth/login-request.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "requestLogin(input: LoginInput, clientKeys: { ip?: string }): Promise<{ sent: true; channel: 'SMS' | 'EMAIL'; expires_in: number }>"
+      types:
+        - "LoginInput = { phone_number: string; password: string; use_email?: boolean }"
+      errors: ["INVALID_CREDENTIALS 401", "LOGIN_LOCKED 429", "ACCOUNT_SUSPENDED 403", "EMAIL_NOT_VERIFIED 400", "OTP_RATE_LIMITED 429"]
+      dependencies: [express, zod, argon2]
+    security:
+      - "v5.0.0-6.3.1: lock after 5 failures per number."
+      - "v5.0.0-6.3.3: the password alone never opens a session; a code follows."
+      - "v5.0.0-6.3.8: same status, body and work for every failing case."
+      - "v5.0.0-16.3.1: failures and code sends are logged with fixed event names."
+    tests: |
+      sms code | integration | AC-1, C-33 | 202, queued to number
+      email code | integration | AC-2 | 202 EMAIL, queued to email
+      email unverified | integration | AC-3 | 400
+      failures alike | integration | AC-4 | four cases → equal 401 bodies
+      lock | integration | AC-5, CM-05 | 5 wrong → 429; after window → 202
+      suspended | integration | AC-6 | 403
+      stuffing | security | AB-1, WSTG-ATHN-03, CWE-307 | 100 wrong → 5 verified, 95 429
+      enumeration | security | AB-2, WSTG-IDNT-04, CWE-204 | equal bodies; dummy verify called for unknown number
+    command: npx vitest run tests/integration/auth/login-request.test.ts
+    out_of_scope:
+      - "Checking the code and opening the session (AUTH-014). Email as identifier (AUTH-015)."
+  - id: AUTH-014
+    title: Person completes sign-in with the code
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [AUTH-013, AUTH-008, NTF-002]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/session.service.ts]
+    design_refs: [identite-et-organisation/person, acces-et-securite/device]
+    constraints: [C-33, CM-08]
+    asvs: [v5.0.0-6.5.1, v5.0.0-7.2.4, v5.0.0-16.3.1]
+    story: As a customer, I want to enter the code I received so that I am signed in on this phone.
+    context: |
+      - Exists: LOGIN code sent (AUTH-013); `verifyCode`; `issueSession`; `notify`.
+      - Adds: `POST /api/v1/auth/login/verify` with `{ phone_number, code, device, use_email? }`; target is the number, or the person's email when `use_email` is true. Response 200 as `SessionResponse` (AUTH-010).
+      - A suspended person answers 403 `ACCOUNT_SUSPENDED` and the code is not spent. A new device is opened at every sign-in.
+      - When the person has other live devices, each gets one notification `device.new_login`: "Nouvelle connexion sur <model or un nouvel appareil>. Ce n'était pas vous ? Déconnectez-le." (English when the language is EN).
+      - Logs `info` event `login_succeeded` with person id and device id.
+    acceptance: |
+      Scenario: AC-1 Sign in
+        Given a LOGIN code was sent
+        When the person posts the right code and device info
+        Then the response is 200 with access and refresh tokens and a new device exists
+      Scenario: AC-2 Wrong or expired code
+        When the code is wrong, expired or already used
+        Then the response is 400 `OTP_INVALID` or `OTP_EXPIRED` and no device is created
+      Scenario: AC-3 Alert to other phones
+        Given the person has two live devices
+        When a third signs in
+        Then each of the two gets one unread notification `device.new_login` naming the new model, and the new device gets none
+      Scenario: AC-4 First device gets no alert
+        When the person has no other live device
+        Then no notification is created
+      Scenario: AC-5 Email channel
+        When the code was sent by email and use_email is true
+        Then the same code signs in
+      Scenario: AC-6 Suspended
+        When the person is suspended
+        Then the response is 403 `ACCOUNT_SUSPENDED` and no session is opened
+    abuse: |
+      Scenario: AB-1 Code from another purpose (tampering)
+        When a REGISTRATION or PASSWORD_RESET code is submitted here
+        Then the response is 400 `OTP_INVALID`
+      Scenario: AB-2 Sign-ins leave a trace (repudiation)
+        When a sign-in succeeds
+        Then a `login_succeeded` log exists and other devices were notified
+    implementation:
+      create: [tests/integration/auth/login-verify.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "completeLogin(input: LoginVerifyInput): Promise<SessionResponse>"
+      types:
+        - "LoginVerifyInput = { phone_number: string; code: string; device: DeviceInfo; use_email?: boolean }"
+      errors: ["OTP_INVALID 400", "OTP_EXPIRED 400", "OTP_LOCKED 429", "ACCOUNT_SUSPENDED 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-6.5.1: the code is bound to purpose LOGIN and to the target."
+      - "v5.0.0-7.2.4: a new device and tokens per sign-in."
+      - "v5.0.0-16.3.1: sign-in success is logged."
+    tests: |
+      sign in | integration | AC-1, CM-08 | right code → tokens and device
+      bad codes | integration | AC-2 | wrong, expired, used → errors, no device
+      alert | integration | AC-3 | two devices → two notifications
+      first device | integration | AC-4 | no notification
+      email channel | integration | AC-5, C-33 | EMAIL code accepted
+      suspended | integration | AC-6 | 403, no device
+      wrong purpose | security | AB-1, CWE-345 | REGISTRATION code → OTP_INVALID
+      trace | security | AB-2, CWE-778 | log event and notifications exist
+    command: npx vitest run tests/integration/auth/login-verify.test.ts
+    out_of_scope:
+      - "Email as the identifier (AUTH-015)."
+  - id: AUTH-015
+    title: Person whose number was taken signs in with the verified email
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [AUTH-014, AUTH-011]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/person/person.repository.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [C-33, CM-04]
+    asvs: [v5.0.0-6.4.3, v5.0.0-6.3.8, v5.0.0-6.5.1]
+    story: As a customer, I want to sign in with my verified email when my number now belongs to someone else so that I keep my account and can add my new number.
+    context: |
+      - Exists: sign-in in two steps (AUTH-013, AUTH-014); persons with a released number (AUTH-011).
+      - Adds: both login bodies accept `email` instead of `phone_number` (exactly one of them). `findByVerifiedEmail(email)` in `src/modules/person/person.repository.ts` (case-insensitive, verified emails only).
+      - Allowed only when the person has no active number. Otherwise the answer is the generic 401 `INVALID_CREDENTIALS`. The code goes by EMAIL to the verified email.
+    acceptance: |
+      Scenario: AC-1 Sign in by email
+        Given a person with a released number and a verified email
+        When they post email and password, then email and the code
+        Then they get a session
+      Scenario Outline: AC-2 Not allowed
+        When the email login uses <case>
+        Then the response is 401 `INVALID_CREDENTIALS`
+        Examples:
+          | case                                               |
+          | an email that is not verified                      |
+          | a person who still has an active number            |
+          | an unknown email                                   |
+          | a wrong password                                   |
+      Scenario: AC-3 Both or neither identifier
+        When the body has both `email` and `phone_number`, or neither
+        Then the response is 400 `VALIDATION_ERROR`
+      Scenario: AC-4 Case
+        When the email is typed in upper case
+        Then the person is found
+    abuse: |
+      Scenario: AB-1 Email login as a bypass of the SIM (spoofing)
+        When someone with an active number and a verified email uses the email route
+        Then the answer is the generic failure and no code is sent
+    implementation:
+      create: [tests/integration/auth/login-by-email.test.ts]
+      modify: [src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/person/person.repository.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "findByVerifiedEmail(email: string): Promise<Person | null>"
+      types:
+        - "LoginInput = { phone_number: string } | { email: string } plus password and use_email"
+      errors: ["INVALID_CREDENTIALS 401", "VALIDATION_ERROR 400"]
+      dependencies: [zod, "@prisma/client"]
+    security:
+      - "v5.0.0-6.4.3: the email route works only for people with no active number."
+      - "v5.0.0-6.3.8: the same generic failure as the number route."
+    tests: |
+      email sign-in | integration | AC-1, CM-04, C-33 | released-number person → session; the code went by EMAIL to the verified address
+      not allowed | integration | AC-2 | each Examples row → 401
+      one identifier | integration | AC-3 | both or neither → 400
+      case | integration | AC-4 | upper-case email → found
+      bypass | security | AB-1, CWE-288 | active-number person → 401, no code queued
+    command: npx vitest run tests/integration/auth/login-by-email.test.ts
+    out_of_scope:
+      - "Adding the new number (AUTH-024, AUTH-025)."
+  - id: AUTH-016
+    title: Refresh a session with rotation
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [AUTH-008]
+    read_first: [src/modules/auth/session.service.ts, src/modules/auth/session.repository.ts]
+    design_refs: [acces-et-securite/refreshtoken]
+    constraints: [CM-08, C-34]
+    asvs: [v5.0.0-7.2.2, v5.0.0-7.4.1, v5.0.0-9.2.1, v5.0.0-16.3.1]
+    story: As a customer, I want my session to renew itself so that I stay signed in without typing my password.
+    context: |
+      - Exists: `issueSession`, `revokeSessions`, tables (AUTH-007, AUTH-008).
+      - Adds: `POST /api/v1/auth/refresh` with `{ refresh_token }`; success 200 `{ access_token, refresh_token, expires_in, token_type }`.
+      - Rotation: the presented token gets `rotated_at`; a new token for the same device is stored, expiring 90 days from now; a new access token is signed. Marking is one conditional update (`WHERE rotated_at IS NULL AND revoked_at IS NULL`).
+      - Unknown, revoked, expired token or revoked device: 401 `INVALID_REFRESH_TOKEN`. A token that was already rotated is a reuse: the device session ends with reason `REUSE_DETECTED` (device and its live tokens), log `warn` event `refresh_reuse_detected`, answer 401 `SESSION_REVOKED`. Other devices stay signed in.
+      - A suspended person: revoke all sessions with reason `ACCOUNT_SUSPENDED` and answer 401 `SESSION_REVOKED`.
+    acceptance: |
+      Scenario: AC-1 Rotation
+        When a valid refresh token is used
+        Then a new pair is returned, the old token has rotated_at set and the new token belongs to the same device
+      Scenario Outline: AC-2 Rejections
+        When the token is <case>
+        Then the response is 401 `INVALID_REFRESH_TOKEN`
+        Examples:
+          | case                              |
+          | unknown                           |
+          | expired                           |
+          | revoked                           |
+          | of a revoked device               |
+      Scenario: AC-3 Reuse
+        When a token that was already used is presented again
+        Then the response is 401 `SESSION_REVOKED`, that device is revoked with reason REUSE_DETECTED and its newest token is revoked, and the person's other devices still refresh
+      Scenario: AC-4 Suspended person
+        When a suspended person refreshes
+        Then all their sessions are revoked with reason ACCOUNT_SUSPENDED and the response is 401 `SESSION_REVOKED`
+      Scenario: AC-5 Parallel use
+        When the same token is sent twice at the same time
+        Then one succeeds and the other is handled as a reuse
+    abuse: |
+      Scenario: AB-1 Stolen token replayed (spoofing)
+        When a thief and the owner both use one token, one after the other
+        Then the second use ends that device's session and both later calls fail
+      Scenario: AB-2 Access token used as refresh token (tampering)
+        When an access token is sent as `refresh_token`
+        Then the response is 401 `INVALID_REFRESH_TOKEN`
+    implementation:
+      create: [tests/integration/auth/refresh.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/session.service.ts, src/modules/auth/session.repository.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/session.service.ts
+      signatures:
+        - "refreshSession(refreshToken: string): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }>"
+      types: []
+      errors: ["INVALID_REFRESH_TOKEN 401", "SESSION_REVOKED 401"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-7.4.1: revocation is enforced at refresh."
+      - "v5.0.0-7.2.2: only a hash of the token is compared; rotation is a conditional update."
+      - "v5.0.0-16.3.1: reuse detection is logged with a fixed event name."
+    tests: |
+      rotation | integration | AC-1, CM-08 | new pair, rotated_at, same device
+      rejections | integration | AC-2 | each Examples row → 401
+      reuse | integration | AC-3, C-34 | second use → SESSION_REVOKED, device revoked, other device still works
+      suspended | integration | AC-4 | all revoked, 401
+      parallel | integration | AC-5, CWE-362 | two parallel calls → one success
+      replay | security | AB-1, WSTG-SESS-06, CWE-294 | thief then owner → both fail afterwards
+      wrong token type | security | AB-2, WSTG-SESS-07 | access token → 401
+    command: npx vitest run tests/integration/auth/refresh.test.ts
+    out_of_scope:
+      - "Logout routes (AUTH-017, AUTH-018)."
+  - id: AUTH-017
+    title: Person signs out of this phone
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [AUTH-016]
+    read_first: [src/modules/auth/session.service.ts, src/modules/auth/auth.routes.ts]
+    design_refs: [acces-et-securite/refreshtoken, acces-et-securite/connexion-verrouillage-et-telephone]
+    constraints: []
+    asvs: [v5.0.0-7.4.1, v5.0.0-8.2.2]
+    story: As a customer, I want to sign out of this phone so that nobody can renew its session.
+    context: |
+      - Exists: `POST /auth/refresh` (AUTH-016); `req.user.deviceId` from the access token.
+      - Adds: `POST /api/v1/auth/logout` (authenticated, no body): ends the device named in the token with reason `LOGOUT` (device `revoked_at`, its live tokens revoked). Response 204. `revokeDevice(personId, deviceId, reason)` in `session.service.ts`.
+      - The access token still verifies until it expires (15 minutes); its refresh path is closed at once.
+    acceptance: |
+      Scenario: AC-1 Sign out
+        When a signed-in person posts to /api/v1/auth/logout
+        Then the response is 204, the device has revoked_at set and its tokens have reason LOGOUT
+      Scenario: AC-2 Refresh is closed
+        When the same device then uses its refresh token
+        Then the response is 401 `INVALID_REFRESH_TOKEN`
+      Scenario: AC-3 Other phones stay
+        Then the person's other devices are unchanged
+      Scenario: AC-4 Repeat
+        When logout is posted twice
+        Then both answers are 204
+    abuse: |
+      Scenario: AB-1 Signing another person's device out (horizontal)
+        When a token names a device of another person
+        Then the other person's device is unchanged and the response is 204 without effect
+      Scenario: AB-2 No token (unauthenticated)
+        When the request has no valid token
+        Then the response is 401
+    implementation:
+      create: [tests/integration/auth/logout.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/session.service.ts, src/modules/auth/session.repository.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.routes.ts
+      signatures:
+        - "revokeDevice(personId: string, deviceId: string, reason: RevokedReason): Promise<boolean>"
+      types: []
+      errors: ["UNAUTHORIZED 401"]
+      dependencies: [express]
+    security:
+      - "v5.0.0-7.4.1: ending a session closes its refresh path on the server."
+      - "v5.0.0-8.2.2: the update filters on person id and device id together."
+    tests: |
+      sign out | integration | AC-1 | 204, revoked device and tokens
+      refresh closed | integration | AC-2 | 401
+      others stay | integration | AC-3 | other device live
+      repeat | integration | AC-4 | 204 twice
+      other person's device | security | AB-1, WSTG-ATHZ-04 | unchanged
+      no token | security | AB-2, WSTG-ATHN-04 | 401
+    command: npx vitest run tests/integration/auth/logout.test.ts
+    out_of_scope:
+      - "Device list and removal of other phones (AUTH-018)."
+  - id: AUTH-018
+    title: Person manages their phones
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [AUTH-017]
+    read_first: [src/modules/auth/session.service.ts, src/modules/auth/auth.routes.ts]
+    design_refs: [acces-et-securite/device, acces-et-securite/connexion-verrouillage-et-telephone]
+    constraints: []
+    asvs: [v5.0.0-7.4.3, v5.0.0-7.4.5, v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a customer, I want to see my signed-in phones and sign any of them out so that I can act after a loss or a theft.
+    context: |
+      - Exists: `revokeDevice`, `revokeSessions` (AUTH-008, AUTH-017).
+      - Adds: `GET /api/v1/auth/devices` (live devices: `id, platform, model, app_version, created_at, last_synced_at, current`); `DELETE /api/v1/auth/devices/{id}` (204, reason `DEVICE_REMOVED`); `POST /api/v1/auth/logout-all` (204, every device including this one, reason `LOGOUT_ALL`).
+      - `push_token`, `integrity_verdict` and `scope_version_seen` are never returned.
+    acceptance: |
+      Scenario: AC-1 List
+        Given a person with two live devices and one revoked device
+        When they GET /api/v1/auth/devices
+        Then two items are returned, ordered by created_at descending, one flagged current
+      Scenario: AC-2 Remove one
+        When they DELETE another live device of theirs
+        Then the response is 204 and that device's refresh path is closed
+      Scenario: AC-3 Unknown or foreign id
+        When the id is unknown, malformed or belongs to someone else
+        Then the response is 404 `NOT_FOUND` or 400 `VALIDATION_ERROR`
+      Scenario: AC-4 Sign out everywhere
+        When they post to /api/v1/auth/logout-all
+        Then every device of the person is revoked with reason LOGOUT_ALL and their refresh tokens fail
+    abuse: |
+      Scenario: AB-1 Another person's devices (horizontal)
+        When person A lists or deletes with the id of a device of person B
+        Then B's devices are not listed and stay live
+      Scenario: AB-2 Private fields (information disclosure)
+        When the list is read
+        Then no push_token, integrity_verdict or scope_version_seen appears
+    implementation:
+      create: [tests/integration/auth/devices.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.service.ts, src/modules/auth/session.repository.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.routes.ts
+      signatures:
+        - "listDevices(personId: string, currentDeviceId: string): Promise<DeviceView[]>"
+      types:
+        - "DeviceView = { id: string; platform: string; model: string | null; app_version: string; created_at: string; last_synced_at: string | null; current: boolean }"
+      errors: ["NOT_FOUND 404", "VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-7.4.3: a person can end all their other sessions."
+      - "v5.0.0-8.2.2: every query filters on the person id from the token."
+      - "v5.0.0-15.3.1: explicit field list in the response."
+    tests: |
+      list | integration | AC-1 | 2 live, ordered, current flag
+      remove one | integration | AC-2 | 204, refresh fails
+      bad id | integration | AC-3 | 404 or 400
+      logout all | integration | AC-4 | all revoked, LOGOUT_ALL
+      other person | security | AB-1, WSTG-ATHZ-04 | B's devices untouched
+      private fields | security | AB-2, CWE-200 | key list has no private field
+    command: npx vitest run tests/integration/auth/devices.test.ts
+    out_of_scope:
+      - "The lost phone erasing its data (client behavior)."
+  - id: AUTH-019
+    title: Person asks for a password reset code
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [AUTH-013]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/otp.service.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [C-33, CM-07]
+    asvs: [v5.0.0-6.4.3, v5.0.0-6.3.8, v5.0.0-2.4.1]
+    story: As a customer, I want a code sent to my phone or verified email so that I can choose a new password when I forgot mine.
+    context: |
+      - Exists: `issueCode` (AUTH-004), `maskName` (AUTH-009), `findByActivePhone`.
+      - Adds: `POST /api/v1/auth/password-reset/request` with `{ phone_number, use_email? }`. The answer is always 202 `{ sent: true, expires_in: 600, existing_account: null | { masked_name } }`, whatever the number.
+      - A code (purpose PASSWORD_RESET) is sent only when the holder is registered: by SMS, or by email when `use_email` is true and the email is verified. Otherwise nothing is sent and the answer is the same. `masked_name` is set only for a registered holder (the design's disclosure).
+    acceptance: |
+      Scenario: AC-1 Registered holder by SMS
+        When the holder's number is posted
+        Then the response is 202 with masked_name and one PASSWORD_RESET code is queued to the number
+      Scenario: AC-2 By verified email
+        When use_email is true and the email is verified
+        Then the code is queued to the email and not to the number
+      Scenario Outline: AC-3 Nothing is sent
+        When the request is for <case>
+        Then the response is 202 with the same keys, existing_account null, and nothing is queued
+        Examples:
+          | case                                       |
+          | an unknown number                          |
+          | a guest's number                           |
+          | use_email true with an unverified email    |
+      Scenario: AC-4 Limits
+        When a fourth code is requested for one number within an hour
+        Then the response is 429 `OTP_RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 Enumeration of registered numbers (information disclosure)
+        When unknown, guest and registered numbers are posted
+        Then only the registered one carries masked_name and every status is 202
+      Scenario: AB-2 SMS pumping (denial of service)
+        When 50 foreign numbers are posted from one IP
+        Then nothing is queued
+    implementation:
+      create: [tests/integration/auth/password-reset-request.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "requestPasswordReset(input: { phone_number: string; use_email?: boolean }, clientKeys: { ip?: string }): Promise<{ sent: true; expires_in: number; existing_account: { masked_name: string } | null }>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "OTP_RATE_LIMITED 429"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-6.4.3: the reset code goes only to the holder's own channels."
+      - "v5.0.0-6.3.8: identical status and keys for every case; only `masked_name` differs, as the design requires."
+      - "v5.0.0-2.4.1: caps by number, device and IP."
+    tests: |
+      sms | integration | AC-1, C-33 | masked_name, code queued to number
+      email | integration | AC-2 | code to email only
+      nothing sent | integration | AC-3 | each Examples row → 202, no job
+      limits | integration | AC-4, CM-07 | 4th → 429
+      enumeration | security | AB-1, WSTG-IDNT-04, CWE-204 | identical shape except masked_name
+      pumping | security | AB-2, CWE-770 | foreign numbers → 0 jobs
+    command: npx vitest run tests/integration/auth/password-reset-request.test.ts
+    out_of_scope:
+      - "Choosing the new password (AUTH-020)."
+  - id: AUTH-020
+    title: Person chooses a new password with the code
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [AUTH-019, AUTH-008]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/session.service.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-05, C-03]
+    asvs: [v5.0.0-6.4.3, v5.0.0-6.2.1, v5.0.0-7.4.3, v5.0.0-16.3.1]
+    story: As a customer, I want to set a new password with the code so that I get back into my account and a stolen phone is signed out.
+    context: |
+      - Exists: `verifyCode`, `validatePasswordRules`, `hashPassword`, `revokeSessions`; the reset request (AUTH-019).
+      - Adds: `POST /api/v1/auth/password-reset/confirm` with `{ phone_number, code, new_password, use_email? }`; response 204. The code must be a PASSWORD_RESET code whose target is the number, or the verified email when `use_email` is true.
+      - On success: the new hash is stored, every device of the person is revoked with reason `PASSWORD_RESET`, the failed-attempt counter for that number is cleared, `info` event `password_reset` is logged.
+      - A weak password answers 400 `WEAK_PASSWORD` and the code is not spent.
+    acceptance: |
+      Scenario: AC-1 Reset
+        When the right code and a valid new password are posted
+        Then the response is 204, the stored hash verifies the new password and no longer the old one
+      Scenario: AC-2 Sessions end
+        Given the person has two signed-in devices
+        Then both devices are revoked with reason PASSWORD_RESET and their refresh tokens fail
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and the password is unchanged
+        Examples:
+          | problem                               | status                 |
+          | a wrong code                          | 400 OTP_INVALID        |
+          | an expired code                       | 400 OTP_EXPIRED        |
+          | a REGISTRATION code                   | 400 OTP_INVALID        |
+          | new_password "1234567"                | 400 WEAK_PASSWORD      |
+          | an unregistered number                | 400 OTP_INVALID        |
+      Scenario: AC-4 Weak password keeps the code
+        When a weak password is posted and then a valid one with the same code
+        Then the second request succeeds
+      Scenario: AC-5 Lock cleared
+        Given the number had 5 failed sign-in attempts
+        When the reset succeeds
+        Then the next sign-in attempt is not locked
+    abuse: |
+      Scenario: AB-1 Reset without the SIM (spoofing)
+        When someone posts a reset without a code, or with guesses
+        Then the password is unchanged and at most 5 guesses are counted
+      Scenario: AB-2 Password in logs (information disclosure)
+        When a reset succeeds or fails
+        Then no log line contains the password or the code
+    implementation:
+      create: [tests/integration/auth/password-reset-confirm.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "confirmPasswordReset(input: PasswordResetConfirmInput): Promise<void>"
+      types:
+        - "PasswordResetConfirmInput = { phone_number: string; code: string; new_password: string; use_email?: boolean }"
+      errors: ["OTP_INVALID 400", "OTP_EXPIRED 400", "WEAK_PASSWORD 400", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, argon2]
+    security:
+      - "v5.0.0-6.4.3: the code proves the SIM or the verified email."
+      - "v5.0.0-7.4.3: a reset ends every session."
+      - "v5.0.0-6.2.1: the new password follows the same rules as registration."
+    tests: |
+      reset | integration | AC-1, CM-05, C-03 | 204, new hash verifies
+      sessions end | integration | AC-2 | both devices revoked, reason PASSWORD_RESET
+      refusals | integration | AC-3 | each Examples row → status, hash unchanged
+      weak keeps code | integration | AC-4 | weak then valid with the same code → success
+      lock cleared | integration | AC-5 | counter reset
+      no code | security | AB-1, WSTG-ATHN-09, CWE-640 | guesses → hash unchanged
+      no secrets in logs | security | AB-2, CWE-532 | logger output clean
+    command: npx vitest run tests/integration/auth/password-reset-confirm.test.ts
+    out_of_scope:
+      - "Changing the password while signed in (AUTH-021)."
+  - id: AUTH-021
+    title: Person changes their password
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [AUTH-020]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/session.service.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-05]
+    asvs: [v5.0.0-6.2.2, v5.0.0-6.2.3, v5.0.0-7.4.3]
+    story: As a customer, I want to change my password while signed in so that I can replace one I fear is known.
+    context: |
+      - Exists: `verifyPassword`, `validatePasswordRules`, `hashPassword`, `revokeSessions(personId, reason, { exceptDeviceId })`; the attempt counter (AUTH-012).
+      - Adds: `POST /api/v1/auth/password/change` (authenticated) with `{ current_password, new_password }`; response 204.
+      - The current password is checked first; a failure adds 1 to counter `pwchange:<personId>` and answers 401 `INVALID_CREDENTIALS`; at 5 failures the answer is 429 `LOGIN_LOCKED` for `loginLockMinutes`.
+      - On success the hash is replaced and every other device is revoked with reason `PASSWORD_RESET`; the current device stays signed in.
+    acceptance: |
+      Scenario: AC-1 Change
+        When the right current password and a valid new one are posted
+        Then the response is 204 and only the new password verifies
+      Scenario: AC-2 Other phones signed out
+        Given the person has three devices
+        Then the two other devices are revoked with reason PASSWORD_RESET and the current one is live
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and the password is unchanged
+        Examples:
+          | problem                               | status                 |
+          | a wrong current password              | 401 INVALID_CREDENTIALS|
+          | new_password "1234567"                | 400 WEAK_PASSWORD      |
+          | new_password equal to the current one | 400 VALIDATION_ERROR   |
+          | a 65-character new_password           | 400 WEAK_PASSWORD      |
+      Scenario: AC-4 Lock
+        When 5 wrong current passwords are sent
+        Then the sixth attempt answers 429 `LOGIN_LOCKED`
+    abuse: |
+      Scenario: AB-1 Stolen session changes the password (elevation)
+        When a request with a valid access token but a wrong current password arrives
+        Then the password is unchanged
+      Scenario: AB-2 No token (unauthenticated)
+        When the request has no valid token
+        Then the response is 401
+    implementation:
+      create: [tests/integration/auth/password-change.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "changePassword(personId: string, deviceId: string, input: { current_password: string; new_password: string }): Promise<void>"
+      types: []
+      errors: ["INVALID_CREDENTIALS 401", "LOGIN_LOCKED 429", "WEAK_PASSWORD 400", "VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod, argon2]
+    security:
+      - "v5.0.0-6.2.3: the current password is required."
+      - "v5.0.0-7.4.3: the other sessions end."
+    tests: |
+      change | integration | AC-1, CM-05 | 204, only new verifies
+      other phones | integration | AC-2 | two revoked, current live
+      refusals | integration | AC-3 | each Examples row → status
+      lock | integration | AC-4 | sixth → 429
+      stolen session | security | AB-1, CWE-620 | wrong current → unchanged
+      no token | security | AB-2, WSTG-ATHN-04 | 401
+    command: npx vitest run tests/integration/auth/password-change.test.ts
+    out_of_scope:
+      - "Password reset by code (AUTH-020)."
+  - id: AUTH-022
+    title: Person asks for an email verification code
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [AUTH-004, PER-007]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/otp.service.ts]
+    design_refs: [identite-et-organisation/person, acces-et-securite/otpchallenge]
+    constraints: [C-33, CM-07]
+    asvs: [v5.0.0-6.5.1, v5.0.0-2.4.1]
+    story: As a customer, I want a code sent to my email so that I can prove the address is mine and use it to recover my account.
+    context: |
+      - Exists: the email saved by `PATCH /users/me` with `email_verified_at` empty (PER-007); `issueCode`.
+      - Adds: `POST /api/v1/auth/email/verify/request` (authenticated, no body). It sends an EMAIL_VERIFICATION code to the person's saved email; response 202 `{ sent: true, expires_in: 600 }`.
+      - No saved email: 400 `EMAIL_MISSING`. Already verified: 204 and nothing sent.
+    acceptance: |
+      Scenario: AC-1 Code sent
+        Given a person with a saved unverified email
+        When they post to the route
+        Then the response is 202 and one EMAIL_VERIFICATION code is queued by email to that address
+      Scenario: AC-2 No email
+        When the person has no saved email
+        Then the response is 400 `EMAIL_MISSING` and nothing is queued
+      Scenario: AC-3 Already verified
+        Then the response is 204 and nothing is queued
+      Scenario: AC-4 Limits
+        When a fourth request comes within an hour
+        Then the response is 429 `OTP_RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 Sending codes to arbitrary addresses (tampering)
+        When the body contains an `email`
+        Then the body is ignored and the code goes only to the saved address
+      Scenario: AB-2 No token (unauthenticated)
+        When the request has no valid token
+        Then the response is 401
+    implementation:
+      create: [tests/integration/auth/email-verify-request.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "requestEmailVerification(personId: string): Promise<{ sent: true; expires_in: number } | null>"
+      types: []
+      errors: ["EMAIL_MISSING 400", "OTP_RATE_LIMITED 429", "UNAUTHORIZED 401"]
+      dependencies: [express]
+    security:
+      - "v5.0.0-6.5.1: the target is read from the database, never from the request."
+      - "v5.0.0-2.4.1: the per-target limits apply to email codes too."
+    tests: |
+      code sent | integration | AC-1, C-33 | queued by email to the saved address
+      no email | integration | AC-2 | 400
+      already verified | integration | AC-3 | 204, no job
+      limits | integration | AC-4, CM-07 | 4th → 429
+      body ignored | security | AB-1, CWE-915 | email in body → not used
+      no token | security | AB-2, WSTG-ATHN-04 | 401
+    command: npx vitest run tests/integration/auth/email-verify-request.test.ts
+    out_of_scope:
+      - "Confirming the code (AUTH-023)."
+  - id: AUTH-023
+    title: Person confirms their email
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [AUTH-022]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [C-03, C-33]
+    asvs: [v5.0.0-6.5.1, v5.0.0-16.3.1]
+    story: As a customer, I want to confirm the code sent to my email so that my address becomes my recovery key.
+    context: |
+      - Exists: EMAIL_VERIFICATION codes (AUTH-022); the partial unique index on verified emails (PER-003).
+      - Adds: `POST /api/v1/auth/email/verify/confirm` (authenticated) with `{ code }`; response 204. The code is checked against the saved email; success sets `email_verified_at` = now.
+      - If another person already has this verified email: 409 `EMAIL_TAKEN`, the code is not lost for a second try with a different address.
+      - A code sent to an address that was changed since the request is refused with 400 `OTP_INVALID`.
+    acceptance: |
+      Scenario: AC-1 Confirm
+        When the right code is posted
+        Then the response is 204 and `email_verified_at` is set
+      Scenario: AC-2 Wrong or expired code
+        When the code is wrong or expired
+        Then the response is 400 `OTP_INVALID` or `OTP_EXPIRED` and the email stays unverified
+      Scenario: AC-3 Address changed after the request
+        When the person changes the email with PATCH after asking for a code and then posts the old code
+        Then the response is 400 `OTP_INVALID`
+      Scenario: AC-4 Address already verified by someone else
+        When another person holds the same verified email
+        Then the response is 409 `EMAIL_TAKEN` and nothing changes
+    abuse: |
+      Scenario: AB-1 Verifying someone else's address (spoofing)
+        When a person posts a code that was sent to another person
+        Then the response is 400 `OTP_INVALID`
+      Scenario: AB-2 No token (unauthenticated)
+        When the request has no valid token
+        Then the response is 401
+    implementation:
+      create: [tests/integration/auth/email-verify-confirm.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "confirmEmail(personId: string, code: string): Promise<void>"
+      types: []
+      errors: ["OTP_INVALID 400", "OTP_EXPIRED 400", "EMAIL_TAKEN 409", "UNAUTHORIZED 401"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-6.5.1: the code is bound to the saved address and the purpose."
+      - "v5.0.0-16.3.1: log event `email_verified` with the person id."
+    tests: |
+      confirm | integration | AC-1, C-03 | 204, email_verified_at set
+      bad code | integration | AC-2, C-33 | errors, unverified
+      changed address | integration | AC-3 | old code → OTP_INVALID
+      taken | integration | AC-4 | 409, unchanged
+      other person's code | security | AB-1, CWE-345 | OTP_INVALID
+      no token | security | AB-2, WSTG-ATHN-04 | 401
+    command: npx vitest run tests/integration/auth/email-verify-confirm.test.ts
+    out_of_scope:
+      - "Recovery address of administrators (ADM module)."
+  - id: AUTH-024
+    title: Person asks to change their phone number
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [AUTH-004, PER-005]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/person/person.repository.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [C-33, C-02, CM-07]
+    asvs: [v5.0.0-6.5.1, v5.0.0-6.6.1, v5.0.0-2.4.1]
+    story: As a customer, I want a code sent to my new number so that I can move my account to it.
+    context: |
+      - Exists: `issueCode`, `findByActivePhone`, `isCameroonMobile`.
+      - Adds: `POST /api/v1/auth/phone/change/request` (authenticated) with `{ new_phone_number }`; response 202 `{ sent: true, expires_in: 600 }`; a PHONE_CHANGE code goes by SMS to the new number.
+      - Refused: not a Cameroon mobile (400 `UNSUPPORTED_NUMBER`); the person's own active number (400 `SAME_NUMBER`); a number with any other active holder, registered or guest (409 `PHONE_TAKEN`, Q-031).
+    acceptance: |
+      Scenario: AC-1 Code sent
+        When a signed-in person posts a free Cameroon mobile number
+        Then the response is 202 and one PHONE_CHANGE code is queued to that number
+      Scenario Outline: AC-2 Refusals
+        When the new number is <case>
+        Then the response is <status> and nothing is queued
+        Examples:
+          | case                                  | status                  |
+          | their own active number               | 400 SAME_NUMBER         |
+          | held by another registered person     | 409 PHONE_TAKEN         |
+          | held by a guest                       | 409 PHONE_TAKEN         |
+          | +33612345678                          | 400 UNSUPPORTED_NUMBER  |
+          | missing                               | 400 VALIDATION_ERROR    |
+      Scenario: AC-3 Limits
+        When a fourth code is requested for one number within an hour
+        Then the response is 429 `OTP_RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 Probing which numbers are registered (information disclosure)
+        When a person tries many numbers
+        Then the 409 answer carries no name or id and the rate limits apply
+      Scenario: AB-2 No token (unauthenticated)
+        When the request has no valid token
+        Then the response is 401
+    implementation:
+      create: [tests/integration/auth/phone-change-request.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "requestPhoneChange(personId: string, input: { new_phone_number: string }, clientKeys: { ip?: string }): Promise<{ sent: true; expires_in: number }>"
+      types: []
+      errors: ["SAME_NUMBER 400", "PHONE_TAKEN 409", "UNSUPPORTED_NUMBER 400", "OTP_RATE_LIMITED 429"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-6.6.1: the code goes to the new number only, +237 only."
+      - "v5.0.0-2.4.1: per-number, device and IP caps apply."
+    tests: |
+      code sent | integration | AC-1, C-33 | queued to the new number
+      refusals | integration | AC-2, C-02 | each Examples row → status, no job
+      limits | integration | AC-3, CM-07 | 4th → 429
+      probing | security | AB-1, WSTG-IDNT-04 | 409 body has no name or id
+      no token | security | AB-2, WSTG-ATHN-04 | 401
+    command: npx vitest run tests/integration/auth/phone-change-request.test.ts
+    out_of_scope:
+      - "Confirming the code and moving the number (AUTH-025)."
+  - id: AUTH-025
+    title: Person moves their account to the new number
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [AUTH-024, PER-004]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
+    design_refs: [identite-et-organisation/person, identite-et-organisation/phonenumberchangelog]
+    constraints: [C-02, C-03, CM-04, C-32]
+    asvs: [v5.0.0-6.5.1, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: As a customer, I want to confirm the code so that my account moves to the new number and the change is recorded.
+    context: |
+      - Exists: PHONE_CHANGE codes (AUTH-024); `phone_number_change_logs` (PER-004); `people` checks (PER-003).
+      - Adds: `POST /api/v1/auth/phone/change/confirm` (authenticated) with `{ new_phone_number, code }`; response 204.
+      - In one transaction: recheck that no other person holds the number, set `phone_number` = new number and `phone_verified_at` = now, clear `released_phone_number` when it was set (a person whose number was taken adds a new one this way), and insert one journal row (`old_phone_number` = the previous active or released number, `new_phone_number`, `verified_at`, `changed_at`).
+      - Race for one number: the loser gets 409 `PHONE_TAKEN`. Logs `info` event `phone_changed` with the person id.
+    acceptance: |
+      Scenario: AC-1 Change
+        When the right code for the new number is posted
+        Then the response is 204, `phone_number` is the new number, `phone_verified_at` is now, and one journal row holds old and new numbers
+      Scenario: AC-2 After a taken number
+        Given the person's number was released to a new holder
+        When they confirm a code for a new number
+        Then `phone_number` is the new number, `released_phone_number` is empty and the journal's old number is the released one
+      Scenario: AC-3 Wrong, expired or foreign code
+        When the code is wrong, expired, or was sent to another number
+        Then the response is 400 `OTP_INVALID` or `OTP_EXPIRED` and nothing changes
+      Scenario: AC-4 Number taken meanwhile
+        When another person registers the number before the confirmation
+        Then the response is 409 `PHONE_TAKEN`, nothing changes and no journal row is written
+      Scenario: AC-5 Atomic
+        When the journal insert fails
+        Then the number is unchanged
+    abuse: |
+      Scenario: AB-1 Moving to a number without its SIM (spoofing)
+        When a signed-in person posts a number with no valid code
+        Then the number is unchanged
+      Scenario: AB-2 Changes are traceable (repudiation)
+        When a number changes
+        Then the application account cannot update or delete the journal row
+    implementation:
+      create: [tests/integration/auth/phone-change-confirm.test.ts]
+      modify: [src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/auth.service.ts
+      signatures:
+        - "confirmPhoneChange(personId: string, input: { new_phone_number: string; code: string }): Promise<void>"
+      types: []
+      errors: ["OTP_INVALID 400", "OTP_EXPIRED 400", "PHONE_TAKEN 409", "UNAUTHORIZED 401"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-6.5.1: the code is bound to the new number and the purpose."
+      - "v5.0.0-2.3.3: number update and journal row are one transaction."
+      - "v5.0.0-16.3.1: the change is logged."
+    tests: |
+      change | integration | AC-1, CM-04, C-02 | 204, new number, one journal row
+      after taken number | integration | AC-2, C-03 | released cleared, journal old = released
+      bad code | integration | AC-3 | errors, unchanged
+      taken meanwhile | integration | AC-4 | 409, no journal
+      atomic | integration | AC-5, CWE-362 | forced journal failure → number unchanged
+      no code | security | AB-1, CWE-287 | unchanged
+      journal immutable | security | AB-2, C-32, CWE-778 | `distribo_app` cannot update or delete the row
+    command: npx vitest run tests/integration/auth/phone-change-confirm.test.ts
+    out_of_scope:
+      - "Notifying other devices of the change."
+  - id: AUTH-026
+    title: Drop the bcrypt dependency
+    kind: technical
+    size: XS
+    risk: low
+    depends_on: [AUTH-002, AUTH-005, PER-002]
+    read_first: [package.json]
+    design_refs: [identite-et-organisation/person]
+    constraints: []
+    asvs: [v5.0.0-15.2.1, v5.0.0-11.4.2]
+    story: "Technical story: remove `bcrypt` and its types, now that codes and passwords use Argon2id, so that only one hashing library remains."
+    context: |
+      - Exists: `bcrypt` and `@types/bcrypt` in `package.json`; every use was replaced by `argon2` (AUTH-002, AUTH-005, PER-002, PER-001).
+      - Changes: `package.json` and the lockfile lose both packages.
+    acceptance: |
+      Scenario: AC-1 No bcrypt left
+        When the source, tests and scripts are searched for `bcrypt`
+        Then nothing is found and `package.json` does not list it
+      Scenario: AC-2 Build and suite pass
+        When `npm ci`, `npm run typecheck` and `npm test` run
+        Then all succeed
+    implementation:
+      create: [tests/unit/tooling/no-bcrypt.test.ts]
+      modify: [package.json]
+      pattern: tests/unit/tooling/quality-gates.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-15.2.1: one hashing library, fewer components to audit."
+    tests: |
+      no bcrypt | unit | AC-1 | read package.json and grep `src`, `tests`, `scripts` → no `bcrypt`
+      build and suite | unit | AC-2 | `npm run typecheck` exits 0
+    command: npx vitest run tests/unit/tooling/no-bcrypt.test.ts
+    out_of_scope:
+      - "Any other dependency."

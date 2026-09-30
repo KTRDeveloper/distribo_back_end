@@ -1,0 +1,2525 @@
+{
+  "aliases": {},
+  "elements": {
+    "constraint:AdminAction.action:enum": {
+      "hash": "014335cafea87c37",
+      "line": 796
+    },
+    "constraint:AdminAction:fk": {
+      "hash": "6a0414efdde6c77b",
+      "line": 795
+    },
+    "constraint:AdminAction:required": {
+      "hash": "22f7bfcb7022bee5",
+      "line": 792
+    },
+    "constraint:Administrator.role:enum": {
+      "hash": "31b4536c70c9cc29",
+      "line": 775
+    },
+    "constraint:Administrator:fk": {
+      "hash": "29879939671b3e91",
+      "line": 774
+    },
+    "constraint:Administrator:required": {
+      "hash": "f6ee0fd03c0dcb58",
+      "line": 771
+    },
+    "constraint:C-01": {
+      "hash": "05ef030c774a8f04",
+      "line": 1202
+    },
+    "constraint:C-02": {
+      "hash": "afc132932ca9bdd3",
+      "line": 1203
+    },
+    "constraint:C-03": {
+      "hash": "9c17fac1b090331f",
+      "line": 1204
+    },
+    "constraint:C-04": {
+      "hash": "12b7b416b52a2b42",
+      "line": 1205
+    },
+    "constraint:C-05": {
+      "hash": "971bbd77df2e7f66",
+      "line": 1206
+    },
+    "constraint:C-06": {
+      "hash": "75a91dce2fb7fbfb",
+      "line": 1207
+    },
+    "constraint:C-07": {
+      "hash": "e8971b7e1463596e",
+      "line": 1208
+    },
+    "constraint:C-08": {
+      "hash": "de4b9482cd456f58",
+      "line": 1209
+    },
+    "constraint:C-09": {
+      "hash": "d68614be133aee66",
+      "line": 1210
+    },
+    "constraint:C-10": {
+      "hash": "f07a62b9936b829a",
+      "line": 1211
+    },
+    "constraint:C-11": {
+      "hash": "d14ab5770b4138f6",
+      "line": 1212
+    },
+    "constraint:C-12": {
+      "hash": "e0b1b3e973b19d2e",
+      "line": 1213
+    },
+    "constraint:C-13": {
+      "hash": "551cbc236742ea64",
+      "line": 1214
+    },
+    "constraint:C-14": {
+      "hash": "e66e4a04dfa6a7e6",
+      "line": 1215
+    },
+    "constraint:C-15": {
+      "hash": "325e4b203f9c8e01",
+      "line": 1216
+    },
+    "constraint:C-16": {
+      "hash": "3d4b14ce2a88b786",
+      "line": 1217
+    },
+    "constraint:C-17": {
+      "hash": "834ad13808e0ecee",
+      "line": 1218
+    },
+    "constraint:C-18": {
+      "hash": "8af0dac115a9512d",
+      "line": 1219
+    },
+    "constraint:C-19": {
+      "hash": "054e3f12255b781f",
+      "line": 1220
+    },
+    "constraint:C-20": {
+      "hash": "e09b817a636b321a",
+      "line": 1221
+    },
+    "constraint:C-21": {
+      "hash": "02509b08d796b980",
+      "line": 1222
+    },
+    "constraint:C-22": {
+      "hash": "e4bc3e25f4f20ca1",
+      "line": 1223
+    },
+    "constraint:C-23": {
+      "hash": "52afaf8ff371249e",
+      "line": 1224
+    },
+    "constraint:C-24": {
+      "hash": "83d9968d5df9b6e6",
+      "line": 1225
+    },
+    "constraint:C-25": {
+      "hash": "6ecab99b91d45067",
+      "line": 1226
+    },
+    "constraint:C-26": {
+      "hash": "1b20d8913fac99e9",
+      "line": 1227
+    },
+    "constraint:C-27": {
+      "hash": "5dce94b6053c1705",
+      "line": 1228
+    },
+    "constraint:C-28": {
+      "hash": "73a10d946c747451",
+      "line": 1229
+    },
+    "constraint:C-29": {
+      "hash": "74183d7195b95b81",
+      "line": 1230
+    },
+    "constraint:C-30": {
+      "hash": "8006a37b20eee09b",
+      "line": 1231
+    },
+    "constraint:C-31": {
+      "hash": "232441df66d42f7a",
+      "line": 1232
+    },
+    "constraint:C-32": {
+      "hash": "e9ab1600829fc0e0",
+      "line": 1233
+    },
+    "constraint:C-33": {
+      "hash": "83d6142c5af24015",
+      "line": 1234
+    },
+    "constraint:C-34": {
+      "hash": "8624c5191d4e4496",
+      "line": 1235
+    },
+    "constraint:C-35": {
+      "hash": "ecc15458302209aa",
+      "line": 1236
+    },
+    "constraint:C-36": {
+      "hash": "8c4b5901fda9cf5d",
+      "line": 1237
+    },
+    "constraint:C-37": {
+      "hash": "c6f598a084d01119",
+      "line": 1238
+    },
+    "constraint:C-38": {
+      "hash": "f9017647e4367a20",
+      "line": 1239
+    },
+    "constraint:C-39": {
+      "hash": "6990f7be79819a19",
+      "line": 1240
+    },
+    "constraint:Collaboration.role:enum": {
+      "hash": "d47ea19ad903eeaa",
+      "line": 177
+    },
+    "constraint:Collaboration.status:enum": {
+      "hash": "ce58d8f1de474478",
+      "line": 178
+    },
+    "constraint:Collaboration:fk": {
+      "hash": "a98b420501b4b64b",
+      "line": 175
+    },
+    "constraint:Collaboration:required": {
+      "hash": "059c3074f41a6083",
+      "line": 172
+    },
+    "constraint:CreditLimitChange:fk": {
+      "hash": "bf1c0056cfa415e1",
+      "line": 386
+    },
+    "constraint:CreditLimitChange:required": {
+      "hash": "e09578b9d45006cb",
+      "line": 383
+    },
+    "constraint:CustomerPrice:fk": {
+      "hash": "3af0421f018ca783",
+      "line": 325
+    },
+    "constraint:CustomerPrice:required": {
+      "hash": "d0f7c09913279692",
+      "line": 322
+    },
+    "constraint:CustomerRelationship.ended_by_party:enum": {
+      "hash": "0afd778441aa4557",
+      "line": 223
+    },
+    "constraint:CustomerRelationship.status:enum": {
+      "hash": "7a4f13ec83c432ca",
+      "line": 222
+    },
+    "constraint:CustomerRelationship:fk": {
+      "hash": "ddcb7efb781979f3",
+      "line": 210
+    },
+    "constraint:CustomerRelationship:required": {
+      "hash": "638090c6f434cd58",
+      "line": 207
+    },
+    "constraint:CustomerRelationshipReassignment:fk": {
+      "hash": "b5a66cd691a67063",
+      "line": 352
+    },
+    "constraint:CustomerRelationshipReassignment:required": {
+      "hash": "471d6359f3abc401",
+      "line": 349
+    },
+    "constraint:Delivery:fk": {
+      "hash": "4888ac4c8e5c8e35",
+      "line": 568
+    },
+    "constraint:Delivery:required": {
+      "hash": "b02eb2617002a059",
+      "line": 565
+    },
+    "constraint:Device.platform:enum": {
+      "hash": "ff2b5b50eec41160",
+      "line": 1073
+    },
+    "constraint:Device:fk": {
+      "hash": "29879939671b3e91",
+      "line": 1072
+    },
+    "constraint:Device:required": {
+      "hash": "8efdfd8f84f4a2bf",
+      "line": 1069
+    },
+    "constraint:Expense:fk": {
+      "hash": "7f7f6d615cec6ad1",
+      "line": 679
+    },
+    "constraint:Expense:required": {
+      "hash": "5d5d911f97966d32",
+      "line": 676
+    },
+    "constraint:Handover:fk": {
+      "hash": "41372c89fbde8d2e",
+      "line": 703
+    },
+    "constraint:Handover:required": {
+      "hash": "ac63d2f5772ccaa8",
+      "line": 700
+    },
+    "constraint:LedgerEntry.balance_effect:generated": {
+      "hash": "e4a5bfe5b13900a0",
+      "line": 628
+    },
+    "constraint:LedgerEntry.kind:enum": {
+      "hash": "ead234b86b8f8952",
+      "line": 626
+    },
+    "constraint:LedgerEntry.mode:enum": {
+      "hash": "6e84a40d5025acd0",
+      "line": 629
+    },
+    "constraint:LedgerEntry:fk": {
+      "hash": "a20a3bfd57a74cbf",
+      "line": 624
+    },
+    "constraint:LedgerEntry:required": {
+      "hash": "6c9780e10367ae4e",
+      "line": 621
+    },
+    "constraint:Notification.read_status:enum": {
+      "hash": "e8e6f096456c9931",
+      "line": 822
+    },
+    "constraint:Notification:fk": {
+      "hash": "ec7b6fe27fdb8c90",
+      "line": 816
+    },
+    "constraint:Notification:required": {
+      "hash": "b50b770173cf67f4",
+      "line": 813
+    },
+    "constraint:Order.cancelled_by_party:enum": {
+      "hash": "149d3554aa3bbbd9",
+      "line": 454
+    },
+    "constraint:Order.placed_by_party:enum": {
+      "hash": "d6cb4b7340ac6bd2",
+      "line": 444
+    },
+    "constraint:Order.status:enum": {
+      "hash": "bd3a36d9199b37bc",
+      "line": 449
+    },
+    "constraint:Order:fk": {
+      "hash": "7442df52daa1e2f1",
+      "line": 443
+    },
+    "constraint:Order:required": {
+      "hash": "ac1ab1cb2671c41d",
+      "line": 440
+    },
+    "constraint:OrderLine:fk": {
+      "hash": "cb2515302960dd79",
+      "line": 534
+    },
+    "constraint:OrderLine:required": {
+      "hash": "13dd4a7d715a8034",
+      "line": 531
+    },
+    "constraint:Organization.status:enum": {
+      "hash": "11ac0ac6e84d8fa8",
+      "line": 145
+    },
+    "constraint:Organization:required": {
+      "hash": "235be052aa242252",
+      "line": 139
+    },
+    "constraint:OtpChallenge.channel:enum": {
+      "hash": "33ed701fd17ac2b5",
+      "line": 1049
+    },
+    "constraint:OtpChallenge.purpose:enum": {
+      "hash": "12797e8b9e11d87b",
+      "line": 1048
+    },
+    "constraint:OtpChallenge:fk": {
+      "hash": "29879939671b3e91",
+      "line": 1046
+    },
+    "constraint:OtpChallenge:required": {
+      "hash": "60982c4373ffd677",
+      "line": 1043
+    },
+    "constraint:Person.phone_number:unique": {
+      "hash": "a33d52ea73797bb3",
+      "line": 58
+    },
+    "constraint:Person.preferred_language:enum": {
+      "hash": "6f4db4ae14a191e7",
+      "line": 65
+    },
+    "constraint:Person.status:enum": {
+      "hash": "d04cb8a6b23f2340",
+      "line": 67
+    },
+    "constraint:Person:required": {
+      "hash": "11f7729466269083",
+      "line": 54
+    },
+    "constraint:PhoneNumberChangeLog:fk": {
+      "hash": "29879939671b3e91",
+      "line": 130
+    },
+    "constraint:PhoneNumberChangeLog:required": {
+      "hash": "78cf9b8e67ecd7be",
+      "line": 127
+    },
+    "constraint:Product.status:enum": {
+      "hash": "1623af032d194193",
+      "line": 412
+    },
+    "constraint:Product:fk": {
+      "hash": "d3b24c876b2eb4c6",
+      "line": 404
+    },
+    "constraint:Product:required": {
+      "hash": "c8722a4eb4c9c4e6",
+      "line": 401
+    },
+    "constraint:RefreshToken.revoked_reason:enum": {
+      "hash": "b3bda9e635280034",
+      "line": 1102
+    },
+    "constraint:RefreshToken.token_hash:unique": {
+      "hash": "b89bdb4be5c5427a",
+      "line": 1097
+    },
+    "constraint:RefreshToken:fk": {
+      "hash": "8ff443876ec3e0c9",
+      "line": 1095
+    },
+    "constraint:RefreshToken:required": {
+      "hash": "2df1718e97a3c58e",
+      "line": 1092
+    },
+    "constraint:Report.decision:enum": {
+      "hash": "bc11ca46e4c9a2da",
+      "line": 755
+    },
+    "constraint:Report.status:enum": {
+      "hash": "8c0941907f964aab",
+      "line": 753
+    },
+    "constraint:Report:fk": {
+      "hash": "18f7beff7fca654e",
+      "line": 748
+    },
+    "constraint:Report:required": {
+      "hash": "677fb02cf40e13e4",
+      "line": 745
+    },
+    "constraint:Subscription.status:enum": {
+      "hash": "02628772dcd9e80c",
+      "line": 731
+    },
+    "constraint:Subscription:fk": {
+      "hash": "d3b24c876b2eb4c6",
+      "line": 729
+    },
+    "constraint:Subscription:required": {
+      "hash": "77ea467bdcb6076f",
+      "line": 726
+    },
+    "constraint:SyncArchive:fk": {
+      "hash": "8ff443876ec3e0c9",
+      "line": 931
+    },
+    "constraint:SyncArchive:required": {
+      "hash": "12aaaa89b0bbf10f",
+      "line": 928
+    },
+    "entity:AdminAction": {
+      "anchor": "gouvernance-de-la-plateforme/adminaction",
+      "end": 809,
+      "hash": "c9217edb579def66",
+      "start": 789
+    },
+    "entity:Administrator": {
+      "anchor": "gouvernance-de-la-plateforme/administrator",
+      "end": 788,
+      "hash": "267768b934eacdb3",
+      "start": 768
+    },
+    "entity:Collaboration": {
+      "anchor": "identite-et-organisation/collaboration",
+      "end": 197,
+      "hash": "28c2e8f219bd7548",
+      "start": 162
+    },
+    "entity:CreditLimitChange": {
+      "anchor": "relations-commerciales/creditlimitchange",
+      "end": 395,
+      "hash": "e613cfb7d5628d51",
+      "start": 380
+    },
+    "entity:CustomerPrice": {
+      "anchor": "relations-commerciales/customerprice",
+      "end": 343,
+      "hash": "dc55a97c2d46b6ad",
+      "start": 319
+    },
+    "entity:CustomerRelationship": {
+      "anchor": "relations-commerciales/customerrelationship",
+      "end": 318,
+      "hash": "b9c63e8cc44cef17",
+      "start": 200
+    },
+    "entity:CustomerRelationshipReassignment": {
+      "anchor": "relations-commerciales/customerrelationshipreassignment",
+      "end": 379,
+      "hash": "7868e9737f2e6289",
+      "start": 344
+    },
+    "entity:Delivery": {
+      "anchor": "commandes-et-livraisons/delivery",
+      "end": 593,
+      "hash": "41c048dc2493ec9b",
+      "start": 562
+    },
+    "entity:Device": {
+      "anchor": "acces-et-securite/device",
+      "end": 1088,
+      "hash": "4b6112d1037392a4",
+      "start": 1066
+    },
+    "entity:Expense": {
+      "anchor": "finances/expense",
+      "end": 696,
+      "hash": "f62ff9558ffdf88e",
+      "start": 673
+    },
+    "entity:Handover": {
+      "anchor": "finances/handover",
+      "end": 722,
+      "hash": "aa89aedda45a32fc",
+      "start": 697
+    },
+    "entity:LedgerEntry": {
+      "anchor": "finances/ledgerentry",
+      "end": 672,
+      "hash": "c1cb24c453140ff8",
+      "start": 604
+    },
+    "entity:Notification": {
+      "anchor": "notifications/notification",
+      "end": 843,
+      "hash": "79c57e89c2845ec1",
+      "start": 812
+    },
+    "entity:Order": {
+      "anchor": "commandes-et-livraisons/order",
+      "end": 529,
+      "hash": "41e29286fc6781c6",
+      "start": 437
+    },
+    "entity:OrderLine": {
+      "anchor": "commandes-et-livraisons/orderline",
+      "end": 561,
+      "hash": "b5328234027306bb",
+      "start": 530
+    },
+    "entity:Organization": {
+      "anchor": "identite-et-organisation/organization",
+      "end": 161,
+      "hash": "1c1da4972790e207",
+      "start": 136
+    },
+    "entity:OtpChallenge": {
+      "anchor": "acces-et-securite/otpchallenge",
+      "end": 1065,
+      "hash": "6096791a3ab8e963",
+      "start": 1040
+    },
+    "entity:Person": {
+      "anchor": "identite-et-organisation/person",
+      "end": 123,
+      "hash": "186e6298ec714405",
+      "start": 47
+    },
+    "entity:PhoneNumberChangeLog": {
+      "anchor": "identite-et-organisation/phonenumberchangelog",
+      "end": 135,
+      "hash": "09ef7a53bca84255",
+      "start": 124
+    },
+    "entity:Product": {
+      "anchor": "catalogue/product",
+      "end": 434,
+      "hash": "04d1b851c7da6215",
+      "start": 398
+    },
+    "entity:RefreshToken": {
+      "anchor": "acces-et-securite/refreshtoken",
+      "end": 1107,
+      "hash": "bd018059bbf2ff0f",
+      "start": 1089
+    },
+    "entity:Report": {
+      "anchor": "moderation/report",
+      "end": 765,
+      "hash": "ac7e9695c69cffd8",
+      "start": 742
+    },
+    "entity:Subscription": {
+      "anchor": "finances/subscription",
+      "end": 739,
+      "hash": "5e318898d558c30f",
+      "start": 723
+    },
+    "entity:SyncArchive": {
+      "anchor": "synchronisation-hors-ligne/syncarchive",
+      "end": 939,
+      "hash": "a9b5bcf52b6df58d",
+      "start": 925
+    },
+    "field:AdminAction.action": {
+      "enum": [
+        "SUSPEND",
+        "REACTIVATE",
+        "DISMISS_REPORT",
+        "APPOINT_ADMIN",
+        "REMOVE_ADMIN",
+        "REPLAY_SYNC",
+        "RECOVER_2FA"
+      ],
+      "hash": "dde27ec10a7dcbc2",
+      "line": 796,
+      "type": "enum [SUSPEND / REACTIVATE / DISMISS_REPORT / APPOINT_ADMIN / REMOVE_ADMIN / REPLAY_SYNC / RECOVER_2FA]"
+    },
+    "field:AdminAction.administrator_id": {
+      "hash": "278afd1ad1614d14",
+      "line": 795,
+      "type": "FK → Administrator"
+    },
+    "field:AdminAction.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 794,
+      "type": "PK"
+    },
+    "field:AdminAction.occurred_at": {
+      "hash": "8bb0df295990a95e",
+      "line": 802,
+      "type": "datetime"
+    },
+    "field:AdminAction.reason": {
+      "hash": "8e9a14a93824de7d",
+      "line": 801,
+      "type": "text"
+    },
+    "field:AdminAction.report_id": {
+      "hash": "8da0cc6415093958",
+      "line": 799,
+      "type": "FK → Report, nullable"
+    },
+    "field:AdminAction.sync_archive_id": {
+      "hash": "f4e2999466298726",
+      "line": 800,
+      "type": "FK → SyncArchive, nullable"
+    },
+    "field:AdminAction.target_organization_id": {
+      "hash": "05b8902874b93387",
+      "line": 798,
+      "type": "FK → Organization, nullable"
+    },
+    "field:AdminAction.target_person_id": {
+      "hash": "60a082ab0f005493",
+      "line": 797,
+      "type": "FK → Person, nullable"
+    },
+    "field:Administrator.appointed_at": {
+      "hash": "d647fabcf17797b9",
+      "line": 778,
+      "type": "datetime"
+    },
+    "field:Administrator.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 773,
+      "type": "PK"
+    },
+    "field:Administrator.person_id": {
+      "hash": "1f445afd005c0b90",
+      "line": 774,
+      "type": "FK → Person"
+    },
+    "field:Administrator.recovery_email": {
+      "hash": "6f46bdc0fd26cdd1",
+      "line": 777,
+      "type": "string, nullable"
+    },
+    "field:Administrator.removed_at": {
+      "hash": "ba99713ac4cba1cc",
+      "line": 779,
+      "type": "datetime, nullable"
+    },
+    "field:Administrator.role": {
+      "enum": [
+        "SUPER_ADMIN",
+        "MODERATOR"
+      ],
+      "hash": "5db2e7da18980365",
+      "line": 775,
+      "type": "enum [SUPER_ADMIN / MODERATOR]"
+    },
+    "field:Administrator.totp_secret": {
+      "hash": "1d6df1a0da13f2df",
+      "line": 776,
+      "type": "string"
+    },
+    "field:Collaboration.accepted_at": {
+      "hash": "6e0e9b6952ca3392",
+      "line": 181,
+      "type": "datetime, nullable"
+    },
+    "field:Collaboration.amount_held": {
+      "hash": "839be39c54b820db",
+      "line": 182,
+      "type": "bigint"
+    },
+    "field:Collaboration.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 174,
+      "type": "PK"
+    },
+    "field:Collaboration.invited_at": {
+      "hash": "ae91eb0eaaa6398b",
+      "line": 180,
+      "type": "datetime"
+    },
+    "field:Collaboration.is_public_contact": {
+      "hash": "a06043fc6c46230b",
+      "line": 179,
+      "type": "boolean"
+    },
+    "field:Collaboration.organization_id": {
+      "hash": "41537f7300f5c88d",
+      "line": 176,
+      "type": "FK → Organization"
+    },
+    "field:Collaboration.person_id": {
+      "hash": "b89edf018484f286",
+      "line": 175,
+      "type": "FK → Person"
+    },
+    "field:Collaboration.role": {
+      "enum": [
+        "OWNER",
+        "MANAGER",
+        "SELLER",
+        "DRIVER"
+      ],
+      "hash": "3da47b72b4fd8478",
+      "line": 177,
+      "type": "enum [OWNER / MANAGER / SELLER / DRIVER]"
+    },
+    "field:Collaboration.status": {
+      "enum": [
+        "INVITED",
+        "ACTIVE",
+        "REVOKED"
+      ],
+      "hash": "20d4f99d022a9b26",
+      "line": 178,
+      "type": "enum [INVITED / ACTIVE / REVOKED]"
+    },
+    "field:CreditLimitChange.customer_relationship_id": {
+      "hash": "2d73d53e02c9ce31",
+      "line": 386,
+      "type": "FK → CustomerRelationship"
+    },
+    "field:CreditLimitChange.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 385,
+      "type": "PK"
+    },
+    "field:CreditLimitChange.new_limit": {
+      "hash": "de3af840456c40d4",
+      "line": 388,
+      "type": "bigint, nullable"
+    },
+    "field:CreditLimitChange.previous_limit": {
+      "hash": "fd2ac97554704642",
+      "line": 387,
+      "type": "bigint, nullable"
+    },
+    "field:CreditLimitChange.set_at": {
+      "hash": "dd9b202fd57f9edb",
+      "line": 390,
+      "type": "datetime"
+    },
+    "field:CreditLimitChange.set_by_id": {
+      "hash": "c90a71f82cd460bb",
+      "line": 389,
+      "type": "FK → Person"
+    },
+    "field:CustomerPrice.customer_relationship_id": {
+      "hash": "7e15ef0062297157",
+      "line": 325,
+      "type": "FK → CustomerRelationship"
+    },
+    "field:CustomerPrice.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 324,
+      "type": "PK"
+    },
+    "field:CustomerPrice.price": {
+      "hash": "1d133f9d36fcc4c0",
+      "line": 327,
+      "type": "bigint"
+    },
+    "field:CustomerPrice.product_id": {
+      "hash": "3e61f6d4ad799f81",
+      "line": 326,
+      "type": "FK → Product"
+    },
+    "field:CustomerPrice.set_at": {
+      "hash": "5f199140363f5baf",
+      "line": 329,
+      "type": "datetime"
+    },
+    "field:CustomerPrice.set_by_id": {
+      "hash": "33e2637898fbc140",
+      "line": 328,
+      "type": "FK → Person"
+    },
+    "field:CustomerRelationship.balance": {
+      "hash": "09e7eb89fcbbea2e",
+      "line": 221,
+      "type": "bigint"
+    },
+    "field:CustomerRelationship.created_at": {
+      "hash": "896655a15fdc702a",
+      "line": 226,
+      "type": "datetime"
+    },
+    "field:CustomerRelationship.created_by_id": {
+      "hash": "c1a4cf60bb0487d6",
+      "line": 225,
+      "type": "FK → Person"
+    },
+    "field:CustomerRelationship.credit_limit": {
+      "hash": "20f4b5bbe83a1bec",
+      "line": 218,
+      "type": "bigint, nullable"
+    },
+    "field:CustomerRelationship.credit_limit_set_at": {
+      "hash": "5b35bab338ca6eb3",
+      "line": 220,
+      "type": "datetime, nullable"
+    },
+    "field:CustomerRelationship.credit_limit_set_by_id": {
+      "hash": "aea1c28e9a2ace6a",
+      "line": 219,
+      "type": "FK → Person, nullable"
+    },
+    "field:CustomerRelationship.customer_label": {
+      "hash": "b631ff28ffc5fd41",
+      "line": 215,
+      "type": "string, nullable"
+    },
+    "field:CustomerRelationship.customer_organization_id": {
+      "hash": "166bf55115f678db",
+      "line": 213,
+      "type": "FK → Organization, nullable"
+    },
+    "field:CustomerRelationship.customer_person_id": {
+      "hash": "240fb1a866a91459",
+      "line": 212,
+      "type": "FK → Person, nullable"
+    },
+    "field:CustomerRelationship.customer_phone_number": {
+      "hash": "ce46f1808bd8cab5",
+      "line": 214,
+      "type": "string, nullable"
+    },
+    "field:CustomerRelationship.delivery_address": {
+      "hash": "acd09ebc2b7247bd",
+      "line": 217,
+      "type": "string, nullable"
+    },
+    "field:CustomerRelationship.ended_by_party": {
+      "enum": [
+        "CUSTOMER",
+        "SUPPLIER"
+      ],
+      "hash": "8d15496fec39755b",
+      "line": 223,
+      "type": "enum [CUSTOMER / SUPPLIER], nullable"
+    },
+    "field:CustomerRelationship.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 209,
+      "type": "PK"
+    },
+    "field:CustomerRelationship.merged_into_id": {
+      "hash": "27d91456e7d0b4e0",
+      "line": 227,
+      "type": "FK → CustomerRelationship, nullable"
+    },
+    "field:CustomerRelationship.status": {
+      "enum": [
+        "PENDING",
+        "ACTIVE",
+        "ENDED"
+      ],
+      "hash": "fcf121871dfd692c",
+      "line": 222,
+      "type": "enum [PENDING / ACTIVE / ENDED]"
+    },
+    "field:CustomerRelationship.supplier_label": {
+      "hash": "e801407ed46ac7ed",
+      "line": 216,
+      "type": "string, nullable"
+    },
+    "field:CustomerRelationship.supplier_notes": {
+      "hash": "d687c2c4b253ebb9",
+      "line": 224,
+      "type": "text, nullable"
+    },
+    "field:CustomerRelationship.supplier_organization_id": {
+      "hash": "a7e24fa37167899b",
+      "line": 210,
+      "type": "FK → Organization, nullable"
+    },
+    "field:CustomerRelationship.supplier_person_id": {
+      "hash": "b4544b3a7c118ad3",
+      "line": 211,
+      "type": "FK → Person, nullable"
+    },
+    "field:CustomerRelationshipReassignment.customer_relationship_id": {
+      "hash": "2d73d53e02c9ce31",
+      "line": 352,
+      "type": "FK → CustomerRelationship"
+    },
+    "field:CustomerRelationshipReassignment.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 351,
+      "type": "PK"
+    },
+    "field:CustomerRelationshipReassignment.new_person_id": {
+      "hash": "75e0b712d2febf4c",
+      "line": 354,
+      "type": "FK → Person"
+    },
+    "field:CustomerRelationshipReassignment.previous_person_id": {
+      "hash": "9a3bee50b2e61cf7",
+      "line": 353,
+      "type": "FK → Person"
+    },
+    "field:CustomerRelationshipReassignment.reason": {
+      "hash": "ccd9058644b4399a",
+      "line": 356,
+      "type": "text, nullable"
+    },
+    "field:CustomerRelationshipReassignment.reassigned_at": {
+      "hash": "febd1ee43bf19bba",
+      "line": 357,
+      "type": "datetime"
+    },
+    "field:CustomerRelationshipReassignment.reassigned_by_id": {
+      "hash": "d35945fd07b69c32",
+      "line": 355,
+      "type": "FK → Person"
+    },
+    "field:Delivery.arrived_at": {
+      "hash": "593b11ae0c3a538f",
+      "line": 571,
+      "type": "datetime, nullable"
+    },
+    "field:Delivery.assigned_to_id": {
+      "hash": "ca323fd0ca587ee2",
+      "line": 569,
+      "type": "FK → Person"
+    },
+    "field:Delivery.departed_at": {
+      "hash": "fe8691892d3f56d4",
+      "line": 570,
+      "type": "datetime, nullable"
+    },
+    "field:Delivery.failed_at": {
+      "hash": "15c04c3285039bd7",
+      "line": 572,
+      "type": "datetime, nullable"
+    },
+    "field:Delivery.failure_reason": {
+      "hash": "31c3a2ec11fb4b85",
+      "line": 573,
+      "type": "string, nullable"
+    },
+    "field:Delivery.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 567,
+      "type": "PK"
+    },
+    "field:Delivery.order_id": {
+      "hash": "0d2a623c0474cc57",
+      "line": 568,
+      "type": "FK → Order"
+    },
+    "field:Delivery.sync_issue": {
+      "hash": "5f43b58dfeb19f88",
+      "line": 574,
+      "type": "string, nullable"
+    },
+    "field:Device.app_version": {
+      "hash": "6dc04b8e16b11497",
+      "line": 1076,
+      "type": "string"
+    },
+    "field:Device.created_at": {
+      "hash": "ad3776cf2ef277db",
+      "line": 1080,
+      "type": "datetime"
+    },
+    "field:Device.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 1071,
+      "type": "PK"
+    },
+    "field:Device.integrity_verdict": {
+      "hash": "12e9097a73e3526a",
+      "line": 1079,
+      "type": "string, nullable"
+    },
+    "field:Device.last_synced_at": {
+      "hash": "4a804e4ff7b3c53b",
+      "line": 1077,
+      "type": "datetime, nullable"
+    },
+    "field:Device.model": {
+      "hash": "308c459e6e461c55",
+      "line": 1074,
+      "type": "string, nullable"
+    },
+    "field:Device.person_id": {
+      "hash": "87fb9e9843997140",
+      "line": 1072,
+      "type": "FK → Person"
+    },
+    "field:Device.platform": {
+      "enum": [
+        "ANDROID",
+        "IOS"
+      ],
+      "hash": "329df50b59517581",
+      "line": 1073,
+      "type": "enum [ANDROID / IOS]"
+    },
+    "field:Device.push_token": {
+      "hash": "dc76d2bbc0d9506f",
+      "line": 1075,
+      "type": "string, nullable"
+    },
+    "field:Device.revoked_at": {
+      "hash": "9cc378542f1c1a56",
+      "line": 1081,
+      "type": "datetime, nullable"
+    },
+    "field:Device.scope_version_seen": {
+      "hash": "61810254fe0ac255",
+      "line": 1078,
+      "type": "int"
+    },
+    "field:Expense.amount": {
+      "hash": "7a8f37a3fc90dda9",
+      "line": 681,
+      "type": "bigint"
+    },
+    "field:Expense.cancelled_at": {
+      "hash": "9d7c94542edca55f",
+      "line": 686,
+      "type": "datetime, nullable"
+    },
+    "field:Expense.cancelled_by_id": {
+      "hash": "60dd2fed1b65e0dc",
+      "line": 687,
+      "type": "FK → Person, nullable"
+    },
+    "field:Expense.category": {
+      "hash": "0a1b4a7ae974f7ec",
+      "line": 682,
+      "type": "string, nullable"
+    },
+    "field:Expense.description": {
+      "hash": "e06770362e011e54",
+      "line": 683,
+      "type": "text, nullable"
+    },
+    "field:Expense.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 678,
+      "type": "PK"
+    },
+    "field:Expense.occurred_at": {
+      "hash": "fcd2572f970a5e39",
+      "line": 685,
+      "type": "datetime"
+    },
+    "field:Expense.organization_id": {
+      "hash": "41537f7300f5c88d",
+      "line": 679,
+      "type": "FK → Organization"
+    },
+    "field:Expense.paid_by_id": {
+      "hash": "d7c4c2f7468e4167",
+      "line": 680,
+      "type": "FK → Person"
+    },
+    "field:Expense.recorded_by_id": {
+      "hash": "b23c9b69d0e48d8d",
+      "line": 684,
+      "type": "FK → Person"
+    },
+    "field:Handover.amount": {
+      "hash": "7a8f37a3fc90dda9",
+      "line": 706,
+      "type": "bigint"
+    },
+    "field:Handover.cancelled_at": {
+      "hash": "f6a841d89f6a6dbc",
+      "line": 708,
+      "type": "datetime, nullable"
+    },
+    "field:Handover.cancelled_by_id": {
+      "hash": "60dd2fed1b65e0dc",
+      "line": 709,
+      "type": "FK → Person, nullable"
+    },
+    "field:Handover.from_person_id": {
+      "hash": "c142a949f7f10290",
+      "line": 704,
+      "type": "FK → Person"
+    },
+    "field:Handover.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 702,
+      "type": "PK"
+    },
+    "field:Handover.occurred_at": {
+      "hash": "80d8ddc067c7a8c4",
+      "line": 707,
+      "type": "datetime"
+    },
+    "field:Handover.organization_id": {
+      "hash": "41537f7300f5c88d",
+      "line": 703,
+      "type": "FK → Organization"
+    },
+    "field:Handover.to_person_id": {
+      "hash": "703e44b26571afcb",
+      "line": 705,
+      "type": "FK → Person"
+    },
+    "field:LedgerEntry.amount": {
+      "hash": "a95c7d69b4fdeb36",
+      "line": 627,
+      "type": "bigint"
+    },
+    "field:LedgerEntry.balance_effect": {
+      "hash": "adcb483ed09ef867",
+      "line": 628,
+      "type": "bigint, calculé par la base"
+    },
+    "field:LedgerEntry.customer_relationship_id": {
+      "hash": "2d73d53e02c9ce31",
+      "line": 624,
+      "type": "FK → CustomerRelationship"
+    },
+    "field:LedgerEntry.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 623,
+      "type": "PK"
+    },
+    "field:LedgerEntry.kind": {
+      "enum": [
+        "SALE",
+        "PAYMENT",
+        "REFUND",
+        "CREDIT_NOTE",
+        "OPENING_BALANCE"
+      ],
+      "hash": "da64cb8e920d7031",
+      "line": 626,
+      "type": "enum [SALE / PAYMENT / REFUND / CREDIT_NOTE / OPENING_BALANCE]"
+    },
+    "field:LedgerEntry.mode": {
+      "enum": [
+        "CASH",
+        "MOBILE_MONEY"
+      ],
+      "hash": "479f1d8dbc4d5906",
+      "line": 629,
+      "type": "enum [CASH / MOBILE_MONEY], nullable"
+    },
+    "field:LedgerEntry.note": {
+      "hash": "538f33ba43e46754",
+      "line": 633,
+      "type": "text, nullable"
+    },
+    "field:LedgerEntry.occurred_at": {
+      "hash": "2fce4f64c1c13216",
+      "line": 634,
+      "type": "datetime"
+    },
+    "field:LedgerEntry.order_id": {
+      "hash": "84313f2fde6a2652",
+      "line": 625,
+      "type": "FK → Order, nullable"
+    },
+    "field:LedgerEntry.recorded_by_id": {
+      "hash": "85cc18add3a124fb",
+      "line": 632,
+      "type": "FK → Person"
+    },
+    "field:LedgerEntry.reverses_entry_id": {
+      "hash": "a37753ff199c571b",
+      "line": 631,
+      "type": "FK → LedgerEntry, nullable"
+    },
+    "field:LedgerEntry.transaction_reference": {
+      "hash": "a357006f89ffb559",
+      "line": 630,
+      "type": "string, nullable"
+    },
+    "field:Notification.content": {
+      "hash": "5509c84107921374",
+      "line": 818,
+      "type": "text"
+    },
+    "field:Notification.created_at": {
+      "hash": "9e86e3f41fc9517c",
+      "line": 824,
+      "type": "datetime"
+    },
+    "field:Notification.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 815,
+      "type": "PK"
+    },
+    "field:Notification.organization_id": {
+      "hash": "bde67e5b3c803735",
+      "line": 817,
+      "type": "FK → Organization, nullable"
+    },
+    "field:Notification.pushed_at": {
+      "hash": "fe2d9406f59e5ef7",
+      "line": 823,
+      "type": "datetime, nullable"
+    },
+    "field:Notification.read_status": {
+      "enum": [
+        "UNREAD",
+        "READ"
+      ],
+      "hash": "8315fea74cc5d384",
+      "line": 822,
+      "type": "enum [UNREAD / READ]"
+    },
+    "field:Notification.recipient_id": {
+      "hash": "14991e16028f3ac2",
+      "line": 816,
+      "type": "FK → Person"
+    },
+    "field:Notification.related_entity_id": {
+      "hash": "57fc1aecb7fdeca2",
+      "line": 821,
+      "type": "FK, nullable, polymorphe"
+    },
+    "field:Notification.related_entity_type": {
+      "hash": "697be83f1668d3fc",
+      "line": 820,
+      "type": "string, nullable"
+    },
+    "field:Notification.source_event": {
+      "hash": "60b3788d60cf476f",
+      "line": 819,
+      "type": "string"
+    },
+    "field:Order.cancellation_reason": {
+      "hash": "6899d7711c39a142",
+      "line": 457,
+      "type": "string, nullable"
+    },
+    "field:Order.cancelled_at": {
+      "hash": "7c02b628a30d85b8",
+      "line": 456,
+      "type": "datetime, nullable"
+    },
+    "field:Order.cancelled_by_id": {
+      "hash": "69ea884a7bb83a49",
+      "line": 455,
+      "type": "FK → Person, nullable"
+    },
+    "field:Order.cancelled_by_party": {
+      "enum": [
+        "CUSTOMER",
+        "SUPPLIER"
+      ],
+      "hash": "1232e88aed25f465",
+      "line": 454,
+      "type": "enum [CUSTOMER / SUPPLIER], nullable"
+    },
+    "field:Order.created_at": {
+      "hash": "896655a15fdc702a",
+      "line": 452,
+      "type": "datetime"
+    },
+    "field:Order.customer_note": {
+      "hash": "d9d41b7b5f94e86a",
+      "line": 459,
+      "type": "string, nullable"
+    },
+    "field:Order.customer_relationship_id": {
+      "hash": "8249cb806403ba4a",
+      "line": 443,
+      "type": "FK → CustomerRelationship"
+    },
+    "field:Order.delivered_at": {
+      "hash": "9adb3732f90c1c8a",
+      "line": 450,
+      "type": "datetime, nullable"
+    },
+    "field:Order.delivered_by_id": {
+      "hash": "d7b998ad4db9a590",
+      "line": 451,
+      "type": "FK → Person, nullable"
+    },
+    "field:Order.delivery_address_applied": {
+      "hash": "7f0de382f4a35440",
+      "line": 446,
+      "type": "string, nullable"
+    },
+    "field:Order.delivery_cost": {
+      "hash": "165e5a8adb401892",
+      "line": 448,
+      "type": "bigint"
+    },
+    "field:Order.desired_delivery_date": {
+      "hash": "e634ef90d2fd97a7",
+      "line": 453,
+      "type": "date, nullable"
+    },
+    "field:Order.entered_by_id": {
+      "hash": "753baeac9cb29ca0",
+      "line": 445,
+      "type": "FK → Person"
+    },
+    "field:Order.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 442,
+      "type": "PK"
+    },
+    "field:Order.parent_order_id": {
+      "hash": "673b116e5421637c",
+      "line": 458,
+      "type": "FK → Order, nullable"
+    },
+    "field:Order.placed_by_party": {
+      "enum": [
+        "CUSTOMER",
+        "SUPPLIER"
+      ],
+      "hash": "5f61d333eb217f4c",
+      "line": 444,
+      "type": "enum [CUSTOMER / SUPPLIER]"
+    },
+    "field:Order.status": {
+      "enum": [
+        "PENDING",
+        "CONFIRMED",
+        "IN_DELIVERY",
+        "DELIVERED",
+        "CANCELLED"
+      ],
+      "hash": "2e133d102b5d863e",
+      "line": 449,
+      "type": "enum [PENDING / CONFIRMED / IN_DELIVERY / DELIVERED / CANCELLED]"
+    },
+    "field:Order.supplier_note": {
+      "hash": "31cfac06e9d90601",
+      "line": 460,
+      "type": "string, nullable"
+    },
+    "field:Order.sync_issue": {
+      "hash": "e971286f4010b24e",
+      "line": 461,
+      "type": "string, nullable"
+    },
+    "field:Order.total_amount": {
+      "hash": "ce82f876e12dc93a",
+      "line": 447,
+      "type": "bigint"
+    },
+    "field:OrderLine.amount": {
+      "hash": "c53547bcf5cfafb4",
+      "line": 541,
+      "type": "bigint"
+    },
+    "field:OrderLine.delivered_quantity": {
+      "hash": "db049754e1d03574",
+      "line": 538,
+      "type": "decimal (3 décimales), nullable"
+    },
+    "field:OrderLine.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 533,
+      "type": "PK"
+    },
+    "field:OrderLine.label_applied": {
+      "hash": "484eb5afa47df8e1",
+      "line": 536,
+      "type": "string"
+    },
+    "field:OrderLine.order_id": {
+      "hash": "0d2a623c0474cc57",
+      "line": 534,
+      "type": "FK → Order"
+    },
+    "field:OrderLine.price_set_at": {
+      "hash": "aa95e66161767326",
+      "line": 543,
+      "type": "datetime, nullable"
+    },
+    "field:OrderLine.price_set_by_id": {
+      "hash": "5c79afd4ce563d92",
+      "line": 542,
+      "type": "FK → Person, nullable"
+    },
+    "field:OrderLine.product_id": {
+      "hash": "3e61f6d4ad799f81",
+      "line": 535,
+      "type": "FK → Product"
+    },
+    "field:OrderLine.quantity": {
+      "hash": "f7981c6b5e84c0a5",
+      "line": 537,
+      "type": "decimal (3 décimales)"
+    },
+    "field:OrderLine.reference_price": {
+      "hash": "856709a3bb3b08f6",
+      "line": 539,
+      "type": "bigint"
+    },
+    "field:OrderLine.unit_price_applied": {
+      "hash": "4f9b395ce3f863a3",
+      "line": 540,
+      "type": "bigint"
+    },
+    "field:Organization.created_at": {
+      "hash": "896655a15fdc702a",
+      "line": 146,
+      "type": "datetime"
+    },
+    "field:Organization.description": {
+      "hash": "e8572fc894dddc9f",
+      "line": 143,
+      "type": "text, nullable"
+    },
+    "field:Organization.email": {
+      "hash": "5cc1f5cad7ca761d",
+      "line": 144,
+      "type": "string, nullable"
+    },
+    "field:Organization.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 141,
+      "type": "PK"
+    },
+    "field:Organization.name": {
+      "hash": "874d4d34276cf480",
+      "line": 142,
+      "type": "string"
+    },
+    "field:Organization.status": {
+      "enum": [
+        "ACTIVE",
+        "SUSPENDED",
+        "CLOSED"
+      ],
+      "hash": "c8c8164c28ae5253",
+      "line": 145,
+      "type": "enum [ACTIVE / SUSPENDED / CLOSED]"
+    },
+    "field:OtpChallenge.attempts": {
+      "hash": "0069c6e9401eb45a",
+      "line": 1052,
+      "type": "int"
+    },
+    "field:OtpChallenge.channel": {
+      "enum": [
+        "SMS",
+        "EMAIL"
+      ],
+      "hash": "374a20a353b72031",
+      "line": 1049,
+      "type": "enum [SMS / EMAIL]"
+    },
+    "field:OtpChallenge.code_hash": {
+      "hash": "1ca0aab501ec738a",
+      "line": 1050,
+      "type": "string"
+    },
+    "field:OtpChallenge.consumed_at": {
+      "hash": "1711d1c3432d590c",
+      "line": 1053,
+      "type": "datetime, nullable"
+    },
+    "field:OtpChallenge.created_at": {
+      "hash": "896655a15fdc702a",
+      "line": 1054,
+      "type": "datetime"
+    },
+    "field:OtpChallenge.expires_at": {
+      "hash": "d556a1541a1ecca6",
+      "line": 1051,
+      "type": "datetime"
+    },
+    "field:OtpChallenge.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 1045,
+      "type": "PK"
+    },
+    "field:OtpChallenge.person_id": {
+      "hash": "c9ee338f09f8ac8f",
+      "line": 1046,
+      "type": "FK → Person, nullable"
+    },
+    "field:OtpChallenge.purpose": {
+      "enum": [
+        "REGISTRATION",
+        "LOGIN",
+        "PASSWORD_RESET",
+        "PHONE_CHANGE",
+        "EMAIL_VERIFICATION",
+        "TOTP_RECOVERY"
+      ],
+      "hash": "054aca9897574264",
+      "line": 1048,
+      "type": "enum [REGISTRATION / LOGIN / PASSWORD_RESET / PHONE_CHANGE / EMAIL_VERIFICATION / TOTP_RECOVERY]"
+    },
+    "field:OtpChallenge.target": {
+      "hash": "cea22b67161164c6",
+      "line": 1047,
+      "type": "string"
+    },
+    "field:Person.anonymized_at": {
+      "hash": "72e34d583a1470cd",
+      "line": 68,
+      "type": "datetime, nullable"
+    },
+    "field:Person.created_at": {
+      "hash": "896655a15fdc702a",
+      "line": 66,
+      "type": "datetime"
+    },
+    "field:Person.email": {
+      "hash": "b5fca323d03fb2e1",
+      "line": 61,
+      "type": "string, nullable"
+    },
+    "field:Person.email_verified_at": {
+      "hash": "54f69f82c7aebeac",
+      "line": 62,
+      "type": "datetime, nullable"
+    },
+    "field:Person.full_name": {
+      "hash": "33ca69e91189e41f",
+      "line": 57,
+      "type": "string, nullable"
+    },
+    "field:Person.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 56,
+      "type": "PK"
+    },
+    "field:Person.password_hash": {
+      "hash": "2729f6200351f8be",
+      "line": 63,
+      "type": "string, nullable"
+    },
+    "field:Person.phone_number": {
+      "hash": "8c93cab8a69bd8b1",
+      "line": 58,
+      "type": "string, nullable, unique"
+    },
+    "field:Person.phone_verified_at": {
+      "hash": "575b0f956c324b26",
+      "line": 60,
+      "type": "datetime, nullable"
+    },
+    "field:Person.preferred_language": {
+      "enum": [
+        "FR",
+        "EN"
+      ],
+      "hash": "1f0a8fb04255ddef",
+      "line": 65,
+      "type": "enum [FR / EN], nullable"
+    },
+    "field:Person.registered_at": {
+      "hash": "6844ca8f1748867e",
+      "line": 64,
+      "type": "datetime, nullable"
+    },
+    "field:Person.released_phone_number": {
+      "hash": "f6766825f5e63fc8",
+      "line": 59,
+      "type": "string, nullable"
+    },
+    "field:Person.scope_version": {
+      "hash": "45f413810284bc0e",
+      "line": 69,
+      "type": "int"
+    },
+    "field:Person.status": {
+      "enum": [
+        "ACTIVE",
+        "SUSPENDED",
+        "ANONYMIZED"
+      ],
+      "hash": "0007c367eedd7cbf",
+      "line": 67,
+      "type": "enum [ACTIVE / SUSPENDED / ANONYMIZED]"
+    },
+    "field:PhoneNumberChangeLog.changed_at": {
+      "hash": "0b1c0c101410d6fe",
+      "line": 134,
+      "type": "datetime"
+    },
+    "field:PhoneNumberChangeLog.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 129,
+      "type": "PK"
+    },
+    "field:PhoneNumberChangeLog.new_phone_number": {
+      "hash": "2733e15318414bf0",
+      "line": 132,
+      "type": "string"
+    },
+    "field:PhoneNumberChangeLog.old_phone_number": {
+      "hash": "874b66d8131af68b",
+      "line": 131,
+      "type": "string"
+    },
+    "field:PhoneNumberChangeLog.person_id": {
+      "hash": "87fb9e9843997140",
+      "line": 130,
+      "type": "FK → Person"
+    },
+    "field:PhoneNumberChangeLog.verified_at": {
+      "hash": "002dd59cef65723e",
+      "line": 133,
+      "type": "datetime"
+    },
+    "field:Product.category": {
+      "hash": "50ae29feff78735d",
+      "line": 411,
+      "type": "string, nullable"
+    },
+    "field:Product.created_at": {
+      "hash": "896655a15fdc702a",
+      "line": 413,
+      "type": "datetime"
+    },
+    "field:Product.description": {
+      "hash": "6b7d2c2aa24228eb",
+      "line": 410,
+      "type": "text, nullable"
+    },
+    "field:Product.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 403,
+      "type": "PK"
+    },
+    "field:Product.min_order_quantity": {
+      "hash": "dcd9609cbec3fe22",
+      "line": 409,
+      "type": "decimal (3 décimales), nullable"
+    },
+    "field:Product.name": {
+      "hash": "127764896459a68f",
+      "line": 405,
+      "type": "string"
+    },
+    "field:Product.organization_id": {
+      "hash": "f2632af1a3983452",
+      "line": 404,
+      "type": "FK → Organization"
+    },
+    "field:Product.price": {
+      "hash": "bcbfbae129446cad",
+      "line": 407,
+      "type": "bigint"
+    },
+    "field:Product.price_updated_at": {
+      "hash": "b719122f9df78b0a",
+      "line": 408,
+      "type": "datetime"
+    },
+    "field:Product.status": {
+      "enum": [
+        "ACTIVE",
+        "INACTIVE"
+      ],
+      "hash": "5c8da4ef8d66f391",
+      "line": 412,
+      "type": "enum [ACTIVE / INACTIVE]"
+    },
+    "field:Product.unit": {
+      "hash": "ef812e709114fe98",
+      "line": 406,
+      "type": "string"
+    },
+    "field:RefreshToken.created_at": {
+      "hash": "896655a15fdc702a",
+      "line": 1099,
+      "type": "datetime"
+    },
+    "field:RefreshToken.device_id": {
+      "hash": "68a4d6f257f19c47",
+      "line": 1096,
+      "type": "FK → Device"
+    },
+    "field:RefreshToken.expires_at": {
+      "hash": "c31ae39a97dc58a7",
+      "line": 1098,
+      "type": "datetime"
+    },
+    "field:RefreshToken.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 1094,
+      "type": "PK"
+    },
+    "field:RefreshToken.person_id": {
+      "hash": "87fb9e9843997140",
+      "line": 1095,
+      "type": "FK → Person"
+    },
+    "field:RefreshToken.revoked_at": {
+      "hash": "aca86b60f3fd34c2",
+      "line": 1101,
+      "type": "datetime, nullable"
+    },
+    "field:RefreshToken.revoked_reason": {
+      "enum": [
+        "LOGOUT",
+        "DEVICE_REMOVED",
+        "LOGOUT_ALL",
+        "REUSE_DETECTED",
+        "PASSWORD_RESET",
+        "ACCOUNT_SUSPENDED"
+      ],
+      "hash": "724f1a6fc37cb3ef",
+      "line": 1102,
+      "type": "enum [LOGOUT / DEVICE_REMOVED / LOGOUT_ALL / REUSE_DETECTED / PASSWORD_RESET / ACCOUNT_SUSPENDED], nullable"
+    },
+    "field:RefreshToken.rotated_at": {
+      "hash": "72f3e868e21156de",
+      "line": 1100,
+      "type": "datetime, nullable"
+    },
+    "field:RefreshToken.token_hash": {
+      "hash": "109c03b391936615",
+      "line": 1097,
+      "type": "string, unique"
+    },
+    "field:Report.decision": {
+      "enum": [
+        "DISMISSED",
+        "SUSPENSION"
+      ],
+      "hash": "248699477d0493d3",
+      "line": 755,
+      "type": "enum [DISMISSED / SUSPENSION], nullable"
+    },
+    "field:Report.description": {
+      "hash": "fefd0569ef62bb8b",
+      "line": 752,
+      "type": "text"
+    },
+    "field:Report.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 747,
+      "type": "PK"
+    },
+    "field:Report.reason": {
+      "hash": "8a1ad2d22fcfe85e",
+      "line": 751,
+      "type": "string"
+    },
+    "field:Report.reporter_id": {
+      "hash": "7c0ebe4a3a59c2d3",
+      "line": 748,
+      "type": "FK → Person"
+    },
+    "field:Report.resolved_by_id": {
+      "hash": "a520299dfe83aa26",
+      "line": 754,
+      "type": "FK → Administrator, nullable"
+    },
+    "field:Report.status": {
+      "enum": [
+        "PENDING",
+        "RESOLVED"
+      ],
+      "hash": "842302ce4701717e",
+      "line": 753,
+      "type": "enum [PENDING / RESOLVED]"
+    },
+    "field:Report.target_organization_id": {
+      "hash": "05b8902874b93387",
+      "line": 750,
+      "type": "FK → Organization, nullable"
+    },
+    "field:Report.target_person_id": {
+      "hash": "60a082ab0f005493",
+      "line": 749,
+      "type": "FK → Person, nullable"
+    },
+    "field:Subscription.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 728,
+      "type": "PK"
+    },
+    "field:Subscription.organization_id": {
+      "hash": "41537f7300f5c88d",
+      "line": 729,
+      "type": "FK → Organization"
+    },
+    "field:Subscription.plan": {
+      "hash": "51d10d2cbb165c5d",
+      "line": 730,
+      "type": "string"
+    },
+    "field:Subscription.status": {
+      "enum": [
+        "ACTIVE",
+        "EXPIRED"
+      ],
+      "hash": "1e28d4ffb287fa8c",
+      "line": 731,
+      "type": "enum [ACTIVE / EXPIRED]"
+    },
+    "field:SyncArchive.changes": {
+      "hash": "a6ad76a9662fd574",
+      "line": 934,
+      "type": "JSON"
+    },
+    "field:SyncArchive.device_id": {
+      "hash": "f2fe3ebfca4a1860",
+      "line": 932,
+      "type": "FK → Device"
+    },
+    "field:SyncArchive.id": {
+      "hash": "b8951e7d29d5fe6c",
+      "line": 930,
+      "type": "PK"
+    },
+    "field:SyncArchive.person_id": {
+      "hash": "60dd00f9c21fa984",
+      "line": 931,
+      "type": "FK → Person"
+    },
+    "field:SyncArchive.received_at": {
+      "hash": "7db2e4250c6ea53e",
+      "line": 933,
+      "type": "datetime"
+    }
+  },
+  "lines": 1432,
+  "path": "data-model/modele-donnees-livraisons-v10.md",
+  "sections": {
+    "_doc": {
+      "end": 1432,
+      "full_hash": "a3cedc76e62ea9c3",
+      "hash": "e3b0c44298fc1c14",
+      "level": 1,
+      "own_end": 2,
+      "start": 1,
+      "title": "Modèle de données — Application SaaS de gestion de livraisons"
+    },
+    "acces-et-securite": {
+      "end": 1129,
+      "full_hash": "cf94d9657e53d4ec",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 1012,
+      "start": 1011,
+      "title": "10. Accès et sécurité"
+    },
+    "acces-et-securite/connexion-verrouillage-et-telephone": {
+      "end": 1116,
+      "full_hash": "3260db449dcba4aa",
+      "hash": "3260db449dcba4aa",
+      "level": 3,
+      "own_end": 1116,
+      "start": 1108,
+      "title": "10.5 Connexion, verrouillage et téléphone perdu"
+    },
+    "acces-et-securite/device": {
+      "end": 1088,
+      "full_hash": "4b6112d1037392a4",
+      "hash": "4b6112d1037392a4",
+      "level": 3,
+      "own_end": 1088,
+      "start": 1066,
+      "title": "10.3 Device"
+    },
+    "acces-et-securite/la-base-de-donnees-dernier-rempart": {
+      "end": 1129,
+      "full_hash": "cae89935d4c19778",
+      "hash": "cae89935d4c19778",
+      "level": 3,
+      "own_end": 1129,
+      "start": 1117,
+      "title": "10.6 La base de données, dernier rempart"
+    },
+    "acces-et-securite/la-couche-d-acces-et-la-table-des-regles": {
+      "end": 1039,
+      "full_hash": "72a496c0e8cae0e1",
+      "hash": "72a496c0e8cae0e1",
+      "level": 3,
+      "own_end": 1039,
+      "start": 1013,
+      "title": "10.1 La couche d'accès et la table des règles"
+    },
+    "acces-et-securite/otpchallenge": {
+      "end": 1065,
+      "full_hash": "6096791a3ab8e963",
+      "hash": "6096791a3ab8e963",
+      "level": 3,
+      "own_end": 1065,
+      "start": 1040,
+      "title": "10.2 OtpChallenge"
+    },
+    "acces-et-securite/refreshtoken": {
+      "end": 1107,
+      "full_hash": "bd018059bbf2ff0f",
+      "hash": "bd018059bbf2ff0f",
+      "level": 3,
+      "own_end": 1107,
+      "start": 1089,
+      "title": "10.4 RefreshToken"
+    },
+    "annexe-la-table-des-regles": {
+      "end": 1432,
+      "full_hash": "861b4ae45c34f3af",
+      "hash": "7b9180cc9f962a4b",
+      "level": 2,
+      "own_end": 1324,
+      "start": 1321,
+      "title": "Annexe — La table des règles"
+    },
+    "annexe-la-table-des-regles/controles-a-l-arrivee": {
+      "end": 1382,
+      "full_hash": "89c93fde7d07aca0",
+      "hash": "89c93fde7d07aca0",
+      "level": 3,
+      "own_end": 1382,
+      "start": 1372,
+      "title": "A.3 Contrôles à l'arrivée"
+    },
+    "annexe-la-table-des-regles/etapes-d-une-commande": {
+      "end": 1371,
+      "full_hash": "ca3608d78ad8d147",
+      "hash": "ca3608d78ad8d147",
+      "level": 3,
+      "own_end": 1371,
+      "start": 1355,
+      "title": "A.2 Étapes d'une commande"
+    },
+    "annexe-la-table-des-regles/extrait-du-fichier": {
+      "end": 1432,
+      "full_hash": "5218d7be5ca7e187",
+      "hash": "5218d7be5ca7e187",
+      "level": 3,
+      "own_end": 1432,
+      "start": 1383,
+      "title": "A.4 Extrait du fichier"
+    },
+    "annexe-la-table-des-regles/qui-et-ou": {
+      "end": 1354,
+      "full_hash": "9120c129def71173",
+      "hash": "9120c129def71173",
+      "level": 3,
+      "own_end": 1354,
+      "start": 1325,
+      "title": "A.1 Qui et où"
+    },
+    "catalogue": {
+      "end": 434,
+      "full_hash": "ec963f30dc77cb30",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 397,
+      "start": 396,
+      "title": "3. Catalogue"
+    },
+    "catalogue/product": {
+      "end": 434,
+      "full_hash": "04d1b851c7da6215",
+      "hash": "04d1b851c7da6215",
+      "level": 3,
+      "own_end": 434,
+      "start": 398,
+      "title": "3.1 Product"
+    },
+    "commandes-et-livraisons": {
+      "end": 593,
+      "full_hash": "4f7ebc78384a5346",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 436,
+      "start": 435,
+      "title": "4. Commandes et livraisons"
+    },
+    "commandes-et-livraisons/delivery": {
+      "end": 593,
+      "full_hash": "41c048dc2493ec9b",
+      "hash": "41c048dc2493ec9b",
+      "level": 3,
+      "own_end": 593,
+      "start": 562,
+      "title": "4.3 Delivery"
+    },
+    "commandes-et-livraisons/order": {
+      "end": 529,
+      "full_hash": "848e2c60066307ce",
+      "hash": "41e29286fc6781c6",
+      "level": 3,
+      "own_end": 476,
+      "start": 437,
+      "title": "4.1 Order"
+    },
+    "commandes-et-livraisons/order/autres-regles": {
+      "end": 525,
+      "full_hash": "3b2577ea58314eb2",
+      "hash": "3b2577ea58314eb2",
+      "level": 4,
+      "own_end": 525,
+      "start": 514,
+      "title": "Autres règles"
+    },
+    "commandes-et-livraisons/order/clore-une-commande-commande-livree": {
+      "end": 500,
+      "full_hash": "dcecf233593d4296",
+      "hash": "dcecf233593d4296",
+      "level": 4,
+      "own_end": 500,
+      "start": 477,
+      "title": "Clore une commande : « Commande livrée »"
+    },
+    "commandes-et-livraisons/order/le-recu": {
+      "end": 529,
+      "full_hash": "c55bd5ba04b878a3",
+      "hash": "c55bd5ba04b878a3",
+      "level": 4,
+      "own_end": 529,
+      "start": 526,
+      "title": "Le reçu"
+    },
+    "commandes-et-livraisons/order/le-reste-d-une-livraison-partielle": {
+      "end": 505,
+      "full_hash": "c8b046ca883bc52f",
+      "hash": "c8b046ca883bc52f",
+      "level": 4,
+      "own_end": 505,
+      "start": 501,
+      "title": "Le reste d'une livraison partielle"
+    },
+    "commandes-et-livraisons/order/refus-et-annulation": {
+      "end": 513,
+      "full_hash": "812ee12d94b58641",
+      "hash": "812ee12d94b58641",
+      "level": 4,
+      "own_end": 513,
+      "start": 506,
+      "title": "Refus et annulation"
+    },
+    "commandes-et-livraisons/orderline": {
+      "end": 561,
+      "full_hash": "b5328234027306bb",
+      "hash": "b5328234027306bb",
+      "level": 3,
+      "own_end": 561,
+      "start": 530,
+      "title": "4.2 OrderLine"
+    },
+    "contraintes-a-poser-au-niveau-base-de": {
+      "end": 1245,
+      "full_hash": "4cfc0105516c69b4",
+      "hash": "4cfc0105516c69b4",
+      "level": 2,
+      "own_end": 1245,
+      "start": 1198,
+      "title": "Contraintes à poser au niveau base de données"
+    },
+    "donnees-personnelles-et-conservation": {
+      "end": 1160,
+      "full_hash": "05e242c829fd4a29",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 1131,
+      "start": 1130,
+      "title": "11. Données personnelles et conservation"
+    },
+    "donnees-personnelles-et-conservation/cadre-juridique-le-cameroun": {
+      "end": 1144,
+      "full_hash": "ba46eb50108756cd",
+      "hash": "ba46eb50108756cd",
+      "level": 3,
+      "own_end": 1144,
+      "start": 1132,
+      "title": "11.1 Cadre juridique : le Cameroun"
+    },
+    "donnees-personnelles-et-conservation/durees-de-conservation": {
+      "end": 1160,
+      "full_hash": "5d4ad45e355f975e",
+      "hash": "5d4ad45e355f975e",
+      "level": 3,
+      "own_end": 1160,
+      "start": 1145,
+      "title": "11.2 Durées de conservation"
+    },
+    "finances": {
+      "end": 739,
+      "full_hash": "51dfde49af976a33",
+      "hash": "e4d44bfdfa58077f",
+      "level": 2,
+      "own_end": 603,
+      "start": 594,
+      "title": "5. Finances"
+    },
+    "finances/expense": {
+      "end": 696,
+      "full_hash": "f62ff9558ffdf88e",
+      "hash": "f62ff9558ffdf88e",
+      "level": 3,
+      "own_end": 696,
+      "start": 673,
+      "title": "5.2 Expense"
+    },
+    "finances/handover": {
+      "end": 722,
+      "full_hash": "aa89aedda45a32fc",
+      "hash": "aa89aedda45a32fc",
+      "level": 3,
+      "own_end": 722,
+      "start": 697,
+      "title": "5.3 Handover"
+    },
+    "finances/ledgerentry": {
+      "end": 672,
+      "full_hash": "e927dc705040a8b1",
+      "hash": "c1cb24c453140ff8",
+      "level": 3,
+      "own_end": 647,
+      "start": 604,
+      "title": "5.1 LedgerEntry"
+    },
+    "finances/ledgerentry/reprise-de-cahier": {
+      "end": 654,
+      "full_hash": "8a86d59174e3cbf2",
+      "hash": "8a86d59174e3cbf2",
+      "level": 4,
+      "own_end": 654,
+      "start": 648,
+      "title": "Reprise de cahier"
+    },
+    "finances/ledgerentry/retour-rembourse": {
+      "end": 672,
+      "full_hash": "7a957ccbf8a4a6de",
+      "hash": "7a957ccbf8a4a6de",
+      "level": 4,
+      "own_end": 672,
+      "start": 655,
+      "title": "Retour remboursé"
+    },
+    "finances/subscription": {
+      "end": 739,
+      "full_hash": "5e318898d558c30f",
+      "hash": "5e318898d558c30f",
+      "level": 3,
+      "own_end": 739,
+      "start": 723,
+      "title": "5.4 Subscription"
+    },
+    "gouvernance-de-la-plateforme": {
+      "end": 809,
+      "full_hash": "4cde4c42fcb24966",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 767,
+      "start": 766,
+      "title": "7. Gouvernance de la plateforme"
+    },
+    "gouvernance-de-la-plateforme/adminaction": {
+      "end": 809,
+      "full_hash": "c9217edb579def66",
+      "hash": "c9217edb579def66",
+      "level": 3,
+      "own_end": 809,
+      "start": 789,
+      "title": "7.2 AdminAction"
+    },
+    "gouvernance-de-la-plateforme/administrator": {
+      "end": 788,
+      "full_hash": "267768b934eacdb3",
+      "hash": "267768b934eacdb3",
+      "level": 3,
+      "own_end": 788,
+      "start": 768,
+      "title": "7.1 Administrator"
+    },
+    "identite-et-organisation": {
+      "end": 197,
+      "full_hash": "d3997083e3a26ab3",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 46,
+      "start": 45,
+      "title": "1. Identité et organisation"
+    },
+    "identite-et-organisation/collaboration": {
+      "end": 197,
+      "full_hash": "28c2e8f219bd7548",
+      "hash": "28c2e8f219bd7548",
+      "level": 3,
+      "own_end": 197,
+      "start": 162,
+      "title": "1.4 Collaboration"
+    },
+    "identite-et-organisation/organization": {
+      "end": 161,
+      "full_hash": "1c1da4972790e207",
+      "hash": "1c1da4972790e207",
+      "level": 3,
+      "own_end": 161,
+      "start": 136,
+      "title": "1.3 Organization"
+    },
+    "identite-et-organisation/person": {
+      "end": 123,
+      "full_hash": "186e6298ec714405",
+      "hash": "186e6298ec714405",
+      "level": 3,
+      "own_end": 123,
+      "start": 47,
+      "title": "1.1 Person"
+    },
+    "identite-et-organisation/phonenumberchangelog": {
+      "end": 135,
+      "full_hash": "09ef7a53bca84255",
+      "hash": "09ef7a53bca84255",
+      "level": 3,
+      "own_end": 135,
+      "start": 124,
+      "title": "1.2 PhoneNumberChangeLog"
+    },
+    "legende": {
+      "end": 44,
+      "full_hash": "75cf9d98933fbb37",
+      "hash": "75cf9d98933fbb37",
+      "level": 2,
+      "own_end": 44,
+      "start": 3,
+      "title": "Légende"
+    },
+    "moderation": {
+      "end": 765,
+      "full_hash": "2535b9555a10ed6b",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 741,
+      "start": 740,
+      "title": "6. Modération"
+    },
+    "moderation/report": {
+      "end": 765,
+      "full_hash": "ac7e9695c69cffd8",
+      "hash": "ac7e9695c69cffd8",
+      "level": 3,
+      "own_end": 765,
+      "start": 742,
+      "title": "6.1 Report"
+    },
+    "notes-de-conception": {
+      "end": 1297,
+      "full_hash": "b55d48f6cbc4a1dc",
+      "hash": "b55d48f6cbc4a1dc",
+      "level": 2,
+      "own_end": 1297,
+      "start": 1246,
+      "title": "Notes de conception"
+    },
+    "notifications": {
+      "end": 843,
+      "full_hash": "ad6f345d61047853",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 811,
+      "start": 810,
+      "title": "8. Notifications"
+    },
+    "notifications/notification": {
+      "end": 843,
+      "full_hash": "ad53cf5ffb8c53b8",
+      "hash": "79c57e89c2845ec1",
+      "level": 3,
+      "own_end": 833,
+      "start": 812,
+      "title": "8.1 Notification"
+    },
+    "notifications/notification/plus-de-sms-de-notification-en-v1": {
+      "end": 843,
+      "full_hash": "8c26e82adb7215ae",
+      "hash": "8c26e82adb7215ae",
+      "level": 4,
+      "own_end": 843,
+      "start": 834,
+      "title": "Plus de SMS de notification en v1"
+    },
+    "relations-commerciales": {
+      "end": 395,
+      "full_hash": "95ae51a012c4618b",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 199,
+      "start": 198,
+      "title": "2. Relations commerciales"
+    },
+    "relations-commerciales/creditlimitchange": {
+      "end": 395,
+      "full_hash": "e613cfb7d5628d51",
+      "hash": "e613cfb7d5628d51",
+      "level": 3,
+      "own_end": 395,
+      "start": 380,
+      "title": "2.4 CreditLimitChange"
+    },
+    "relations-commerciales/customerprice": {
+      "end": 343,
+      "full_hash": "dc55a97c2d46b6ad",
+      "hash": "dc55a97c2d46b6ad",
+      "level": 3,
+      "own_end": 343,
+      "start": 319,
+      "title": "2.2 CustomerPrice"
+    },
+    "relations-commerciales/customerrelationship": {
+      "end": 318,
+      "full_hash": "0f767949810fb6dd",
+      "hash": "b9c63e8cc44cef17",
+      "level": 3,
+      "own_end": 230,
+      "start": 200,
+      "title": "2.1 CustomerRelationship"
+    },
+    "relations-commerciales/customerrelationship/chaines-de-revente": {
+      "end": 310,
+      "full_hash": "ed063a1ca6937999",
+      "hash": "ed063a1ca6937999",
+      "level": 4,
+      "own_end": 310,
+      "start": 307,
+      "title": "Chaînes de revente"
+    },
+    "relations-commerciales/customerrelationship/cloisonnement": {
+      "end": 314,
+      "full_hash": "6c58e28f5fac35ce",
+      "hash": "6c58e28f5fac35ce",
+      "level": 4,
+      "own_end": 314,
+      "start": 311,
+      "title": "Cloisonnement"
+    },
+    "relations-commerciales/customerrelationship/comptoirs": {
+      "end": 287,
+      "full_hash": "9f23d3453d4bd722",
+      "hash": "9f23d3453d4bd722",
+      "level": 4,
+      "own_end": 287,
+      "start": 284,
+      "title": "Comptoirs"
+    },
+    "relations-commerciales/customerrelationship/entree-en-relation-le-numero-comme": {
+      "end": 265,
+      "full_hash": "8d041f9cd02b9419",
+      "hash": "8d041f9cd02b9419",
+      "level": 4,
+      "own_end": 265,
+      "start": 231,
+      "title": "Entrée en relation : le numéro comme seule clé"
+    },
+    "relations-commerciales/customerrelationship/evolution-prevue-v2-suivre-ce-qui-est": {
+      "end": 318,
+      "full_hash": "7e474979d1e92724",
+      "hash": "7e474979d1e92724",
+      "level": 4,
+      "own_end": 318,
+      "start": 315,
+      "title": "Évolution prévue (v2) : suivre ce qui est dû à un fournisseur non inscrit"
+    },
+    "relations-commerciales/customerrelationship/fin-de-relation": {
+      "end": 306,
+      "full_hash": "0fe4110f42085b3d",
+      "hash": "0fe4110f42085b3d",
+      "level": 4,
+      "own_end": 306,
+      "start": 303,
+      "title": "Fin de relation"
+    },
+    "relations-commerciales/customerrelationship/invitation-d-un-fournisseur-par-un": {
+      "end": 273,
+      "full_hash": "7a86fc614dbb83ba",
+      "hash": "7a86fc614dbb83ba",
+      "level": 4,
+      "own_end": 273,
+      "start": 266,
+      "title": "Invitation d'un fournisseur par un client"
+    },
+    "relations-commerciales/customerrelationship/organisation-cliente": {
+      "end": 283,
+      "full_hash": "a3e6a3e9da8ae853",
+      "hash": "a3e6a3e9da8ae853",
+      "level": 4,
+      "own_end": 283,
+      "start": 274,
+      "title": "Organisation cliente"
+    },
+    "relations-commerciales/customerrelationship/plafond-de-credit-une-seule-regle": {
+      "end": 302,
+      "full_hash": "abce769cb9f9ea17",
+      "hash": "abce769cb9f9ea17",
+      "level": 4,
+      "own_end": 302,
+      "start": 288,
+      "title": "Plafond de crédit : une seule règle"
+    },
+    "relations-commerciales/customerrelationshipreassignment": {
+      "end": 379,
+      "full_hash": "d5ed04cb9ccf3fd0",
+      "hash": "7868e9737f2e6289",
+      "level": 3,
+      "own_end": 364,
+      "start": 344,
+      "title": "2.3 CustomerRelationshipReassignment"
+    },
+    "relations-commerciales/customerrelationshipreassignment/ce-n-est-pas-moi-erreurs-de-saisie-et": {
+      "end": 375,
+      "full_hash": "a0d8056b701b4d55",
+      "hash": "a0d8056b701b4d55",
+      "level": 4,
+      "own_end": 375,
+      "start": 365,
+      "title": "« Ce n'est pas moi » : erreurs de saisie et numéros recyclés"
+    },
+    "relations-commerciales/customerrelationshipreassignment/correction-par-le-fournisseur": {
+      "end": 379,
+      "full_hash": "c3cee89929b36fb6",
+      "hash": "c3cee89929b36fb6",
+      "level": 4,
+      "own_end": 379,
+      "start": 376,
+      "title": "Correction par le fournisseur"
+    },
+    "reporte-en-v2": {
+      "end": 1320,
+      "full_hash": "c29cced2a6dcf792",
+      "hash": "c29cced2a6dcf792",
+      "level": 2,
+      "own_end": 1320,
+      "start": 1298,
+      "title": "Reporté en v2"
+    },
+    "schema-relationnel-simplifie-vue-d": {
+      "end": 1197,
+      "full_hash": "37d51f0afba409a7",
+      "hash": "37d51f0afba409a7",
+      "level": 2,
+      "own_end": 1197,
+      "start": 1161,
+      "title": "Schéma relationnel simplifié (vue d'ensemble)"
+    },
+    "synchronisation-hors-ligne": {
+      "end": 1010,
+      "full_hash": "22d70f4657f27a72",
+      "hash": "e3b0c44298fc1c14",
+      "level": 2,
+      "own_end": 845,
+      "start": 844,
+      "title": "9. Synchronisation hors ligne"
+    },
+    "synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne": {
+      "end": 909,
+      "full_hash": "8a4464e396b8c53a",
+      "hash": "8a4464e396b8c53a",
+      "level": 3,
+      "own_end": 909,
+      "start": 858,
+      "title": "9.2 Ce que le serveur fait de chaque ligne reçue"
+    },
+    "synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone": {
+      "end": 1010,
+      "full_hash": "77fe3c75a75e5ea6",
+      "hash": "77fe3c75a75e5ea6",
+      "level": 3,
+      "own_end": 1010,
+      "start": 985,
+      "title": "9.6 Ce que reçoit et garde chaque téléphone"
+    },
+    "synchronisation-hors-ligne/fraicheur-synchronisation-automatique": {
+      "end": 924,
+      "full_hash": "76a9e77fef44cf02",
+      "hash": "76a9e77fef44cf02",
+      "level": 3,
+      "own_end": 924,
+      "start": 910,
+      "title": "9.3 Fraîcheur : synchronisation automatique et mode restreint"
+    },
+    "synchronisation-hors-ligne/mon-activite": {
+      "end": 984,
+      "full_hash": "a366dfcae58aa13f",
+      "hash": "a366dfcae58aa13f",
+      "level": 3,
+      "own_end": 984,
+      "start": 940,
+      "title": "9.5 « Mon activité »"
+    },
+    "synchronisation-hors-ligne/principes-la-synchronisation-classique": {
+      "end": 857,
+      "full_hash": "9704cfa0598a1579",
+      "hash": "9704cfa0598a1579",
+      "level": 3,
+      "own_end": 857,
+      "start": 846,
+      "title": "9.1 Principes : la synchronisation classique de WatermelonDB"
+    },
+    "synchronisation-hors-ligne/syncarchive": {
+      "end": 939,
+      "full_hash": "a9b5bcf52b6df58d",
+      "hash": "a9b5bcf52b6df58d",
+      "level": 3,
+      "own_end": 939,
+      "start": 925,
+      "title": "9.4 SyncArchive"
+    }
+  },
+  "sha256": "2dcaae02b638d95d5c9ad80329d53e10d098fec20f5cf5b12182af8f4d03dfd2"
+}

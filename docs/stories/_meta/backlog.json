@@ -1,0 +1,3401 @@
+{
+  "stories": [
+    {
+      "depends_on": [],
+      "id": "FND-000",
+      "implementable": true,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 1,
+      "path": "modules/foundation/FND-000-add-the-missing-quality-gates-and-load-the.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Add the missing quality gates and load the conventions"
+    },
+    {
+      "depends_on": [
+        "FND-000"
+      ],
+      "id": "FND-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 2,
+      "path": "modules/foundation/FND-001-reset-the-database-schema-and-the-migration.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Reset the database schema and the migration history"
+    },
+    {
+      "depends_on": [
+        "FND-001"
+      ],
+      "id": "FND-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 3,
+      "path": "modules/foundation/FND-002-create-the-application-database-role-and-the.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Create the application database role and the server-time trigger"
+    },
+    {
+      "depends_on": [
+        "FND-000"
+      ],
+      "id": "FND-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 4,
+      "path": "modules/foundation/FND-003-shared-money-and-quantity-arithmetic.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Shared money and quantity arithmetic"
+    },
+    {
+      "depends_on": [
+        "FND-000"
+      ],
+      "id": "FND-004",
+      "implementable": false,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 5,
+      "path": "modules/foundation/FND-004-shared-phone-number-normalization.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Shared phone number normalization"
+    },
+    {
+      "depends_on": [
+        "FND-001"
+      ],
+      "id": "FND-005",
+      "implementable": false,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 6,
+      "path": "modules/foundation/FND-005-shared-identifiers-and-column-type-helper.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Shared identifiers and column type helper"
+    },
+    {
+      "depends_on": [
+        "FND-000"
+      ],
+      "id": "FND-006",
+      "implementable": false,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 7,
+      "path": "modules/foundation/FND-006-shared-http-error-helper.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Shared HTTP error helper"
+    },
+    {
+      "depends_on": [
+        "FND-000"
+      ],
+      "id": "FND-007",
+      "implementable": false,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 8,
+      "path": "modules/foundation/FND-007-stop-prisma-from-logging-queries.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Stop Prisma from logging queries"
+    },
+    {
+      "depends_on": [
+        "FND-006"
+      ],
+      "id": "FND-008",
+      "implementable": false,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 9,
+      "path": "modules/foundation/FND-008-default-json-body-limit-of-100-kb.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Default JSON body limit of 100 kb"
+    },
+    {
+      "depends_on": [
+        "FND-006"
+      ],
+      "id": "FND-009",
+      "implementable": false,
+      "kind": "technical",
+      "module": "foundation",
+      "order": 10,
+      "path": "modules/foundation/FND-009-shared-limits-and-pagination-helpers.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Shared limits and pagination helpers"
+    },
+    {
+      "depends_on": [
+        "FND-001",
+        "FND-006"
+      ],
+      "id": "PER-001",
+      "implementable": false,
+      "kind": "removal",
+      "module": "person",
+      "order": 11,
+      "path": "modules/person/PER-001-retire-the-old-sign-in-module.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Retire the old sign-in module"
+    },
+    {
+      "depends_on": [
+        "PER-001",
+        "FND-002",
+        "FND-005"
+      ],
+      "id": "PER-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "person",
+      "order": 12,
+      "path": "modules/person/PER-002-replace-the-legacy-person-and-account-with-the.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Replace the legacy Person and Account with the v10 Person table"
+    },
+    {
+      "depends_on": [
+        "PER-002"
+      ],
+      "id": "PER-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "person",
+      "order": 13,
+      "path": "modules/person/PER-003-person-integrity-checks-in-the-database.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Person integrity checks in the database"
+    },
+    {
+      "depends_on": [
+        "PER-002"
+      ],
+      "id": "PER-004",
+      "implementable": false,
+      "kind": "technical",
+      "module": "person",
+      "order": 14,
+      "path": "modules/person/PER-004-phone-number-change-journal.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Phone number change journal"
+    },
+    {
+      "depends_on": [
+        "PER-002",
+        "FND-004",
+        "FND-005"
+      ],
+      "id": "PER-005",
+      "implementable": false,
+      "kind": "technical",
+      "module": "person",
+      "order": 15,
+      "path": "modules/person/PER-005-person-repository-contract-and-public-view.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Person repository contract and public view"
+    },
+    {
+      "depends_on": [
+        "PER-005",
+        "FND-006"
+      ],
+      "id": "PER-006",
+      "implementable": false,
+      "kind": "feature",
+      "module": "person",
+      "order": 16,
+      "path": "modules/person/PER-006-look-up-a-person-by-phone-number.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Look up a person by phone number"
+    },
+    {
+      "depends_on": [
+        "PER-005"
+      ],
+      "id": "PER-007",
+      "implementable": false,
+      "kind": "feature",
+      "module": "person",
+      "order": 17,
+      "path": "modules/person/PER-007-person-reads-and-edits-their-own-profile.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Person reads and edits their own profile"
+    },
+    {
+      "depends_on": [
+        "PER-003",
+        "FND-002"
+      ],
+      "id": "PER-008",
+      "implementable": false,
+      "kind": "technical",
+      "module": "person",
+      "order": 18,
+      "path": "modules/person/PER-008-registered-person-guard-for-author-columns.md",
+      "risk": "high",
+      "size": "XS",
+      "status": "todo",
+      "title": "Registered-person guard for author columns"
+    },
+    {
+      "depends_on": [
+        "FND-000"
+      ],
+      "id": "ACC-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "access",
+      "order": 19,
+      "path": "modules/access/ACC-001-role-order-and-ability-builder.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Role order and ability builder"
+    },
+    {
+      "depends_on": [
+        "ACC-001"
+      ],
+      "id": "ACC-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "access",
+      "order": 20,
+      "path": "modules/access/ACC-002-rules-for-relationships-catalog-and-prices.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Rules for relationships, catalog and prices"
+    },
+    {
+      "depends_on": [
+        "ACC-002"
+      ],
+      "id": "ACC-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "access",
+      "order": 21,
+      "path": "modules/access/ACC-003-rules-for-orders-and-deliveries.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Rules for orders and deliveries"
+    },
+    {
+      "depends_on": [
+        "ACC-003"
+      ],
+      "id": "ACC-004",
+      "implementable": false,
+      "kind": "technical",
+      "module": "access",
+      "order": 22,
+      "path": "modules/access/ACC-004-rules-for-money.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Rules for money"
+    },
+    {
+      "depends_on": [
+        "ACC-004"
+      ],
+      "id": "ACC-005",
+      "implementable": false,
+      "kind": "technical",
+      "module": "access",
+      "order": 23,
+      "path": "modules/access/ACC-005-rules-for-team-subscription-and-organization.md",
+      "risk": "high",
+      "size": "XS",
+      "status": "todo",
+      "title": "Rules for team, subscription and organization"
+    },
+    {
+      "depends_on": [
+        "ACC-005",
+        "FND-006"
+      ],
+      "id": "ACC-006",
+      "implementable": false,
+      "kind": "technical",
+      "module": "access",
+      "order": 24,
+      "path": "modules/access/ACC-006-ability-middleware.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Ability middleware"
+    },
+    {
+      "depends_on": [
+        "ACC-006",
+        "FND-005",
+        "FND-002",
+        "PER-002"
+      ],
+      "id": "ACC-007",
+      "implementable": false,
+      "kind": "technical",
+      "module": "access",
+      "order": 25,
+      "path": "modules/access/ACC-007-idempotency-of-online-gestures.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Idempotency of online gestures"
+    },
+    {
+      "depends_on": [
+        "PER-008",
+        "FND-005"
+      ],
+      "id": "NTF-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "notification",
+      "order": 26,
+      "path": "modules/notification/NTF-001-notifications-table.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Notifications table"
+    },
+    {
+      "depends_on": [
+        "NTF-001",
+        "FND-006"
+      ],
+      "id": "NTF-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "notification",
+      "order": 27,
+      "path": "modules/notification/NTF-002-notify-service.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Notify service"
+    },
+    {
+      "depends_on": [
+        "NTF-002",
+        "FND-009"
+      ],
+      "id": "NTF-003",
+      "implementable": false,
+      "kind": "feature",
+      "module": "notification",
+      "order": 28,
+      "path": "modules/notification/NTF-003-person-lists-their-notifications.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Person lists their notifications"
+    },
+    {
+      "depends_on": [
+        "NTF-003"
+      ],
+      "id": "NTF-004",
+      "implementable": false,
+      "kind": "feature",
+      "module": "notification",
+      "order": 29,
+      "path": "modules/notification/NTF-004-person-marks-notifications-as-read.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Person marks notifications as read"
+    },
+    {
+      "depends_on": [
+        "PER-003",
+        "FND-005"
+      ],
+      "id": "AUTH-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "auth",
+      "order": 30,
+      "path": "modules/auth/AUTH-001-one-time-code-table.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "One-time code table"
+    },
+    {
+      "depends_on": [
+        "AUTH-001",
+        "FND-004",
+        "FND-006",
+        "NTF-002"
+      ],
+      "id": "AUTH-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "auth",
+      "order": 31,
+      "path": "modules/auth/AUTH-002-issue-a-one-time-code.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Issue a one-time code"
+    },
+    {
+      "depends_on": [
+        "AUTH-002"
+      ],
+      "id": "AUTH-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "auth",
+      "order": 32,
+      "path": "modules/auth/AUTH-003-verify-a-one-time-code.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Verify a one-time code"
+    },
+    {
+      "depends_on": [
+        "AUTH-003"
+      ],
+      "id": "AUTH-004",
+      "implementable": false,
+      "kind": "technical",
+      "module": "auth",
+      "order": 33,
+      "path": "modules/auth/AUTH-004-device-ip-and-daily-caps-on-code-sending.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Device, IP and daily caps on code sending"
+    },
+    {
+      "depends_on": [
+        "FND-000"
+      ],
+      "id": "AUTH-005",
+      "implementable": false,
+      "kind": "technical",
+      "module": "auth",
+      "order": 34,
+      "path": "modules/auth/AUTH-005-password-rules-and-argon2id-hashing.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Password rules and Argon2id hashing"
+    },
+    {
+      "depends_on": [
+        "PER-002",
+        "FND-006"
+      ],
+      "id": "AUTH-006",
+      "implementable": false,
+      "kind": "change",
+      "module": "auth",
+      "order": 35,
+      "path": "modules/auth/AUTH-006-access-token-carries-the-person-and-the-device.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Access token carries the person and the device"
+    },
+    {
+      "depends_on": [
+        "PER-003",
+        "FND-005",
+        "AUTH-001"
+      ],
+      "id": "AUTH-007",
+      "implementable": false,
+      "kind": "technical",
+      "module": "auth",
+      "order": 36,
+      "path": "modules/auth/AUTH-007-device-and-refresh-token-tables.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Device and refresh token tables"
+    },
+    {
+      "depends_on": [
+        "AUTH-007",
+        "AUTH-006",
+        "AUTH-005"
+      ],
+      "id": "AUTH-008",
+      "implementable": false,
+      "kind": "technical",
+      "module": "auth",
+      "order": 37,
+      "path": "modules/auth/AUTH-008-issue-and-revoke-sessions.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Issue and revoke sessions"
+    },
+    {
+      "depends_on": [
+        "AUTH-004",
+        "PER-005",
+        "NTF-002"
+      ],
+      "id": "AUTH-009",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 38,
+      "path": "modules/auth/AUTH-009-visitor-asks-for-a-registration-code.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Visitor asks for a registration code"
+    },
+    {
+      "depends_on": [
+        "AUTH-009",
+        "AUTH-008",
+        "AUTH-005"
+      ],
+      "id": "AUTH-010",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 39,
+      "path": "modules/auth/AUTH-010-visitor-registers-with-the-code.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Visitor registers with the code"
+    },
+    {
+      "depends_on": [
+        "AUTH-010",
+        "NTF-002"
+      ],
+      "id": "AUTH-011",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 40,
+      "path": "modules/auth/AUTH-011-new-holder-of-a-recycled-number-registers.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "New holder of a recycled number registers"
+    },
+    {
+      "depends_on": [
+        "AUTH-005"
+      ],
+      "id": "AUTH-012",
+      "implementable": false,
+      "kind": "technical",
+      "module": "auth",
+      "order": 41,
+      "path": "modules/auth/AUTH-012-failed-attempt-counter-and-lock-duration.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Failed-attempt counter and lock duration"
+    },
+    {
+      "depends_on": [
+        "AUTH-012",
+        "AUTH-004",
+        "PER-005"
+      ],
+      "id": "AUTH-013",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 42,
+      "path": "modules/auth/AUTH-013-person-signs-in-with-number-and-password.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Person signs in with number and password"
+    },
+    {
+      "depends_on": [
+        "AUTH-013",
+        "AUTH-008",
+        "NTF-002"
+      ],
+      "id": "AUTH-014",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 43,
+      "path": "modules/auth/AUTH-014-person-completes-sign-in-with-the-code.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Person completes sign-in with the code"
+    },
+    {
+      "depends_on": [
+        "AUTH-014",
+        "AUTH-011"
+      ],
+      "id": "AUTH-015",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 44,
+      "path": "modules/auth/AUTH-015-person-whose-number-was-taken-signs-in-with-the.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Person whose number was taken signs in with the verified email"
+    },
+    {
+      "depends_on": [
+        "AUTH-008"
+      ],
+      "id": "AUTH-016",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 45,
+      "path": "modules/auth/AUTH-016-refresh-a-session-with-rotation.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Refresh a session with rotation"
+    },
+    {
+      "depends_on": [
+        "AUTH-016"
+      ],
+      "id": "AUTH-017",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 46,
+      "path": "modules/auth/AUTH-017-person-signs-out-of-this-phone.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Person signs out of this phone"
+    },
+    {
+      "depends_on": [
+        "AUTH-017"
+      ],
+      "id": "AUTH-018",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 47,
+      "path": "modules/auth/AUTH-018-person-manages-their-phones.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Person manages their phones"
+    },
+    {
+      "depends_on": [
+        "AUTH-013"
+      ],
+      "id": "AUTH-019",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 48,
+      "path": "modules/auth/AUTH-019-person-asks-for-a-password-reset-code.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Person asks for a password reset code"
+    },
+    {
+      "depends_on": [
+        "AUTH-019",
+        "AUTH-008"
+      ],
+      "id": "AUTH-020",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 49,
+      "path": "modules/auth/AUTH-020-person-chooses-a-new-password-with-the-code.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Person chooses a new password with the code"
+    },
+    {
+      "depends_on": [
+        "AUTH-020"
+      ],
+      "id": "AUTH-021",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 50,
+      "path": "modules/auth/AUTH-021-person-changes-their-password.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Person changes their password"
+    },
+    {
+      "depends_on": [
+        "AUTH-004",
+        "PER-007"
+      ],
+      "id": "AUTH-022",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 51,
+      "path": "modules/auth/AUTH-022-person-asks-for-an-email-verification-code.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Person asks for an email verification code"
+    },
+    {
+      "depends_on": [
+        "AUTH-022"
+      ],
+      "id": "AUTH-023",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 52,
+      "path": "modules/auth/AUTH-023-person-confirms-their-email.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Person confirms their email"
+    },
+    {
+      "depends_on": [
+        "AUTH-004",
+        "PER-005"
+      ],
+      "id": "AUTH-024",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 53,
+      "path": "modules/auth/AUTH-024-person-asks-to-change-their-phone-number.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Person asks to change their phone number"
+    },
+    {
+      "depends_on": [
+        "AUTH-024",
+        "PER-004"
+      ],
+      "id": "AUTH-025",
+      "implementable": false,
+      "kind": "feature",
+      "module": "auth",
+      "order": 54,
+      "path": "modules/auth/AUTH-025-person-moves-their-account-to-the-new-number.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Person moves their account to the new number"
+    },
+    {
+      "depends_on": [
+        "AUTH-002",
+        "AUTH-005",
+        "PER-002"
+      ],
+      "id": "AUTH-026",
+      "implementable": false,
+      "kind": "technical",
+      "module": "auth",
+      "order": 55,
+      "path": "modules/auth/AUTH-026-drop-the-bcrypt-dependency.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Drop the bcrypt dependency"
+    },
+    {
+      "depends_on": [
+        "PER-002",
+        "FND-002",
+        "FND-005",
+        "NTF-001"
+      ],
+      "id": "ORG-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "organization",
+      "order": 56,
+      "path": "modules/organization/ORG-001-organizations-table.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Organizations table"
+    },
+    {
+      "depends_on": [
+        "ORG-001",
+        "NTF-001"
+      ],
+      "id": "ORG-002",
+      "implementable": false,
+      "kind": "change",
+      "module": "organization",
+      "order": 57,
+      "path": "modules/organization/ORG-002-notifications-point-to-organizations.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Notifications point to organizations"
+    },
+    {
+      "depends_on": [
+        "ORG-001",
+        "PER-008",
+        "FND-005"
+      ],
+      "id": "ORG-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "organization",
+      "order": 58,
+      "path": "modules/organization/ORG-003-collaborations-table.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Collaborations table"
+    },
+    {
+      "depends_on": [
+        "ORG-003",
+        "ACC-007",
+        "PER-005",
+        "NTF-002"
+      ],
+      "id": "ORG-004",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 59,
+      "path": "modules/organization/ORG-004-registered-person-creates-an-organization.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Registered person creates an organization"
+    },
+    {
+      "depends_on": [
+        "ORG-004",
+        "ACC-006"
+      ],
+      "id": "ORG-005",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 60,
+      "path": "modules/organization/ORG-005-actor-loading-and-reading-my-organizations.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Actor loading and reading my organizations"
+    },
+    {
+      "depends_on": [
+        "ORG-003",
+        "ORG-004"
+      ],
+      "id": "ORG-006",
+      "implementable": false,
+      "kind": "technical",
+      "module": "organization",
+      "order": 61,
+      "path": "modules/organization/ORG-006-amount-held-helper.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Amount held helper"
+    },
+    {
+      "depends_on": [
+        "ORG-005",
+        "ACC-005",
+        "ACC-007",
+        "PER-005",
+        "NTF-002"
+      ],
+      "id": "ORG-007",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 62,
+      "path": "modules/organization/ORG-007-owner-invites-a-collaborator-by-phone-number.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner invites a collaborator by phone number"
+    },
+    {
+      "depends_on": [
+        "ORG-007"
+      ],
+      "id": "ORG-008",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 63,
+      "path": "modules/organization/ORG-008-invited-person-answers-an-invitation.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Invited person answers an invitation"
+    },
+    {
+      "depends_on": [
+        "ORG-008"
+      ],
+      "id": "ORG-009",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 64,
+      "path": "modules/organization/ORG-009-owner-changes-a-collaborator-s-role.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Owner changes a collaborator's role"
+    },
+    {
+      "depends_on": [
+        "ORG-008"
+      ],
+      "id": "ORG-010",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 65,
+      "path": "modules/organization/ORG-010-owner-revokes-a-collaborator.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Owner revokes a collaborator"
+    },
+    {
+      "depends_on": [
+        "ORG-008"
+      ],
+      "id": "ORG-011",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 66,
+      "path": "modules/organization/ORG-011-collaborator-agrees-to-be-a-public-contact.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Collaborator agrees to be a public contact"
+    },
+    {
+      "depends_on": [
+        "ORG-001",
+        "FND-005"
+      ],
+      "id": "ORG-012",
+      "implementable": false,
+      "kind": "technical",
+      "module": "organization",
+      "order": 67,
+      "path": "modules/organization/ORG-012-subscription-table.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Subscription table"
+    },
+    {
+      "depends_on": [
+        "ORG-012",
+        "ORG-005",
+        "ACC-005",
+        "ACC-007"
+      ],
+      "id": "ORG-013",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 68,
+      "path": "modules/organization/ORG-013-owner-starts-a-subscription.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Owner starts a subscription"
+    },
+    {
+      "depends_on": [
+        "ORG-013"
+      ],
+      "id": "ORG-014",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 69,
+      "path": "modules/organization/ORG-014-owner-ends-the-subscription.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Owner ends the subscription"
+    },
+    {
+      "depends_on": [
+        "ORG-008",
+        "ACC-005",
+        "ACC-007"
+      ],
+      "id": "ORG-015",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 70,
+      "path": "modules/organization/ORG-015-owner-transfers-the-ownership.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner transfers the ownership"
+    },
+    {
+      "depends_on": [
+        "ORG-014",
+        "ORG-010",
+        "ACC-005",
+        "ACC-007"
+      ],
+      "id": "ORG-016",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 71,
+      "path": "modules/organization/ORG-016-owner-closes-the-business.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner closes the business"
+    },
+    {
+      "depends_on": [
+        "ORG-016"
+      ],
+      "id": "ORG-017",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 72,
+      "path": "modules/organization/ORG-017-owner-reopens-the-business.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Owner reopens the business"
+    },
+    {
+      "depends_on": [
+        "ORG-011",
+        "PER-006"
+      ],
+      "id": "ORG-018",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 73,
+      "path": "modules/organization/ORG-018-find-a-business-by-a-public-phone-number.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Find a business by a public phone number"
+    },
+    {
+      "depends_on": [
+        "ORG-008"
+      ],
+      "id": "ORG-019",
+      "implementable": false,
+      "kind": "feature",
+      "module": "organization",
+      "order": 74,
+      "path": "modules/organization/ORG-019-team-list.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Team list"
+    },
+    {
+      "depends_on": [
+        "ORG-001",
+        "PER-008",
+        "FND-005",
+        "ORG-003"
+      ],
+      "id": "REL-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "relationship",
+      "order": 75,
+      "path": "modules/relationship/REL-001-relationships-table.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Relationships table"
+    },
+    {
+      "depends_on": [
+        "REL-001"
+      ],
+      "id": "REL-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "relationship",
+      "order": 76,
+      "path": "modules/relationship/REL-002-party-and-pair-rules-in-the-database.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Party and pair rules in the database"
+    },
+    {
+      "depends_on": [
+        "REL-001",
+        "FND-002",
+        "PER-008",
+        "PER-004"
+      ],
+      "id": "REL-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "relationship",
+      "order": 77,
+      "path": "modules/relationship/REL-003-credit-limit-journal-table.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Credit limit journal table"
+    },
+    {
+      "depends_on": [
+        "REL-002",
+        "REL-003"
+      ],
+      "id": "REL-004",
+      "implementable": false,
+      "kind": "technical",
+      "module": "relationship",
+      "order": 78,
+      "path": "modules/relationship/REL-004-credit-limit-rules-and-journal-trigger.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Credit limit rules and journal trigger"
+    },
+    {
+      "depends_on": [
+        "REL-002",
+        "ORG-005"
+      ],
+      "id": "REL-005",
+      "implementable": false,
+      "kind": "technical",
+      "module": "relationship",
+      "order": 79,
+      "path": "modules/relationship/REL-005-visibility-predicate-and-party-projections.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Visibility predicate and party projections"
+    },
+    {
+      "depends_on": [
+        "REL-004",
+        "ORG-004"
+      ],
+      "id": "REL-006",
+      "implementable": false,
+      "kind": "change",
+      "module": "relationship",
+      "order": 80,
+      "path": "modules/relationship/REL-006-every-new-organization-gets-its-first-counter.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Every new organization gets its first counter"
+    },
+    {
+      "depends_on": [
+        "REL-006",
+        "REL-005",
+        "ACC-002",
+        "ACC-007",
+        "PER-005",
+        "NTF-002"
+      ],
+      "id": "REL-007",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 81,
+      "path": "modules/relationship/REL-007-seller-adds-a-customer-by-phone-number.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Seller adds a customer by phone number"
+    },
+    {
+      "depends_on": [
+        "REL-007",
+        "FND-009"
+      ],
+      "id": "REL-008",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 82,
+      "path": "modules/relationship/REL-008-seller-lists-the-customers.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Seller lists the customers"
+    },
+    {
+      "depends_on": [
+        "REL-008"
+      ],
+      "id": "REL-009",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 83,
+      "path": "modules/relationship/REL-009-seller-opens-one-customer.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Seller opens one customer"
+    },
+    {
+      "depends_on": [
+        "REL-009",
+        "ACC-002"
+      ],
+      "id": "REL-010",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 84,
+      "path": "modules/relationship/REL-010-seller-edits-the-supplier-side-fields.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Seller edits the supplier-side fields"
+    },
+    {
+      "depends_on": [
+        "REL-007",
+        "ACC-002",
+        "REL-008"
+      ],
+      "id": "REL-011",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 85,
+      "path": "modules/relationship/REL-011-manager-adds-a-counter.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Manager adds a counter"
+    },
+    {
+      "depends_on": [
+        "REL-009",
+        "REL-004",
+        "ACC-002",
+        "ACC-007",
+        "NTF-002"
+      ],
+      "id": "REL-012",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 86,
+      "path": "modules/relationship/REL-012-owner-or-manager-sets-a-credit-limit.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner or manager sets a credit limit"
+    },
+    {
+      "depends_on": [
+        "REL-012",
+        "FND-009"
+      ],
+      "id": "REL-013",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 87,
+      "path": "modules/relationship/REL-013-owner-reads-the-credit-limit-history.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Owner reads the credit limit history"
+    },
+    {
+      "depends_on": [
+        "REL-002",
+        "FND-002",
+        "PER-008",
+        "REL-003"
+      ],
+      "id": "REL-014",
+      "implementable": false,
+      "kind": "technical",
+      "module": "relationship",
+      "order": 88,
+      "path": "modules/relationship/REL-014-reassignment-journal-table.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Reassignment journal table"
+    },
+    {
+      "depends_on": [
+        "REL-009",
+        "ACC-002",
+        "ACC-007"
+      ],
+      "id": "REL-015",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 89,
+      "path": "modules/relationship/REL-015-manager-ends-and-reopens-a-relationship-as.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Manager ends and reopens a relationship as supplier"
+    },
+    {
+      "depends_on": [
+        "REL-005",
+        "FND-009",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "id": "REL-016",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 90,
+      "path": "modules/relationship/REL-016-customer-lists-their-suppliers.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Customer lists their suppliers"
+    },
+    {
+      "depends_on": [
+        "REL-016",
+        "ACC-007",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "id": "REL-017",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 91,
+      "path": "modules/relationship/REL-017-customer-names-ends-and-reopens-a-supplier.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Customer names, ends and reopens a supplier"
+    },
+    {
+      "depends_on": [
+        "REL-017",
+        "ACC-002",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "id": "REL-018",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 92,
+      "path": "modules/relationship/REL-018-organization-lists-and-names-its-suppliers.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Organization lists and names its suppliers"
+    },
+    {
+      "depends_on": [
+        "REL-018",
+        "ACC-007",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "id": "REL-019",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 93,
+      "path": "modules/relationship/REL-019-organization-ends-and-reopens-a-supplier.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Organization ends and reopens a supplier"
+    },
+    {
+      "depends_on": [
+        "REL-016",
+        "ORG-018",
+        "ACC-005",
+        "ACC-007",
+        "PER-006",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "id": "REL-020",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 94,
+      "path": "modules/relationship/REL-020-customer-invites-a-supplier-by-phone-number.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Customer invites a supplier by phone number"
+    },
+    {
+      "depends_on": [
+        "REL-020",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "id": "REL-021",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 95,
+      "path": "modules/relationship/REL-021-invited-supplier-accepts-or-declines.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Invited supplier accepts or declines"
+    },
+    {
+      "depends_on": [
+        "REL-021",
+        "ORG-008",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "id": "REL-022",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 96,
+      "path": "modules/relationship/REL-022-newly-registered-person-sees-what-is-attached.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Newly registered person sees what is attached to their number"
+    },
+    {
+      "depends_on": [
+        "REL-014",
+        "REL-016",
+        "ACC-007",
+        "NTF-002",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "id": "REL-023",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 97,
+      "path": "modules/relationship/REL-023-customer-contests-a-relationship-this-is-not-me.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Customer contests a relationship (\"this is not me\")"
+    },
+    {
+      "depends_on": [
+        "REL-023",
+        "ACC-002",
+        "ACC-007",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "id": "REL-024",
+      "implementable": false,
+      "kind": "feature",
+      "module": "relationship",
+      "order": 98,
+      "path": "modules/relationship/REL-024-owner-or-manager-corrects-a-customer-s-number.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner or manager corrects a customer's number"
+    },
+    {
+      "depends_on": [
+        "REL-007"
+      ],
+      "id": "REL-025",
+      "implementable": false,
+      "kind": "technical",
+      "module": "relationship",
+      "order": 99,
+      "path": "modules/relationship/REL-025-merge-a-duplicate-customer-record.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Merge a duplicate customer record"
+    },
+    {
+      "depends_on": [
+        "PER-008",
+        "FND-005",
+        "ORG-003"
+      ],
+      "id": "ADM-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "admin",
+      "order": 100,
+      "path": "modules/admin/ADM-001-administrators-table.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Administrators table"
+    },
+    {
+      "depends_on": [
+        "ADM-001",
+        "FND-002",
+        "ORG-001",
+        "REL-014"
+      ],
+      "id": "ADM-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "admin",
+      "order": 101,
+      "path": "modules/admin/ADM-002-administration-journal-table.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Administration journal table"
+    },
+    {
+      "depends_on": [
+        "ADM-002",
+        "PER-008"
+      ],
+      "id": "ADM-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "admin",
+      "order": 102,
+      "path": "modules/admin/ADM-003-reports-table.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Reports table"
+    },
+    {
+      "depends_on": [
+        "ADM-001"
+      ],
+      "id": "ADM-004",
+      "implementable": false,
+      "kind": "technical",
+      "module": "admin",
+      "order": 103,
+      "path": "modules/admin/ADM-004-two-factor-codes-for-administrators.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Two-factor codes for administrators"
+    },
+    {
+      "depends_on": [
+        "ADM-004",
+        "AUTH-005"
+      ],
+      "id": "ADM-005",
+      "implementable": false,
+      "kind": "technical",
+      "module": "admin",
+      "order": 104,
+      "path": "modules/admin/ADM-005-create-the-first-super-administrator-from-the.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Create the first super administrator from the command line"
+    },
+    {
+      "depends_on": [
+        "ADM-004",
+        "ADM-002",
+        "AUTH-012",
+        "ORG-004"
+      ],
+      "id": "ADM-006",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 105,
+      "path": "modules/admin/ADM-006-administrator-signs-in-with-password-and.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Administrator signs in with password and authenticator code"
+    },
+    {
+      "depends_on": [
+        "ADM-006",
+        "AUTH-004"
+      ],
+      "id": "ADM-007",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 106,
+      "path": "modules/admin/ADM-007-administrator-registers-a-recovery-email.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Administrator registers a recovery email"
+    },
+    {
+      "depends_on": [
+        "ADM-007",
+        "NTF-002"
+      ],
+      "id": "ADM-008",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 107,
+      "path": "modules/admin/ADM-008-administrator-reinstalls-the-authenticator.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Administrator reinstalls the authenticator through the recovery email"
+    },
+    {
+      "depends_on": [
+        "ADM-006",
+        "ADM-005"
+      ],
+      "id": "ADM-009",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 108,
+      "path": "modules/admin/ADM-009-super-administrator-appoints-an-administrator.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Super administrator appoints an administrator"
+    },
+    {
+      "depends_on": [
+        "ADM-009"
+      ],
+      "id": "ADM-010",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 109,
+      "path": "modules/admin/ADM-010-super-administrator-removes-an-administrator.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Super administrator removes an administrator"
+    },
+    {
+      "depends_on": [
+        "ADM-003",
+        "ACC-007",
+        "ADM-006",
+        "NTF-003"
+      ],
+      "id": "ADM-011",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 110,
+      "path": "modules/admin/ADM-011-person-reports-another-person-or-a-business.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Person reports another person or a business"
+    },
+    {
+      "depends_on": [
+        "ADM-011",
+        "FND-009",
+        "ADM-006"
+      ],
+      "id": "ADM-012",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 111,
+      "path": "modules/admin/ADM-012-administrator-lists-and-opens-reports.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Administrator lists and opens reports"
+    },
+    {
+      "depends_on": [
+        "ADM-012",
+        "AUTH-008",
+        "NTF-002",
+        "ADM-006"
+      ],
+      "id": "ADM-013",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 112,
+      "path": "modules/admin/ADM-013-administrator-resolves-a-report.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Administrator resolves a report"
+    },
+    {
+      "depends_on": [
+        "ADM-013",
+        "ADM-006"
+      ],
+      "id": "ADM-014",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 113,
+      "path": "modules/admin/ADM-014-administrator-suspends-or-reactivates-without-a.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Administrator suspends or reactivates without a report"
+    },
+    {
+      "depends_on": [
+        "ADM-014",
+        "FND-009",
+        "ADM-006"
+      ],
+      "id": "ADM-015",
+      "implementable": false,
+      "kind": "feature",
+      "module": "admin",
+      "order": 114,
+      "path": "modules/admin/ADM-015-administrators-read-the-action-journal.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Administrators read the action journal"
+    },
+    {
+      "depends_on": [
+        "ORG-001",
+        "FND-002",
+        "FND-005"
+      ],
+      "id": "CAT-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "catalog",
+      "order": 115,
+      "path": "modules/catalog/CAT-001-products-table.md",
+      "risk": "low",
+      "size": "S",
+      "status": "todo",
+      "title": "Products table"
+    },
+    {
+      "depends_on": [
+        "CAT-001",
+        "REL-002",
+        "PER-008"
+      ],
+      "id": "CAT-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "catalog",
+      "order": 116,
+      "path": "modules/catalog/CAT-002-negotiated-prices-table.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Negotiated prices table"
+    },
+    {
+      "depends_on": [
+        "CAT-002",
+        "REL-006"
+      ],
+      "id": "CAT-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "catalog",
+      "order": 117,
+      "path": "modules/catalog/CAT-003-reference-price-and-active-product-lookup.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Reference price and active product lookup"
+    },
+    {
+      "depends_on": [
+        "CAT-001",
+        "ORG-005",
+        "ACC-002",
+        "ACC-007",
+        "CAT-003",
+        "FND-003"
+      ],
+      "id": "CAT-004",
+      "implementable": false,
+      "kind": "feature",
+      "module": "catalog",
+      "order": 118,
+      "path": "modules/catalog/CAT-004-manager-creates-a-product.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Manager creates a product"
+    },
+    {
+      "depends_on": [
+        "CAT-004",
+        "CAT-003"
+      ],
+      "id": "CAT-005",
+      "implementable": false,
+      "kind": "feature",
+      "module": "catalog",
+      "order": 119,
+      "path": "modules/catalog/CAT-005-manager-edits-and-retires-a-product.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Manager edits and retires a product"
+    },
+    {
+      "depends_on": [
+        "CAT-004",
+        "FND-009",
+        "CAT-003"
+      ],
+      "id": "CAT-006",
+      "implementable": false,
+      "kind": "feature",
+      "module": "catalog",
+      "order": 120,
+      "path": "modules/catalog/CAT-006-seller-lists-the-catalog.md",
+      "risk": "low",
+      "size": "S",
+      "status": "todo",
+      "title": "Seller lists the catalog"
+    },
+    {
+      "depends_on": [
+        "CAT-003",
+        "CAT-006",
+        "REL-005"
+      ],
+      "id": "CAT-007",
+      "implementable": false,
+      "kind": "feature",
+      "module": "catalog",
+      "order": 121,
+      "path": "modules/catalog/CAT-007-customer-browses-a-supplier-s-catalog.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Customer browses a supplier's catalog"
+    },
+    {
+      "depends_on": [
+        "CAT-002",
+        "CAT-006",
+        "REL-009",
+        "ACC-002",
+        "ACC-007",
+        "NTF-002",
+        "CAT-003"
+      ],
+      "id": "CAT-008",
+      "implementable": false,
+      "kind": "feature",
+      "module": "catalog",
+      "order": 122,
+      "path": "modules/catalog/CAT-008-owner-or-manager-sets-a-negotiated-price.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner or manager sets a negotiated price"
+    },
+    {
+      "depends_on": [
+        "CAT-008",
+        "FND-009",
+        "CAT-003"
+      ],
+      "id": "CAT-009",
+      "implementable": false,
+      "kind": "feature",
+      "module": "catalog",
+      "order": 123,
+      "path": "modules/catalog/CAT-009-owner-or-manager-removes-a-negotiated-price-and.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner or manager removes a negotiated price and reads them"
+    },
+    {
+      "depends_on": [
+        "CAT-009",
+        "ACC-007",
+        "CAT-003"
+      ],
+      "id": "CAT-010",
+      "implementable": false,
+      "kind": "feature",
+      "module": "catalog",
+      "order": 124,
+      "path": "modules/catalog/CAT-010-manager-copies-negotiated-prices-between.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Manager copies negotiated prices between customers"
+    },
+    {
+      "depends_on": [
+        "CAT-004",
+        "REL-016",
+        "ACC-007",
+        "CAT-003",
+        "CAT-006",
+        "REL-006"
+      ],
+      "id": "CAT-011",
+      "implementable": false,
+      "kind": "feature",
+      "module": "catalog",
+      "order": 125,
+      "path": "modules/catalog/CAT-011-reseller-copies-a-purchased-article-into-their.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Reseller copies a purchased article into their catalog"
+    },
+    {
+      "depends_on": [
+        "REL-002",
+        "PER-008",
+        "FND-005"
+      ],
+      "id": "ORD-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "order",
+      "order": 126,
+      "path": "modules/order/ORD-001-orders-table.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Orders table"
+    },
+    {
+      "depends_on": [
+        "ORD-001"
+      ],
+      "id": "ORD-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "order",
+      "order": 127,
+      "path": "modules/order/ORD-002-order-status-cancellation-and-delivery-rules-in.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Order status, cancellation and delivery rules in the database"
+    },
+    {
+      "depends_on": [
+        "ORD-001",
+        "ORG-001",
+        "ORD-002"
+      ],
+      "id": "ORD-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "order",
+      "order": 128,
+      "path": "modules/order/ORD-003-orders-only-on-live-relationships-of-active.md",
+      "risk": "high",
+      "size": "XS",
+      "status": "todo",
+      "title": "Orders only on live relationships of active organizations"
+    },
+    {
+      "depends_on": [
+        "ORD-001",
+        "CAT-001",
+        "PER-008",
+        "FND-003",
+        "ORD-002"
+      ],
+      "id": "ORD-004",
+      "implementable": false,
+      "kind": "technical",
+      "module": "order",
+      "order": 129,
+      "path": "modules/order/ORD-004-order-lines-table.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Order lines table"
+    },
+    {
+      "depends_on": [
+        "ORD-004",
+        "ORD-003"
+      ],
+      "id": "ORD-005",
+      "implementable": false,
+      "kind": "technical",
+      "module": "order",
+      "order": 130,
+      "path": "modules/order/ORD-005-order-line-product-and-minimum-quantity-rules.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Order line product and minimum quantity rules"
+    },
+    {
+      "depends_on": [
+        "ORD-005"
+      ],
+      "id": "ORD-006",
+      "implementable": false,
+      "kind": "technical",
+      "module": "order",
+      "order": 131,
+      "path": "modules/order/ORD-006-order-total-equals-the-sum-of-its-lines.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Order total equals the sum of its lines"
+    },
+    {
+      "depends_on": [
+        "ORD-004",
+        "FND-003"
+      ],
+      "id": "ORD-007",
+      "implementable": false,
+      "kind": "technical",
+      "module": "order",
+      "order": 132,
+      "path": "modules/order/ORD-007-order-calculations-and-party-views.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Order calculations and party views"
+    },
+    {
+      "depends_on": [
+        "ORD-002",
+        "ORD-007"
+      ],
+      "id": "ORD-008",
+      "implementable": false,
+      "kind": "technical",
+      "module": "order",
+      "order": 133,
+      "path": "modules/order/ORD-008-order-state-machine.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Order state machine"
+    },
+    {
+      "depends_on": [
+        "ORD-008",
+        "ORD-005",
+        "ORD-006",
+        "REL-007",
+        "CAT-003",
+        "ACC-007",
+        "NTF-002"
+      ],
+      "id": "ORD-009",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 134,
+      "path": "modules/order/ORD-009-customer-places-an-order.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Customer places an order"
+    },
+    {
+      "depends_on": [
+        "ORD-009",
+        "ACC-005"
+      ],
+      "id": "ORD-010",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 135,
+      "path": "modules/order/ORD-010-organization-manager-orders-from-a-supplier.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Organization manager orders from a supplier"
+    },
+    {
+      "depends_on": [
+        "ORD-008",
+        "ACC-003",
+        "ACC-007",
+        "NTF-002",
+        "ORD-009"
+      ],
+      "id": "ORD-011",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 136,
+      "path": "modules/order/ORD-011-supplier-accepts-an-order-lowering-prices-if.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Supplier accepts an order, lowering prices if needed"
+    },
+    {
+      "depends_on": [
+        "ORD-008",
+        "ACC-003",
+        "ACC-007",
+        "NTF-002",
+        "ORD-009"
+      ],
+      "id": "ORD-012",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 137,
+      "path": "modules/order/ORD-012-supplier-refuses-an-order.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Supplier refuses an order"
+    },
+    {
+      "depends_on": [
+        "ORD-008",
+        "ORD-005",
+        "REL-009",
+        "CAT-003",
+        "ACC-003",
+        "ACC-007",
+        "ORD-009"
+      ],
+      "id": "ORD-013",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 138,
+      "path": "modules/order/ORD-013-seller-enters-an-order-for-a-customer.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Seller enters an order for a customer"
+    },
+    {
+      "depends_on": [
+        "ORD-013",
+        "ORD-009"
+      ],
+      "id": "ORD-014",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 139,
+      "path": "modules/order/ORD-014-seller-edits-an-order-they-entered-before.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Seller edits an order they entered, before departure"
+    },
+    {
+      "depends_on": [
+        "ORD-009"
+      ],
+      "id": "ORD-015",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 140,
+      "path": "modules/order/ORD-015-seller-writes-a-note-on-an-order-at-any-time.md",
+      "risk": "low",
+      "size": "XS",
+      "status": "todo",
+      "title": "Seller writes a note on an order at any time"
+    },
+    {
+      "depends_on": [
+        "ORD-008",
+        "ACC-003",
+        "ACC-007",
+        "NTF-002",
+        "ORD-009"
+      ],
+      "id": "ORD-016",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 141,
+      "path": "modules/order/ORD-016-supplier-cancels-an-order-before-departure.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Supplier cancels an order before departure"
+    },
+    {
+      "depends_on": [
+        "ORD-009",
+        "ORD-010",
+        "ORD-016"
+      ],
+      "id": "ORD-017",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 142,
+      "path": "modules/order/ORD-017-customer-cancels-an-order-before-departure.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Customer cancels an order before departure"
+    },
+    {
+      "depends_on": [
+        "ORD-008",
+        "ORG-016"
+      ],
+      "id": "ORD-018",
+      "implementable": false,
+      "kind": "change",
+      "module": "order",
+      "order": 143,
+      "path": "modules/order/ORD-018-closing-a-business-refuses-its-pending-orders.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Closing a business refuses its pending orders"
+    },
+    {
+      "depends_on": [
+        "ORD-013",
+        "FND-009",
+        "ORD-009"
+      ],
+      "id": "ORD-019",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 144,
+      "path": "modules/order/ORD-019-seller-lists-the-orders.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Seller lists the orders"
+    },
+    {
+      "depends_on": [
+        "ORD-019",
+        "ORD-009"
+      ],
+      "id": "ORD-020",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 145,
+      "path": "modules/order/ORD-020-seller-opens-one-order.md",
+      "risk": "medium",
+      "size": "XS",
+      "status": "todo",
+      "title": "Seller opens one order"
+    },
+    {
+      "depends_on": [
+        "ORD-017",
+        "ORD-019",
+        "FND-009"
+      ],
+      "id": "ORD-021",
+      "implementable": false,
+      "kind": "feature",
+      "module": "order",
+      "order": 146,
+      "path": "modules/order/ORD-021-customer-lists-and-opens-their-orders.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Customer lists and opens their orders"
+    },
+    {
+      "depends_on": [
+        "REL-001",
+        "ORD-001",
+        "PER-008",
+        "FND-002",
+        "REL-014"
+      ],
+      "id": "FIN-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "finance",
+      "order": 147,
+      "path": "modules/finance/FIN-001-ledger-entries-table.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Ledger entries table"
+    },
+    {
+      "depends_on": [
+        "FIN-001",
+        "ORD-006",
+        "ORD-003"
+      ],
+      "id": "FIN-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "finance",
+      "order": 148,
+      "path": "modules/finance/FIN-002-ledger-sale-and-reversal-rules-in-the-database.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Ledger sale and reversal rules in the database"
+    },
+    {
+      "depends_on": [
+        "FIN-002",
+        "REL-025",
+        "ORG-006"
+      ],
+      "id": "FIN-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "finance",
+      "order": 149,
+      "path": "modules/finance/FIN-003-append-a-ledger-entry-and-update-the-caches.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Append a ledger entry and update the caches"
+    },
+    {
+      "depends_on": [
+        "FIN-003",
+        "REL-009",
+        "ACC-004",
+        "ACC-007"
+      ],
+      "id": "FIN-004",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 150,
+      "path": "modules/finance/FIN-004-seller-records-a-payment.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Seller records a payment"
+    },
+    {
+      "depends_on": [
+        "FIN-004",
+        "ACC-004",
+        "NTF-002"
+      ],
+      "id": "FIN-005",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 151,
+      "path": "modules/finance/FIN-005-manager-returns-money-to-a-customer.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Manager returns money to a customer"
+    },
+    {
+      "depends_on": [
+        "FIN-005"
+      ],
+      "id": "FIN-006",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 152,
+      "path": "modules/finance/FIN-006-manager-grants-a-credit-note.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Manager grants a credit note"
+    },
+    {
+      "depends_on": [
+        "FIN-005"
+      ],
+      "id": "FIN-007",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 153,
+      "path": "modules/finance/FIN-007-manager-records-an-opening-balance-from-a-paper.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Manager records an opening balance from a paper notebook"
+    },
+    {
+      "depends_on": [
+        "FIN-005",
+        "FIN-006"
+      ],
+      "id": "FIN-008",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 154,
+      "path": "modules/finance/FIN-008-manager-records-a-refunded-return.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Manager records a refunded return"
+    },
+    {
+      "depends_on": [
+        "FIN-005",
+        "ACC-007"
+      ],
+      "id": "FIN-009",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 155,
+      "path": "modules/finance/FIN-009-manager-reverses-a-ledger-entry.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Manager reverses a ledger entry"
+    },
+    {
+      "depends_on": [
+        "FIN-009",
+        "FND-009"
+      ],
+      "id": "FIN-010",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 156,
+      "path": "modules/finance/FIN-010-parties-read-the-ledger-of-a-relationship.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Parties read the ledger of a relationship"
+    },
+    {
+      "depends_on": [
+        "ORG-003",
+        "PER-008",
+        "FND-002"
+      ],
+      "id": "FIN-011",
+      "implementable": false,
+      "kind": "technical",
+      "module": "finance",
+      "order": 157,
+      "path": "modules/finance/FIN-011-expenses-table.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Expenses table"
+    },
+    {
+      "depends_on": [
+        "FIN-011",
+        "FIN-003",
+        "ACC-004",
+        "ACC-007",
+        "FIN-004"
+      ],
+      "id": "FIN-012",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 158,
+      "path": "modules/finance/FIN-012-manager-records-an-expense.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Manager records an expense"
+    },
+    {
+      "depends_on": [
+        "FIN-012",
+        "FIN-004"
+      ],
+      "id": "FIN-013",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 159,
+      "path": "modules/finance/FIN-013-manager-cancels-an-expense.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Manager cancels an expense"
+    },
+    {
+      "depends_on": [
+        "FIN-011"
+      ],
+      "id": "FIN-014",
+      "implementable": false,
+      "kind": "technical",
+      "module": "finance",
+      "order": 160,
+      "path": "modules/finance/FIN-014-handovers-table.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Handovers table"
+    },
+    {
+      "depends_on": [
+        "FIN-014",
+        "FIN-012",
+        "NTF-002",
+        "FIN-004"
+      ],
+      "id": "FIN-015",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 161,
+      "path": "modules/finance/FIN-015-owner-or-manager-records-a-handover-received.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner or manager records a handover received"
+    },
+    {
+      "depends_on": [
+        "FIN-015",
+        "FIN-004"
+      ],
+      "id": "FIN-016",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 162,
+      "path": "modules/finance/FIN-016-cancel-a-handover-and-dispute-the-noted-amount.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Cancel a handover and dispute the noted amount"
+    },
+    {
+      "depends_on": [
+        "FIN-015",
+        "ORG-015"
+      ],
+      "id": "FIN-017",
+      "implementable": false,
+      "kind": "change",
+      "module": "finance",
+      "order": 163,
+      "path": "modules/finance/FIN-017-ownership-transfer-hands-over-the-former-owner.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Ownership transfer hands over the former owner's money"
+    },
+    {
+      "depends_on": [
+        "FIN-016",
+        "FIN-003"
+      ],
+      "id": "FIN-018",
+      "implementable": false,
+      "kind": "technical",
+      "module": "finance",
+      "order": 164,
+      "path": "modules/finance/FIN-018-nightly-check-of-balances-and-held-money.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Nightly check of balances and held money"
+    },
+    {
+      "depends_on": [
+        "FIN-016",
+        "ORD-013",
+        "FIN-004",
+        "FIN-010"
+      ],
+      "id": "FIN-019",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 165,
+      "path": "modules/finance/FIN-019-owner-reads-the-money-exceptions.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner reads the money exceptions"
+    },
+    {
+      "depends_on": [
+        "FIN-019",
+        "FND-009",
+        "FIN-004",
+        "FIN-010"
+      ],
+      "id": "FIN-020",
+      "implementable": false,
+      "kind": "feature",
+      "module": "finance",
+      "order": 166,
+      "path": "modules/finance/FIN-020-owner-reads-the-treasury-and-expenses.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Owner reads the treasury and expenses"
+    },
+    {
+      "depends_on": [
+        "ORD-001",
+        "PER-008",
+        "FND-002"
+      ],
+      "id": "DLV-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "delivery",
+      "order": 167,
+      "path": "modules/delivery/DLV-001-deliveries-table.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Deliveries table"
+    },
+    {
+      "depends_on": [
+        "DLV-001",
+        "ORG-003",
+        "ORD-003"
+      ],
+      "id": "DLV-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "delivery",
+      "order": 168,
+      "path": "modules/delivery/DLV-002-delivery-state-rules-in-the-database.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Delivery state rules in the database"
+    },
+    {
+      "depends_on": [
+        "DLV-002",
+        "REL-005",
+        "ORD-007"
+      ],
+      "id": "DLV-003",
+      "implementable": false,
+      "kind": "feature",
+      "module": "delivery",
+      "order": 169,
+      "path": "modules/delivery/DLV-003-driver-sees-the-orders-to-deliver.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Driver sees the orders to deliver"
+    },
+    {
+      "depends_on": [
+        "DLV-003",
+        "ACC-003",
+        "ACC-007",
+        "NTF-002"
+      ],
+      "id": "DLV-004",
+      "implementable": false,
+      "kind": "feature",
+      "module": "delivery",
+      "order": 170,
+      "path": "modules/delivery/DLV-004-manager-assigns-an-order-to-a-driver.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Manager assigns an order to a driver"
+    },
+    {
+      "depends_on": [
+        "DLV-004",
+        "ORD-008"
+      ],
+      "id": "DLV-005",
+      "implementable": false,
+      "kind": "feature",
+      "module": "delivery",
+      "order": 171,
+      "path": "modules/delivery/DLV-005-driver-departs-with-an-order.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Driver departs with an order"
+    },
+    {
+      "depends_on": [
+        "DLV-005"
+      ],
+      "id": "DLV-006",
+      "implementable": false,
+      "kind": "feature",
+      "module": "delivery",
+      "order": 172,
+      "path": "modules/delivery/DLV-006-driver-reports-a-failed-delivery.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Driver reports a failed delivery"
+    },
+    {
+      "depends_on": [
+        "DLV-005",
+        "FIN-004",
+        "ACC-003",
+        "ACC-007",
+        "NTF-002"
+      ],
+      "id": "DLV-007",
+      "implementable": false,
+      "kind": "feature",
+      "module": "delivery",
+      "order": 173,
+      "path": "modules/delivery/DLV-007-commande-livree-deliver-a-whole-order-and.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "\"Commande livrée\": deliver a whole order and record the sale and the payment"
+    },
+    {
+      "depends_on": [
+        "DLV-007"
+      ],
+      "id": "DLV-008",
+      "implementable": false,
+      "kind": "change",
+      "module": "delivery",
+      "order": 174,
+      "path": "modules/delivery/DLV-008-deliver-only-part-of-an-order-and-settle-the.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Deliver only part of an order and settle the rest"
+    },
+    {
+      "depends_on": [
+        "DLV-007",
+        "ORD-013",
+        "REL-011",
+        "ORD-009"
+      ],
+      "id": "DLV-009",
+      "implementable": false,
+      "kind": "feature",
+      "module": "delivery",
+      "order": 175,
+      "path": "modules/delivery/DLV-009-seller-validates-a-counter-sale.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Seller validates a counter sale"
+    },
+    {
+      "depends_on": [
+        "DLV-007",
+        "ORD-017"
+      ],
+      "id": "DLV-010",
+      "implementable": false,
+      "kind": "change",
+      "module": "delivery",
+      "order": 176,
+      "path": "modules/delivery/DLV-010-cancelled-or-shop-delivered-orders-drop-their.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Cancelled or shop-delivered orders drop their unstarted deliveries"
+    },
+    {
+      "depends_on": [
+        "DLV-008",
+        "FIN-019"
+      ],
+      "id": "DLV-011",
+      "implementable": false,
+      "kind": "feature",
+      "module": "delivery",
+      "order": 177,
+      "path": "modules/delivery/DLV-011-owner-reviews-unsettled-deliveries-of-the-day.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Owner reviews unsettled deliveries of the day"
+    },
+    {
+      "depends_on": [
+        "DLV-008",
+        "FIN-019"
+      ],
+      "id": "DLV-012",
+      "implementable": false,
+      "kind": "change",
+      "module": "delivery",
+      "order": 178,
+      "path": "modules/delivery/DLV-012-abandoned-rests-join-the-owner-s-money.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Abandoned rests join the owner's money exceptions"
+    },
+    {
+      "depends_on": [
+        "ORG-005",
+        "AUTH-006",
+        "ACC-001"
+      ],
+      "id": "SYNC-001",
+      "implementable": false,
+      "kind": "technical",
+      "module": "sync",
+      "order": 179,
+      "path": "modules/sync/SYNC-001-sync-types-adapter-registry-and-viewer.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Sync types, adapter registry and viewer"
+    },
+    {
+      "depends_on": [
+        "AUTH-007",
+        "ADM-002",
+        "FND-002"
+      ],
+      "id": "SYNC-002",
+      "implementable": false,
+      "kind": "technical",
+      "module": "sync",
+      "order": 180,
+      "path": "modules/sync/SYNC-002-sync-archive-table.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Sync archive table"
+    },
+    {
+      "depends_on": [
+        "SYNC-001",
+        "FND-008"
+      ],
+      "id": "SYNC-003",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 181,
+      "path": "modules/sync/SYNC-003-pull-endpoint-and-identity-tables.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Pull endpoint and identity tables"
+    },
+    {
+      "depends_on": [
+        "SYNC-003",
+        "REL-005",
+        "CAT-002"
+      ],
+      "id": "SYNC-004",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 182,
+      "path": "modules/sync/SYNC-004-pull-relationships-and-negotiated-prices.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Pull relationships and negotiated prices"
+    },
+    {
+      "depends_on": [
+        "SYNC-004",
+        "CAT-001",
+        "CAT-003"
+      ],
+      "id": "SYNC-005",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 183,
+      "path": "modules/sync/SYNC-005-pull-the-catalog.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Pull the catalog"
+    },
+    {
+      "depends_on": [
+        "SYNC-005",
+        "ORD-007",
+        "DLV-001"
+      ],
+      "id": "SYNC-006",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 184,
+      "path": "modules/sync/SYNC-006-pull-orders-lines-and-deliveries.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Pull orders, lines and deliveries"
+    },
+    {
+      "depends_on": [
+        "SYNC-006",
+        "FIN-001",
+        "FIN-014",
+        "REL-003",
+        "NTF-001",
+        "FIN-003"
+      ],
+      "id": "SYNC-007",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 185,
+      "path": "modules/sync/SYNC-007-pull-the-ledger-money-records-and-notifications.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Pull the ledger, money records and notifications"
+    },
+    {
+      "depends_on": [
+        "SYNC-003",
+        "AUTH-007",
+        "PER-005"
+      ],
+      "id": "SYNC-008",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 186,
+      "path": "modules/sync/SYNC-008-device-tracking-and-full-resynchronization.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Device tracking and full resynchronization"
+    },
+    {
+      "depends_on": [
+        "SYNC-008",
+        "SYNC-002",
+        "SYNC-006"
+      ],
+      "id": "SYNC-009",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 187,
+      "path": "modules/sync/SYNC-009-push-endpoint-archive-and-envelope.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Push endpoint, archive and envelope"
+    },
+    {
+      "depends_on": [
+        "SYNC-009",
+        "ACC-002"
+      ],
+      "id": "SYNC-010",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 188,
+      "path": "modules/sync/SYNC-010-judge-pipeline-scope-field-rights-computed.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Judge pipeline: scope, field rights, computed fields"
+    },
+    {
+      "depends_on": [
+        "SYNC-010",
+        "REL-025",
+        "REL-007",
+        "SYNC-004"
+      ],
+      "id": "SYNC-011",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 189,
+      "path": "modules/sync/SYNC-011-push-new-and-edited-customers-and-merge.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Push new and edited customers, and merge duplicates"
+    },
+    {
+      "depends_on": [
+        "SYNC-011",
+        "ORD-013"
+      ],
+      "id": "SYNC-012",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 190,
+      "path": "modules/sync/SYNC-012-push-orders-entered-offline.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Push orders entered offline"
+    },
+    {
+      "depends_on": [
+        "SYNC-012",
+        "ORD-008",
+        "DLV-005",
+        "DLV-006"
+      ],
+      "id": "SYNC-013",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 191,
+      "path": "modules/sync/SYNC-013-push-order-status-changes-and-deliveries.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Push order status changes and deliveries"
+    },
+    {
+      "depends_on": [
+        "SYNC-013",
+        "DLV-008"
+      ],
+      "id": "SYNC-014",
+      "implementable": false,
+      "kind": "change",
+      "module": "sync",
+      "order": 192,
+      "path": "modules/sync/SYNC-014-push-the-closing-of-an-order-with-its-sale-and.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Push the closing of an order with its sale and payments"
+    },
+    {
+      "depends_on": [
+        "SYNC-014",
+        "FIN-004",
+        "NTF-004"
+      ],
+      "id": "SYNC-015",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 193,
+      "path": "modules/sync/SYNC-015-push-payments-and-notification-reads.md",
+      "risk": "high",
+      "size": "S",
+      "status": "todo",
+      "title": "Push payments and notification reads"
+    },
+    {
+      "depends_on": [
+        "SYNC-012",
+        "NTF-002"
+      ],
+      "id": "SYNC-016",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 194,
+      "path": "modules/sync/SYNC-016-controls-on-arrival-prices-articles-and-dates.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Controls on arrival: prices, articles and dates"
+    },
+    {
+      "depends_on": [
+        "SYNC-016",
+        "SYNC-014"
+      ],
+      "id": "SYNC-017",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 195,
+      "path": "modules/sync/SYNC-017-controls-on-arrival-credit-restricted-mode-and.md",
+      "risk": "medium",
+      "size": "M",
+      "status": "todo",
+      "title": "Controls on arrival: credit, restricted mode and long absence"
+    },
+    {
+      "depends_on": [
+        "SYNC-010",
+        "NTF-002"
+      ],
+      "id": "SYNC-018",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 196,
+      "path": "modules/sync/SYNC-018-forbidden-sends-are-refused-recorded-and.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Forbidden sends are refused, recorded and trigger a resync"
+    },
+    {
+      "depends_on": [
+        "SYNC-018",
+        "SYNC-014"
+      ],
+      "id": "SYNC-019",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 197,
+      "path": "modules/sync/SYNC-019-first-push-after-a-rights-change.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "First push after a rights change"
+    },
+    {
+      "depends_on": [
+        "SYNC-017",
+        "FND-009",
+        "SYNC-006"
+      ],
+      "id": "SYNC-020",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 198,
+      "path": "modules/sync/SYNC-020-the-list-of-things-to-resolve.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "The list of things to resolve"
+    },
+    {
+      "depends_on": [
+        "SYNC-020",
+        "SYNC-006"
+      ],
+      "id": "SYNC-021",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 199,
+      "path": "modules/sync/SYNC-021-owner-reads-the-synchronization-exceptions.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Owner reads the synchronization exceptions grouped by cause"
+    },
+    {
+      "depends_on": [
+        "SYNC-018",
+        "ADM-009",
+        "ADM-002",
+        "SYNC-006"
+      ],
+      "id": "SYNC-022",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 200,
+      "path": "modules/sync/SYNC-022-super-administrator-replays-an-archived-batch.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Super administrator replays an archived batch"
+    },
+    {
+      "depends_on": [
+        "SYNC-022",
+        "FND-009",
+        "SYNC-006"
+      ],
+      "id": "SYNC-023",
+      "implementable": false,
+      "kind": "feature",
+      "module": "sync",
+      "order": 201,
+      "path": "modules/sync/SYNC-023-administrators-list-and-open-archived-batches.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Administrators list and open archived batches"
+    },
+    {
+      "depends_on": [
+        "ORG-005",
+        "REL-016"
+      ],
+      "id": "PRIV-001",
+      "implementable": false,
+      "kind": "feature",
+      "module": "privacy",
+      "order": 202,
+      "path": "modules/privacy/PRIV-001-person-checks-whether-they-can-delete-their.md",
+      "risk": "medium",
+      "size": "S",
+      "status": "todo",
+      "title": "Person checks whether they can delete their account"
+    },
+    {
+      "depends_on": [
+        "PRIV-001",
+        "AUTH-008",
+        "AUTH-005"
+      ],
+      "id": "PRIV-002",
+      "implementable": false,
+      "kind": "feature",
+      "module": "privacy",
+      "order": 203,
+      "path": "modules/privacy/PRIV-002-person-deletes-their-account-by-anonymization.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Person deletes their account by anonymization"
+    },
+    {
+      "depends_on": [
+        "SYNC-002",
+        "AUTH-007",
+        "ACC-007",
+        "NTF-001",
+        "FND-002",
+        "FIN-018"
+      ],
+      "id": "PRIV-003",
+      "implementable": false,
+      "kind": "technical",
+      "module": "privacy",
+      "order": 204,
+      "path": "modules/privacy/PRIV-003-daily-purge-of-expired-data.md",
+      "risk": "high",
+      "size": "M",
+      "status": "todo",
+      "title": "Daily purge of expired data"
+    }
+  ],
+  "template_version": "1.2.0"
+}

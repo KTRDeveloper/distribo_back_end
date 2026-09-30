@@ -1,0 +1,1282 @@
+kind: module
+module: finance
+prefix: FIN
+title: Finance
+responsibility: Owns the ledger of each relationship, the balance and held-money caches, expenses, handovers, the nightly check and the owner's money exceptions.
+entities: [LedgerEntry, Expense, Handover]
+depends_on: [foundation, person, notification, access, organization, relationship, order]
+asvs_level: L2
+asvs_rationale: Money is recorded here; entries are immutable and the caches are updated atomically, but only managers and the owner may move money beyond a collection.
+classification:
+  - "LedgerEntry.amount, balance_effect | confidential | visible to both parties of the relationship"
+  - "LedgerEntry.recorded_by_id | internal | supplier team only"
+  - "Expense, Handover | confidential | organization team; the customer never sees them"
+  - "Collaboration.amount_held | confidential | the collaborator and the owner"
+threats:
+  - "T1 | T | A ledger entry is edited or deleted | the application role has INSERT and SELECT only | FIN-001 AB-1"
+  - "T2 | T | A lost response makes a refund happen twice | client-created ids and the idempotency middleware | FIN-005 AB-1"
+  - "T3 | E | A seller or driver refunds, credits or reverses | those gestures need MANAGER online or OWNER | FIN-005 AB-2, FIN-009 AB-1"
+  - "T4 | T | Two simultaneous writes lose one effect on a balance | caches change by addition in a fixed order | FIN-003 AB-1"
+  - "T5 | R | Money leaves without the owner noticing | money gestures by non-owners are grouped by person for the owner | FIN-019 AB-1"
+  - "T6 | T | The recorder of a handover keeps part of the cash | the remitter is told the amount noted and can dispute it | FIN-016 AB-1"
+constraints:
+  C-23: "`LedgerEntry.amount` > 0; `balance_effect` is a generated column of `kind`, `amount` and `reverses_entry_id`; `mode` is set if and only if `kind` is PAYMENT or REFUND."
+  C-24: "A SALE entry has `order_id` set and `amount` equal to `Order.total_amount` (server-fixed), and there is at most one non-reversed sale per order; the payment born of 'Commande livrée' also carries `order_id`."
+  C-25: "A ledger entry is never updated or deleted; `reverses_entry_id` is unique, on the same relationship, the same kind and amount, and points to an entry that is not itself a reversal."
+  C-26: "A sale on a counter is paid in full: no credit for anonymous customers."
+  C-27: "`Expense.amount` > 0 and `paid_by_id` is a collaborator of the organization, active or gone; `Handover.amount` > 0, `from_person_id` a collaborator active or gone, `from_person_id` differs from `to_person_id` except the former owner's automatic handover, `to_person_id` an ACTIVE OWNER or MANAGER; expenses and handovers are never modified, only cancelled once with `cancelled_at` and `cancelled_by_id` set together."
+  C-37: "`CustomerRelationship.balance` and `Collaboration.amount_held` are updated by adding the effect of each operation inside its transaction, always relationship first then collaboration; a nightly check compares each total with the sum of its entries."
+  C-32: "Immutable journals are never updated or deleted by the application; only the retention purge removes them."
+  C-39: "The application account has only INSERT and SELECT on the immutable tables."
+  C-38: "Every online route that changes data carries the client-created id; an id already received changes nothing and returns the first result."
+  C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
+  CM-17: "amount_held = payments recorded minus refunds made, expenses paid and handovers given, plus handovers received; a reversed entry counts the other way; a cancelled expense or handover no longer counts; the owner's amount is tracked but never presented."
+  CM-18: "At ownership transfer the server records a handover from the former owner to themselves for their amount_held, so it restarts at 0."
+  CM-21: "A returned-and-refunded gesture records a CREDIT_NOTE and a REFUND of the same amount in one transaction."
+  CM-13: "The amount of a sale is always Order.total_amount computed by the server on delivered quantities; the amount sent by the phone is ignored."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+contracts:
+  provides:
+    - name: Ledger
+      file: src/modules/finance/ledger.service.ts
+      story: FIN-003
+      items:
+        - "appendLedgerEntry(tx, input: LedgerInput): Promise<LedgerEntry> — inserts one entry, adds its `balance_effect` to the relationship balance, then adds the cash effect to the recorder's amount held (PAYMENT +amount, REFUND -amount; reversals opposite)"
+        - "reverseLedgerEntry(tx, entryId: string, input: { id: string; recordedById: string; note?: string }): Promise<LedgerEntry>"
+      used_by: [delivery, sync]
+    - name: HeldMoney
+      file: src/modules/finance/held-money.ts
+      story: FIN-012
+      items:
+        - "recordExpenseInTx(tx, input): Promise<Expense> and recordHandoverInTx(tx, input): Promise<Handover> — insert and adjust `amount_held`"
+      used_by: [organization, sync]
+  consumes:
+    - "relationship: addToBalance, visibleRelationsWhere (docs/stories/modules/relationship/contracts.md)"
+    - "organization: loadActor, addAmountHeld, assertOrganizationActive (docs/stories/modules/organization/contracts.md)"
+    - "access: requireAbility, idempotent (docs/stories/modules/access/contracts.md)"
+stories:
+  - id: FIN-001
+    title: Ledger entries table
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [REL-001, ORD-001, PER-008, FND-002, REL-014]
+    read_first: [prisma/schema.prisma, tests/integration/relationship/reassignment-table.test.ts]
+    design_refs: [finances/ledgerentry, contraintes-a-poser-au-niveau-base-de]
+    constraints: [LedgerEntry:required, LedgerEntry.kind:enum, LedgerEntry.mode:enum, LedgerEntry:fk, LedgerEntry.balance_effect:generated, C-23, C-04, C-39]
+    asvs: [v5.0.0-8.3.1]
+    fields: ["LedgerEntry.{customer_relationship_id,order_id,kind,amount,balance_effect,mode,transaction_reference,reverses_entry_id,recorded_by_id,note,occurred_at}"]
+    story: "Technical story: create the immutable ledger table with a generated balance effect, so that the sign of an entry comes from its type and nobody can edit or delete a line."
+    context: |
+      - Exists: `customer_relationships`, `orders`, `require_registered_person()`, `set_server_updated_at()`, role `distribo_app`.
+      - Adds: table `ledger_entries` with `server_updated_at` only (no `deleted_at`, Q-015), foreign keys (`order_id`, `reverses_entry_id`, `recorded_by_id`), indexes on (`customer_relationship_id`, `occurred_at` desc), `order_id`, (`recorded_by_id`, `occurred_at`), triggers `require_registered_person('recorded_by_id')` and `set_server_updated_at()`, and `REVOKE UPDATE, DELETE, TRUNCATE ... FROM distribo_app`.
+      - `balance_effect` bigint is `GENERATED ALWAYS AS` (`CASE` on `kind`: SALE, OPENING_BALANCE and REFUND give `amount`, PAYMENT and CREDIT_NOTE give `-amount`; the sign flips when `reverses_entry_id` is not null) `STORED`.
+      - CHECKs: `amount > 0`; `mode` is not null exactly when `kind` is PAYMENT or REFUND.
+    acceptance: |
+      Scenario Outline: AC-1 Balance effect
+        When an entry of kind <kind> and amount 10000 is inserted <reversal>
+        Then balance_effect is <effect>
+        Examples:
+          | kind            | reversal              | effect |
+          | SALE            | as an original        | 10000  |
+          | REFUND          | as an original        | 10000  |
+          | PAYMENT         | as an original        | -10000 |
+          | CREDIT_NOTE     | as an original        | -10000 |
+          | PAYMENT         | reversing an entry    | 10000  |
+      Scenario Outline: AC-2 Amount and mode
+        When a row has <values>
+        Then the insert <result>
+        Examples:
+          | values                                | result          |
+          | amount 0                              | rejects (23514) |
+          | amount -5                             | rejects (23514) |
+          | PAYMENT with mode CASH                | accepts         |
+          | PAYMENT without mode                  | rejects (23514) |
+          | SALE with mode CASH                   | rejects (23514) |
+          | CREDIT_NOTE without mode              | accepts         |
+      Scenario: AC-3 Never written by the application
+        When a row is inserted with an explicit balance_effect
+        Then the insert fails
+      Scenario: AC-4 Immutable
+        When the application account updates or deletes a row
+        Then PostgreSQL answers permission denied (42501)
+      Scenario: AC-5 Keys and author
+        When the relationship is unknown or `recorded_by_id` is a guest
+        Then the insert fails with 23503 or 23514
+    abuse: |
+      Scenario: AB-1 Rewriting a payment (tampering)
+        When code running as the application account changes a PAYMENT's amount from 30000 to 3000
+        Then the update is refused and the row is unchanged
+    implementation:
+      create: [prisma/migrations/<timestamp>_fin_001_ledger_entries/migration.sql, tests/integration/finance/ledger-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/relationship/reassignment-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-8.3.1: only INSERT and SELECT are granted to `distribo_app`."
+    tests: |
+      balance effect | integration | AC-1, LedgerEntry.balance_effect:generated, C-23 | each Examples row → effect
+      amount and mode | integration | AC-2, C-23, LedgerEntry.kind:enum, LedgerEntry.mode:enum | each Examples row → accepted or rejected
+      generated column | integration | AC-3 | explicit value → error
+      immutable | security | AC-4, AB-1, C-39, WSTG-ATHZ-03 | as `distribo_app`: UPDATE, DELETE → 42501
+      keys and author | integration | AC-5, LedgerEntry:required, LedgerEntry:fk, C-04 | rejected; column types; server time
+    command: npx vitest run tests/integration/finance/ledger-table.test.ts
+    out_of_scope:
+      - "Sale, reversal and order rules (FIN-002)."
+  - id: FIN-002
+    title: Ledger sale and reversal rules in the database
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [FIN-001, ORD-006, ORD-003]
+    read_first: [prisma/schema.prisma, tests/integration/finance/ledger-table.test.ts]
+    design_refs: [finances/ledgerentry, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-24, C-25]
+    asvs: [v5.0.0-2.3.3, v5.0.0-2.2.3]
+    story: "Technical story: enforce in the database that a sale equals its order's total and is unique, and that a reversal mirrors exactly one earlier entry."
+    context: |
+      - Exists: `ledger_entries` (FIN-001), `orders.total_amount`.
+      - Adds: one migration. A BEFORE INSERT trigger: a SALE that is not a reversal needs `order_id`, its `amount` must equal the order's `total_amount`, and the order must have no other SALE without a reversal pointing to it; otherwise 23514.
+      - A unique index on `reverses_entry_id` (where not null). A BEFORE INSERT trigger for a reversal: the target has the same `customer_relationship_id`, the same `kind` and the same `amount`, and the target is not itself a reversal; otherwise 23514.
+    acceptance: |
+      Scenario Outline: AC-1 Sale rules
+        When a SALE is inserted with <values>
+        Then the insert <result>
+        Examples:
+          | values                                                        | result          |
+          | order_id and amount equal to the order total                  | accepts         |
+          | no order_id                                                   | rejects (23514) |
+          | amount different from the order total                         | rejects (23514) |
+          | a second SALE for an order that has a live SALE               | rejects (23514) |
+          | a new SALE for an order whose first SALE was reversed         | accepts         |
+      Scenario Outline: AC-2 Reversal rules
+        When a reversal targets <target>
+        Then the insert <result>
+        Examples:
+          | target                                                | result          |
+          | an entry of the same relationship, kind and amount    | accepts         |
+          | the same entry a second time                          | rejects (23505) |
+          | an entry of another relationship                      | rejects (23514) |
+          | an entry of another kind                              | rejects (23514) |
+          | an entry with another amount                          | rejects (23514) |
+          | a reversal entry                                      | rejects (23514) |
+    abuse: |
+      Scenario: AB-1 A sale that does not match its order (tampering)
+        When code inserts a SALE of 3000 for an order of 30000
+        Then PostgreSQL refuses it
+    implementation:
+      create: [prisma/migrations/<timestamp>_fin_002_ledger_rules/migration.sql, tests/integration/finance/ledger-rules.test.ts]
+      modify: []
+      pattern: tests/integration/order/creation-guard.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: sale uniqueness and reversal rules hold for every insert path."
+      - "v5.0.0-2.2.3: related rows are checked in the database."
+    tests: |
+      sale rules | integration | AC-1, C-24 | each Examples row → accepted or 23514
+      reversal rules | integration | AC-2, C-25 | each Examples row → accepted or SQLSTATE
+      mismatched sale | security | AB-1, CWE-345 | 23514
+    command: npx vitest run tests/integration/finance/ledger-rules.test.ts
+    out_of_scope:
+      - "Counter sales paid in full (C-26 in DLV-011)."
+  - id: FIN-003
+    title: Append a ledger entry and update the caches
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [FIN-002, REL-025, ORG-006]
+    read_first: [src/modules/relationship/relationship.repository.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [finances/ledgerentry, finances/handover]
+    constraints: [C-37, CM-17]
+    asvs: [v5.0.0-2.3.3, v5.0.0-2.3.4]
+    story: "Technical story: provide the one function that writes a ledger entry and updates the balance and the held money in the right order, so that simultaneous writes never lose an effect."
+    context: |
+      - Exists: `ledger_entries` (FIN-001, FIN-002); `addToBalance` (REL-025 repository, `SET balance = balance + delta`); `addAmountHeld` (ORG-006); `resolveMergedRelation`.
+      - Adds: `src/modules/finance/ledger.service.ts` with `appendLedgerEntry(tx, input)` and `reverseLedgerEntry(tx, entryId, input)`.
+      - `appendLedgerEntry` resolves a merged relationship id, inserts the row, reads its generated `balance_effect`, adds it to the relationship's `balance` (first), then for a PAYMENT adds +amount and for a REFUND adds -amount to the recorder's `amount_held` (second). A reversal of a PAYMENT subtracts and a reversal of a REFUND adds. It runs in the caller's transaction.
+      - `reverseLedgerEntry` builds the mirror entry (same relationship, kind, amount, mode and order) with `reverses_entry_id` and the new id.
+    acceptance: |
+      Scenario Outline: AC-1 Cache effects
+        When appendLedgerEntry writes a <kind> of 10000 recorded by a collaborator
+        Then the balance changes by <balance> and the recorder's amount_held by <held>
+        Examples:
+          | kind            | balance | held   |
+          | SALE            | +10000  | 0      |
+          | PAYMENT         | -10000  | +10000 |
+          | REFUND          | +10000  | -10000 |
+          | CREDIT_NOTE     | -10000  | 0      |
+          | OPENING_BALANCE | +10000  | 0      |
+      Scenario: AC-2 Reversal
+        When reverseLedgerEntry reverses a PAYMENT of 10000
+        Then the balance rises by 10000 and the recorder's amount_held falls by 10000
+      Scenario: AC-3 Simultaneous writes
+        When 20 payments of 100 are appended in parallel transactions for one relationship
+        Then the balance ends 2000 lower and no effect is lost
+      Scenario: AC-4 Atomic
+        When the held-money update fails
+        Then no entry and no balance change remain
+      Scenario: AC-5 Merged relationship
+        When the given relationship id was merged into another
+        Then the entry is written on the surviving relationship
+    abuse: |
+      Scenario: AB-1 Lost update on a balance (tampering)
+        When two transactions read the same balance and both write
+        Then both effects are kept because the cache changes by addition
+    implementation:
+      create: [src/modules/finance/ledger.service.ts, tests/integration/finance/ledger-service.test.ts]
+      modify: []
+      pattern: src/modules/organization/organization.repository.ts
+      signatures:
+        - "appendLedgerEntry(tx: Prisma.TransactionClient, input: LedgerInput): Promise<LedgerEntry>"
+        - "reverseLedgerEntry(tx: Prisma.TransactionClient, entryId: string, input: { id: string; recordedById: string; note?: string }): Promise<LedgerEntry>"
+      types:
+        - "LedgerInput = { id: string; relationshipId: string; kind: LedgerKind; amount: bigint; mode?: 'CASH' | 'MOBILE_MONEY'; orderId?: string; transactionReference?: string; note?: string; recordedById: string; organizationId: string; occurredAt: Date }"
+      errors: ["NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: entry and both cache updates are one transaction."
+      - "v5.0.0-2.3.4: caches change by `SET x = x + delta`; the relationship is always updated before the collaboration."
+    tests: |
+      cache effects | integration | AC-1, C-37, CM-17 | each Examples row → deltas
+      reversal | integration | AC-2 | mirror effects
+      simultaneous | integration | AC-3, CWE-362 | balance −2000
+      atomic | integration | AC-4 | nothing remains
+      merged | integration | AC-5 | entry on surviving row
+      lost update | security | AB-1, WSTG-BUSL-04 | both effects kept
+    command: npx vitest run tests/integration/finance/ledger-service.test.ts
+    out_of_scope:
+      - "Routes (FIN-004 onward)."
+  - id: FIN-004
+    title: Seller records a payment
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [FIN-003, REL-009, ACC-004, ACC-007]
+    read_first: [src/modules/finance/ledger.service.ts, src/modules/relationship/relationship.visibility.ts]
+    design_refs: [finances/ledgerentry]
+    constraints: [C-23, C-38]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As a seller, I want to record a customer's payment so that their balance goes down and I hold the money.
+    context: |
+      - Exists: `appendLedgerEntry` (FIN-003); rule `create` LedgerEntry kind PAYMENT for SELLER, always (ACC-004); `idempotent()`; `loadActor`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/customers/{relationshipId}/payments` with `{ id, amount, mode, transaction_reference?, note? }`; `amount` an integer of at least 1, `mode` CASH or MOBILE_MONEY, `transaction_reference` up to 100 characters and only for MOBILE_MONEY, `note` up to 2000. Response 201 `{ id, kind, amount, mode, occurred_at, balance }`.
+      - The entry is recorded by the caller (who now holds the money), `occurred_at` is server time. The relationship must be the organization's own customer relationship, ACTIVE or ENDED (payments stay possible), not PENDING, and not a counter (409 `COUNTER_ONLY_RETURNS`). A CLOSED organization may record payments; a SUSPENDED one answers 409 `ORGANIZATION_NOT_ACTIVE`.
+    acceptance: |
+      Scenario: AC-1 Record a payment
+        Given a customer with balance 45000
+        When a SELLER records 20000 in cash
+        Then the response is 201, balance is 25000 and the seller's amount_held is +20000
+      Scenario: AC-2 Mobile money
+        When the mode is MOBILE_MONEY with a reference
+        Then the entry stores the reference and the held money counts it
+      Scenario: AC-3 Advance
+        When the payment exceeds the balance
+        Then the balance becomes negative and the response is 201
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                     | status                      |
+          | amount 0 or 1.5 or negative                 | 400 VALIDATION_ERROR        |
+          | mode "CARD"                                 | 400 VALIDATION_ERROR        |
+          | a reference with mode CASH                  | 400 VALIDATION_ERROR        |
+          | a counter                                   | 409 COUNTER_ONLY_RETURNS    |
+          | a PENDING relationship                      | 409 RELATIONSHIP_NOT_ACTIVE |
+          | a SUSPENDED organization                    | 409 ORGANIZATION_NOT_ACTIVE |
+          | a DRIVER caller                             | 403 FORBIDDEN               |
+      Scenario: AC-5 Closed business
+        When the organization is CLOSED
+        Then the payment is accepted
+    abuse: |
+      Scenario: AB-1 Double recording by retry (tampering)
+        When the same id is posted twice
+        Then one entry exists and both answers are equal
+      Scenario: AB-2 Client-set fields (mass assignment)
+        When the body contains kind, balance_effect, recorded_by_id or occurred_at
+        Then the response is 400
+      Scenario: AB-3 Another business's customer (horizontal)
+        When a member of A posts to a relationship of B
+        Then the response is 404
+    implementation:
+      create: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts, tests/integration/finance/record-payment.test.ts]
+      modify: [src/app.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "recordPayment(actor: Actor, relationshipId: string, input: PaymentInput): Promise<LedgerEntryView>"
+      types:
+        - "PaymentInput = { id: string; amount: number; mode: 'CASH' | 'MOBILE_MONEY'; transaction_reference?: string; note?: string }"
+      errors: ["VALIDATION_ERROR 400", "COUNTER_ONLY_RETURNS 409", "RELATIONSHIP_NOT_ACTIVE 409", "ORGANIZATION_NOT_ACTIVE 409", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: seller and above; the ledger rule carries kind PAYMENT."
+      - "v5.0.0-2.3.3: entry, balance and held money are one transaction."
+      - "v5.0.0-15.3.3: strict schema; the sign and the recorder come from the server."
+    tests: |
+      record | integration | AC-1, C-23 | balance and held money
+      mobile money | integration | AC-2 | reference stored
+      advance | integration | AC-3 | negative balance
+      refusals | integration | AC-4 | each Examples row → status
+      closed business | integration | AC-5 | 201
+      retry | security | AB-1, C-38, CWE-362 | one entry
+      client fields | security | AB-2, CWE-915 | 400
+      other business | security | AB-3, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/finance/record-payment.test.ts
+    out_of_scope:
+      - "Payments during delivery (DLV module). OpenAPI registration (FIN-010)."
+  - id: FIN-005
+    title: Manager returns money to a customer
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [FIN-004, ACC-004, NTF-002]
+    read_first: [src/modules/finance/finance.service.ts, src/modules/finance/ledger.service.ts]
+    design_refs: [finances/ledgerentry]
+    constraints: [C-23]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As a manager, I want to record money I give back to a customer so that their balance and my held money are right.
+    context: |
+      - Exists: `recordPayment` route file (FIN-004); rule `create` LedgerEntry kind REFUND for MANAGER online, OWNER always (ACC-004); `appendLedgerEntry`; `notify`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/customers/{relationshipId}/refunds` with `{ id, amount, mode, transaction_reference?, note? }` (same limits as a payment); response 201 `LedgerEntryView`.
+      - A REFUND raises the balance by the amount and lowers the recorder's held money by it. A registered customer is notified `balance.increased`.
+      - Refused: a counter (409 `COUNTER_ONLY_RETURNS`, use FIN-008); a PENDING relationship; an organization that is not ACTIVE (409 `ORGANIZATION_NOT_ACTIVE`); the manager's own customer record or that of an organization they manage as customer (403 `OWN_RECORD`).
+    acceptance: |
+      Scenario: AC-1 Refund
+        Given balance 0 and a manager holding 30000
+        When they record a refund of 10000 in cash
+        Then the response is 201, balance is 10000 and amount_held is 20000
+      Scenario: AC-2 Customer notified
+        Then a registered customer has one unread `balance.increased`
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                   | status                      |
+          | a SELLER or DRIVER caller                 | 403 FORBIDDEN               |
+          | a counter                                 | 409 COUNTER_ONLY_RETURNS    |
+          | the manager's own record                  | 403 OWN_RECORD              |
+          | amount 0 or mode missing                  | 400 VALIDATION_ERROR        |
+          | a CLOSED organization                     | 409 ORGANIZATION_NOT_ACTIVE |
+    abuse: |
+      Scenario: AB-1 Double refund by retry (tampering)
+        When the same id is posted twice
+        Then one entry exists and money leaves once
+      Scenario: AB-2 Seller gives money back (vertical)
+        When a SELLER or DRIVER posts
+        Then the response is 403 and nothing is stored
+    implementation:
+      create: [tests/integration/finance/refund.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts]
+      pattern: src/modules/finance/finance.routes.ts
+      signatures:
+        - "recordRefund(actor: Actor, relationshipId: string, input: PaymentInput): Promise<LedgerEntryView>"
+      types: []
+      errors: ["COUNTER_ONLY_RETURNS 409", "OWN_RECORD 403", "ORGANIZATION_NOT_ACTIVE 409", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+      - "v5.0.0-2.3.3: entry and caches in one transaction."
+    tests: |
+      refund | integration | AC-1, C-23 | balance +10000, held −10000
+      notified | integration | AC-2 | notification
+      refusals | integration | AC-3 | each Examples row → status
+      retry | security | AB-1, CWE-362 | one entry
+      seller | security | AB-2, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/finance/refund.test.ts
+    out_of_scope:
+      - "The owner's exceptions view of refunds (FIN-019)."
+  - id: FIN-006
+    title: Manager grants a credit note
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [FIN-005]
+    read_first: [src/modules/finance/finance.service.ts, src/modules/finance/finance.routes.ts]
+    design_refs: [finances/ledgerentry]
+    constraints: [C-23]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: As a manager, I want to grant a credit note so that a customer owes less without money moving.
+    context: |
+      - Exists: `appendLedgerEntry`; rule for kind CREDIT_NOTE (MANAGER online, OWNER always; ACC-004).
+      - Adds: `POST /api/v1/organizations/{organizationId}/customers/{relationshipId}/credit-notes` with `{ id, amount, note }` (`note` 1 to 2000, required: the reason); response 201. A CREDIT_NOTE lowers the balance and moves no money. Same refusals as FIN-005 (counter, PENDING, own record, inactive organization).
+    acceptance: |
+      Scenario: AC-1 Credit note
+        Given balance 30000
+        When a MANAGER grants 5000 with note "retour d'un sac"
+        Then balance is 25000 and no amount_held changes
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                          | status                    |
+          | no note                          | 400 VALIDATION_ERROR      |
+          | a SELLER caller                  | 403 FORBIDDEN             |
+          | the manager's own record         | 403 OWN_RECORD            |
+          | a counter                        | 409 COUNTER_ONLY_RETURNS  |
+      Scenario: AC-3 Repeat
+        When the same id is posted twice
+        Then one entry exists
+    abuse: |
+      Scenario: AB-1 Seller forgives debts (vertical)
+        When a SELLER posts a credit note
+        Then the response is 403 and the balance is unchanged
+    implementation:
+      create: [tests/integration/finance/credit-note.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts]
+      pattern: src/modules/finance/finance.routes.ts
+      signatures:
+        - "recordCreditNote(actor: Actor, relationshipId: string, input: { id: string; amount: number; note: string }): Promise<LedgerEntryView>"
+      types: []
+      errors: ["OWN_RECORD 403", "COUNTER_ONLY_RETURNS 409", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+    tests: |
+      credit note | integration | AC-1, C-23 | balance down, held unchanged
+      refusals | integration | AC-2 | each Examples row → status
+      repeat | integration | AC-3 | one entry
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/finance/credit-note.test.ts
+    out_of_scope:
+      - "Returns with money back (FIN-008)."
+  - id: FIN-007
+    title: Manager records an opening balance from a paper notebook
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [FIN-005]
+    read_first: [src/modules/finance/finance.service.ts, src/modules/finance/finance.routes.ts]
+    design_refs: [finances/ledgerentry/reprise-de-cahier]
+    constraints: [C-23]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: As a manager, I want to copy a customer's debt from my paper notebook so that their balance starts right.
+    context: |
+      - Exists: `appendLedgerEntry`; rule for kind OPENING_BALANCE (MANAGER online, OWNER always; ACC-004); `notify`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/customers/{relationshipId}/opening-balances` with `{ id, amount, note }` (`note` required); response 201. The balance rises; a registered customer is notified `balance.increased`. Several may be recorded for one customer; a wrong one is reversed (FIN-009). An advance from the notebook is a credit note (FIN-006).
+      - Same refusals as FIN-005. The relationship must already exist (creating it is REL-007).
+    acceptance: |
+      Scenario: AC-1 Record
+        When a MANAGER records 45000 for a customer with balance 0
+        Then the balance is 45000 and the customer is notified
+      Scenario: AC-2 Several allowed
+        When a second opening balance of 5000 is recorded
+        Then the balance is 50000
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                    | status                   |
+          | no note                    | 400 VALIDATION_ERROR     |
+          | a SELLER caller            | 403 FORBIDDEN            |
+          | the manager's own record   | 403 OWN_RECORD           |
+          | a counter                  | 409 COUNTER_ONLY_RETURNS |
+    abuse: |
+      Scenario: AB-1 Seller inflates a customer's debt (vertical)
+        When a SELLER posts an opening balance
+        Then the response is 403 and the balance is unchanged
+    implementation:
+      create: [tests/integration/finance/opening-balance.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts]
+      pattern: src/modules/finance/finance.routes.ts
+      signatures:
+        - "recordOpeningBalance(actor: Actor, relationshipId: string, input: { id: string; amount: number; note: string }): Promise<LedgerEntryView>"
+      types: []
+      errors: ["OWN_RECORD 403", "COUNTER_ONLY_RETURNS 409", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+    tests: |
+      record | integration | AC-1, C-23 | balance and notification
+      several | integration | AC-2 | 50000
+      refusals | integration | AC-3 | each Examples row → status
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/finance/opening-balance.test.ts
+    out_of_scope:
+      - "Creating the customer with the opening balance in one call."
+  - id: FIN-008
+    title: Manager records a refunded return
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [FIN-005, FIN-006]
+    read_first: [src/modules/finance/finance.service.ts, src/modules/finance/ledger.service.ts]
+    design_refs: [finances/ledgerentry/retour-rembourse]
+    constraints: [CM-21]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3]
+    story: As a manager, I want one gesture for a returned and refunded article so that the customer's balance does not move by mistake.
+    context: |
+      - Exists: `appendLedgerEntry`; REFUND and CREDIT_NOTE rules (ACC-004).
+      - Adds: `POST /api/v1/organizations/{organizationId}/customers/{relationshipId}/returns` with `{ id, refund_entry_id, amount, mode, note }` (`id` is the credit note's id); response 201 `{ credit_note, refund }`. One transaction writes a CREDIT_NOTE and a REFUND of the same amount: the balance is unchanged and the recorder's held money falls by the amount.
+      - Works on a counter (a counter can refund an anonymous customer) and on ordinary customers. Refused for the manager's own record (403 `OWN_RECORD`), a PENDING relationship, an inactive organization.
+    acceptance: |
+      Scenario: AC-1 Return
+        Given balance 10000 and held 30000
+        When a MANAGER records a return of 10000 in cash
+        Then two entries exist, the balance is still 10000 and amount_held is 20000
+      Scenario: AC-2 Counter
+        When the return is on a counter
+        Then it succeeds and the counter's balance stays 0
+      Scenario: AC-3 Atomic
+        When the second entry fails
+        Then neither entry exists
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                      | status                |
+          | a SELLER caller              | 403 FORBIDDEN         |
+          | the manager's own record     | 403 OWN_RECORD        |
+          | amount 0 or mode missing     | 400 VALIDATION_ERROR  |
+    abuse: |
+      Scenario: AB-1 Refund without credit note (tampering)
+        When the request would create only the REFUND
+        Then no such route exists and the balance rule keeps both entries together
+    implementation:
+      create: [tests/integration/finance/return.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts]
+      pattern: src/modules/finance/finance.routes.ts
+      signatures:
+        - "recordReturn(actor: Actor, relationshipId: string, input: ReturnInput): Promise<{ credit_note: LedgerEntryView; refund: LedgerEntryView }>"
+      types:
+        - "ReturnInput = { id: string; refund_entry_id: string; amount: number; mode: 'CASH' | 'MOBILE_MONEY'; note: string }"
+      errors: ["OWN_RECORD 403", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+      - "v5.0.0-2.3.3: both entries and caches in one transaction."
+    tests: |
+      return | integration | AC-1, CM-21 | two entries, balance same, held down
+      counter | integration | AC-2 | ok
+      atomic | integration | AC-3, CWE-362 | nothing stored
+      refusals | integration | AC-4 | each Examples row → status
+      no lone refund | security | AB-1 | both entries always share the amount
+    command: npx vitest run tests/integration/finance/return.test.ts
+    out_of_scope:
+      - "Tracking the returned goods (no stock in v1)."
+  - id: FIN-009
+    title: Manager reverses a ledger entry
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [FIN-005, ACC-007]
+    read_first: [src/modules/finance/ledger.service.ts, src/modules/finance/finance.service.ts]
+    design_refs: [finances/ledgerentry]
+    constraints: [C-25]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-8.2.2]
+    story: As a manager, I want to cancel a wrong ledger entry so that the mistake is corrected without editing history.
+    context: |
+      - Exists: `reverseLedgerEntry` (FIN-003); rule `reverse` on LedgerEntry (MANAGER online, OWNER always; ACC-004); `notify`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/ledger-entries/{entryId}/reverse` with `{ id, note? }`; response 201 with the reversal entry.
+      - The entry must belong to a relationship of which the organization is supplier, must not itself be a reversal (409 `CANNOT_REVERSE_REVERSAL`) and must not already be reversed (409 `ALREADY_REVERSED`). On the manager's own customer record only the owner may reverse (403 `OWN_RECORD`). A reversal that raises the balance notifies a registered customer `balance.increased`.
+    acceptance: |
+      Scenario: AC-1 Reverse a payment
+        Given a PAYMENT of 20000 by a seller
+        When a MANAGER reverses it
+        Then a mirror entry of the same kind and amount points to it, the balance is +20000 and the seller's amount_held is −20000
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                           | status                           |
+          | an entry already reversed         | 409 ALREADY_REVERSED             |
+          | a reversal entry                  | 409 CANNOT_REVERSE_REVERSAL      |
+          | an entry of another business      | 404 NOT_FOUND                    |
+          | a SELLER or DRIVER caller         | 403 FORBIDDEN                    |
+          | the manager's own customer record | 403 OWN_RECORD                   |
+      Scenario: AC-3 Parallel reversals
+        When two managers reverse one entry at once
+        Then one succeeds and the other answers 409
+      Scenario: AC-4 History kept
+        Then the original entry is unchanged
+    abuse: |
+      Scenario: AB-1 Seller erases a payment (vertical)
+        When a SELLER or DRIVER posts a reversal
+        Then the response is 403 and nothing is written
+      Scenario: AB-2 Reversing another business's entry (horizontal)
+        When a member of A posts an entry id of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/finance/reverse.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts]
+      pattern: src/modules/finance/finance.routes.ts
+      signatures:
+        - "reverseEntry(actor: Actor, entryId: string, input: { id: string; note?: string }): Promise<LedgerEntryView>"
+      types: []
+      errors: ["ALREADY_REVERSED 409", "CANNOT_REVERSE_REVERSAL 409", "OWN_RECORD 403", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+      - "v5.0.0-8.2.2: the entry is reached through the organization's own relationships."
+      - "v5.0.0-2.3.3: mirror entry and caches are one transaction."
+    tests: |
+      reverse | integration | AC-1, C-25 | mirror entry, effects
+      refusals | integration | AC-2 | each Examples row → status
+      parallel | integration | AC-3, CWE-362 | one success
+      history | integration | AC-4 | original unchanged
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/finance/reverse.test.ts
+    out_of_scope:
+      - "Reversing an expense or a handover (FIN-013, FIN-016)."
+  - id: FIN-010
+    title: Parties read the ledger of a relationship
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [FIN-009, FND-009]
+    read_first: [src/modules/finance/finance.routes.ts, src/modules/relationship/relationship.visibility.ts]
+    design_refs: [finances/ledgerentry]
+    constraints: [C-23]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As a customer, I want to read the list of entries on my account so that I see what I owe and why.
+    context: |
+      - Exists: ledger entries (FIN-001 to FIN-009); `visibleRelationsWhere`.
+      - Adds: `GET /api/v1/organizations/{organizationId}/customers/{relationshipId}/ledger` (SELLER and above), `GET /api/v1/suppliers/{relationshipId}/ledger` (the customer person) and `GET /api/v1/organizations/{organizationId}/suppliers/{relationshipId}/ledger` (MANAGER and above for an organization customer); all paginated (`limit`, `cursor`), newest `occurred_at` first, with the current `balance`.
+      - Item: `id, kind, amount, balance_effect, mode, order_id, reverses_entry_id, note, occurred_at`; the supplier view adds `recorded_by_id` for OWNER and MANAGER only. The customer sees every entry, never `transaction_reference`.
+      - Adds `finance.openapi.ts` documenting these routes and the finance routes of FIN-004 to FIN-009; `finance.routes.ts` imports it for its side effect.
+    acceptance: |
+      Scenario: AC-1 Supplier reads
+        Given a sale of 30000 and a payment of 20000
+        When a SELLER reads the ledger
+        Then two items are returned newest first with balance 10000
+      Scenario: AC-2 Customer reads
+        When the customer person reads their account
+        Then the same two items appear without recorded_by_id
+      Scenario: AC-3 Pagination
+        When limit 1 is used with the cursor
+        Then pages of one item follow without repeats
+      Scenario Outline: AC-4 Roles
+        When the caller is <caller>
+        Then the response is <status>
+        Examples:
+          | caller                                | status |
+          | a DRIVER of the supplier              | 403    |
+          | another person as customer            | 404    |
+          | a member of another business          | 404    |
+    abuse: |
+      Scenario: AB-1 Another account's ledger (horizontal)
+        When a person or business that is not a party requests the ledger
+        Then the response is 404 and no entry is returned
+      Scenario: AB-2 Team data in the customer view (information disclosure)
+        When the customer reads the ledger
+        Then no recorded_by_id and no transaction_reference appears
+    implementation:
+      create: [src/modules/finance/finance.openapi.ts, tests/integration/finance/ledger-read.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.service.ts, src/modules/finance/finance.schemas.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "listLedger(viewer: LedgerViewer, relationshipId: string, query: { limit: number; cursor?: string }): Promise<{ balance: number; items: LedgerEntryView[]; next_cursor: string | null }>"
+      types: []
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.2: the relationship is loaded through the visibility predicate for the viewer's party."
+      - "v5.0.0-8.2.3: per-party field lists."
+    tests: |
+      supplier reads | integration | AC-1, C-23 | two items, balance
+      customer reads | integration | AC-2 | no author
+      paging | integration | AC-3 | no repeats
+      roles | integration | AC-4 | each Examples row → status
+      not a party | security | AB-1, WSTG-ATHZ-04 | 404
+      team data | security | AB-2, CWE-200 | absent
+    command: npx vitest run tests/integration/finance/ledger-read.test.ts
+    out_of_scope:
+      - "Receipts: generated on the phone."
+  - id: FIN-011
+    title: Expenses table
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [ORG-003, PER-008, FND-002]
+    read_first: [prisma/schema.prisma, tests/integration/organization/collaboration-table.test.ts]
+    design_refs: [finances/expense, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Expense:required, Expense:fk, C-27, C-04]
+    asvs: [v5.0.0-2.2.3, v5.0.0-8.3.1]
+    fields: ["Expense.{organization_id,paid_by_id,amount,category,description,recorded_by_id,occurred_at,cancelled_at,cancelled_by_id}"]
+    story: "Technical story: create the expenses table that is never edited and can only be cancelled once, so that money leaving the business stays traceable."
+    context: |
+      - Exists: `organizations`, `collaborations`, `require_registered_person()`, `set_server_updated_at()`.
+      - Adds: table `expenses` with `server_updated_at` and `deleted_at`, triggers `require_registered_person('paid_by_id', 'recorded_by_id', 'cancelled_by_id')` and `set_server_updated_at()`.
+      - CHECKs: `amount > 0`; `cancelled_at` and `cancelled_by_id` both set or both null. A trigger requires that `paid_by_id` has a collaboration row (any status) in the organization. A BEFORE UPDATE trigger allows only setting `cancelled_at` and `cancelled_by_id` once (from null); every other change raises 23514.
+    acceptance: |
+      Scenario Outline: AC-1 Insert rules
+        When an expense is inserted with <values>
+        Then the insert <result>
+        Examples:
+          | values                                          | result          |
+          | amount 5000, paid by an ACTIVE collaborator     | accepts         |
+          | paid by a REVOKED collaborator                  | accepts         |
+          | paid by a person who never collaborated         | rejects (23514) |
+          | amount 0                                        | rejects (23514) |
+          | cancelled_at set without cancelled_by_id        | rejects (23514) |
+          | recorded_by_id of a guest                       | rejects (23514) |
+      Scenario: AC-2 Cancel once
+        When cancelled_at and cancelled_by_id are set, and then set again
+        Then the first update succeeds and the second fails with 23514
+      Scenario: AC-3 Never edited
+        When the amount, the payer or the category of an expense changes
+        Then the update fails with 23514
+    abuse: |
+      Scenario: AB-1 Changing an expense after the fact (tampering)
+        When code lowers the amount of an existing expense
+        Then PostgreSQL refuses it
+    implementation:
+      create: [prisma/migrations/<timestamp>_fin_011_expenses/migration.sql, tests/integration/finance/expense-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/collaboration-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: payer, amount and cancellation are checked together."
+      - "v5.0.0-8.3.1: edits are refused by the database."
+    tests: |
+      insert rules | integration | AC-1, C-27, C-04, Expense:required, Expense:fk | each Examples row → accepted or 23514
+      cancel once | integration | AC-2 | 23514 second time
+      never edited | integration | AC-3 | 23514
+      tampering | security | AB-1, CWE-345 | refused
+    command: npx vitest run tests/integration/finance/expense-table.test.ts
+    out_of_scope:
+      - "Routes (FIN-012, FIN-013)."
+  - id: FIN-012
+    title: Manager records an expense
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [FIN-011, FIN-003, ACC-004, ACC-007, FIN-004]
+    read_first: [src/modules/finance/finance.service.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [finances/expense]
+    constraints: [C-27, CM-17]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As a manager, I want to record an expense paid by a collaborator so that the money they hold goes down.
+    context: |
+      - Exists: `addAmountHeld` (ORG-006); rule `create` on Expense for MANAGER online, OWNER always (ACC-004); `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/expenses` with `{ id, paid_by_id?, amount, category?, description?, occurred_at? }`; `paid_by_id` defaults to the caller; `amount` an integer of at least 1; `category` up to 100; `description` up to 2000; `occurred_at` not in the future (default now). Response 201.
+      - `src/modules/finance/held-money.ts` gets `recordExpenseInTx(tx, input)`: it inserts the row (`recorded_by_id` the caller) and lowers `paid_by_id`'s held money by the amount.
+      - The organization must be ACTIVE; the payer must be a collaborator of it (ACTIVE or gone).
+    acceptance: |
+      Scenario: AC-1 Record
+        Given a driver holding 60000
+        When a MANAGER records an expense of 5000 paid by the driver, category "Carburant"
+        Then the response is 201 and the driver's amount_held is 55000
+      Scenario: AC-2 Default payer
+        When paid_by_id is omitted
+        Then the caller is the payer
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                       | status                      |
+          | amount 0 or 1.5                               | 400 VALIDATION_ERROR        |
+          | occurred_at in the future                     | 400 VALIDATION_ERROR        |
+          | a payer who is not a collaborator             | 404 NOT_FOUND               |
+          | a SELLER or DRIVER caller                     | 403 FORBIDDEN               |
+          | a CLOSED organization                         | 409 ORGANIZATION_NOT_ACTIVE |
+      Scenario: AC-4 Repeat
+        When the same id is posted twice
+        Then one expense exists and money is lowered once
+    abuse: |
+      Scenario: AB-1 Seller hides cash in expenses (vertical)
+        When a SELLER or DRIVER posts an expense
+        Then the response is 403 and nothing is stored
+      Scenario: AB-2 Payer of another business (horizontal)
+        When paid_by_id belongs to another business's team only
+        Then the response is 404
+    implementation:
+      create: [src/modules/finance/held-money.ts, tests/integration/finance/record-expense.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts]
+      pattern: src/modules/finance/finance.service.ts
+      signatures:
+        - "recordExpenseInTx(tx: Prisma.TransactionClient, input: ExpenseInput): Promise<Expense>"
+      types:
+        - "ExpenseInput = { id: string; organizationId: string; paidById: string; amount: bigint; category?: string; description?: string; recordedById: string; occurredAt: Date }"
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "FORBIDDEN 403", "ORGANIZATION_NOT_ACTIVE 409"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+      - "v5.0.0-2.3.3: expense and held money are one transaction."
+      - "v5.0.0-15.3.3: strict schema."
+    tests: |
+      record | integration | AC-1, CM-17, C-27 | 201, held 55000
+      default payer | integration | AC-2 | caller
+      refusals | integration | AC-3 | each Examples row → status
+      repeat | integration | AC-4 | once
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+      foreign payer | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/finance/record-expense.test.ts
+    out_of_scope:
+      - "Cancelling (FIN-013). OpenAPI (FIN-020)."
+  - id: FIN-013
+    title: Manager cancels an expense
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [FIN-012, FIN-004]
+    read_first: [src/modules/finance/held-money.ts, src/modules/finance/finance.routes.ts]
+    design_refs: [finances/expense]
+    constraints: [C-27]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3]
+    story: As a manager, I want to cancel an expense entered by mistake so that the payer's held money is restored.
+    context: |
+      - Exists: expenses (FIN-012); rule `cancel` on Expense (MANAGER online, OWNER always).
+      - Adds: `POST /api/v1/organizations/{organizationId}/expenses/{expenseId}/cancel` with `{ id }`; response 200 with the expense showing `cancelled_at` and `cancelled_by_id`. The payer's held money rises by the amount; the row stays, struck through.
+      - A second cancellation, or another organization's expense, answers 409 `ALREADY_CANCELLED` or 404.
+    acceptance: |
+      Scenario: AC-1 Cancel
+        When a MANAGER cancels an expense of 5000
+        Then cancelled_at and cancelled_by_id are set and the payer's amount_held is +5000
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                       | status                   |
+          | an expense already cancelled  | 409 ALREADY_CANCELLED    |
+          | an expense of another business| 404 NOT_FOUND            |
+          | a SELLER caller               | 403 FORBIDDEN            |
+      Scenario: AC-3 Parallel cancels
+        When two managers cancel at once
+        Then one succeeds and money is restored once
+    abuse: |
+      Scenario: AB-1 Seller cancels an expense (vertical)
+        When a SELLER or DRIVER posts cancel
+        Then the response is 403 and the expense is unchanged
+    implementation:
+      create: [tests/integration/finance/cancel-expense.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts, src/modules/finance/held-money.ts]
+      pattern: src/modules/finance/finance.routes.ts
+      signatures:
+        - "cancelExpense(actor: Actor, expenseId: string): Promise<ExpenseView>"
+      types: []
+      errors: ["ALREADY_CANCELLED 409", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+      - "v5.0.0-2.3.3: the cancel is one conditional update with the cache change."
+    tests: |
+      cancel | integration | AC-1, C-27 | fields and held +5000
+      refusals | integration | AC-2 | each Examples row → status
+      parallel | integration | AC-3, CWE-362 | once
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/finance/cancel-expense.test.ts
+    out_of_scope:
+      - "Editing an expense: never allowed."
+  - id: FIN-014
+    title: Handovers table
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [FIN-011]
+    read_first: [prisma/schema.prisma, tests/integration/finance/expense-table.test.ts]
+    design_refs: [finances/handover, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Handover:required, Handover:fk, C-27, C-04]
+    asvs: [v5.0.0-2.2.3, v5.0.0-8.3.1]
+    fields: ["Handover.{organization_id,from_person_id,to_person_id,amount,occurred_at,cancelled_at,cancelled_by_id}"]
+    story: "Technical story: create the handovers table so that money passing between collaborators is recorded and can only be cancelled once."
+    context: |
+      - Exists: `expenses` and its triggers (FIN-011).
+      - Adds: table `handovers` with `server_updated_at` and `deleted_at`, triggers `require_registered_person('to_person_id', 'cancelled_by_id', 'from_person_id')` and `set_server_updated_at()`. CHECK `amount > 0`; cancellation pair; `from_person_id` must have a collaboration row (any status) in the organization; `to_person_id` must have an ACTIVE OWNER or MANAGER collaboration; the same one-time-cancel trigger as expenses. `from_person_id` may equal `to_person_id` (the automatic handover of FIN-017); the routes refuse it.
+    acceptance: |
+      Scenario Outline: AC-1 Insert rules
+        When a handover is inserted with <values>
+        Then the insert <result>
+        Examples:
+          | values                                            | result          |
+          | from a SELLER to the OWNER                        | accepts         |
+          | from a REVOKED driver to a MANAGER                | accepts         |
+          | to a SELLER                                       | rejects (23514) |
+          | to an INVITED or REVOKED manager                  | rejects (23514) |
+          | from a person who never collaborated              | rejects (23514) |
+          | amount 0                                          | rejects (23514) |
+          | from equal to to (an owner to themselves)         | accepts         |
+      Scenario: AC-2 Cancel once and never edit
+        Then cancelling works once and any other change fails with 23514
+    abuse: |
+      Scenario: AB-1 Handing money to someone who cannot receive it (tampering)
+        When code inserts a handover to a driver
+        Then PostgreSQL refuses it
+    implementation:
+      create: [prisma/migrations/<timestamp>_fin_014_handovers/migration.sql, tests/integration/finance/handover-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/finance/expense-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: sender and receiver roles are checked in the database."
+    tests: |
+      insert rules | integration | AC-1, C-27, C-04, Handover:required, Handover:fk | each Examples row → accepted or 23514
+      cancel once | integration | AC-2 | as described
+      wrong receiver | security | AB-1, CWE-284 | refused
+    command: npx vitest run tests/integration/finance/handover-table.test.ts
+    out_of_scope:
+      - "Routes (FIN-015, FIN-016)."
+  - id: FIN-015
+    title: Owner or manager records a handover received
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [FIN-014, FIN-012, NTF-002, FIN-004]
+    read_first: [src/modules/finance/held-money.ts, src/modules/finance/finance.service.ts]
+    design_refs: [finances/handover]
+    constraints: [C-27, CM-17]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As a manager, I want to record the money I received from a collaborator so that what they hold goes down and mine goes up.
+    context: |
+      - Exists: `recordExpenseInTx` and the held-money file (FIN-012); rule `create` on Handover for MANAGER online, OWNER always; `notify`; `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/handovers` with `{ id, from_person_id, amount, occurred_at? }` and `recordHandoverInTx(tx, input)` in `held-money.ts`. The receiver is always the caller, who must be an ACTIVE OWNER or MANAGER. `from_person_id` must be a collaborator (ACTIVE or gone) other than the caller (400 `VALIDATION_ERROR` otherwise).
+      - Effect: the remitter's held money falls by the amount and the receiver's rises (when remitter and receiver are the same person, only a fall). The remitter is notified `handover.recorded`: "<receiver> a noté avoir reçu <amount> de vous. Il vous reste <remaining> à remettre." with `remaining` the remitter's held money after the handover.
+    acceptance: |
+      Scenario: AC-1 Record
+        Given a driver holding 60000 and a MANAGER holding 0
+        When the MANAGER records a handover of 55000 from the driver
+        Then the driver holds 5000 and the manager holds 55000
+      Scenario: AC-2 Remitter told
+        Then the driver has one unread `handover.recorded` mentioning 55000 and 5000
+      Scenario: AC-3 Partial and over
+        When a handover of 70000 is recorded from a driver holding 60000
+        Then it is accepted and the driver holds -10000
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                   | status                |
+          | from_person_id equal to the caller        | 400 VALIDATION_ERROR  |
+          | a remitter who is not a collaborator      | 404 NOT_FOUND         |
+          | amount 0                                  | 400 VALIDATION_ERROR  |
+          | a SELLER or DRIVER caller                 | 403 FORBIDDEN         |
+      Scenario: AC-5 Repeat
+        When the same id is posted twice
+        Then one handover exists
+    abuse: |
+      Scenario: AB-1 A driver records their own handover (vertical)
+        When a DRIVER posts
+        Then the response is 403 and nothing is stored
+      Scenario: AB-2 Noting less than received (tampering)
+        Then the remitter is told the noted amount and the remaining figure, so a lower note is visible to them
+    implementation:
+      create: [tests/integration/finance/record-handover.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts, src/modules/finance/held-money.ts]
+      pattern: src/modules/finance/finance.service.ts
+      signatures:
+        - "recordHandoverInTx(tx: Prisma.TransactionClient, input: HandoverInput): Promise<Handover>"
+      types:
+        - "HandoverInput = { id: string; organizationId: string; fromPersonId: string; toPersonId: string; amount: bigint; occurredAt: Date }"
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner; the receiver is the caller."
+      - "v5.0.0-2.3.3: handover and both caches are one transaction, in a fixed order."
+    tests: |
+      record | integration | AC-1, CM-17, C-27 | 5000 and 55000
+      remitter told | integration | AC-2 | notification text
+      over | integration | AC-3 | accepted, negative
+      refusals | integration | AC-4 | each Examples row → status
+      repeat | integration | AC-5 | once
+      driver | security | AB-1, WSTG-ATHZ-03 | 403
+      lower note visible | security | AB-2, CWE-778 | remaining amount in the notice
+    command: npx vitest run tests/integration/finance/record-handover.test.ts
+    out_of_scope:
+      - "Cancelling and disputing (FIN-016)."
+  - id: FIN-016
+    title: Cancel a handover and dispute the noted amount
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [FIN-015, FIN-004]
+    read_first: [src/modules/finance/held-money.ts, src/modules/finance/finance.routes.ts]
+    design_refs: [finances/handover]
+    constraints: [C-27]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-16.3.1]
+    story: As a driver, I want to say "this is not the right amount" about a handover noted in my name so that the owner is warned at once.
+    context: |
+      - Exists: handovers (FIN-015).
+      - Adds: `POST /api/v1/organizations/{organizationId}/handovers/{handoverId}/cancel` with `{ id }` (MANAGER online or OWNER; restores both caches; once, 409 `ALREADY_CANCELLED`) and `POST /api/v1/organizations/{organizationId}/handovers/{handoverId}/dispute` with `{ id, comment? }` (only the remitter `from_person_id`, for any collaboration status ACTIVE; up to 2000 characters). Dispute changes no data: the owner is notified `handover.disputed` naming the handover, the amount and the remitter.
+      - Another business's handover, or a dispute by someone other than the remitter, answers 404.
+    acceptance: |
+      Scenario: AC-1 Cancel
+        When a MANAGER cancels a handover of 55000
+        Then cancelled_at and cancelled_by_id are set, the remitter's held money is +55000 and the receiver's −55000
+      Scenario: AC-2 Dispute
+        When the remitter disputes
+        Then the owner has one unread `handover.disputed` and no amount changes
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                                        | status                |
+          | cancelling twice                               | 409 ALREADY_CANCELLED |
+          | a dispute by someone who is not the remitter   | 404 NOT_FOUND         |
+          | a SELLER or DRIVER cancelling                  | 403 FORBIDDEN         |
+          | a handover of another business                 | 404 NOT_FOUND         |
+      Scenario: AC-4 Repeat
+        When the same dispute id is posted twice
+        Then one notification exists
+    abuse: |
+      Scenario: AB-1 Cash kept by the receiver, blamed on the remitter (repudiation)
+        When the receiver notes less than received
+        Then the remitter's dispute reaches the owner and the noted amount stays visible
+      Scenario: AB-2 Disputing someone else's handover (horizontal)
+        When another collaborator posts a dispute
+        Then the response is 404 and no notification is created
+    implementation:
+      create: [tests/integration/finance/handover-cancel-dispute.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.service.ts, src/modules/finance/held-money.ts]
+      pattern: src/modules/finance/finance.routes.ts
+      signatures:
+        - "cancelHandover(actor: Actor, handoverId: string): Promise<HandoverView>"
+        - "disputeHandover(actor: Actor, handoverId: string, input: { id: string; comment?: string }): Promise<void>"
+      types: []
+      errors: ["ALREADY_CANCELLED 409", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: cancellation by manager online or owner."
+      - "v5.0.0-8.2.2: a dispute is only for the remitter of that handover."
+      - "v5.0.0-16.3.1: a dispute is logged at `warn` with event `handover_disputed`."
+    tests: |
+      cancel | integration | AC-1, C-27 | caches restored
+      dispute | integration | AC-2 | owner notified, no change
+      refusals | integration | AC-3 | each Examples row → status
+      repeat | integration | AC-4 | one notification
+      blame shift | security | AB-1, CWE-778 | owner told
+      other collaborator | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/finance/handover-cancel-dispute.test.ts
+    out_of_scope:
+      - "Resolving a dispute: a phone call."
+  - id: FIN-017
+    title: Ownership transfer hands over the former owner's money
+    kind: change
+    size: S
+    risk: high
+    depends_on: [FIN-015, ORG-015]
+    amends: [ORG-015]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/finance/held-money.ts]
+    design_refs: [finances/handover, identite-et-organisation/collaboration]
+    constraints: [CM-18, C-27]
+    asvs: [v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: "Technical story: record a handover from the former owner to themselves when ownership changes, so that the money they held goes back to the business and they restart at zero."
+    context: |
+      - Exists: `transferOwnership` (ORG-015), `recordHandoverInTx` (FIN-015).
+      - Changes: in the same transaction, when the former owner's `amount_held` is above 0, a handover is inserted with `from_person_id` = `to_person_id` = the former owner, the amount held, and `occurred_at` now; only the fall applies (the person keeps no new money). When it is 0 or negative no handover is written.
+    acceptance: |
+      Scenario: AC-1 Automatic handover
+        Given the owner holds 3450000
+        When ownership is transferred
+        Then a handover of 3450000 from and to the former owner exists and their amount_held is 0
+      Scenario: AC-2 Nothing held
+        When the owner holds 0
+        Then no handover row is written
+      Scenario: AC-3 Atomic
+        When the handover insert fails
+        Then the ownership did not change
+    abuse: |
+      Scenario: AB-1 Cash left behind by the former owner (tampering)
+        When ownership changes while the former owner holds money
+        Then the money does not stay on a person who is no longer the owner
+    implementation:
+      create: [tests/integration/finance/transfer-handover.test.ts]
+      modify: [src/modules/organization/organization.service.ts, src/modules/finance/held-money.ts]
+      pattern: src/modules/finance/held-money.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: transfer and handover are one transaction."
+    tests: |
+      automatic | integration | AC-1, CM-18, C-27 | row and zero held
+      nothing held | integration | AC-2 | no row
+      atomic | integration | AC-3, CWE-362 | unchanged
+      no cash left | security | AB-1, CWE-841 | former owner holds 0 after transfer
+    command: npx vitest run tests/integration/finance/transfer-handover.test.ts tests/integration/organization/transfer.test.ts
+    out_of_scope:
+      - "Sales made offline by the former owner (SYNC module)."
+    tests_to_update: []
+  - id: FIN-018
+    title: Nightly check of balances and held money
+    kind: technical
+    size: M
+    risk: medium
+    depends_on: [FIN-016, FIN-003]
+    read_first: [src/lib/metrics.ts, package.json]
+    design_refs: [finances/ledgerentry, finances/handover]
+    constraints: [C-37, CM-17]
+    asvs: [v5.0.0-16.3.3, v5.0.0-2.3.3]
+    story: "Technical story: compare every cached balance and held-money total with the sum of its entries and alert on any difference, so that a drift cannot stay hidden."
+    context: |
+      - Exists: `balance`, `amount_held`, ledger, expenses, handovers (FIN-001 to FIN-017).
+      - Adds: `src/jobs/reconcile.ts`, `src/modules/finance/reconcile.service.ts`, npm script `job:reconcile` (`tsx src/jobs/reconcile.ts`), Prometheus counter `reconcile_mismatch_total`. It only reads; scheduling is left to deployment (Q-010).
+      - Balance check: each live relationship's `balance` equals the sum of its ledger entries' `balance_effect`.
+      - Held-money check per collaboration: PAYMENT entries the person recorded (+), REFUND entries (−), with a reversal flipping the sign; minus their non-cancelled expenses as payer; minus non-cancelled handovers as remitter; plus non-cancelled handovers as receiver, except a handover to oneself, which only subtracts.
+      - Each difference is logged at `error` with event `balance_mismatch` or `amount_held_mismatch`, the ids and the difference (never names), and counted. The script exits 1 when any mismatch exists, else 0.
+    acceptance: |
+      Scenario: AC-1 Clean data
+        Given consistent balances and held amounts
+        When the reconcile service runs
+        Then it reports 0 mismatches
+      Scenario: AC-2 Balance drift
+        When a balance cache is changed by 1 franc directly
+        Then one `balance_mismatch` is reported with the relationship id and the difference
+      Scenario: AC-3 Held-money drift
+        When an amount_held is changed directly
+        Then one `amount_held_mismatch` is reported
+      Scenario: AC-4 Full formula
+        Given payments, refunds, reversals, cancelled and live expenses, handovers in and out, and an automatic self handover
+        Then the expected held money is computed as stated and matches the caches
+      Scenario: AC-5 Exit code
+        Then the script exits 1 on a mismatch and 0 otherwise
+    implementation:
+      create: [src/jobs/reconcile.ts, src/modules/finance/reconcile.service.ts, tests/integration/finance/reconcile.test.ts]
+      modify: [package.json, src/lib/metrics.ts]
+      pattern: src/lib/metrics.ts
+      signatures:
+        - "reconcile(): Promise<{ balanceMismatches: Mismatch[]; heldMismatches: Mismatch[] }>"
+      types:
+        - "Mismatch = { id: string; expected: string; actual: string }"
+      errors: []
+      dependencies: [prom-client, pino, "@prisma/client"]
+    security:
+      - "v5.0.0-16.3.3: mismatches are security-relevant events with a fixed name."
+      - "v5.0.0-2.3.3: the check reads inside one repeatable-read transaction."
+    tests: |
+      clean | integration | AC-1, C-37 | 0 mismatches
+      balance drift | integration | AC-2 | reported
+      held drift | integration | AC-3, CM-17 | reported
+      full formula | integration | AC-4 | matches
+      exit code | integration | AC-5 | 1 and 0
+    command: npx vitest run tests/integration/finance/reconcile.test.ts
+    out_of_scope:
+      - "Scheduling the job (deployment)."
+  - id: FIN-019
+    title: Owner reads the money exceptions
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [FIN-016, ORD-013, FIN-004, FIN-010]
+    read_first: [src/modules/finance/finance.service.ts, src/modules/order/order.repository.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, finances/expense]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As an owner, I want the money gestures made by other people grouped by person so that I see at a glance what left without a customer asking.
+    context: |
+      - Exists: ledger, expenses, handovers, order lines with `price_set_by_id`.
+      - Adds: `GET /api/v1/organizations/{organizationId}/exceptions/money?from&to` (OWNER only, others 403; `from` and `to` ISO dates, at most 92 days apart, default the last 7 days). Response `{ items: [{ person_id, refunds: { count, amount }, credit_notes: { count, amount }, reversals: { count, amount }, expenses: { count, amount }, price_gaps: { count, amount } }] }`, one item per collaborator other than the owner who did at least one, sorted by total amount.
+      - Counted gestures: REFUND and CREDIT_NOTE entries recorded by the person (not reversals); reversal entries, cancelled expenses and cancelled handovers by the person (cancelled_by); non-cancelled expenses recorded by the person; order lines whose `price_set_by_id` is the person and whose applied price is below the reference (amount = (reference − applied) × delivered quantity, else ordered quantity, rounded like a line). Dates: `occurred_at`, `cancelled_at`, `price_set_at`.
+      - Abandoned rests of partial deliveries are added by DLV-012.
+    acceptance: |
+      Scenario: AC-1 Grouped by person
+        Given Jean recorded 2 refunds and 1 expense, and Paul gave 12 price gaps
+        When the owner reads the last 7 days
+        Then two items are returned, each with its counts and amounts
+      Scenario: AC-2 Owner's own gestures excluded
+        Then gestures recorded by the owner never appear
+      Scenario: AC-3 Period
+        When a gesture is older than `from`
+        Then it is not counted
+      Scenario Outline: AC-4 Validation and roles
+        When the request has <case>
+        Then the response is <status>
+        Examples:
+          | case                              | status |
+          | a MANAGER caller                  | 403    |
+          | a period of 93 days               | 400    |
+          | from after to                     | 400    |
+      Scenario: AC-5 Price gap value
+        When a line was sold at 3000 for a reference of 3200, quantity 7
+        Then the gap amount is 1400
+    abuse: |
+      Scenario: AB-1 Nothing hidden from the owner (repudiation)
+        When a manager records a refund and later reverses it
+        Then both the refund and the reversal appear under the manager's name
+      Scenario: AB-2 Another business (horizontal)
+        When a member of A requests the exceptions of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/finance/money-exceptions.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.service.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.openapi.ts]
+      pattern: src/modules/finance/finance.routes.ts
+      signatures:
+        - "moneyExceptions(actor: Actor, query: { from?: string; to?: string }): Promise<{ items: MoneyExceptionItem[] }>"
+      types: []
+      errors: ["FORBIDDEN 403", "VALIDATION_ERROR 400", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: owner only."
+      - "v5.0.0-8.2.3: only person ids and totals are returned."
+    tests: |
+      grouped | integration | AC-1 | two items
+      owner excluded | integration | AC-2 | none for the owner
+      period | integration | AC-3 | old gesture ignored
+      validation | integration | AC-4 | each Examples row → status
+      price gap value | integration | AC-5 | 1400
+      nothing hidden | security | AB-1, CWE-778 | both listed
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/finance/money-exceptions.test.ts
+    out_of_scope:
+      - "Synchronization exceptions (SYNC module)."
+  - id: FIN-020
+    title: Owner reads the treasury and expenses
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [FIN-019, FND-009, FIN-004, FIN-010]
+    read_first: [src/modules/finance/finance.service.ts, src/modules/finance/finance.openapi.ts]
+    design_refs: [finances/ledgerentry, finances/expense]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.1]
+    story: As an owner, I want the money that came in and went out over a period so that I know my treasury.
+    context: |
+      - Exists: ledger and expenses.
+      - Adds: `GET /api/v1/organizations/{organizationId}/treasury?from&to` (OWNER and MANAGER; period rules as FIN-019). Response `{ inflows, outflows, net }` in francs: inflows are PAYMENT entries of relationships where the organization is supplier plus REFUND entries of relationships where it is customer (reversals subtract); outflows are PAYMENT entries where it is customer, REFUND entries where it is supplier, and non-cancelled expenses (reversals subtract). SALE, CREDIT_NOTE and OPENING_BALANCE are not money.
+      - `GET /api/v1/organizations/{organizationId}/expenses?limit&cursor&from&to` (OWNER and MANAGER): paginated expenses newest first, cancelled ones flagged.
+      - `finance.openapi.ts` documents the expense routes of FIN-012 and FIN-013 as well.
+    acceptance: |
+      Scenario: AC-1 Treasury
+        Given payments of 50000 and 20000 received, a refund of 5000 given and an expense of 8000
+        When the owner reads the period
+        Then inflows are 70000, outflows 13000 and net 57000
+      Scenario: AC-2 Reversals
+        When a payment of 20000 was reversed
+        Then inflows are 50000
+      Scenario: AC-3 Expense list
+        Then expenses are listed newest first with cancelled ones flagged and paginated
+      Scenario Outline: AC-4 Roles and period
+        When the request has <case>
+        Then the response is <status>
+        Examples:
+          | case                    | status |
+          | a SELLER caller         | 403    |
+          | a period of 93 days     | 400    |
+    abuse: |
+      Scenario: AB-1 Another business's treasury (horizontal)
+        When a member of A reads the treasury of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/finance/treasury.test.ts]
+      modify: [src/modules/finance/finance.routes.ts, src/modules/finance/finance.service.ts, src/modules/finance/finance.schemas.ts, src/modules/finance/finance.openapi.ts]
+      pattern: src/modules/finance/finance.routes.ts
+      signatures:
+        - "treasury(actor: Actor, query: { from?: string; to?: string }): Promise<{ inflows: number; outflows: number; net: number }>"
+        - "listExpenses(actor: Actor, query: ListExpensesQuery): Promise<{ items: ExpenseView[]; next_cursor: string | null }>"
+      types: []
+      errors: ["FORBIDDEN 403", "VALIDATION_ERROR 400", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: owner and manager."
+      - "v5.0.0-15.3.1: totals only."
+    tests: |
+      treasury | integration | AC-1 | 70000, 13000, 57000
+      reversals | integration | AC-2 | 50000
+      expenses | integration | AC-3 | order, flags, paging
+      roles and period | integration | AC-4 | each Examples row → status
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/finance/treasury.test.ts
+    out_of_scope:
+      - "Quantities sold and bought per article (a read on delivered lines, ORD-022)."

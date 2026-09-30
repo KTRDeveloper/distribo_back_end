@@ -1,0 +1,950 @@
+kind: module
+module: admin
+prefix: ADM
+title: Administration
+responsibility: Owns platform administrators with two-factor login, reports from users, suspensions and reactivations, and the immutable journal of administration actions.
+entities: [Report, Administrator, AdminAction]
+depends_on: [foundation, person, notification, access, organization, auth]
+asvs_level: L2
+asvs_rationale: An administrator can block any business; the account is protected by a password plus TOTP, short sessions, and every action is journaled.
+classification:
+  - "Administrator.totp_secret | credential | AES-256-GCM encrypted, never returned after enrolment, never logged"
+  - "Administrator.recovery_email | PII | shown only to that administrator"
+  - "AdminAction.reason | confidential | administrators only"
+  - "Report.description | PII | reporter and administrators only"
+threats:
+  - "T1 | S | An administrator account is taken with a password only | TOTP is mandatory at every admin login and a code cannot be reused | ADM-006 AB-1"
+  - "T2 | E | A normal session or token reaches admin routes | admin routes accept only an admin-typed token of a live administrator | ADM-006 AB-2"
+  - "T3 | E | The recovery path becomes a back door | recovery installs a new key only, needs the password and the verified recovery address, and alerts | ADM-008 AB-1"
+  - "T4 | E | A moderator appoints or removes administrators | only SUPER_ADMIN | ADM-009 AB-1, ADM-010 AB-1"
+  - "T5 | R | A suspension leaves no trace | every suspension, reactivation and dismissal writes the immutable journal | ADM-013 AB-1, ADM-014 AB-1"
+  - "T6 | T | The journal is rewritten | the application account cannot update or delete it | ADM-002 AB-1"
+constraints:
+  C-29: "`Administrator.totp_secret` is required; `recovery_email` differs from `Person.email`; `AdminAction` has exactly one target, a reason, `sync_archive_id` only for REPLAY_SYNC (super administrators only), and is immutable."
+  C-28: "A report has exactly one target, a person or an organization."
+  C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
+  C-32: "Immutable journals are never updated or deleted by the application; only the retention purge removes them."
+  C-39: "The application account has only INSERT and SELECT on the immutable tables."
+  CM-33: "A SUSPENSION decision sets the target's status to SUSPENDED and revokes the sessions of a suspended person (reason ACCOUNT_SUSPENDED); every decision, and every suspension or reactivation, is logged in AdminAction."
+  CM-34: "A TOTP_RECOVERY code sent to the recovery email only allows installing a new TOTP key; each use is logged as RECOVER_2FA and notified to the administrator's phones and to the other super administrators."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+contracts:
+  provides:
+    - name: AdminJournal
+      file: src/modules/admin/admin.repository.ts
+      story: ADM-002
+      items:
+        - "recordAdminAction(tx, input: { administratorId: string; action: AdminActionType; targetPersonId?: string; targetOrganizationId?: string; reportId?: string; syncArchiveId?: string; reason: string }): Promise<AdminAction>"
+      used_by: [sync]
+    - name: AdminAuth
+      file: src/middleware/admin-auth.ts
+      story: ADM-006
+      items:
+        - "adminAuthMiddleware: RequestHandler — verifies an admin-typed access token and a live Administrator; sets `req.admin = { administratorId, personId, role }`"
+        - "requireAdminRole(min: 'MODERATOR' | 'SUPER_ADMIN'): RequestHandler"
+      used_by: [sync]
+  consumes:
+    - "auth: issue and verify one-time codes (issueCode, verifyCode), hashPassword and verifyPassword, revokeSessions (docs/stories/modules/auth/contracts.md)"
+    - "person: findByActivePhone, toPublicPerson (docs/stories/modules/person/contracts.md)"
+    - "notification: notify (docs/stories/modules/notification/contracts.md)"
+stories:
+  - id: ADM-001
+    title: Administrators table
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [PER-008, FND-005, ORG-003]
+    read_first: [prisma/schema.prisma, tests/integration/person/registered-guard.test.ts]
+    design_refs: [gouvernance-de-la-plateforme/administrator, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Administrator:required, Administrator.role:enum, Administrator:fk, C-29, C-04]
+    asvs: [v5.0.0-6.3.3, v5.0.0-2.2.3]
+    fields: ["Administrator.{person_id,role,totp_secret,recovery_email,appointed_at}"]
+    story: "Technical story: create the administrators table so that platform staff exist with a mandatory two-factor secret."
+    context: |
+      - Exists: `people`, `require_registered_person()`.
+      - Adds: table `administrators` (`role` SUPER_ADMIN or MODERATOR, `totp_secret` text not null, `appointed_at` default now, `removed_at` null), a partial unique index on `person_id` where `removed_at` is null, trigger `require_registered_person('person_id')`, and a trigger refusing a `recovery_email` equal (case-insensitive) to the person's `email`.
+      - The application stores `totp_secret` encrypted (ADM-004); the table cannot check that.
+    acceptance: |
+      Scenario Outline: AC-1 Insert rules
+        When an administrator is inserted with <values>
+        Then the insert <result>
+        Examples:
+          | values                                            | result          |
+          | a registered person, role MODERATOR, a secret     | accepts         |
+          | a guest                                           | rejects (23514) |
+          | no totp_secret                                    | rejects (23502) |
+          | role "ROOT"                                       | rejects         |
+          | a second live row for the same person             | rejects (23505) |
+          | a new row for a person whose first was removed    | accepts         |
+          | recovery_email equal to the person's email        | rejects (23514) |
+          | recovery_email different from the person's email  | accepts         |
+      Scenario: AC-2 Person key
+        When the person id is unknown
+        Then the insert fails with 23503
+    abuse: |
+      Scenario: AB-1 Administrator without two-factor (elevation)
+        When code inserts an administrator with an empty secret
+        Then PostgreSQL refuses it
+    implementation:
+      create: [prisma/migrations/<timestamp>_adm_001_administrators/migration.sql, tests/integration/admin/administrator-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/collaboration-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-6.3.3: the second factor is a required column."
+      - "v5.0.0-2.2.3: the recovery address rule is checked by the database."
+    tests: |
+      insert rules | integration | AC-1, C-29, C-04, Administrator:required, Administrator.role:enum | each Examples row → accepted or rejected
+      person key | integration | AC-2, Administrator:fk | 23503
+      no second factor | security | AB-1, CWE-308 | refused
+    command: npx vitest run tests/integration/admin/administrator-table.test.ts
+    out_of_scope:
+      - "Encrypting the secret and using it (ADM-004, ADM-006)."
+  - id: ADM-002
+    title: Administration journal table
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [ADM-001, FND-002, ORG-001, REL-014]
+    read_first: [prisma/schema.prisma, tests/integration/relationship/reassignment-table.test.ts]
+    design_refs: [gouvernance-de-la-plateforme/adminaction, contraintes-a-poser-au-niveau-base-de]
+    constraints: [AdminAction:required, AdminAction.action:enum, AdminAction:fk, C-29, C-32, C-39]
+    asvs: [v5.0.0-8.3.1, v5.0.0-16.3.1]
+    fields: ["AdminAction.{administrator_id,action,target_person_id,target_organization_id,report_id,sync_archive_id,reason,occurred_at}"]
+    story: "Technical story: create the immutable journal of administrator actions so that every suspension, reactivation, replay and recovery is traceable."
+    context: |
+      - Exists: `administrators` (ADM-001), `organizations`, role `distribo_app`.
+      - Adds: table `admin_actions` (`occurred_at` default now, `server_updated_at`), `REVOKE UPDATE, DELETE, TRUNCATE ... FROM distribo_app`, trigger `set_server_updated_at()`. `report_id` and `sync_archive_id` are plain uuid columns for now: the foreign keys to reports and sync archives are added by ADM-003 and SYNC-002.
+      - CHECKs: exactly one of `target_person_id` and `target_organization_id`; `reason` not empty; `sync_archive_id` set exactly when `action = 'REPLAY_SYNC'`. A trigger allows REPLAY_SYNC only for an administrator whose role is SUPER_ADMIN.
+      - `recordAdminAction(tx, input)` in `src/modules/admin/admin.repository.ts` inserts a row with a new id.
+    acceptance: |
+      Scenario Outline: AC-1 Insert rules
+        When an action is inserted with <values>
+        Then the insert <result>
+        Examples:
+          | values                                                        | result          |
+          | SUSPEND, a person target, reason "abus"                       | accepts         |
+          | SUSPEND with both targets                                     | rejects (23514) |
+          | SUSPEND with no target                                        | rejects (23514) |
+          | reason empty                                                  | rejects (23514) |
+          | REPLAY_SYNC by a SUPER_ADMIN with sync_archive_id             | accepts         |
+          | REPLAY_SYNC by a MODERATOR                                    | rejects (23514) |
+          | REPLAY_SYNC without sync_archive_id                           | rejects (23514) |
+          | SUSPEND with a sync_archive_id                                | rejects (23514) |
+          | action "DELETE_USER"                                          | rejects         |
+      Scenario: AC-2 Immutable
+        When the application account updates or deletes a row
+        Then PostgreSQL answers permission denied (42501)
+      Scenario: AC-3 Helper
+        When recordAdminAction is called with valid input
+        Then one row exists with a server time
+    abuse: |
+      Scenario: AB-1 Rewriting the journal (repudiation)
+        When code running as the application account edits a reason
+        Then the update is refused and the row is unchanged
+    implementation:
+      create: [src/modules/admin/admin.repository.ts, prisma/migrations/<timestamp>_adm_002_admin_actions/migration.sql, tests/integration/admin/admin-action-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: src/modules/tasks/tasks.repository.ts
+      signatures:
+        - "recordAdminAction(tx: Prisma.TransactionClient, input: AdminActionInput): Promise<AdminAction>"
+      types:
+        - "AdminActionType = 'SUSPEND' | 'REACTIVATE' | 'DISMISS_REPORT' | 'APPOINT_ADMIN' | 'REMOVE_ADMIN' | 'REPLAY_SYNC' | 'RECOVER_2FA'"
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-8.3.1: only INSERT and SELECT are granted to `distribo_app`."
+      - "v5.0.0-16.3.1: every action has an author, a reason and a server time."
+    tests: |
+      insert rules | integration | AC-1, C-29, AdminAction:required, AdminAction.action:enum, AdminAction:fk | each Examples row → accepted or rejected
+      immutable | security | AC-2, AB-1, C-32, C-39, WSTG-ATHZ-03 | UPDATE, DELETE → 42501
+      helper | integration | AC-3 | row created
+    command: npx vitest run tests/integration/admin/admin-action-table.test.ts
+    out_of_scope:
+      - "The sync archive foreign key (SYNC-002)."
+  - id: ADM-003
+    title: Reports table
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [ADM-002, PER-008]
+    read_first: [prisma/schema.prisma, tests/integration/admin/admin-action-table.test.ts]
+    design_refs: [moderation/report, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Report:required, Report.status:enum, Report.decision:enum, Report:fk, C-28, C-04]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Report.{reporter_id,target_person_id,target_organization_id,reason,description,status,resolved_by_id,decision}"]
+    story: "Technical story: create the reports table and the foreign key from the journal to it, so that users can flag abuse and decisions link to their report."
+    context: |
+      - Exists: `admin_actions` (ADM-002), `administrators`, `require_registered_person()`.
+      - Adds: table `reports` (`status` default PENDING, `reported_at` default now, `resolved_at` null, `server_updated_at`), triggers `require_registered_person('reporter_id')` and `set_server_updated_at()`, CHECK exactly one of `target_person_id` and `target_organization_id`; the foreign key `admin_actions.report_id` to `reports(id)`.
+      - `resolved_by_id` references `administrators(id)`.
+    acceptance: |
+      Scenario Outline: AC-1 Insert rules
+        When a report is inserted with <values>
+        Then the insert <result>
+        Examples:
+          | values                                           | result          |
+          | a registered reporter and a person target        | accepts         |
+          | a registered reporter and an organization target | accepts         |
+          | both targets                                     | rejects (23514) |
+          | no target                                        | rejects (23514) |
+          | a guest reporter                                 | rejects (23514) |
+          | status "OPEN"                                    | rejects         |
+          | decision "BAN"                                   | rejects         |
+      Scenario: AC-2 Defaults and keys
+        Then a new report is PENDING with reported_at set, `resolved_by_id` accepts only an existing administrator, and `admin_actions.report_id` accepts only an existing report
+    abuse: |
+      Scenario: AB-1 A report with two targets by a crafted write (tampering)
+        When code inserts both targets
+        Then PostgreSQL refuses it
+    implementation:
+      create: [prisma/migrations/<timestamp>_adm_003_reports/migration.sql, tests/integration/admin/report-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/admin/administrator-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: exactly one target is a CHECK."
+    tests: |
+      insert rules | integration | AC-1, C-28, C-04, Report:required, Report.status:enum, Report.decision:enum | each Examples row → accepted or rejected
+      defaults and keys | integration | AC-2, Report:fk | as described
+      two targets | security | AB-1, CWE-20 | refused
+    command: npx vitest run tests/integration/admin/report-table.test.ts
+    out_of_scope:
+      - "Creating and resolving reports (ADM-011, ADM-013)."
+  - id: ADM-004
+    title: Two-factor codes for administrators
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ADM-001]
+    read_first: [src/lib/crypto.ts, docs/stories/CONVENTIONS.md]
+    design_refs: [gouvernance-de-la-plateforme/administrator]
+    constraints: []
+    asvs: [v5.0.0-6.3.3, v5.0.0-6.5.1, v5.0.0-11.3.2]
+    story: "Technical story: provide TOTP secret creation, encryption and code verification with replay protection, so that administrator login can require a second factor."
+    context: |
+      - Exists: `encrypt`, `decrypt` (AES-256-GCM) in `src/lib/crypto.ts`; Redis client and `checkAndConsume`.
+      - Adds: `src/lib/totp.ts` using `otplib`: `createTotpSecret()` returns `{ secret, otpauthUri }` (issuer "Distribo", 6 digits, 30 seconds), `encryptSecret`/`decryptSecret` wrappers, and `verifyTotp(administratorId, secret, code)` accepting the current step and one step either side, and refusing a step already used by that administrator (key `totp:used:<administratorId>:<step>`, 90 seconds).
+    acceptance: |
+      Scenario: AC-1 Secret and URI
+        Then createTotpSecret returns a base32 secret and a URI starting `otpauth://totp/` that contains the issuer
+      Scenario: AC-2 Verify
+        When a code for the current step is verified
+        Then it is accepted; a code from one step earlier or later is accepted; two steps away is refused
+      Scenario: AC-3 No reuse
+        When an accepted code is presented again
+        Then it is refused
+      Scenario: AC-4 Encryption
+        Then the encrypted secret differs from the secret and decrypts back to it
+      Scenario Outline: AC-5 Malformed codes
+        When the code is <code>
+        Then verification returns false
+        Examples:
+          | code       |
+          | 12345      |
+          | 1234567    |
+          | abcdef     |
+          | empty      |
+    abuse: |
+      Scenario: AB-1 Replay of an observed code (spoofing)
+        When an attacker replays a valid code within its window
+        Then it is refused
+    implementation:
+      create: [src/lib/totp.ts, tests/unit/admin/totp.test.ts]
+      modify: []
+      pattern: src/lib/crypto.ts
+      signatures:
+        - "createTotpSecret(): { secret: string; otpauthUri: string }"
+        - "verifyTotp(administratorId: string, secret: string, code: string): Promise<boolean>"
+      types: []
+      errors: []
+      dependencies: [otplib, ioredis]
+    security:
+      - "v5.0.0-6.5.1: a code is used once."
+      - "v5.0.0-11.3.2: the secret is stored with AES-GCM."
+    tests: |
+      secret and uri | unit | AC-1 | formats
+      verify window | unit | AC-2 | ±1 accepted, ±2 refused
+      no reuse | unit | AC-3 | second use refused
+      encryption | unit | AC-4 | round trip
+      malformed | unit | AC-5 | false
+      replay | security | AB-1, WSTG-ATHN-04, CWE-294 | refused
+    command: npx vitest run tests/unit/admin/totp.test.ts
+    out_of_scope:
+      - "Using it at login (ADM-006)."
+  - id: ADM-005
+    title: Create the first super administrator from the command line
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ADM-004, AUTH-005]
+    read_first: [src/lib/totp.ts, src/lib/password.ts]
+    design_refs: [gouvernance-de-la-plateforme/administrator]
+    constraints: []
+    asvs: [v5.0.0-6.3.2, v5.0.0-13.3.2]
+    story: "Technical story: provide the one script that creates the first SUPER_ADMIN, so that the platform team can be started without a default account."
+    context: |
+      - Exists: `createTotpSecret`, `encryptSecret` (ADM-004); `administrators` (ADM-001); `findOrCreateByPhone`.
+      - Adds: `scripts/create-super-admin.ts` and npm script `admin:create-super`. Usage: `npm run admin:create-super -- <phone_number>`. It refuses when the person is not registered, or when a live SUPER_ADMIN already exists (the first one only), creates the administrator with an encrypted secret, writes an `APPOINT_ADMIN` journal row (reason "bootstrap") with the new administrator as author, and prints the `otpauth://` URI once. No password or secret is passed on the command line or logged.
+      - The script exports `createFirstSuperAdmin(phone)` for tests.
+    acceptance: |
+      Scenario: AC-1 First super administrator
+        Given a registered person and no administrator
+        When createFirstSuperAdmin runs
+        Then a SUPER_ADMIN exists with an encrypted secret, an APPOINT_ADMIN journal row exists, and the URI is returned
+      Scenario Outline: AC-2 Refusals
+        When it runs for <case>
+        Then it throws and creates nothing
+        Examples:
+          | case                                         |
+          | a guest or unknown number                    |
+          | a platform that already has a live SUPER_ADMIN |
+          | an invalid number                            |
+      Scenario: AC-3 No secret at rest in clear
+        Then the stored totp_secret is not the printed secret
+    abuse: |
+      Scenario: AB-1 Second bootstrap (elevation)
+        When someone runs the script again after the first administrator exists
+        Then it refuses and no administrator is added
+    implementation:
+      create: [scripts/create-super-admin.ts, tests/integration/admin/create-super-admin.test.ts]
+      modify: [package.json]
+      pattern: src/lib/crypto.ts
+      signatures:
+        - "createFirstSuperAdmin(phoneNumber: string): Promise<{ administratorId: string; otpauthUri: string }>"
+      types: []
+      errors: []
+      dependencies: [otplib, "@prisma/client", tsx]
+    security:
+      - "v5.0.0-6.3.2: there is no default administrator; the first one is explicit."
+      - "v5.0.0-13.3.2: the secret is printed once and stored encrypted."
+    tests: |
+      first | integration | AC-1 | rows and URI
+      refusals | integration | AC-2 | each Examples row → error, nothing created
+      encrypted | integration | AC-3 | stored value differs
+      second bootstrap | security | AB-1, CWE-269 | refused
+    command: npx vitest run tests/integration/admin/create-super-admin.test.ts
+    out_of_scope:
+      - "Appointing further administrators (ADM-009)."
+  - id: ADM-006
+    title: Administrator signs in with password and authenticator code
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ADM-004, ADM-002, AUTH-012, ORG-004]
+    read_first: [src/modules/auth/auth.service.ts, src/lib/jwt.ts]
+    design_refs: [gouvernance-de-la-plateforme/administrator, acces-et-securite/connexion-verrouillage-et-telephone]
+    constraints: [C-29]
+    asvs: [v5.0.0-6.3.3, v5.0.0-7.2.1, v5.0.0-9.2.2, v5.0.0-6.3.1]
+    story: As a moderator, I want to sign in to the administration space with my password and my authenticator code so that only staff reach it.
+    context: |
+      - Exists: `verifyPassword`, the attempt counter (AUTH-012), `verifyTotp` (ADM-004), `signAccessToken` style (AUTH-006), `findByActivePhone`.
+      - Adds: `POST /api/v1/admin/auth/login` with `{ phone_number, password, totp_code }`; response 200 `{ access_token, expires_in, role }`. No refresh token: the session lasts 15 minutes (Q-013).
+      - Checks in one order: lock counter, person, password (dummy hash for unknown), live Administrator (`removed_at` empty), person status not SUSPENDED, TOTP. Any failure answers 401 `INVALID_CREDENTIALS`, same body. Failures add to the counter of `admin:<phone>`.
+      - The token payload is `{ sub: personId, adm: administratorId, role, typ: 'admin' }`; `src/middleware/admin-auth.ts` provides `adminAuthMiddleware` (accepts only `typ` admin and re-checks that the administrator is still live) and `requireAdminRole(min)`, and sets `req.admin`. A normal access token is refused on admin routes and an admin token on normal routes.
+    acceptance: |
+      Scenario: AC-1 Sign in
+        When an administrator posts the right number, password and code
+        Then the response is 200 with an admin token that expires in 15 minutes
+      Scenario Outline: AC-2 Failures look alike
+        When the login has <case>
+        Then the response is 401 `INVALID_CREDENTIALS` with the same body
+        Examples:
+          | case                                     |
+          | a wrong password                         |
+          | a wrong or reused code                   |
+          | a person who is not an administrator     |
+          | a removed administrator                  |
+          | a suspended person                       |
+          | an unknown number                        |
+      Scenario: AC-3 Lock
+        When 5 failures occur for one number
+        Then the next attempt answers 429 `LOGIN_LOCKED`
+      Scenario: AC-4 Token types
+        Then a normal access token on an admin route answers 401 and an admin token on a normal route answers 401
+      Scenario: AC-5 Removed while signed in
+        When an administrator is removed and calls an admin route with a valid token
+        Then the response is 401
+    abuse: |
+      Scenario: AB-1 Password alone (spoofing)
+        When a request has the right password and no or a wrong code
+        Then no token is issued
+      Scenario: AB-2 Ordinary token on admin routes (elevation)
+        When a customer's access token is used on an admin route
+        Then the response is 401
+    implementation:
+      create: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.schemas.ts, src/modules/admin/admin.service.ts, src/middleware/admin-auth.ts, tests/integration/admin/admin-login.test.ts]
+      modify: [src/app.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "adminLogin(input: { phone_number: string; password: string; totp_code: string }): Promise<{ access_token: string; expires_in: number; role: string }>"
+        - "adminAuthMiddleware: RequestHandler"
+        - "requireAdminRole(min: 'MODERATOR' | 'SUPER_ADMIN'): RequestHandler"
+      types: []
+      errors: ["INVALID_CREDENTIALS 401", "LOGIN_LOCKED 429"]
+      dependencies: [express, zod, jsonwebtoken, argon2, otplib]
+    security:
+      - "v5.0.0-6.3.3: password and authenticator code are both required."
+      - "v5.0.0-9.2.2: the token type must be `admin`."
+      - "v5.0.0-6.3.1: lock after 5 failures."
+      - "v5.0.0-7.2.1: the administrator is re-checked on every admin request."
+    tests: |
+      sign in | integration | AC-1, C-29 | token, 15 minutes
+      failures alike | integration | AC-2 | each Examples row → 401 same body
+      lock | integration | AC-3 | 429
+      token types | integration | AC-4 | 401 both ways
+      removed | integration | AC-5 | 401
+      password only | security | AB-1, WSTG-ATHN-11, CWE-308 | no token
+      ordinary token | security | AB-2, WSTG-ATHZ-03 | 401
+    command: npx vitest run tests/integration/admin/admin-login.test.ts
+    out_of_scope:
+      - "Recovery of a lost authenticator (ADM-008). OpenAPI (ADM-015)."
+  - id: ADM-007
+    title: Administrator registers a recovery email
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ADM-006, AUTH-004]
+    read_first: [src/modules/admin/admin.service.ts, src/modules/auth/otp.service.ts]
+    design_refs: [gouvernance-de-la-plateforme/administrator, acces-et-securite/otpchallenge]
+    constraints: [C-29, C-33]
+    asvs: [v5.0.0-6.4.3, v5.0.0-6.5.1]
+    story: As a moderator, I want to register and verify a recovery email so that I can reinstall my authenticator if I lose it.
+    context: |
+      - Exists: `issueCode` and `verifyCode` with purpose EMAIL_VERIFICATION and channel EMAIL; `adminAuthMiddleware`.
+      - Adds: `POST /api/v1/admin/recovery-email/request` with `{ email }` (sends a code to that address; the address must differ from the person's own email, else 400 `VALIDATION_ERROR`) and `POST /api/v1/admin/recovery-email/confirm` with `{ email, code }` (stores `recovery_email` only after a right code). Both 204 and admin-token only.
+    acceptance: |
+      Scenario: AC-1 Register
+        When an administrator requests a code for "secours@example.test" and confirms it
+        Then recovery_email is stored
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status> and recovery_email is unchanged
+        Examples:
+          | problem                                    | status                |
+          | the person's own email                     | 400 VALIDATION_ERROR  |
+          | a wrong or expired code                    | 400 OTP_INVALID       |
+          | a code sent to another address             | 400 OTP_INVALID       |
+          | a normal access token                      | 401                   |
+      Scenario: AC-3 Not saved before confirmation
+        When only the request was made
+        Then recovery_email is still empty
+    abuse: |
+      Scenario: AB-1 Planting an attacker's address (tampering)
+        When a stolen session tries to save an address without the code
+        Then nothing is stored
+    implementation:
+      create: [tests/integration/admin/recovery-email.test.ts]
+      modify: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.schemas.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts]
+      pattern: src/modules/admin/admin.routes.ts
+      signatures:
+        - "requestRecoveryEmail(admin: AdminContext, email: string): Promise<void>"
+        - "confirmRecoveryEmail(admin: AdminContext, email: string, code: string): Promise<void>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "OTP_INVALID 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-6.4.3: the address is saved only after a code received at it."
+      - "v5.0.0-6.5.1: the code is bound to the address and purpose."
+    tests: |
+      register | integration | AC-1, C-33 | stored
+      refusals | integration | AC-2, C-29 | each Examples row → status
+      not saved early | integration | AC-3 | empty
+      planting | security | AB-1, CWE-345 | nothing stored
+    command: npx vitest run tests/integration/admin/recovery-email.test.ts
+    out_of_scope:
+      - "Using the address (ADM-008)."
+  - id: ADM-008
+    title: Administrator reinstalls the authenticator through the recovery email
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ADM-007, NTF-002]
+    read_first: [src/modules/admin/admin.service.ts, src/lib/totp.ts]
+    design_refs: [gouvernance-de-la-plateforme/administrator]
+    constraints: [CM-34, C-33]
+    asvs: [v5.0.0-6.4.4, v5.0.0-6.3.3, v5.0.0-16.3.1]
+    story: As a moderator, I want to install a new authenticator key with a code sent to my recovery email so that losing my phone does not lock me out.
+    context: |
+      - Exists: recovery email (ADM-007), `createTotpSecret`, `issueCode`/`verifyCode` with purpose TOTP_RECOVERY, `recordAdminAction`, `notify`.
+      - Adds: `POST /api/v1/admin/auth/totp-recovery/request` with `{ phone_number, password }` and `POST /api/v1/admin/auth/totp-recovery/confirm` with `{ phone_number, password, code }`; both public (no token). Request: password checked (same counter and generic errors as ADM-006), a TOTP_RECOVERY code goes by EMAIL to the verified `recovery_email` of a live administrator; the answer is always 202. Confirm: with the right password and code, a new secret replaces the old one (encrypted) and the response is 200 `{ otpauth_uri }`; nothing else is changed and no session is issued.
+      - Each use writes `RECOVER_2FA` (reason "totp recovery", target the administrator's person), notifies the administrator's other devices `admin.2fa_recovered` and every other live SUPER_ADMIN, with the text "Ce n'était pas vous ? Bloquer".
+    acceptance: |
+      Scenario: AC-1 Recovery
+        Given an administrator with a verified recovery email
+        When they request, then confirm with the right password and code
+        Then the secret is replaced, the URI is returned, and the old secret no longer verifies
+      Scenario: AC-2 Trace and alerts
+        Then a RECOVER_2FA journal row exists and the other super administrators and the administrator's devices have one notification
+      Scenario Outline: AC-3 Nothing happens
+        When the request is for <case>
+        Then the answer is 202 or 401 as for a wrong password and no code is sent
+        Examples:
+          | case                                              |
+          | an administrator without a recovery email         |
+          | a person who is not an administrator              |
+          | a wrong password                                  |
+      Scenario: AC-4 Recovery gives no session
+        Then the confirm response has no access token
+      Scenario: AC-5 Wrong or reused code
+        Then the confirm answers 400 `OTP_INVALID` and the secret is unchanged
+    abuse: |
+      Scenario: AB-1 Recovery as a back door (elevation)
+        When someone with only the password calls the confirm route
+        Then the secret is unchanged and an alert is not needed because nothing happened
+      Scenario: AB-2 Silent takeover (repudiation)
+        When a recovery succeeds
+        Then it is journaled and other super administrators are alerted
+    implementation:
+      create: [tests/integration/admin/totp-recovery.test.ts]
+      modify: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.schemas.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts]
+      pattern: src/modules/admin/admin.routes.ts
+      signatures:
+        - "requestTotpRecovery(input: { phone_number: string; password: string }): Promise<void>"
+        - "confirmTotpRecovery(input: { phone_number: string; password: string; code: string }): Promise<{ otpauth_uri: string }>"
+      types: []
+      errors: ["OTP_INVALID 400", "INVALID_CREDENTIALS 401", "LOGIN_LOCKED 429"]
+      dependencies: [express, zod, otplib]
+    security:
+      - "v5.0.0-6.4.4: recovery needs the password and the verified recovery address."
+      - "v5.0.0-16.3.1: every use is journaled and alerted."
+    tests: |
+      recovery | integration | AC-1, CM-34 | new secret works, old fails
+      trace and alerts | integration | AC-2 | journal and notifications
+      nothing happens | integration | AC-3, C-33 | each Examples row → no code
+      no session | integration | AC-4 | no token
+      bad code | integration | AC-5 | 400
+      back door | security | AB-1, CWE-288 | unchanged
+      silent takeover | security | AB-2, CWE-778 | journaled
+    command: npx vitest run tests/integration/admin/totp-recovery.test.ts
+    out_of_scope:
+      - "Recovering when there is no recovery email: another super administrator appoints a new administrator."
+  - id: ADM-009
+    title: Super administrator appoints an administrator
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ADM-006, ADM-005]
+    read_first: [src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts]
+    design_refs: [gouvernance-de-la-plateforme/administrator, gouvernance-de-la-plateforme/adminaction]
+    constraints: [C-29]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: As a super-admin, I want to appoint a registered person as moderator or super-admin so that the platform team can grow.
+    context: |
+      - Exists: `requireAdminRole`, `createTotpSecret`, `recordAdminAction`.
+      - Adds: `POST /api/v1/admin/administrators` (SUPER_ADMIN) with `{ id, phone_number, role, reason }`; response 201 `{ id, person_public, role, otpauth_uri }`. The `otpauth_uri` is shown only in this response (Q-032). The person must be registered and not already a live administrator (409 `ALREADY_ADMINISTRATOR`). One transaction inserts the administrator (encrypted secret) and an `APPOINT_ADMIN` journal row with the caller as author, the person as target and the reason.
+    acceptance: |
+      Scenario: AC-1 Appoint
+        When a SUPER_ADMIN appoints a registered person as MODERATOR with reason "renfort"
+        Then the administrator exists with an encrypted secret, the journal row exists, and the response carries the URI
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                | status                     |
+          | a guest or unknown number              | 404 NOT_FOUND              |
+          | a person who is already an administrator | 409 ALREADY_ADMINISTRATOR |
+          | reason empty                           | 400 VALIDATION_ERROR       |
+          | role "OWNER"                           | 400 VALIDATION_ERROR       |
+          | a MODERATOR caller                     | 403 FORBIDDEN              |
+      Scenario: AC-3 The secret is not shown again
+        Then no other response or listing contains the secret or the URI
+    abuse: |
+      Scenario: AB-1 Moderator appoints staff (vertical)
+        When a MODERATOR posts an appointment
+        Then the response is 403 and nothing is stored
+    implementation:
+      create: [tests/integration/admin/appoint.test.ts]
+      modify: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.schemas.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts]
+      pattern: src/modules/admin/admin.routes.ts
+      signatures:
+        - "appointAdministrator(admin: AdminContext, input: AppointInput): Promise<AppointedView>"
+      types: []
+      errors: ["ALREADY_ADMINISTRATOR 409", "NOT_FOUND 404", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: super administrators only."
+      - "v5.0.0-2.3.3: appointment and journal are one transaction."
+      - "v5.0.0-16.3.1: the appointment is journaled with a reason."
+    tests: |
+      appoint | integration | AC-1, C-29 | rows and URI
+      refusals | integration | AC-2 | each Examples row → status
+      secret once | integration | AC-3 | absent elsewhere
+      moderator | security | AB-1, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/admin/appoint.test.ts
+    out_of_scope:
+      - "Removing (ADM-010)."
+  - id: ADM-010
+    title: Super administrator removes an administrator
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ADM-009]
+    read_first: [src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts]
+    design_refs: [gouvernance-de-la-plateforme/administrator, gouvernance-de-la-plateforme/adminaction]
+    constraints: [C-29]
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.3.1]
+    story: As a super-admin, I want to remove an administrator so that former staff lose access while their actions stay attributed.
+    context: |
+      - Exists: `POST /admin/administrators` (ADM-009).
+      - Adds: `DELETE /api/v1/admin/administrators/{administratorId}` with `{ reason }` in the body (SUPER_ADMIN); response 204. `removed_at` is set (the row stays for the journal) and a `REMOVE_ADMIN` journal row is written in the same transaction. The last live SUPER_ADMIN cannot be removed (409 `LAST_SUPER_ADMIN`). A removed administrator's token stops working at once (ADM-006).
+    acceptance: |
+      Scenario: AC-1 Remove
+        When a SUPER_ADMIN removes a moderator
+        Then removed_at is set, a REMOVE_ADMIN row exists, and the moderator's next admin call answers 401
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                    | status                 |
+          | the last live SUPER_ADMIN                  | 409 LAST_SUPER_ADMIN   |
+          | an administrator already removed           | 404 NOT_FOUND          |
+          | reason empty                               | 400 VALIDATION_ERROR   |
+          | a MODERATOR caller                         | 403 FORBIDDEN          |
+      Scenario: AC-3 History kept
+        Then earlier journal rows of the removed administrator still exist
+    abuse: |
+      Scenario: AB-1 Moderator removes a super administrator (vertical)
+        When a MODERATOR sends the delete
+        Then the response is 403 and the administrator stays live
+    implementation:
+      create: [tests/integration/admin/remove.test.ts]
+      modify: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.schemas.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts]
+      pattern: src/modules/admin/admin.routes.ts
+      signatures:
+        - "removeAdministrator(admin: AdminContext, administratorId: string, input: { reason: string }): Promise<void>"
+      types: []
+      errors: ["LAST_SUPER_ADMIN 409", "NOT_FOUND 404", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: super administrators only."
+      - "v5.0.0-16.3.1: journaled with a reason."
+    tests: |
+      remove | integration | AC-1, C-29 | removed_at, journal, 401 next call
+      refusals | integration | AC-2 | each Examples row → status
+      history | integration | AC-3 | rows kept
+      moderator | security | AB-1, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/admin/remove.test.ts
+    out_of_scope:
+      - "Deleting the person."
+  - id: ADM-011
+    title: Person reports another person or a business
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ADM-003, ACC-007, ADM-006, NTF-003]
+    read_first: [src/modules/notification/notification.routes.ts, src/modules/admin/admin.repository.ts]
+    design_refs: [moderation/report]
+    constraints: [C-28]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-2.4.1]
+    story: As a customer, I want to report a person or a business so that the platform team can act on abuse.
+    context: |
+      - Exists: `reports` (ADM-003); `authMiddleware`; `idempotent()`; `checkAndConsume`.
+      - Adds: `POST /api/v1/reports` with `{ id, target_person_id | target_organization_id, reason, description }` (exactly one target; `reason` 1 to 100, `description` 1 to 2000); response 201 `{ id, status: 'PENDING', reported_at }`. The reporter is the caller. The target must exist (404 otherwise); reporting oneself, or one's own organization as its owner, answers 400. Limit: 10 reports per person per day (`RATE_LIMITED` 429, provisional).
+    acceptance: |
+      Scenario: AC-1 Report a person
+        When a signed-in person reports another person with a reason and a description
+        Then the response is 201 and a PENDING report exists with the caller as reporter
+      Scenario: AC-2 Report an organization
+        Then the same works with target_organization_id
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                   | status                |
+          | both targets or none                      | 400 VALIDATION_ERROR  |
+          | an unknown target                         | 404 NOT_FOUND         |
+          | the caller as target                      | 400 VALIDATION_ERROR  |
+          | an empty reason or description            | 400 VALIDATION_ERROR  |
+          | an 11th report in one day                 | 429 RATE_LIMITED      |
+      Scenario: AC-4 Repeat
+        When the same id is posted twice
+        Then one report exists
+    abuse: |
+      Scenario: AB-1 Resolving one's own report (mass assignment)
+        When the body contains status, decision or resolved_by_id
+        Then the response is 400
+      Scenario: AB-2 Report flooding (denial of service)
+        When one person posts 11 reports in a day
+        Then the 11th is refused
+    implementation:
+      create: [src/modules/admin/report.routes.ts, tests/integration/admin/create-report.test.ts]
+      modify: [src/modules/admin/admin.schemas.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts, src/app.ts]
+      pattern: src/modules/notification/notification.routes.ts
+      signatures:
+        - "createReport(personId: string, input: CreateReportInput): Promise<ReportView>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "RATE_LIMITED 429"]
+      dependencies: [express, zod, ioredis]
+    security:
+      - "v5.0.0-15.3.3: strict schema; status and decision come from the server."
+      - "v5.0.0-2.4.1: per-person daily limit."
+    tests: |
+      report person | integration | AC-1, C-28 | PENDING
+      report organization | integration | AC-2 | PENDING
+      refusals | integration | AC-3 | each Examples row → status
+      repeat | integration | AC-4 | one report
+      server fields | security | AB-1, CWE-915 | 400
+      flooding | security | AB-2, WSTG-BUSL-07 | 429
+    command: npx vitest run tests/integration/admin/create-report.test.ts
+    out_of_scope:
+      - "Handling reports (ADM-012, ADM-013)."
+  - id: ADM-012
+    title: Administrator lists and opens reports
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ADM-011, FND-009, ADM-006]
+    read_first: [src/modules/admin/admin.service.ts, src/modules/admin/report.routes.ts]
+    design_refs: [moderation/report]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.1]
+    story: As a moderator, I want to list and open reports so that I can decide what to do.
+    context: |
+      - Exists: reports (ADM-011); `adminAuthMiddleware`.
+      - Adds: `GET /api/v1/admin/reports?limit&cursor&status` (paginated, oldest PENDING first when `status=PENDING`, else newest first) and `GET /api/v1/admin/reports/{reportId}`; item `{ id, reporter: public person, target_person: public person | null, target_organization: { id, name, status } | null, reason, description, status, decision, resolved_by_id, reported_at, resolved_at }`. Admin token only.
+    acceptance: |
+      Scenario: AC-1 List pending
+        Given 3 PENDING and 2 RESOLVED reports
+        When a MODERATOR lists status=PENDING
+        Then 3 reports are returned oldest first
+      Scenario: AC-2 Open
+        Then a report shows its reporter, its target and its text
+      Scenario Outline: AC-3 Access
+        When the caller uses <token>
+        Then the response is <status>
+        Examples:
+          | token                       | status |
+          | an admin token              | 200    |
+          | a normal access token       | 401    |
+          | no token                    | 401    |
+      Scenario: AC-4 Unknown id
+        Then a missing report answers 404 and a malformed id 400
+    abuse: |
+      Scenario: AB-1 A customer reads reports (elevation)
+        When a customer's token is used
+        Then the response is 401 and no report is returned
+    implementation:
+      create: [tests/integration/admin/list-reports.test.ts]
+      modify: [src/modules/admin/report.routes.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts, src/modules/admin/admin.schemas.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "listReports(query: ListReportsQuery): Promise<{ items: AdminReportView[]; next_cursor: string | null }>"
+        - "getReport(reportId: string): Promise<AdminReportView>"
+      types: []
+      errors: ["NOT_FOUND 404", "VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: admin token and live administrator required."
+      - "v5.0.0-15.3.1: explicit fields; people through `toPublicPerson`."
+    tests: |
+      list | integration | AC-1 | order
+      open | integration | AC-2 | fields
+      access | integration | AC-3 | each Examples row → status
+      unknown id | integration | AC-4 | 404, 400
+      customer token | security | AB-1, WSTG-ATHZ-03 | 401
+    command: npx vitest run tests/integration/admin/list-reports.test.ts
+    out_of_scope:
+      - "Deciding (ADM-013)."
+  - id: ADM-013
+    title: Administrator resolves a report
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ADM-012, AUTH-008, NTF-002, ADM-006]
+    read_first: [src/modules/admin/admin.service.ts, src/modules/auth/session.service.ts]
+    design_refs: [moderation/report, gouvernance-de-la-plateforme/adminaction]
+    constraints: [CM-33, C-28]
+    asvs: [v5.0.0-8.2.1, v5.0.0-7.4.2, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: As a moderator, I want to dismiss a report or suspend its target so that abuse is stopped and every decision is traced.
+    context: |
+      - Exists: reports (ADM-011, ADM-012); `recordAdminAction` (ADM-002); `revokeSessions` (AUTH-008); `notify`.
+      - Adds: `POST /api/v1/admin/reports/{reportId}/resolve` with `{ decision: 'DISMISSED' | 'SUSPENSION', reason }` (`reason` 1 to 2000).
+      - One transaction: the report must be PENDING (409 `ALREADY_RESOLVED`); it becomes RESOLVED with `resolved_by_id` the calling administrator, `decision`, `resolved_at` now. DISMISSED writes a `DISMISS_REPORT` journal row. SUSPENSION sets the target's status to SUSPENDED (a person: `Person.status`, and all their sessions are revoked with reason `ACCOUNT_SUSPENDED`, `scope_version` +1; an organization: `Organization.status`), writes a `SUSPEND` row with `report_id`, and notifies the person or the organization's owner `account.suspended`.
+      - A target already SUSPENDED stays so and the decision is still recorded. An ANONYMIZED person cannot be suspended (409 `TARGET_ANONYMIZED`).
+    acceptance: |
+      Scenario: AC-1 Dismiss
+        When a MODERATOR dismisses a PENDING report with a reason
+        Then the report is RESOLVED with DISMISSED and one DISMISS_REPORT journal row exists
+      Scenario: AC-2 Suspend a person
+        When the decision is SUSPENSION on a person target
+        Then Person.status is SUSPENDED, every session of that person is revoked with ACCOUNT_SUSPENDED, a SUSPEND row with the report id exists, and the person is notified
+      Scenario: AC-3 Suspend an organization
+        Then Organization.status is SUSPENDED, a SUSPEND row exists and the owner is notified
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                | status                 |
+          | a report already RESOLVED              | 409 ALREADY_RESOLVED   |
+          | an empty reason                        | 400 VALIDATION_ERROR   |
+          | decision "BAN"                         | 400 VALIDATION_ERROR   |
+          | an unknown report                      | 404 NOT_FOUND          |
+          | an ANONYMIZED person target            | 409 TARGET_ANONYMIZED  |
+      Scenario: AC-5 Atomic
+        When the journal insert fails
+        Then the report and the target are unchanged
+    abuse: |
+      Scenario: AB-1 Suspension without trace (repudiation)
+        When any suspension is made through a report
+        Then a SUSPEND row with the administrator, target, report and reason exists
+      Scenario: AB-2 Customer resolves reports (elevation)
+        When a customer token calls the route
+        Then the response is 401 and nothing changes
+    implementation:
+      create: [tests/integration/admin/resolve-report.test.ts]
+      modify: [src/modules/admin/report.routes.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts, src/modules/admin/admin.schemas.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "resolveReport(admin: AdminContext, reportId: string, input: { decision: 'DISMISSED' | 'SUSPENSION'; reason: string }): Promise<AdminReportView>"
+      types: []
+      errors: ["ALREADY_RESOLVED 409", "TARGET_ANONYMIZED 409", "VALIDATION_ERROR 400", "NOT_FOUND 404"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: admin token and live administrator."
+      - "v5.0.0-7.4.2: a suspended person's sessions all end."
+      - "v5.0.0-2.3.3: report, target status, sessions and journal are one transaction."
+      - "v5.0.0-16.3.1: every decision writes the journal."
+    tests: |
+      dismiss | integration | AC-1, CM-33 | RESOLVED, journal
+      suspend person | integration | AC-2, CM-33 | status, sessions, journal, notice
+      suspend organization | integration | AC-3 | status, journal
+      refusals | integration | AC-4, C-28 | each Examples row → status
+      atomic | integration | AC-5, CWE-362 | unchanged
+      trace | security | AB-1, CWE-778 | journal row
+      customer token | security | AB-2, WSTG-ATHZ-03 | 401
+    command: npx vitest run tests/integration/admin/resolve-report.test.ts
+    out_of_scope:
+      - "Suspending without a report (ADM-014)."
+  - id: ADM-014
+    title: Administrator suspends or reactivates without a report
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ADM-013, ADM-006]
+    read_first: [src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts]
+    design_refs: [moderation/report, gouvernance-de-la-plateforme/adminaction]
+    constraints: [CM-33]
+    asvs: [v5.0.0-8.2.1, v5.0.0-7.4.2, v5.0.0-16.3.1]
+    story: As a moderator, I want to suspend or reactivate a person or a business directly so that I can act without waiting for a report.
+    context: |
+      - Exists: suspension effects (ADM-013).
+      - Adds: `POST /api/v1/admin/people/{personId}/suspend`, `.../reactivate`, `POST /api/v1/admin/organizations/{organizationId}/suspend`, `.../reactivate`, each with `{ reason }` (1 to 2000). Suspend sets SUSPENDED (a person also loses all sessions, `scope_version` +1); reactivate returns the status to ACTIVE. Each writes a `SUSPEND` or `REACTIVATE` journal row with no report and notifies the person or owner.
+      - Suspending a SUSPENDED target or reactivating a non-SUSPENDED one answers 409 `INVALID_STATE`; an ANONYMIZED person answers 409 `TARGET_ANONYMIZED`; an organization CLOSED by its owner cannot be reactivated here (409 `INVALID_STATE`).
+    acceptance: |
+      Scenario: AC-1 Suspend and reactivate a person
+        When a MODERATOR suspends and then reactivates a person
+        Then the statuses go ACTIVE, SUSPENDED, ACTIVE, the sessions ended at suspension, and two journal rows exist
+      Scenario: AC-2 Organization
+        Then the same works for an organization
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                    | status                 |
+          | suspending a SUSPENDED target              | 409 INVALID_STATE      |
+          | reactivating an ACTIVE target              | 409 INVALID_STATE      |
+          | reactivating a CLOSED organization         | 409 INVALID_STATE      |
+          | an ANONYMIZED person                       | 409 TARGET_ANONYMIZED  |
+          | an empty reason                            | 400 VALIDATION_ERROR   |
+          | an unknown id                              | 404 NOT_FOUND          |
+      Scenario: AC-4 Reactivated person can sign in
+        Then a reactivated person passes the login status check again
+    abuse: |
+      Scenario: AB-1 Untraced suspension (repudiation)
+        When any suspension or reactivation succeeds
+        Then a journal row with author, target and reason exists
+      Scenario: AB-2 Ordinary token (elevation)
+        When a customer's token calls these routes
+        Then the response is 401
+    implementation:
+      create: [tests/integration/admin/suspend-reactivate.test.ts]
+      modify: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts, src/modules/admin/admin.schemas.ts]
+      pattern: src/modules/admin/admin.routes.ts
+      signatures:
+        - "suspendPerson(admin: AdminContext, personId: string, input: { reason: string }): Promise<void>"
+        - "reactivatePerson(admin: AdminContext, personId: string, input: { reason: string }): Promise<void>"
+        - "suspendOrganization(admin: AdminContext, organizationId: string, input: { reason: string }): Promise<void>"
+        - "reactivateOrganization(admin: AdminContext, organizationId: string, input: { reason: string }): Promise<void>"
+      types: []
+      errors: ["INVALID_STATE 409", "TARGET_ANONYMIZED 409", "VALIDATION_ERROR 400", "NOT_FOUND 404"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: admin token and live administrator."
+      - "v5.0.0-7.4.2: suspension ends sessions."
+      - "v5.0.0-16.3.1: journaled."
+    tests: |
+      person cycle | integration | AC-1, CM-33 | statuses, sessions, journal
+      organization | integration | AC-2 | statuses, journal
+      refusals | integration | AC-3 | each Examples row → status
+      sign in again | integration | AC-4 | login passes
+      untraced | security | AB-1, CWE-778 | journal row
+      ordinary token | security | AB-2, WSTG-ATHZ-03 | 401
+    command: npx vitest run tests/integration/admin/suspend-reactivate.test.ts
+    out_of_scope:
+      - "Effects of a suspended organization on orders (ORD-003 and ORD stories)."
+  - id: ADM-015
+    title: Administrators read the action journal
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ADM-014, FND-009, ADM-006]
+    read_first: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.repository.ts]
+    design_refs: [gouvernance-de-la-plateforme/adminaction]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.3.3]
+    story: As a super-admin, I want to read the journal of administration actions so that I can audit what the team did.
+    context: |
+      - Exists: journal rows (ADM-002 onward).
+      - Adds: `GET /api/v1/admin/actions?limit&cursor&action&administrator_id&target_person_id&target_organization_id` (any administrator; paginated, newest first): `{ id, administrator_id, action, target_person_id, target_organization_id, report_id, sync_archive_id, reason, occurred_at }`.
+      - Adds `admin.openapi.ts` documenting the admin routes of ADM-006 to ADM-015 (with `bearerAuth`); `admin.routes.ts` imports it for its side effect.
+    acceptance: |
+      Scenario: AC-1 List
+        Given 5 journal rows
+        When an administrator lists
+        Then 5 items are returned newest first
+      Scenario Outline: AC-2 Filters
+        When the query has <query>
+        Then only the matching rows are returned
+        Examples:
+          | query                          |
+          | action=SUSPEND                 |
+          | administrator_id of one admin  |
+          | target_person_id of one person |
+      Scenario: AC-3 Pagination
+        When limit 2 is used with the cursor
+        Then pages of 2, 2 and 1 items follow
+      Scenario: AC-4 Access
+        Then a normal token or no token answers 401
+    abuse: |
+      Scenario: AB-1 Customer reads the journal (elevation)
+        When a customer's access token is used
+        Then the response is 401 and nothing is returned
+    implementation:
+      create: [src/modules/admin/admin.openapi.ts, tests/integration/admin/action-journal.test.ts]
+      modify: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts, src/modules/admin/admin.schemas.ts]
+      pattern: src/modules/admin/admin.routes.ts
+      signatures:
+        - "listAdminActions(query: ListActionsQuery): Promise<{ items: AdminActionView[]; next_cursor: string | null }>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.1: admin token required."
+      - "v5.0.0-16.3.3: the journal is readable for audit."
+    tests: |
+      list | integration | AC-1 | 5 newest first
+      filters | integration | AC-2 | each Examples row → matches
+      paging | integration | AC-3 | 2, 2, 1
+      access | integration | AC-4 | 401
+      customer token | security | AB-1, WSTG-ATHZ-03 | 401
+    command: npx vitest run tests/integration/admin/action-journal.test.ts
+    out_of_scope:
+      - "Replaying an archived sync batch (SYNC module)."

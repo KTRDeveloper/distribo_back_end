@@ -1,0 +1,577 @@
+kind: module
+module: foundation
+prefix: FND
+title: Foundation
+responsibility: Quality gates, database reset and roles, and the shared kernel (money, phone numbers, identifiers, errors) every other module uses.
+entities: []
+depends_on: []
+asvs_level: L2
+asvs_rationale: The foundation carries the pipeline, the database roles and the security scans every module depends on; it holds no personal data.
+classification:
+  - "Environment variables | credential | validated at startup, never logged"
+threats:
+  - "T1 | T | A dependency or CI step is added without review | allowlist in CONVENTIONS.md, audit, SAST and secret scan in CI | FND-000 AB-1"
+  - "T2 | E | The application database account can rewrite a journal | separate application role without UPDATE or DELETE on immutable tables | FND-002 AB-1"
+  - "T3 | I | Query logs print personal data | Prisma logs errors and warnings only | FND-007 AB-1"
+  - "T4 | D | Oversized JSON bodies exhaust memory | 100 kb default limit | FND-008 AB-1"
+constraints:
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+  C-39: "Immutable tables give the application account only INSERT and SELECT; PostgreSQL itself refuses any UPDATE or DELETE."
+contracts:
+  provides:
+    - name: MoneyKernel
+      file: src/shared/money.ts
+      story: FND-003
+      items:
+        - "parseQuantity(text: string): bigint — quantity in thousandths, at most 3 decimals, throws RangeError otherwise"
+        - "lineAmount(quantityMilli: bigint, unitPrice: bigint): bigint — nearest franc, 0.5 rounds up, integers only"
+      used_by: [order, finance, delivery, sync]
+    - name: PhoneKernel
+      file: src/shared/phone.ts
+      story: FND-004
+      items:
+        - "normalizeE164(input: string): string | null — E.164 of a valid mobile number, default region CM"
+        - "isCameroonMobile(e164: string): boolean"
+        - "phoneNumberSchema — Zod string that normalizes to E.164 or fails"
+      used_by: [person, auth, organization, relationship]
+    - name: IdKernel
+      file: src/shared/ids.ts
+      story: FND-005
+      items:
+        - "newId(): string — UUIDv7"
+        - "uuidV7Schema — Zod string accepting only UUIDv7"
+        - "expectColumnType(table, column, dataType) in tests/helpers/db-schema.ts"
+      used_by: [every module]
+    - name: HttpError
+      file: src/lib/http-error.ts
+      story: FND-006
+      items:
+        - "httpError(status: number, code: string, message: string): Error — carries statusCode and code"
+      used_by: [every module]
+    - name: DatabaseRoles
+      file: prisma/migrations
+      story: FND-002
+      items:
+        - "role distribo_app: SELECT, INSERT, UPDATE, DELETE by default on new tables; immutable tables REVOKE UPDATE, DELETE, TRUNCATE"
+        - "function set_server_updated_at() for a BEFORE INSERT OR UPDATE trigger on every synchronized table"
+        - "getAppRolePrisma() in tests/helpers/app-role.ts: a Prisma client that runs as distribo_app"
+      used_by: [person, relationship, finance, sync, admin]
+stories:
+  - id: FND-000
+    title: Add the missing quality gates and load the conventions
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: []
+    read_first: [docs/stories/CONVENTIONS.md, package.json]
+    design_refs: [notes-de-conception]
+    constraints: []
+    asvs: [v5.0.0-15.2.1, v5.0.0-13.4.2]
+    story: "Technical story: add CI, security lint rules, secret scanning and a dependency audit, and make CLAUDE.md load CONVENTIONS.md, so that every later story is checked the same way."
+    context: |
+      - Exists: `src/modules/health/health.routes.ts` with `tests/integration/health.test.ts`; scripts `lint`, `typecheck`, `test` in `package.json`; `.eslintrc.json` in the legacy format; `CLAUDE.md`. There is no `.github/` folder.
+      - Adds: `.github/workflows/ci.yml`, `eslint-plugin-security` in the lint configuration, one `CLAUDE.md` line. Configuration changes only; existing source changes only to clear lint errors.
+    acceptance: |
+      Scenario: AC-1 The baseline scripts pass
+        When `npm run typecheck` and `npm run lint` run on a clean checkout
+        Then both exit 0
+        And if ESLint 9.39.1 rejects the legacy `.eslintrc.json`, its rules are moved unchanged to `eslint.config.js` first
+      Scenario: AC-2 Security lint rules fail the build
+        Given a file that calls `eval` on a variable
+        When ESLint runs on it
+        Then rule `security/detect-eval-with-expression` reports an error and the exit code is 1
+        And a file without that call exits 0
+      Scenario: AC-3 The pipeline has every gate
+        Then `.github/workflows/ci.yml` runs on push and on pull request
+        And it has a job that starts service `postgres:16-alpine` and runs `npm ci`, `npm run typecheck`, `npm run lint` and `npm test`
+        And it has a job running `npm audit --audit-level=high`
+        And it has a job running `semgrep scan --config p/default --error --metrics=off` in image `semgrep/semgrep:1.178.0`
+        And it has a job running `gitleaks detect` in image `zricethezav/gitleaks:v8.30.1`
+      Scenario: AC-4 The conventions are loaded
+        Then `CLAUDE.md` contains the line `@docs/stories/CONVENTIONS.md` exactly once
+    abuse: |
+      Scenario: AB-1 A vulnerable or unlisted dependency reaches main
+        When a pull request adds a dependency with a high-severity advisory
+        Then the audit job fails and blocks the merge
+    implementation:
+      create: [.github/workflows/ci.yml, tests/unit/tooling/quality-gates.test.ts, tests/fixtures/lint/unsafe-eval.ts, tests/fixtures/lint/safe.ts]
+      modify: [.eslintrc.json, package.json, CLAUDE.md, .eslintignore]
+      pattern: tests/integration/health.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [eslint-plugin-security, eslint, vitest]
+    security:
+      - "v5.0.0-15.2.1: the audit runs on every push and pull request with `--audit-level=high`."
+      - "v5.0.0-13.4.2: CI never prints environment variables; no secret appears in the workflow file."
+    tests: |
+      baseline scripts | integration | AC-1 | execSync `npm run typecheck` then `npm run lint` with a 300000 ms timeout → both exit 0
+      eval is rejected | integration | AC-2 | `npx eslint --no-ignore tests/fixtures/lint/unsafe-eval.ts` → exit 1 and output names `security/detect-eval-with-expression`; `safe.ts` → exit 0
+      pipeline gates | unit | AC-3, AB-1 | read `ci.yml` as text → contains `postgres:16-alpine`, `npm audit --audit-level=high`, `semgrep/semgrep:1.178.0`, `zricethezav/gitleaks:v8.30.1`, `pull_request`
+      conventions loaded | unit | AC-4 | read `CLAUDE.md` → the line `@docs/stories/CONVENTIONS.md` appears once
+    command: npx vitest run tests/unit/tooling/quality-gates.test.ts
+    out_of_scope:
+      - "Fixing lint errors in more than 15 files: set the story to blocked with the count."
+      - "Remediation of the in-memory global rate limiter in `src/app.ts` (approval pending in PROJECT_PROFILE.md)."
+  - id: FND-001
+    title: Reset the database schema and the migration history
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [FND-000]
+    read_first: [prisma/schema.prisma, tests/setup.ts]
+    design_refs: [contraintes-a-poser-au-niveau-base-de]
+    constraints: []
+    asvs: [v5.0.0-14.2.4]
+    story: "Technical story: drop the old delivery tables and replace the migration history with one fresh baseline, so that the v10 model starts from a clean database (no real data exists, Q-001)."
+    context: |
+      - Exists: 9 migration folders in `prisma/migrations/`; `prisma/schema.prisma` with the models of the older delivery design; `tests/setup.ts` that empties tables with one `deleteMany` per model; `tests/integration/data-model/identity.test.ts` that tests the old model.
+      - Keeps: `Task`, `TaskResult`, `SystemConfig`, `ConfigHistory`, and `Person`, `Account`, `OtpChallenge`, `EmailVerificationRequest`, `RefreshToken` (the running auth code uses them until PER and AUTH replace them).
+      - Removes every other model and enum, with the relation fields that point to them.
+      - Adds: one baseline migration; a cleanup that empties every table generically.
+    acceptance: |
+      Scenario: AC-1 One baseline migration
+        Given the old `prisma/migrations/*` folders are deleted and `migration_lock.toml` is kept
+        When `npx prisma migrate reset --force` runs on the test database and `npx prisma migrate deploy` runs after
+        Then exactly one migration folder named `<timestamp>_baseline` exists
+        And the database contains only the tables `tasks`, `task_results`, `system_config`, `config_history`, `people`, `accounts`, `otp_challenges`, `email_verification_requests`, `refresh_tokens` and `_prisma_migrations`
+      Scenario: AC-2 The running auth code still works
+        When `npx vitest run tests/integration/auth.test.ts tests/integration/user.test.ts` runs
+        Then every test that passed before this story still passes
+      Scenario: AC-3 Generic cleanup
+        Given rows exist in every remaining table
+        When the `beforeEach` in `tests/setup.ts` runs
+        Then every table except `_prisma_migrations` is empty
+        And adding a new table later needs no edit of `tests/setup.ts`
+    abuse: |
+      Scenario: AB-1 Cleanup pointed at a real database (tampering)
+        When the cleanup runs with `DATABASE_URL` not containing `test_db`
+        Then it throws before emptying any table
+    implementation:
+      create: [prisma/migrations/<timestamp>_baseline/migration.sql]
+      modify: [prisma/schema.prisma, tests/setup.ts, tests/helpers/database.ts]
+      pattern: prisma/migrations/20260914130000_add_refresh_tokens/migration.sql
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma]
+    security:
+      - "v5.0.0-14.2.4: the cleanup runs only when `NODE_ENV` is `test` and the database URL contains `test_db`; otherwise it throws before any TRUNCATE."
+    tests: |
+      one baseline | integration | AC-1 | list `prisma/migrations` → one baseline folder; `information_schema.tables` in schema public → the 10 expected names only
+      auth still works | integration | AC-2 | existing `auth.test.ts` and `user.test.ts` → same pass count as before the story
+      generic cleanup | integration | AC-3 | insert a Person and a Task, run the cleanup → `count(*)` is 0 in each table
+      cleanup guard | security | AB-1, CWE-284 | run the cleanup with `DATABASE_URL` pointing at `postgres` → throws, no table emptied
+    command: npx vitest run tests/integration/auth.test.ts tests/integration/user.test.ts tests/integration/data-model
+    out_of_scope:
+      - "Person and Account merge (PER-002); OTP, device and refresh-token rework (AUTH stories)."
+      - "Roles and grants (FND-002)."
+  - id: FND-002
+    title: Create the application database role and the server-time trigger
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [FND-001]
+    read_first: [prisma.config.ts, tests/setup.ts]
+    design_refs: [acces-et-securite/la-base-de-donnees-dernier-rempart, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-39, C-35]
+    asvs: [v5.0.0-8.3.1, v5.0.0-13.3.2]
+    story: "Technical story: give the application its own least-privilege PostgreSQL role and a trigger function that sets `server_updated_at`, so that immutable tables can be enforced by the database and every synchronized table gets server time."
+    context: |
+      - Exists: the baseline migration (FND-001); `prisma.config.ts` reads `DATABASE_URL` for migrations.
+      - Adds: a raw SQL migration creating the role `distribo_app` (NOLOGIN, so no password lives in code), default privileges, and the function `set_server_updated_at()`; `MIGRATION_DATABASE_URL` support in `prisma.config.ts`; `tests/helpers/app-role.ts`.
+      - Production sets the login and password of `distribo_app` outside the code and points `DATABASE_URL` at it; `MIGRATION_DATABASE_URL` keeps the owner account.
+    acceptance: |
+      Scenario: AC-1 Role exists with default privileges
+        When the migration ran
+        Then role `distribo_app` exists with NOLOGIN
+        And a table created later by the migration account gives `distribo_app` SELECT, INSERT, UPDATE and DELETE
+      Scenario: AC-2 Immutable table pattern
+        Given a scratch table `fnd_scratch_journal` with `REVOKE UPDATE, DELETE, TRUNCATE ... FROM distribo_app`
+        When a client running as `distribo_app` inserts and selects a row
+        Then both succeed
+        And an UPDATE, a DELETE and a TRUNCATE each fail with SQLSTATE 42501
+      Scenario: AC-3 Server time
+        Given a scratch table with column `server_updated_at` and the trigger `set_server_updated_at`
+        When a row is inserted with `server_updated_at` set to the year 2001
+        Then the stored value is within 5 seconds of the database clock
+        And an UPDATE moves it forward again
+      Scenario: AC-4 CHECK constraints are enforced
+        Given a scratch table with `CHECK (amount > 0)`
+        When a row with amount 0 is inserted directly
+        Then PostgreSQL rejects it with SQLSTATE 23514
+      Scenario: AC-5 Migration URL
+        When `MIGRATION_DATABASE_URL` is set
+        Then `prisma.config.ts` uses it for the datasource, else `DATABASE_URL`
+    abuse: |
+      Scenario: AB-1 Application account rewrites a journal (elevation)
+        When code running as `distribo_app` updates or deletes a row of an immutable table
+        Then PostgreSQL answers permission denied and the row is unchanged
+    implementation:
+      create: [prisma/migrations/<timestamp>_app_role_and_server_time/migration.sql, tests/helpers/app-role.ts, tests/integration/foundation/database-roles.test.ts]
+      modify: [prisma.config.ts]
+      pattern: prisma/migrations/20260914130000_add_refresh_tokens/migration.sql
+      signatures:
+        - "getAppRolePrisma(): PrismaClient — connects with the test database URL plus option `-c role=distribo_app`"
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client", "@prisma/adapter-pg", pg]
+    security:
+      - "v5.0.0-13.3.2: the role has no password in the migration and no SUPERUSER, CREATEDB or CREATEROLE."
+      - "v5.0.0-8.3.1: the scratch tables are created and dropped inside the test, never in a migration."
+    tests: |
+      role and defaults | integration | AC-1 | `pg_roles` row with `rolcanlogin` false; new table grants → 4 privileges
+      immutable pattern | security | AC-2, AB-1, C-39, WSTG-ATHZ-03 | as `distribo_app`: insert and select pass; update, delete, truncate → code 42501
+      server time | integration | AC-3, C-35 | insert with year 2001 → value near now(); update → later value
+      check constraint | integration | AC-4 | insert amount 0 → code 23514
+      migration url | unit | AC-5 | import the config with each variable set → datasource url matches
+    command: npx vitest run tests/integration/foundation/database-roles.test.ts
+    out_of_scope:
+      - "Per-table REVOKE and trigger creation: each table's own story."
+      - "Creating the login and password of `distribo_app` in production (deployment task)."
+  - id: FND-003
+    title: Shared money and quantity arithmetic
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [FND-000]
+    read_first: [docs/stories/CONVENTIONS.md]
+    design_refs: [commandes-et-livraisons/orderline, legende]
+    constraints: [CM-14]
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: provide the single rounding function for order lines, so that phone and server never differ by one franc."
+    context: |
+      - Adds: `src/shared/money.ts` with `parseQuantity` and `lineAmount`, no Node-only import.
+      - Quantities are integers in thousandths (`bigint`); amounts are integer francs (`bigint`); no floating point anywhere.
+    acceptance: |
+      Scenario Outline: AC-1 Line amount rounds to the nearest franc, half up
+        When lineAmount is called with quantity <quantity> and unit price <price>
+        Then the result is <amount>
+        Examples:
+          | quantity | price | amount |
+          | 2.5      | 333   | 833    |
+          | 0.001    | 500   | 1      |
+          | 0.001    | 499   | 0      |
+          | 10       | 3000  | 30000  |
+          | 0        | 3000  | 0      |
+      Scenario Outline: AC-2 Quantity parsing
+        When parseQuantity is called with <text>
+        Then the result is <milli> or a RangeError
+        Examples:
+          | text    | milli      |
+          | 2.5     | 2500       |
+          | 0.001   | 1          |
+          | 0.0001  | RangeError |
+          | -1      | RangeError |
+          | 1e3     | RangeError |
+      Scenario: AC-3 Negative or non-integer inputs
+        When lineAmount receives a negative quantity or price
+        Then it throws a RangeError
+    implementation:
+      create: [src/shared/money.ts, tests/unit/shared/money.test.ts]
+      modify: []
+      pattern: tests/unit/crypto.test.ts
+      signatures:
+        - "parseQuantity(text: string): bigint"
+        - "lineAmount(quantityMilli: bigint, unitPrice: bigint): bigint"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-2.2.1: reject anything that is not a plain decimal with at most 3 decimals; never call `Number` or `parseFloat`."
+    tests: |
+      rounding | unit | AC-1, CM-14 | each Examples row → amount
+      parsing | unit | AC-2 | each Examples row → milli or RangeError
+      negative inputs | unit | AC-3 | quantity -1, price -1 → RangeError
+    command: npx vitest run tests/unit/shared/money.test.ts
+    out_of_scope:
+      - "Applying the function to orders (ORD stories)."
+  - id: FND-004
+    title: Shared phone number normalization
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [FND-000]
+    read_first: [docs/stories/CONVENTIONS.md, tests/helpers/phone.ts]
+    design_refs: [legende, identite-et-organisation/person]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: normalize every entered phone number to E.164 with one function, so that two spellings of a number never become two people."
+    context: |
+      - Exists: `tests/helpers/phone.ts` with `uniquePhone()` that returns Senegalese numbers.
+      - Adds: `src/shared/phone.ts` using `libphonenumber-js`; `uniquePhone()` now returns valid Cameroon mobile numbers (`+2376` then a digit 5 to 9 then 7 digits).
+    acceptance: |
+      Scenario Outline: AC-1 Normalization
+        When normalizeE164 is called with <input>
+        Then the result is <output>
+        Examples:
+          | input               | output        |
+          | 6 77 12 34 56       | +237677123456 |
+          | +237 677 12 34 56   | +237677123456 |
+          | 00237677123456      | +237677123456 |
+          | 237677123456        | +237677123456 |
+          | +237222123456       | null          |
+          | 12345               | null          |
+          | abc                 | null          |
+      Scenario: AC-2 Only Cameroon mobiles receive messages
+        Then isCameroonMobile returns true for `+237677123456` and false for a valid mobile number of another country
+      Scenario: AC-3 Schema
+        When phoneNumberSchema parses "6 77 12 34 56"
+        Then it returns `+237677123456`
+        And it fails on an invalid number with a message that does not echo the input
+      Scenario: AC-4 E.164 shape
+        Then every result matches `^\+[1-9][0-9]{7,14}$`
+    implementation:
+      create: [src/shared/phone.ts, tests/unit/shared/phone.test.ts]
+      modify: [tests/helpers/phone.ts]
+      pattern: tests/unit/crypto.test.ts
+      signatures:
+        - "normalizeE164(input: string): string | null"
+        - "isCameroonMobile(e164: string): boolean"
+      types:
+        - "phoneNumberSchema: z.ZodEffects<z.ZodString, string, string>"
+      errors: []
+      dependencies: [libphonenumber-js, zod]
+    security:
+      - "v5.0.0-2.2.1: refuse landlines and non-numbers; a Zod error message never contains the entered value."
+    tests: |
+      normalization | unit | AC-1, AC-4 | each Examples row → output
+      cameroon only | unit | AC-2 | +237677123456 → true; a valid Senegal mobile number → false
+      schema | unit | AC-3 | valid → E.164; invalid → ZodError without the input in the message
+      test helper | unit | AC-1 | `uniquePhone()` 50 times → all valid, all distinct
+    command: npx vitest run tests/unit/shared/phone.test.ts
+    out_of_scope:
+      - "The database CHECK on `Person.phone_number` (PER-001)."
+  - id: FND-005
+    title: Shared identifiers and column type helper
+    kind: technical
+    size: XS
+    risk: low
+    depends_on: [FND-001]
+    read_first: [docs/stories/CONVENTIONS.md, tests/setup.ts]
+    design_refs: [legende, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-01]
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: generate and validate UUIDv7 identifiers and check column types in tests, so that every table follows the same identifier and type rules."
+    context: |
+      - Adds: `src/shared/ids.ts` (`newId`, `uuidV7Schema`) and `tests/helpers/db-schema.ts` (`expectColumnType`).
+      - New tables declare `id String @id @db.Uuid` without a default; code sets the id with `newId()` or takes a client-created UUIDv7.
+    acceptance: |
+      Scenario: AC-1 newId
+        When newId is called 1000 times
+        Then every value is a UUIDv7 (version nibble 7, variant 8 to b) and all are distinct
+      Scenario Outline: AC-2 uuidV7Schema
+        When uuidV7Schema parses <value>
+        Then it <result>
+        Examples:
+          | value                                  | result  |
+          | a valid UUIDv7                         | accepts |
+          | a UUIDv4                               | fails   |
+          | 123                                    | fails   |
+          | a UUIDv7 in upper case                 | accepts |
+      Scenario: AC-3 expectColumnType
+        Given a scratch table with columns `id uuid`, `amount bigint`, `quantity numeric(12,3)`, `at timestamptz`
+        When expectColumnType is called with the right and with a wrong type
+        Then it passes for the right type and throws for the wrong one
+    implementation:
+      create: [src/shared/ids.ts, tests/helpers/db-schema.ts, tests/unit/shared/ids.test.ts]
+      modify: []
+      pattern: tests/unit/crypto.test.ts
+      signatures:
+        - "newId(): string"
+        - "expectColumnType(table: string, column: string, dataType: string, numericPrecision?: [number, number]): Promise<void>"
+      types:
+        - "uuidV7Schema: z.ZodString"
+      errors: []
+      dependencies: [uuid, zod]
+    security:
+      - "v5.0.0-2.2.1: a client-created id is accepted only if it is a UUIDv7."
+    tests: |
+      newId | unit | AC-1 | 1000 calls → all match the UUIDv7 pattern, no duplicate
+      schema | unit | AC-2 | each Examples row → result
+      column helper | integration | AC-3, C-01 | scratch table checked with right and wrong types → pass and throw
+    command: npx vitest run tests/unit/shared/ids.test.ts
+    out_of_scope:
+      - "Applying column checks to real tables (each table's story)."
+  - id: FND-006
+    title: Shared HTTP error helper
+    kind: technical
+    size: XS
+    risk: low
+    depends_on: [FND-000]
+    read_first: [src/middleware/error-handler.ts, docs/stories/CONVENTIONS.md]
+    design_refs: [notes-de-conception]
+    constraints: []
+    asvs: [v5.0.0-16.5.1]
+    story: "Technical story: provide `httpError` with the shape the global handler already reads, so that services stop building errors by hand."
+    context: |
+      - Exists: `src/middleware/error-handler.ts` maps any error with a numeric `statusCode` to that status and returns `{ error: { message, code, requestId } }`; services build errors with `Object.assign(new Error(msg), { statusCode, code })`.
+      - Adds: `src/lib/http-error.ts`. No existing service is rewritten.
+    acceptance: |
+      Scenario: AC-1 Shape
+        When httpError(409, "PHONE_EXISTS", "Already registered") is thrown in a route
+        Then the response is 409 with body `{ error: { message: "Already registered", code: "PHONE_EXISTS", requestId } }`
+      Scenario: AC-2 Unexpected errors stay generic
+        When a route throws a plain Error("db password is x")
+        Then the response is 500 `INTERNAL_ERROR` with message "Internal server error"
+    implementation:
+      create: [src/lib/http-error.ts, tests/unit/lib/http-error.test.ts]
+      modify: []
+      pattern: src/middleware/error-handler.ts
+      signatures:
+        - "httpError(status: number, code: string, message: string): Error & { statusCode: number; code: string }"
+      types: []
+      errors: []
+      dependencies: [express, supertest]
+    security:
+      - "v5.0.0-16.5.1: a plain error never leaks its message; only httpError messages are returned."
+    tests: |
+      shape | unit | AC-1 | mini express app with the global handler and a route throwing httpError → 409 and the body above
+      generic | unit | AC-2, CWE-209 | route throws Error with a secret-like text → 500 and the text is absent from the body
+    command: npx vitest run tests/unit/lib/http-error.test.ts
+    out_of_scope:
+      - "Changing the Zod 400 mapping."
+  - id: FND-007
+    title: Stop Prisma from logging queries
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [FND-000]
+    read_first: [src/lib/db.ts]
+    design_refs: [donnees-personnelles-et-conservation/cadre-juridique-le-cameroun]
+    constraints: []
+    asvs: [v5.0.0-16.2.5]
+    story: "Technical story: log only Prisma errors and warnings, so that phone numbers and other personal data in query text never reach the logs."
+    context: |
+      - Exists: `src/lib/db.ts` builds the client with `log` entries for `query`, `error` and `warn`, all to stdout.
+      - Changes: the `query` entry is removed.
+    acceptance: |
+      Scenario: AC-1 No query logging
+        When the Prisma client is constructed
+        Then its `log` option contains `error` and `warn` and does not contain `query` or `info`
+    abuse: |
+      Scenario: AB-1 Personal data in logs (information disclosure)
+        When a query with a phone number parameter runs
+        Then no log line contains that number
+    implementation:
+      create: [tests/unit/db-log-config.test.ts]
+      modify: [src/lib/db.ts]
+      pattern: tests/unit/db.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-16.2.5: log configuration excludes query text."
+    tests: |
+      log config | unit | AC-1 | mock `@prisma/client`, import `src/lib/db.ts` → constructor options `log` has error and warn, no query
+      no number in logs | security | AB-1, CWE-532 | run one query with a fake phone while capturing stdout → the number is absent
+    command: npx vitest run tests/unit/db-log-config.test.ts tests/unit/db.test.ts
+    out_of_scope:
+      - "Other logging changes."
+  - id: FND-008
+    title: Default JSON body limit of 100 kb
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [FND-006]
+    read_first: [src/app.ts, src/middleware/error-handler.ts]
+    design_refs: [synchronisation-hors-ligne/principes-la-synchronisation-classique]
+    constraints: []
+    asvs: [v5.0.0-2.2.1, v5.0.0-15.2.2]
+    story: "Technical story: replace the 10 MB body limit with a 100 kb default and a per-route override, so that no route accepts an oversized body except the ones that need it."
+    context: |
+      - Exists: `src/app.ts` uses `express.json({ limit: '10mb' })` and `express.urlencoded({ ..., limit: '10mb' })`.
+      - Adds: `src/middleware/body-parser.ts` exporting `jsonBodyParser` and `BODY_LIMITS` (`{ '/api/v1/sync/push': '5mb' }`, the route SYNC creates later); default `100kb`. `src/app.ts` uses it and the urlencoded limit becomes `100kb`.
+    acceptance: |
+      Scenario Outline: AC-1 Body size
+        When a POST with a JSON body of <size> is sent to `/api/v1/auth/login`
+        Then the status is <status>
+        Examples:
+          | size   | status |
+          | 90 kb  | 401 or 400 (the route's own answer, not 413) |
+          | 101 kb | 413    |
+      Scenario: AC-2 Error shape
+        When the body is too large
+        Then the body is `{ error: { code: "PAYLOAD_TOO_LARGE", message, requestId } }`
+      Scenario: AC-3 Override
+        Then `BODY_LIMITS['/api/v1/sync/push']` is `5mb` and every other path uses `100kb`
+    abuse: |
+      Scenario: AB-1 Memory exhaustion (denial of service)
+        When a client sends a 2 MB JSON body to any route except the override
+        Then the response is 413 and the body is not parsed
+    implementation:
+      create: [src/middleware/body-parser.ts, tests/integration/foundation/body-limit.test.ts]
+      modify: [src/app.ts]
+      pattern: src/middleware/request-id.ts
+      signatures:
+        - "jsonBodyParser: express.RequestHandler"
+      types:
+        - "BODY_LIMITS: Record<string, string>"
+      errors: ["PAYLOAD_TOO_LARGE 413"]
+      dependencies: [express, supertest]
+    security:
+      - "v5.0.0-2.2.1: explicit maximum on every request body."
+      - "v5.0.0-15.2.2: the limit is checked before parsing."
+    tests: |
+      sizes | integration | AC-1 | 90 kb → not 413; 101 kb → 413
+      error shape | integration | AC-2 | 101 kb → code PAYLOAD_TOO_LARGE with requestId
+      override table | unit | AC-3 | read BODY_LIMITS → sync push 5mb, default 100kb
+      large body | security | AB-1, CWE-770 | 2 MB body to `/api/v1/auth/login` → 413
+    command: npx vitest run tests/integration/foundation/body-limit.test.ts
+    out_of_scope:
+      - "The sync push route itself (SYNC module)."
+  - id: FND-009
+    title: Shared limits and pagination helpers
+    kind: technical
+    size: XS
+    risk: low
+    depends_on: [FND-006]
+    read_first: [docs/stories/CONVENTIONS.md, src/lib/http-error.ts]
+    design_refs: [notes-de-conception]
+    constraints: []
+    asvs: [v5.0.0-2.2.1, v5.0.0-15.2.2]
+    story: "Technical story: provide the text limits and the cursor pagination every list route uses, so that lists are bounded and validated the same way."
+    context: |
+      - Adds: `src/shared/limits.ts` (`NAME_MAX` 100, `TEXT_MAX` 2000, `LABEL_MAX` 100, `PAGE_DEFAULT` 50, `PAGE_MAX` 100; provisional, Q-027) and `src/shared/pagination.ts`.
+      - A cursor is base64url JSON `{ createdAt: ISO string, id: uuid }`; lists sort by `created_at` descending then `id` descending.
+    acceptance: |
+      Scenario Outline: AC-1 Page size
+        When paginationQuerySchema parses limit <limit>
+        Then the result is <result>
+        Examples:
+          | limit   | result     |
+          | missing | 50         |
+          | 1       | 1          |
+          | 100     | 100        |
+          | 0       | ZodError   |
+          | 101     | ZodError   |
+          | abc     | ZodError   |
+      Scenario: AC-2 Cursor round trip
+        When a cursor is encoded and decoded
+        Then the decoded `createdAt` and `id` equal the originals
+      Scenario: AC-3 Malformed cursor
+        When decodeCursor receives text that is not base64url JSON or lacks a UUID id
+        Then it throws `httpError(400, 'VALIDATION_ERROR', ...)`
+    implementation:
+      create: [src/shared/limits.ts, src/shared/pagination.ts, tests/unit/shared/pagination.test.ts]
+      modify: []
+      pattern: tests/unit/crypto.test.ts
+      signatures:
+        - "encodeCursor(cursor: { createdAt: Date; id: string }): string"
+        - "decodeCursor(text: string): { createdAt: Date; id: string }"
+      types:
+        - "paginationQuerySchema: z.ZodObject<{ limit: number; cursor?: string }>"
+      errors: ["VALIDATION_ERROR 400"]
+      dependencies: [zod]
+    security:
+      - "v5.0.0-2.2.1: the page size has a maximum of 100 on every list."
+      - "v5.0.0-15.2.2: a cursor is validated before it reaches a query."
+    tests: |
+      page size | unit | AC-1 | each Examples row → value or ZodError
+      round trip | unit | AC-2 | encode then decode → same values
+      malformed | unit | AC-3 | garbage, valid base64 of non-JSON, missing id → 400 error
+    command: npx vitest run tests/unit/shared/pagination.test.ts
+    out_of_scope:
+      - "Applying pagination to a route (each list story)."

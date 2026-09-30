@@ -1,0 +1,771 @@
+kind: module
+module: delivery
+prefix: DLV
+title: Delivery
+responsibility: Owns delivery attempts by drivers and the single "Commande livrée" gesture that closes an order, records the sale and the payment, checks the credit limit and handles partial deliveries and counter sales.
+entities: [Delivery]
+depends_on: [foundation, person, notification, access, organization, relationship, order, finance]
+asvs_level: L2
+asvs_rationale: Delivery moves goods and cash; the server fixes the sale amount, checks credit and keeps the driver's writes to the two entries born of delivery.
+classification:
+  - "Delivery.failure_reason | internal | supplier team only"
+  - "Driver views | confidential | a driver sees the available credit of a customer, never balance or limit"
+threats:
+  - "T1 | T | A phone sends a lower sale amount than the order total | the server takes the amount from the order | DLV-007 AB-1"
+  - "T2 | E | A driver refunds, cancels or grants credit | a driver's writes are limited to the sale and payment of a delivery | DLV-007 AB-2"
+  - "T3 | I | A driver learns a customer's debt | driver views carry only the available credit | DLV-003 AB-1"
+  - "T4 | T | Two drivers depart with one order | one in-progress delivery per order | DLV-005 AB-1"
+  - "T5 | T | Credit is exceeded by a delivery | the credit rule is checked in the same transaction under a row lock | DLV-007 AB-3"
+  - "T6 | R | Goods leave without the owner knowing | abandoned rests and unsettled deliveries are shown to the owner | DLV-011 AB-1, DLV-012 AB-1"
+constraints:
+  C-21: "A delivery's `assigned_to_id` is an ACTIVE collaborator of the supplier, driver or above; `arrived_at` and `failed_at` are never both set; `failure_reason` is set if and only if `failed_at` is set; at most one delivery in progress (neither arrived nor failed) per order."
+  C-22: "A delivery not yet departed is removed when its order is cancelled or delivered without it; with crossed departures the server keeps the first and stores the other closed."
+  C-26: "A sale on a counter is paid in full: no credit for anonymous customers."
+  C-24: "A SALE ledger entry has `order_id` set and `amount` equal to `Order.total_amount` (server-fixed), and there is at most one non-reversed sale per order; the payment born of 'Commande livrée' also carries `order_id`."
+  C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
+  C-38: "Every online route that changes data carries the client-created id; an id already received changes nothing and returns the first result."
+  C-19: "`delivered_at` and `delivered_by_id` are set if and only if `status` is DELIVERED; every line then has `delivered_quantity`; `total_amount` equals the sum of line amounts plus `delivery_cost`."
+  CM-13: "The amount of a sale is always Order.total_amount computed by the server on delivered quantities; the amount sent by the phone is ignored."
+  CM-15: "At delivery, the unpaid part must not bring the balance above credit_limit (null limit = no limit); example: limit 50 000, balance 40 000, order 30 000 requires collecting at least 20 000."
+  CM-22: "Partial delivery: 'later' creates a CONFIRMED order for the remainder at the original order's prices, linked by parent_order_id; 'abandon' closes the order on what was delivered; abandon by a non-owner joins the owner's exceptions."
+  CM-23: "Crossed departures: the server keeps the first delivery and stores the other closed with sync_issue 'Livraison déjà prise par <name>'; if the second one delivered, the delivery wins and the other is closed."
+  CM-12: "Allowed transitions only: PENDING to CONFIRMED or CANCELLED; CONFIRMED to IN_DELIVERY, DELIVERED or CANCELLED; IN_DELIVERY to DELIVERED or CONFIRMED (failed attempt); DELIVERED wins over CANCELLED; DELIVERED and CANCELLED are frozen except supplier_note."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+contracts:
+  provides:
+    - name: DeliverOrder
+      file: src/modules/delivery/delivery.service.ts
+      story: DLV-007
+      items:
+        - "deliverOrder(actor: Actor, orderId: string, input: DeliverInput, options?: { viaSync?: boolean }): Promise<DeliverResult> — the one closing gesture: order DELIVERED, SALE and optional PAYMENT entries, credit rule, partial rest"
+        - "deleteUnstartedDeliveries(tx, orderId: string): Promise<number> — removes deliveries not yet departed"
+      used_by: [sync]
+  consumes:
+    - "order: transitionOrder, lineAmountOf, orderTotal, projectOrderForSupplier (docs/stories/modules/order/contracts.md)"
+    - "finance: appendLedgerEntry (docs/stories/modules/finance/contracts.md)"
+    - "relationship: projectForDriver, visibleRelationsWhere, addToBalance (docs/stories/modules/relationship/contracts.md)"
+    - "organization: loadActor (docs/stories/modules/organization/contracts.md)"
+    - "access: requireAbility, abilityFor, idempotent (docs/stories/modules/access/contracts.md)"
+stories:
+  - id: DLV-001
+    title: Deliveries table
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [ORD-001, PER-008, FND-002]
+    read_first: [prisma/schema.prisma, tests/integration/order/order-table.test.ts]
+    design_refs: [commandes-et-livraisons/delivery, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Delivery:required, Delivery:fk, C-01, C-35, C-04]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Delivery.{order_id,assigned_to_id,departed_at,arrived_at,failed_at,failure_reason,sync_issue}"]
+    story: "Technical story: create the deliveries table, one row per attempt, so that transport of goods can be recorded."
+    context: |
+      - Exists: `orders`, `require_registered_person()`, `set_server_updated_at()`.
+      - Adds: table `deliveries` with `server_updated_at` and `deleted_at`, foreign keys, indexes on `order_id` and (`assigned_to_id`, `departed_at`), triggers `require_registered_person('assigned_to_id')` and `set_server_updated_at()`.
+      - Rules follow in DLV-002.
+    acceptance: |
+      Scenario: AC-1 Row
+        When a delivery is inserted for an order and a registered driver
+        Then the row is stored with `departed_at`, `arrived_at` and `failed_at` empty and `server_updated_at` set
+      Scenario Outline: AC-2 Keys and author
+        When a row has <values>
+        Then the insert <result>
+        Examples:
+          | values                           | result          |
+          | an unknown order                 | rejects (23503) |
+          | assigned_to_id of a guest        | rejects (23514) |
+          | assigned_to_id null              | rejects (23502) |
+    implementation:
+      create: [prisma/migrations/<timestamp>_dlv_001_deliveries/migration.sql, tests/integration/delivery/delivery-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/order/order-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: keys and author are checked by the database."
+    tests: |
+      row | integration | AC-1, C-01, C-35 | stored; column types; server time
+      keys and author | integration | AC-2, Delivery:required, Delivery:fk, C-04 | each Examples row → rejected
+    command: npx vitest run tests/integration/delivery/delivery-table.test.ts
+    out_of_scope:
+      - "State rules (DLV-002)."
+  - id: DLV-002
+    title: Delivery state rules in the database
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [DLV-001, ORG-003, ORD-003]
+    read_first: [prisma/schema.prisma, tests/integration/delivery/delivery-table.test.ts]
+    design_refs: [commandes-et-livraisons/delivery, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-21]
+    asvs: [v5.0.0-2.3.1, v5.0.0-2.2.3]
+    story: "Technical story: enforce the delivery states, the driver's membership and one delivery in progress per order in the database."
+    context: |
+      - Exists: `deliveries` (DLV-001), `collaborations`.
+      - Adds: one migration. CHECKs: `arrived_at` and `failed_at` are not both set; `failure_reason` is set exactly when `failed_at` is set. Partial unique index on `order_id` where `arrived_at` and `failed_at` are null and `deleted_at` is null. A BEFORE INSERT trigger requires an ACTIVE collaboration of `assigned_to_id` in the supplier organization of the order's relationship (any role is driver or above).
+    acceptance: |
+      Scenario Outline: AC-1 State rules
+        When a delivery row has <values>
+        Then the statement <result>
+        Examples:
+          | values                                                  | result          |
+          | arrived_at and failed_at both set                       | rejects (23514) |
+          | failed_at set, failure_reason "client absent"           | accepts         |
+          | failed_at set, failure_reason empty                     | rejects (23514) |
+          | failure_reason set, failed_at empty                     | rejects (23514) |
+          | arrived_at set only                                     | accepts         |
+      Scenario Outline: AC-2 One in progress
+        When a second delivery is inserted for an order whose first delivery is <first>
+        Then the insert <result>
+        Examples:
+          | first                        | result          |
+          | in progress                  | rejects (23505) |
+          | failed                       | accepts         |
+          | arrived                      | accepts         |
+          | deleted                      | accepts         |
+      Scenario Outline: AC-3 Driver membership
+        When the assigned person is <person>
+        Then the insert <result>
+        Examples:
+          | person                                        | result          |
+          | an ACTIVE DRIVER of the supplier              | accepts         |
+          | an ACTIVE SELLER of the supplier              | accepts         |
+          | a REVOKED or INVITED collaborator             | rejects (23514) |
+          | an ACTIVE collaborator of another business    | rejects (23514) |
+    abuse: |
+      Scenario: AB-1 Two drivers on one order by a crafted write (tampering)
+        When code inserts a second in-progress delivery
+        Then PostgreSQL refuses it
+    implementation:
+      create: [prisma/migrations/<timestamp>_dlv_002_delivery_rules/migration.sql, tests/integration/delivery/delivery-rules.test.ts]
+      modify: []
+      pattern: tests/integration/order/creation-guard.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.3.1: one delivery in progress is a unique index."
+      - "v5.0.0-2.2.3: membership is checked in the database."
+    tests: |
+      state rules | integration | AC-1, C-21 | each Examples row → accepted or 23514
+      one in progress | integration | AC-2, C-21 | each Examples row → accepted or 23505
+      membership | integration | AC-3, C-21 | each Examples row → accepted or 23514
+      second delivery | security | AB-1, CWE-362 | 23505
+    command: npx vitest run tests/integration/delivery/delivery-rules.test.ts
+    out_of_scope:
+      - "Routes (DLV-003 onward)."
+  - id: DLV-003
+    title: Driver sees the orders to deliver
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [DLV-002, REL-005, ORD-007]
+    read_first: [src/modules/relationship/relationship.visibility.ts, src/modules/order/order.views.ts]
+    design_refs: [commandes-et-livraisons/delivery, relations-commerciales/customerrelationship/plafond-de-credit-une-seule-regle]
+    constraints: []
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As a driver, I want to see the orders to deliver and my own deliveries so that I know what to take.
+    context: |
+      - Exists: `projectForDriver` (REL-005); orders (ORD module); `loadActor`.
+      - Adds: `GET /api/v1/organizations/{organizationId}/deliveries/to-deliver` (DRIVER and above): CONFIRMED orders of the organization with a `delivery_address_applied`, not deleted, newest first, paginated; item `{ order_id, delivery_address, desired_delivery_date, customer_note, total_amount, lines: [{ label, quantity, unit_price_applied, amount }], customer: DriverRelationshipView }`.
+      - `GET /api/v1/organizations/{organizationId}/deliveries/mine?status=in_progress|done|failed` (DRIVER and above): the caller's own deliveries with the same order fields, `departed_at`, `arrived_at`, `failed_at`, `failure_reason`.
+      - The customer part is `projectForDriver`: name, `available_credit`; never balance, limit, notes or the ledger. Adds `delivery.openapi.ts` documenting these routes and later delivery routes; `delivery.routes.ts` imports it.
+    acceptance: |
+      Scenario: AC-1 To deliver
+        Given 2 CONFIRMED orders with an address, 1 without, 1 PENDING and 1 DELIVERED
+        When a DRIVER lists to-deliver
+        Then only the 2 orders with an address are returned
+      Scenario: AC-2 Available credit only
+        Given a customer with limit 50000 and balance 40000
+        Then the driver sees available_credit 10000 and no balance, limit or notes
+      Scenario: AC-3 Mine
+        When a driver lists their deliveries
+        Then only rows assigned to them appear, filtered by status
+      Scenario: AC-4 All drivers see the pool
+        Then every ACTIVE driver of the organization sees the same to-deliver list
+      Scenario: AC-5 Pagination
+        When limit 1 is used with the cursor
+        Then pages follow without repeats
+    abuse: |
+      Scenario: AB-1 Debt of a customer (information disclosure)
+        When a driver reads any of these responses
+        Then no balance, credit_limit, supplier_notes or ledger data appears
+      Scenario: AB-2 Another business's orders (horizontal)
+        When a member of A requests business B
+        Then the response is 404
+    implementation:
+      create: [src/modules/delivery/delivery.routes.ts, src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.openapi.ts, src/modules/delivery/delivery.repository.ts, tests/integration/delivery/driver-lists.test.ts]
+      modify: [src/app.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "listToDeliver(actor: Actor, query: PageQuery): Promise<{ items: ToDeliverItem[]; next_cursor: string | null }>"
+        - "listMyDeliveries(actor: Actor, query: MineQuery): Promise<{ items: MyDeliveryItem[]; next_cursor: string | null }>"
+      types: []
+      errors: ["NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.2: queries start from the actor's organization."
+      - "v5.0.0-8.2.3: the customer part comes only from `projectForDriver`."
+      - "v5.0.0-15.3.1: explicit fields."
+    tests: |
+      to deliver | integration | AC-1 | two orders
+      credit only | integration | AC-2 | 10000, no balance
+      mine | integration | AC-3 | own rows and filter
+      pool | integration | AC-4 | same list for two drivers
+      paging | integration | AC-5 | no repeats
+      debt hidden | security | AB-1, CWE-200 | fields absent
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/delivery/driver-lists.test.ts
+    out_of_scope:
+      - "Assigning, departing and delivering (DLV-004 onward)."
+  - id: DLV-004
+    title: Manager assigns an order to a driver
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [DLV-003, ACC-003, ACC-007, NTF-002]
+    read_first: [src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.routes.ts]
+    design_refs: [commandes-et-livraisons/delivery]
+    constraints: [C-21]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.1]
+    story: As a manager, I want to assign an order to a driver so that they know it is theirs to deliver.
+    context: |
+      - Exists: rule `assign` on Delivery for MANAGER online (ACC-003); `deliveries` (DLV-001, DLV-002); `notify`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/orders/{orderId}/assign` with `{ id, driver_person_id }`; response 201 with the delivery `{ id, order_id, assigned_to_id, departed_at }`.
+      - The order must be CONFIRMED with a delivery address; the driver an ACTIVE collaborator. A not-yet-departed delivery of the order is reassigned (same row, new driver); a delivery already departed answers 409 `DELIVERY_IN_PROGRESS`. The driver is notified `delivery.assigned`.
+    acceptance: |
+      Scenario: AC-1 Assign
+        When a MANAGER assigns a CONFIRMED order with an address to a driver
+        Then a delivery exists for that driver with departed_at empty and the driver is notified
+      Scenario: AC-2 Reassign
+        When the manager assigns the same order to another driver before departure
+        Then the same delivery row belongs to the new driver
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                   | status                     |
+          | a delivery already departed               | 409 DELIVERY_IN_PROGRESS   |
+          | an order without a delivery address       | 400 VALIDATION_ERROR       |
+          | an order not CONFIRMED                    | 409 INVALID_TRANSITION     |
+          | a driver who is not an ACTIVE collaborator| 404 NOT_FOUND              |
+          | a SELLER or DRIVER caller                 | 403 FORBIDDEN              |
+      Scenario: AC-4 Repeat
+        When the same id is posted twice
+        Then one delivery exists
+    abuse: |
+      Scenario: AB-1 Driver assigns orders to themselves (vertical)
+        When a DRIVER posts an assignment
+        Then the response is 403 and nothing is stored
+    implementation:
+      create: [src/modules/delivery/delivery.schemas.ts, tests/integration/delivery/assign.test.ts]
+      modify: [src/modules/delivery/delivery.routes.ts, src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.repository.ts]
+      pattern: src/modules/delivery/delivery.routes.ts
+      signatures:
+        - "assignDelivery(actor: Actor, orderId: string, input: { id: string; driver_person_id: string }): Promise<DeliveryView>"
+      types: []
+      errors: ["DELIVERY_IN_PROGRESS 409", "INVALID_TRANSITION 409", "NOT_FOUND 404", "FORBIDDEN 403", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online."
+      - "v5.0.0-2.3.1: departed deliveries are never reassigned."
+    tests: |
+      assign | integration | AC-1, C-21 | delivery and notification
+      reassign | integration | AC-2 | same row
+      refusals | integration | AC-3 | each Examples row → status
+      repeat | integration | AC-4 | one delivery
+      driver assigns | security | AB-1, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/delivery/assign.test.ts
+    out_of_scope:
+      - "Departure (DLV-005)."
+  - id: DLV-005
+    title: Driver departs with an order
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [DLV-004, ORD-008]
+    read_first: [src/modules/order/order.state.ts, src/modules/delivery/delivery.service.ts]
+    design_refs: [commandes-et-livraisons/delivery]
+    constraints: [C-21, CM-12]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.1, v5.0.0-2.3.4]
+    story: As a driver, I want to leave with an order so that it is marked in delivery and nobody else takes it.
+    context: |
+      - Exists: `transitionOrder` (ORD-008); rule `depart` on Order for DRIVER with status CONFIRMED (ACC-003); `assignDelivery`; `notify`; `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/orders/{orderId}/depart` with `{ id }`; response 200 `{ delivery, order_status: 'IN_DELIVERY' }`.
+      - One transaction: the order must be CONFIRMED with a delivery address; if a not-yet-departed delivery exists it must be assigned to the caller or the caller must be a MANAGER or OWNER (else 409 `ASSIGNED_TO_OTHER`); otherwise a delivery is created for the caller; `departed_at` = now; the order becomes IN_DELIVERY; the customer is notified `order.status_changed`.
+      - A live delivery in progress of another driver answers 409 `DELIVERY_IN_PROGRESS`.
+    acceptance: |
+      Scenario: AC-1 Depart with an unassigned order
+        When a DRIVER departs with a CONFIRMED order with an address
+        Then a delivery for them with departed_at exists and the order is IN_DELIVERY
+      Scenario: AC-2 Depart with an assigned order
+        Given the order was assigned to the caller
+        Then the same delivery row gets departed_at
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                        | status                     |
+          | an order assigned to another driver            | 409 ASSIGNED_TO_OTHER      |
+          | an order already IN_DELIVERY                   | 409 DELIVERY_IN_PROGRESS   |
+          | a PENDING, DELIVERED or CANCELLED order        | 409 INVALID_TRANSITION     |
+          | an order without an address                    | 400 VALIDATION_ERROR       |
+      Scenario: AC-4 Two drivers at once
+        When two drivers depart with the same order simultaneously
+        Then exactly one succeeds
+      Scenario: AC-5 Repeat
+        When the same id is posted twice
+        Then one delivery exists
+    abuse: |
+      Scenario: AB-1 Double departure (tampering)
+        When a second driver departs with an order already on the road
+        Then the response is 409 and the first delivery is unchanged
+      Scenario: AB-2 Another business's order (horizontal)
+        When a member of A departs with an order of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/delivery/depart.test.ts]
+      modify: [src/modules/delivery/delivery.routes.ts, src/modules/delivery/delivery.schemas.ts, src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.repository.ts]
+      pattern: src/modules/delivery/delivery.routes.ts
+      signatures:
+        - "departWithOrder(actor: Actor, orderId: string, input: { id: string }): Promise<{ delivery: DeliveryView; order_status: 'IN_DELIVERY' }>"
+      types: []
+      errors: ["ASSIGNED_TO_OTHER 409", "DELIVERY_IN_PROGRESS 409", "INVALID_TRANSITION 409", "NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: driver and above, with the status condition."
+      - "v5.0.0-2.3.4: the unique in-progress index and the conditional order update settle races."
+    tests: |
+      unassigned | integration | AC-1, CM-12 | delivery and IN_DELIVERY
+      assigned | integration | AC-2 | same row
+      refusals | integration | AC-3 | each Examples row → status
+      simultaneous | integration | AC-4, C-21, CWE-362 | one success
+      repeat | integration | AC-5 | one delivery
+      double departure | security | AB-1, WSTG-BUSL-06 | 409
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/delivery/depart.test.ts
+    out_of_scope:
+      - "Crossed departures made offline (SYNC module)."
+  - id: DLV-006
+    title: Driver reports a failed delivery
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [DLV-005]
+    read_first: [src/modules/delivery/delivery.service.ts, src/modules/order/order.state.ts]
+    design_refs: [commandes-et-livraisons/delivery]
+    constraints: [C-21, CM-12]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-2.3.1]
+    story: As a driver, I want to report a failed delivery with a reason so that the order goes back to the orders to deliver.
+    context: |
+      - Exists: departed deliveries (DLV-005); rule `fail_delivery` for DRIVER (ACC-003).
+      - Adds: `POST /api/v1/organizations/{organizationId}/deliveries/{deliveryId}/fail` with `{ id, reason }` (1 to 2000 characters, required); response 200 `{ delivery, order_status: 'CONFIRMED' }`.
+      - One transaction: the delivery (in progress, assigned to the caller, or any caller MANAGER or OWNER) gets `failed_at` = now and `failure_reason`; the order returns from IN_DELIVERY to CONFIRMED. The owner and managers are notified `delivery.failed`.
+    acceptance: |
+      Scenario: AC-1 Fail
+        When the assigned driver reports "client absent"
+        Then the delivery has failed_at and the reason, and the order is CONFIRMED again and in the to-deliver list
+      Scenario: AC-2 New attempt
+        Then another driver can depart with it and a second delivery row exists
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                                      | status                   |
+          | no reason                                    | 400 VALIDATION_ERROR     |
+          | a delivery of another driver                 | 404 NOT_FOUND            |
+          | a delivery already arrived or failed         | 409 INVALID_TRANSITION   |
+      Scenario: AC-4 Repeat
+        When the same id is posted twice
+        Then the answers are equal
+    abuse: |
+      Scenario: AB-1 Failing another driver's delivery (horizontal)
+        When a DRIVER posts a failure for a delivery assigned to someone else
+        Then the response is 404 and it is unchanged
+    implementation:
+      create: [tests/integration/delivery/fail.test.ts]
+      modify: [src/modules/delivery/delivery.routes.ts, src/modules/delivery/delivery.schemas.ts, src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.repository.ts]
+      pattern: src/modules/delivery/delivery.routes.ts
+      signatures:
+        - "failDelivery(actor: Actor, deliveryId: string, input: { id: string; reason: string }): Promise<{ delivery: DeliveryView; order_status: 'CONFIRMED' }>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "INVALID_TRANSITION 409"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the delivery is selected by id and assignee, or by role."
+      - "v5.0.0-2.3.1: delivery and order change together conditionally."
+    tests: |
+      fail | integration | AC-1, C-21, CM-12 | fields and status
+      new attempt | integration | AC-2 | second row
+      refusals | integration | AC-3 | each Examples row → status
+      repeat | integration | AC-4 | equal answers
+      other driver | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/delivery/fail.test.ts
+    out_of_scope:
+      - "Delivering (DLV-007)."
+  - id: DLV-007
+    title: "\"Commande livrée\": deliver a whole order and record the sale and the payment"
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [DLV-005, FIN-004, ACC-003, ACC-007, NTF-002]
+    read_first: [src/modules/finance/ledger.service.ts, src/modules/order/order.state.ts]
+    design_refs: [commandes-et-livraisons/order/clore-une-commande-commande-livree, relations-commerciales/customerrelationship/plafond-de-credit-une-seule-regle]
+    constraints: [CM-13, CM-15]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.3.3, v5.0.0-2.3.4, v5.0.0-8.2.1]
+    story: As a driver, I want one gesture that closes an order and records what I collected so that the sale and the payment are exact.
+    context: |
+      - Exists: `transitionOrder`, `appendLedgerEntry`, `lineAmountOf`, `orderTotal`; rules `deliver` on Order and create LedgerEntry SALE or PAYMENT (ACC-003, ACC-004); `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/orders/{orderId}/deliver` with `{ id, collected_amount, mode?, sale_entry_id, payment_entry_id? }`; response 200 `{ order, sale, payment }`.
+      - One transaction with the relationship row locked: a DRIVER needs the order IN_DELIVERY with a delivery of theirs (which gets `arrived_at`); a SELLER or above may deliver a CONFIRMED order in the shop. Every line gets `delivered_quantity` = `quantity`; amounts and total are recomputed by the server; the order becomes DELIVERED with `delivered_at` now and `delivered_by_id` the caller.
+      - A SALE entry of `Order.total_amount` (the client never sends it) and, when `collected_amount` is above 0, a PAYMENT entry of `collected_amount` (arrears allowed) with `mode`; both carry `order_id` and the caller as recorder. The customer is notified `order.status_changed`.
+      - Credit rule: `balance + total − collected` must not exceed `credit_limit` (null means no limit); otherwise 409 `CREDIT_INSUFFICIENT` with `details.min_collect` = the smallest allowed collection, and nothing is written.
+    acceptance: |
+      Scenario: AC-1 Delivered and paid in full
+        Given an IN_DELIVERY order of 30000 and a customer with balance 0
+        When the assigned driver delivers with collected_amount 30000 in cash
+        Then the order is DELIVERED, a SALE of 30000 and a PAYMENT of 30000 exist with the order id, and the balance is 0
+      Scenario Outline: AC-2 Credit rule
+        Given limit 50000 and balance 40000 and an order of 30000
+        When collected_amount is <collected>
+        Then the response is <status>
+        Examples:
+          | collected | status                                         |
+          | 20000     | 200 (SALE 30000, PAYMENT 20000, balance 50000) |
+          | 19999     | 409 CREDIT_INSUFFICIENT with min_collect 20000 |
+          | 0         | 409 CREDIT_INSUFFICIENT with min_collect 20000 |
+          | 30000     | 200                                            |
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is written
+        Examples:
+          | problem                                    | status                 |
+          | a DRIVER on an order of another driver     | 404 NOT_FOUND          |
+          | a DRIVER on a CONFIRMED order              | 409 INVALID_TRANSITION |
+          | a DELIVERED or CANCELLED order             | 409 INVALID_TRANSITION |
+          | collected_amount above 0 without a mode    | 400 VALIDATION_ERROR   |
+    abuse: |
+      Scenario: AB-1 A lower sale than the order (tampering)
+        When a phone sends a sale amount of 3000 for an order of 30000
+        Then the SALE is 30000 or the request is refused
+      Scenario: AB-2 Driver refunds through this route (elevation)
+        When a DRIVER sends a kind or a negative amount
+        Then the response is 400
+      Scenario: AB-3 Credit exceeded by a race (tampering)
+        When two deliveries for one customer run at once with a total above the limit
+        Then the second is refused because the relationship row is locked
+    implementation:
+      create: [tests/integration/delivery/deliver.test.ts]
+      modify: [src/modules/delivery/delivery.routes.ts, src/modules/delivery/delivery.schemas.ts, src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.repository.ts]
+      pattern: src/modules/delivery/delivery.routes.ts
+      signatures:
+        - "deliverOrder(actor: Actor, orderId: string, input: DeliverInput, options?: { viaSync?: boolean }): Promise<DeliverResult>"
+      types:
+        - "DeliverInput = { id: string; collected_amount: number; mode?: 'CASH' | 'MOBILE_MONEY'; sale_entry_id: string; payment_entry_id?: string }"
+      errors: ["CREDIT_INSUFFICIENT 409", "INVALID_TRANSITION 409", "NOT_FOUND 404", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the sale amount is taken from the order on the server."
+      - "v5.0.0-2.3.3: order, lines, entries, caches and delivery are one transaction."
+      - "v5.0.0-2.3.4: the relationship row is locked before the credit check."
+    tests: |
+      paid in full | integration | AC-1, CM-13 | statuses and entries
+      credit rule | integration | AC-2, CM-15 | each Examples row → status and min_collect
+      refusals | integration | AC-3 | each Examples row → status
+      lower sale | security | AB-1, WSTG-BUSL-02, CWE-345 | SALE 30000
+      driver refund | security | AB-2, WSTG-ATHZ-03 | 400
+      race | security | AB-3, WSTG-BUSL-04, CWE-362 | second refused
+    command: npx vitest run tests/integration/delivery/deliver.test.ts
+    out_of_scope:
+      - "Partial deliveries (DLV-008). Counter sales (DLV-009)."
+  - id: DLV-008
+    title: Deliver only part of an order and settle the rest
+    kind: change
+    size: M
+    risk: high
+    depends_on: [DLV-007]
+    amends: [DLV-007]
+    read_first: [src/modules/delivery/delivery.service.ts, src/modules/order/order.calculations.ts]
+    design_refs: [commandes-et-livraisons/order/le-reste-d-une-livraison-partielle, commandes-et-livraisons/orderline]
+    constraints: [CM-22]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As a driver, I want to record that only part of an order was delivered, and decide what happens to the rest, so that the customer pays for what they received.
+    context: |
+      - Exists: `deliverOrder` and its route (DLV-007); `lineAmountOf`, `orderTotal`.
+      - Changes: the deliver body accepts `lines: [{ line_id, delivered_quantity }]` (a decimal with at most 3 places, from 0 up to the ordered quantity; unlisted lines are fully delivered) and `rest: 'LATER' | 'ABANDON'`, required when any line is short. At least one line must have a delivered quantity above 0 (else 400).
+      - The sale and the credit rule use the recomputed total on delivered quantities. With `LATER` the server also creates, in the same transaction, a CONFIRMED order linked by `parent_order_id`, same relationship and delivery address, `delivery_cost` 0, with one line per short line: remaining quantity, same `label_applied`, `reference_price`, `unit_price_applied` and price author as the original line, amount rounded as usual. With `ABANDON` nothing is created.
+    acceptance: |
+      Scenario: AC-1 Partial with rest later
+        Given a line of 10 sacks at 3000 and the driver delivers 8, rest LATER, collected 24000
+        Then the line's delivered_quantity is 8 and its amount 24000, the SALE is 24000, and a CONFIRMED child order of 2 sacks at 3000 with parent_order_id exists
+      Scenario: AC-2 Abandon
+        When the rest is ABANDON
+        Then no child order exists and the original stays DELIVERED for what was delivered
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is written
+        Examples:
+          | problem                                        | status               |
+          | a short line without `rest`                    | 400 VALIDATION_ERROR |
+          | delivered_quantity above the ordered one       | 400 VALIDATION_ERROR |
+          | every delivered_quantity 0                     | 400 VALIDATION_ERROR |
+          | delivered_quantity with 4 decimals             | 400 VALIDATION_ERROR |
+          | a line of another order                        | 404 NOT_FOUND        |
+      Scenario: AC-4 Credit uses the delivered total
+        When the limit would be exceeded only by the undelivered part
+        Then the delivery is accepted
+    abuse: |
+      Scenario: AB-1 Hiding goods by abandoning the rest (repudiation)
+        When a non-owner abandons a rest
+        Then the delivered order keeps its short lines, which the owner's exceptions show (DLV-012)
+      Scenario: AB-2 Client-computed amounts (tampering)
+        When the body carries amount or total_amount
+        Then the response is 400
+    implementation:
+      create: [tests/integration/delivery/partial-delivery.test.ts]
+      modify: [src/modules/delivery/delivery.schemas.ts, src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.repository.ts]
+      pattern: src/modules/delivery/delivery.service.ts
+      signatures: []
+      types:
+        - "DeliverInput = DeliverInput & { lines?: Array<{ line_id: string; delivered_quantity: string | number }>; rest?: 'LATER' | 'ABANDON' }"
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404"]
+      dependencies: [zod, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: quantities parsed with `parseQuantity`, amounts recomputed."
+      - "v5.0.0-2.3.3: lines, sale, payment, rest order and caches are one transaction."
+    tests: |
+      partial and later | integration | AC-1, CM-22 | line, sale, child order
+      abandon | integration | AC-2 | no child
+      refusals | integration | AC-3 | each Examples row → status
+      credit on delivered total | integration | AC-4 | accepted
+      abandoned rest | security | AB-1, CWE-778 | short line remains visible
+      client amounts | security | AB-2, CWE-915 | 400
+    command: npx vitest run tests/integration/delivery/partial-delivery.test.ts tests/integration/delivery/deliver.test.ts
+    out_of_scope:
+      - "Showing abandoned rests to the owner (DLV-012)."
+    tests_to_update: []
+  - id: DLV-009
+    title: Seller validates a counter sale
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [DLV-007, ORD-013, REL-011, ORD-009]
+    read_first: [src/modules/delivery/delivery.service.ts, src/modules/order/order.service.ts]
+    design_refs: [commandes-et-livraisons/order/autres-regles, relations-commerciales/customerrelationship/comptoirs]
+    constraints: [C-26, CM-13]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.3.3, v5.0.0-8.2.1]
+    story: As a seller, I want one gesture to sell at the counter so that the sale is created, delivered and paid at once.
+    context: |
+      - Exists: `enterOrder` line rules (ORD-013), `deliverOrder` core (DLV-007); rule create Order and `deliver` for SELLER (ACC-003); counters (REL-006, REL-011); `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/counters/{relationshipId}/sales` with `{ id, sale_entry_id, payment_entry_id, lines: [{ id, product_id, quantity, unit_price_applied? }], collected_amount, mode }`; response 201 `{ order, sale, payment }`.
+      - One transaction creates the order (CONFIRMED, placed by SUPPLIER, prices as ORD-013) and delivers it at once (DELIVERED, delivered by the caller, `delivery_address_applied` empty, no delivery row), writing the SALE and the PAYMENT of the same amount. `collected_amount` must equal the order total exactly (409 `COUNTER_PAYMENT_INCOMPLETE` otherwise): a counter has no credit and no arrears.
+      - The relationship must be a counter of the organization (else 404); the organization ACTIVE.
+    acceptance: |
+      Scenario: AC-1 Counter sale
+        When a SELLER sells 2 articles for a total of 9000 and collects 9000 in cash
+        Then the order is DELIVERED, a SALE and a PAYMENT of 9000 exist and the counter's balance is 0
+      Scenario Outline: AC-2 Payment must match
+        When collected_amount is <collected> for a total of 9000
+        Then the response is <status>
+        Examples:
+          | collected | status                             |
+          | 9000      | 201                                |
+          | 8999      | 409 COUNTER_PAYMENT_INCOMPLETE     |
+          | 9001      | 409 COUNTER_PAYMENT_INCOMPLETE     |
+          | 0         | 409 COUNTER_PAYMENT_INCOMPLETE     |
+      Scenario: AC-3 Not a counter
+        When the relationship has a customer
+        Then the response is 404 `NOT_FOUND`
+      Scenario: AC-4 Atomic and repeat
+        When any step fails, or the same id is posted twice
+        Then nothing is stored, or the second answer equals the first
+    abuse: |
+      Scenario: AB-1 Anonymous credit (business logic)
+        When a partial payment is sent on a counter
+        Then the response is 409 and no order or entry exists
+      Scenario: AB-2 Another business's counter (horizontal)
+        When a member of A posts to a counter of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/delivery/counter-sale.test.ts]
+      modify: [src/modules/delivery/delivery.routes.ts, src/modules/delivery/delivery.schemas.ts, src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.repository.ts]
+      pattern: src/modules/delivery/delivery.routes.ts
+      signatures:
+        - "sellAtCounter(actor: Actor, relationshipId: string, input: CounterSaleInput): Promise<{ order: SupplierOrderView; sale: LedgerEntryView; payment: LedgerEntryView }>"
+      types: []
+      errors: ["COUNTER_PAYMENT_INCOMPLETE 409", "NOT_FOUND 404", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-2.2.1: totals and the sale amount are computed on the server."
+      - "v5.0.0-2.3.3: order, delivery state, entries and caches are one transaction."
+    tests: |
+      counter sale | integration | AC-1, CM-13 | order and entries
+      payment match | integration | AC-2, C-26 | each Examples row → status
+      not a counter | integration | AC-3 | 404
+      atomic and repeat | integration | AC-4, CWE-362 | as described
+      anonymous credit | security | AB-1, WSTG-BUSL-01 | 409, nothing stored
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/delivery/counter-sale.test.ts
+    out_of_scope:
+      - "Selling to a named customer in the shop: enter the order then deliver it (ORD-013, DLV-007)."
+  - id: DLV-010
+    title: Cancelled or shop-delivered orders drop their unstarted deliveries
+    kind: change
+    size: S
+    risk: medium
+    depends_on: [DLV-007, ORD-017]
+    amends: [ORD-016, ORD-017, DLV-007]
+    read_first: [src/modules/delivery/delivery.repository.ts, src/modules/order/order.service.ts]
+    design_refs: [commandes-et-livraisons/delivery]
+    constraints: [C-22]
+    asvs: [v5.0.0-2.3.3]
+    story: "Technical story: remove a delivery that was assigned but not yet departed when its order is cancelled or delivered in the shop, so that nothing lingers."
+    context: |
+      - Exists: `cancelOrderAsSupplier` (ORD-016), `cancelOrderAsCustomer` (ORD-017), the shop path of `deliverOrder` (DLV-007), assignments (DLV-004).
+      - Adds `deleteUnstartedDeliveries(tx, orderId)` in `delivery.repository.ts`: sets `deleted_at` on every delivery of the order with `departed_at` empty, not arrived and not failed; returns the count. Each of the three paths calls it in its own transaction after the status change.
+    acceptance: |
+      Scenario: AC-1 Cancel removes the assignment
+        Given a CONFIRMED order assigned to a driver who has not left
+        When the supplier or the customer cancels the order
+        Then the delivery has deleted_at set
+      Scenario: AC-2 Shop delivery removes it
+        When a SELLER delivers the order in the shop
+        Then the unstarted delivery has deleted_at set
+      Scenario: AC-3 Departed deliveries are kept
+        When the order has a delivery that departed
+        Then it is not deleted by any of these paths
+      Scenario: AC-4 Atomic
+        When the status change fails
+        Then the delivery is not deleted
+    implementation:
+      create: [tests/integration/delivery/unstarted-cleanup.test.ts]
+      modify: [src/modules/delivery/delivery.repository.ts, src/modules/delivery/delivery.service.ts, src/modules/order/order.service.ts]
+      pattern: src/modules/delivery/delivery.repository.ts
+      signatures:
+        - "deleteUnstartedDeliveries(tx: Prisma.TransactionClient, orderId: string): Promise<number>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: the cleanup shares the transaction of the status change."
+    tests: |
+      cancel | integration | AC-1, C-22 | deleted_at set
+      shop delivery | integration | AC-2 | deleted_at set
+      departed kept | integration | AC-3 | unchanged
+      atomic | integration | AC-4, CWE-362 | unchanged
+    command: npx vitest run tests/integration/delivery/unstarted-cleanup.test.ts tests/integration/order/cancel-order-supplier.test.ts tests/integration/order/cancel-order-customer.test.ts
+    out_of_scope:
+      - "Crossed departures (SYNC module)."
+    tests_to_update: []
+  - id: DLV-011
+    title: Owner reviews unsettled deliveries of the day
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [DLV-008, FIN-019]
+    read_first: [src/modules/delivery/delivery.service.ts, src/modules/finance/finance.service.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, finances/handover]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As an owner, I want each driver's deliveries that were not fully paid on a given day so that I can call the customer if in doubt.
+    context: |
+      - Exists: delivered orders and PAYMENT entries with `order_id`.
+      - Adds: `GET /api/v1/organizations/{organizationId}/exceptions/unsettled-deliveries?date=YYYY-MM-DD` (OWNER only; the day is read in the Africa/Douala time zone; default today). Response `{ items: [{ driver_person_id, orders: [{ order_id, customer_label, total_amount, collected_amount, unpaid_amount }] }] }`: orders delivered that day by a DRIVER-role collaborator or any non-owner whose collected payments for the order are below `total_amount`.
+      - `collected_amount` is the sum of PAYMENT entries with that `order_id` (reversals subtract).
+    acceptance: |
+      Scenario: AC-1 Unsettled orders grouped by driver
+        Given Paul delivered 3 orders on the day, 2 fully paid and 1 collected 24000 of 30000
+        When the owner reads that day
+        Then one item for Paul lists the one order with unpaid_amount 6000
+      Scenario: AC-2 Day boundaries
+        Then an order delivered at 23:30 Douala time belongs to that day, and one at 00:10 the next day does not
+      Scenario Outline: AC-3 Validation and roles
+        When the request has <case>
+        Then the response is <status>
+        Examples:
+          | case                       | status |
+          | a MANAGER caller           | 403    |
+          | date "31/12/2026"          | 400    |
+      Scenario: AC-4 Owner's own deliveries
+        Then orders delivered by the owner are not listed
+    abuse: |
+      Scenario: AB-1 Unpaid deliveries hidden from the owner (repudiation)
+        When a driver delivers on credit without collecting
+        Then the order appears with its full total as unpaid
+      Scenario: AB-2 Another business (horizontal)
+        When a member of A requests business B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/delivery/unsettled.test.ts]
+      modify: [src/modules/delivery/delivery.routes.ts, src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.repository.ts, src/modules/delivery/delivery.schemas.ts, src/modules/delivery/delivery.openapi.ts]
+      pattern: src/modules/delivery/delivery.routes.ts
+      signatures:
+        - "unsettledDeliveries(actor: Actor, query: { date?: string }): Promise<{ items: UnsettledItem[] }>"
+      types: []
+      errors: ["FORBIDDEN 403", "VALIDATION_ERROR 400", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: owner only."
+      - "v5.0.0-15.3.1: person ids, labels and amounts only."
+    tests: |
+      unsettled | integration | AC-1 | one order, 6000
+      day boundaries | integration | AC-2 | Douala time zone
+      validation and roles | integration | AC-3 | each Examples row → status
+      owner excluded | integration | AC-4 | none
+      hidden credit | security | AB-1, CWE-778 | listed
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/delivery/unsettled.test.ts
+    out_of_scope:
+      - "A separate table: this is a read."
+  - id: DLV-012
+    title: Abandoned rests join the owner's money exceptions
+    kind: change
+    size: S
+    risk: medium
+    depends_on: [DLV-008, FIN-019]
+    amends: [FIN-019]
+    read_first: [src/modules/finance/finance.service.ts, src/modules/delivery/delivery.repository.ts]
+    design_refs: [commandes-et-livraisons/order/le-reste-d-une-livraison-partielle, synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne]
+    constraints: [CM-22]
+    asvs: [v5.0.0-8.2.3]
+    story: "Technical story: add the goods abandoned in partial deliveries to the owner's exceptions, so that goods leaving without a claim are visible."
+    context: |
+      - Exists: `GET .../exceptions/money` (FIN-019); partial deliveries (DLV-008).
+      - Changes: each item also has `abandoned_rests: { count, amount }`. An abandoned rest is a line of a DELIVERED order with `delivered_quantity` below `quantity` whose order has no child order (`parent_order_id`); the person is the order's `delivered_by_id`, the owner excluded; the amount is (`quantity` − `delivered_quantity`) × `unit_price_applied`, rounded like a line; the date is `delivered_at`.
+    acceptance: |
+      Scenario: AC-1 Abandoned rest counted
+        Given Paul delivered 8 of 10 sacks at 3000 and abandoned the rest
+        When the owner reads the exceptions
+        Then Paul's item has abandoned_rests count 1 and amount 6000
+      Scenario: AC-2 Rest later is not abandoned
+        When the rest became a child order
+        Then it is not counted
+      Scenario: AC-3 Owner excluded and period respected
+        Then the owner's own abandoned rests, and those delivered outside the period, are not counted
+    abuse: |
+      Scenario: AB-1 Goods leaving without a claim (repudiation)
+        When a driver abandons rests repeatedly
+        Then the owner sees the count and value under the driver's name
+    implementation:
+      create: [tests/integration/delivery/abandoned-rests.test.ts]
+      modify: [src/modules/finance/finance.service.ts, src/modules/delivery/delivery.repository.ts]
+      pattern: src/modules/finance/finance.service.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.3: still owner only and person ids with totals."
+    tests: |
+      abandoned | integration | AC-1, CM-22 | 1 and 6000
+      later | integration | AC-2 | not counted
+      owner and period | integration | AC-3 | excluded
+      repeated abandon | security | AB-1, CWE-778 | listed
+    command: npx vitest run tests/integration/delivery/abandoned-rests.test.ts tests/integration/finance/money-exceptions.test.ts
+    out_of_scope:
+      - "Any change to the delivery gesture."
+    tests_to_update: []

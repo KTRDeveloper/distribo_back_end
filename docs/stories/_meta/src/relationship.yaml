@@ -1,0 +1,1610 @@
+kind: module
+module: relationship
+prefix: REL
+title: Relationship
+responsibility: Owns the account between one supplier and one customer, counters, credit limits, invitations, contestation and number correction, and the visibility rule between the two parties.
+entities: [CustomerRelationship, CustomerRelationshipReassignment, CreditLimitChange]
+depends_on: [foundation, person, notification, access, auth, organization]
+asvs_level: L2
+asvs_rationale: A relationship carries a debt between two parties; every read and write must respect which party the caller is, and credit decisions are the riskiest gesture of the product.
+classification:
+  - "CustomerRelationship.balance, credit_limit | confidential | supplier and customer parties only; a driver receives only the available credit"
+  - "CustomerRelationship.customer_label, supplier_notes | confidential | supplier party only"
+  - "CustomerRelationship.supplier_label | confidential | customer party only"
+  - "CustomerRelationship.customer_phone_number | PII | supplier party only until the server resolves the person"
+threats:
+  - "T1 | I | An organization sees relationships it is not a party to | one visibility predicate on every read and write | REL-005 AB-1, REL-008 AB-1"
+  - "T2 | I | A party reads the other party's private fields | per-party projections with explicit field lists | REL-005 AB-2, REL-016 AB-2"
+  - "T3 | E | A seller or driver grants credit, or a manager grants it to themselves | credit needs OWNER or online MANAGER, never on one's own record | REL-012 AB-1, AB-2"
+  - "T4 | T | A debt moves to another debtor | reassignment only by correction or contestation, journaled and immutable, never to a person with a relation already | REL-023 AB-1, REL-024 AB-1"
+  - "T5 | R | A credit limit changes without a trace | every change writes the immutable journal in the same transaction | REL-004 AB-1"
+  - "T6 | S | Guessing numbers to learn who is registered | lookup and invitation limits | REL-020 AB-2"
+constraints:
+  C-06: "A relationship has exactly one supplier (organization or person); at most one customer (person or organization), none only for a counter, and then `customer_label` is required; `customer_phone_number` is empty once `customer_person_id` is set."
+  C-07: "At most one live relationship per (supplier, customer) pair, ignoring deleted and merged rows (partial unique indexes per column combination); `supplier_organization_id` differs from `customer_organization_id`; `merged_into_id` set means the row is deleted."
+  C-08: "`status` is PENDING if and only if `supplier_person_id` is set."
+  C-09: "`ended_by_party` is set if and only if `status` is ENDED; only that party may reopen the relationship."
+  C-10: "`credit_limit` is 0 at creation and always 0 for a counter; `credit_limit_set_by_id` and `credit_limit_set_at` are set together; every change adds one `CreditLimitChange` row in the same transaction."
+  C-12: "A reassignment has previous and new person set; the new person has no relationship with the same supplier; one contestation per relationship and person; the journal is never modified."
+  C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
+  C-32: "Immutable journals are never updated or deleted by the application; only the retention purge removes them."
+  C-37: "`CustomerRelationship.balance` and `Collaboration.amount_held` are updated by adding the effect of each operation inside its transaction, always relationship first then collaboration; a nightly check compares each total with the sum of its entries."
+  C-39: "The application account has only INSERT and SELECT on the immutable tables."
+  CM-03: "`Person.scope_version` is incremented by the server on every rights change."
+  CM-19: "`customer_label` and `supplier_notes` are never sent to the customer; `supplier_label` is never sent to the supplier; each party writes only its own fields."
+  CM-24: "Contestation moves the relation to a ghost person holding the number as released number; the supplier confirms 'C'est bien ce client' with a reason to bring it back to the same number, after which the customer can no longer contest; a contested invitation is deleted."
+  CM-25: "Supplier invitation: acceptance replaces `supplier_person_id` by `supplier_organization_id` and sets ACTIVE, on behalf of an organization the person manages; refused, cancelled, contested or released-number invitations are deleted."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+contracts:
+  provides:
+    - name: RelationshipVisibility
+      file: src/modules/relationship/relationship.visibility.ts
+      story: REL-005
+      items:
+        - "visibleRelationsWhere(viewer: { personId: string; organizationIds: string[] }): Prisma.CustomerRelationshipWhereInput"
+        - "projectForSupplier(row): SupplierRelationshipView — includes customer_label, supplier_notes, credit_limit, balance; never supplier_label"
+        - "projectForCustomer(row): CustomerRelationshipView — includes supplier_label, credit_limit, balance; never customer_label or supplier_notes"
+        - "projectForDriver(row): DriverRelationshipView — id, customer public name, available_credit only"
+      used_by: [catalog, order, finance, delivery, sync]
+    - name: RelationshipRepository
+      file: src/modules/relationship/relationship.repository.ts
+      story: REL-007
+      items:
+        - "ensureCustomerRelationship(tx, input: { supplierOrganizationId: string; customerPersonId?: string; customerOrganizationId?: string; createdById: string }): Promise<{ relationship: CustomerRelationship; created: boolean }>"
+        - "addToBalance(tx, relationshipId: string, delta: bigint): Promise<void> — `SET balance = balance + delta`"
+        - "resolveMergedRelation(id: string, tx?): Promise<string> — follows merged_into_id"
+      used_by: [order, finance, delivery, sync]
+  consumes:
+    - "organization: loadActor, assertOrganizationActive, findOrganizationsByPublicNumber (docs/stories/modules/organization/contracts.md)"
+    - "person: findOrCreateByPhone, toPublicPerson, bumpScopeVersion (docs/stories/modules/person/contracts.md)"
+    - "access: requireAbility, idempotent (docs/stories/modules/access/contracts.md)"
+stories:
+  - id: REL-001
+    title: Relationships table
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [ORG-001, PER-008, FND-005, ORG-003]
+    read_first: [prisma/schema.prisma, tests/integration/organization/collaboration-table.test.ts]
+    design_refs: [relations-commerciales/customerrelationship, contraintes-a-poser-au-niveau-base-de]
+    constraints: [CustomerRelationship:required, CustomerRelationship.status:enum, CustomerRelationship.ended_by_party:enum, CustomerRelationship:fk, C-01, C-35]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["CustomerRelationship.{supplier_organization_id,supplier_person_id,customer_person_id,customer_organization_id,customer_phone_number,customer_label,supplier_label,delivery_address,credit_limit,credit_limit_set_by_id,credit_limit_set_at,balance,status,ended_by_party,supplier_notes,created_by_id,created_at,merged_into_id}"]
+    story: "Technical story: create the relationships table with its columns, keys and indexes so that suppliers and customers can be linked."
+    context: |
+      - Exists: `people`, `organizations`, `require_registered_person()`, `set_server_updated_at()`.
+      - Adds: table `customer_relationships` with `balance` bigint default 0, `status` default ACTIVE, `server_updated_at` and `deleted_at`, foreign keys (including `merged_into_id` to itself), indexes on each party column, and the triggers `require_registered_person('created_by_id', 'credit_limit_set_by_id')` and `set_server_updated_at()`.
+      - Party, pair, status and credit rules follow in REL-002 and REL-004.
+    acceptance: |
+      Scenario: AC-1 Defaults
+        When a relationship is inserted with a supplier organization and a customer person
+        Then `status` is ACTIVE, `balance` is 0, `created_at` and `server_updated_at` are set
+      Scenario Outline: AC-2 Enums and keys
+        When a row has <values>
+        Then the insert <result>
+        Examples:
+          | values                               | result  |
+          | status ENDED                         | accepts |
+          | status "BLOCKED"                     | rejects |
+          | ended_by_party "PLATFORM"            | rejects |
+          | an unknown supplier organization     | rejects (23503) |
+          | created_by_id of a guest             | rejects (23514) |
+      Scenario: AC-3 Required
+        When `created_by_id` is null
+        Then the insert fails with 23502
+    implementation:
+      create: [prisma/migrations/<timestamp>_rel_001_relationships/migration.sql, tests/integration/relationship/relationship-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/collaboration-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: enums, keys and author checks are enforced by the database."
+    tests: |
+      defaults | integration | AC-1, C-01, C-35 | insert → defaults; column types; server time
+      enums and keys | integration | AC-2, CustomerRelationship.status:enum, CustomerRelationship.ended_by_party:enum, CustomerRelationship:fk | each Examples row → accepted or rejected
+      required | integration | AC-3, CustomerRelationship:required | null created_by_id → 23502
+    command: npx vitest run tests/integration/relationship/relationship-table.test.ts
+    out_of_scope:
+      - "Party, pair, status and credit rules (REL-002, REL-004)."
+  - id: REL-002
+    title: Party and pair rules in the database
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [REL-001]
+    read_first: [prisma/schema.prisma, tests/integration/relationship/relationship-table.test.ts]
+    design_refs: [relations-commerciales/customerrelationship, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-06, C-07, C-08, C-09]
+    asvs: [v5.0.0-2.2.3, v5.0.0-8.2.2]
+    story: "Technical story: enforce who the parties are, one live relationship per pair, and the PENDING and ENDED rules with CHECKs and partial unique indexes."
+    context: |
+      - Exists: `customer_relationships` (REL-001).
+      - Adds: one migration with CHECKs and partial unique indexes over live rows (`deleted_at` is null and `merged_into_id` is null).
+      - Party rules: exactly one of `supplier_organization_id` and `supplier_person_id`; at most one of `customer_person_id` and `customer_organization_id`; no customer means `customer_label` is set; `customer_phone_number` is null when `customer_person_id` is set; `supplier_organization_id <> customer_organization_id`.
+      - Pair rules: unique live (`supplier_organization_id`, `customer_person_id`), (`supplier_organization_id`, `customer_organization_id`), (`supplier_person_id`, `customer_person_id`), (`supplier_person_id`, `customer_organization_id`); `merged_into_id` set requires `deleted_at` set.
+      - State rules: `status = 'PENDING'` if and only if `supplier_person_id` is set; `ended_by_party` is set if and only if `status = 'ENDED'`.
+    acceptance: |
+      Scenario Outline: AC-1 Parties
+        When a row has <values>
+        Then the insert <result>
+        Examples:
+          | values                                                          | result          |
+          | supplier organization and customer person                       | accepts         |
+          | both supplier columns set                                       | rejects (23514) |
+          | no supplier                                                     | rejects (23514) |
+          | customer person and customer organization                       | rejects (23514) |
+          | no customer, customer_label "Client de passage"                 | accepts         |
+          | no customer, customer_label empty                               | rejects (23514) |
+          | customer_person_id and customer_phone_number both set           | rejects (23514) |
+          | supplier and customer organization equal                        | rejects (23514) |
+      Scenario Outline: AC-2 One live relationship per pair
+        When a second row for the same pair is inserted while the first is <first>
+        Then the insert <result>
+        Examples:
+          | first                       | result          |
+          | live                        | rejects (23505) |
+          | deleted                     | accepts         |
+          | merged into another row     | accepts         |
+      Scenario: AC-3 Two counters
+        When one organization has two counters with different labels
+        Then both are accepted
+      Scenario Outline: AC-4 Status rules
+        When a row has <values>
+        Then the insert <result>
+        Examples:
+          | values                                        | result          |
+          | PENDING with a supplier person                | accepts         |
+          | PENDING with a supplier organization          | rejects (23514) |
+          | ACTIVE with a supplier person                 | rejects (23514) |
+          | ENDED with ended_by_party CUSTOMER            | accepts         |
+          | ENDED with ended_by_party empty               | rejects (23514) |
+          | ACTIVE with ended_by_party SUPPLIER           | rejects (23514) |
+          | merged_into_id set and deleted_at empty       | rejects (23514) |
+    abuse: |
+      Scenario: AB-1 Crafted duplicate relationship (tampering)
+        When code inserts a second live relationship for a pair
+        Then PostgreSQL refuses it, even though no validation ran
+    implementation:
+      create: [prisma/migrations/<timestamp>_rel_002_party_rules/migration.sql, tests/integration/relationship/party-rules.test.ts]
+      modify: []
+      pattern: tests/integration/relationship/relationship-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: related columns are checked together in the database."
+      - "v5.0.0-8.2.2: one live row per pair prevents a second, differently scoped copy of the account."
+    tests: |
+      parties | integration | AC-1, C-06 | each Examples row → accepted or 23514
+      pair rule | integration | AC-2, C-07 | each Examples row → accepted or 23505
+      two counters | integration | AC-3, C-07 | both accepted
+      state rules | integration | AC-4, C-08, C-09 | each Examples row → accepted or 23514
+      crafted duplicate | security | AB-1, CWE-20 | raw second live row → 23505
+    command: npx vitest run tests/integration/relationship/party-rules.test.ts
+    out_of_scope:
+      - "Credit limit rules (REL-004)."
+  - id: REL-003
+    title: Credit limit journal table
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [REL-001, FND-002, PER-008, PER-004]
+    read_first: [prisma/schema.prisma, tests/integration/person/phone-change-log.test.ts]
+    design_refs: [relations-commerciales/creditlimitchange]
+    constraints: [CreditLimitChange:required, CreditLimitChange:fk, C-32, C-39, C-04, C-35]
+    asvs: [v5.0.0-8.3.1, v5.0.0-16.3.3]
+    fields: ["CreditLimitChange.{customer_relationship_id,previous_limit,new_limit,set_by_id,set_at}"]
+    story: "Technical story: create the immutable journal of credit limits so that every change of the riskiest setting can be traced."
+    context: |
+      - Exists: `customer_relationships` (REL-001), role `distribo_app`, `getAppRolePrisma()`.
+      - Adds: table `credit_limit_changes` with `previous_limit` and `new_limit` nullable (empty means no ceiling), `server_updated_at`, triggers `require_registered_person('set_by_id')` and `set_server_updated_at()`, and `REVOKE UPDATE, DELETE, TRUNCATE ... FROM distribo_app`.
+    acceptance: |
+      Scenario: AC-1 Rows can be added and read
+        When the application account inserts a row and selects it
+        Then both succeed and `server_updated_at` is set
+      Scenario: AC-2 Rows cannot change
+        When the application account runs UPDATE or DELETE on a row
+        Then PostgreSQL answers permission denied (42501)
+      Scenario Outline: AC-3 Limits may be empty
+        When a row has previous_limit <previous> and new_limit <new>
+        Then the insert <result>
+        Examples:
+          | previous | new    | result  |
+          | 0        | 50000  | accepts |
+          | 50000    | empty  | accepts |
+          | empty    | 100000 | accepts |
+      Scenario: AC-4 Author and relationship
+        When `set_by_id` is a guest, or the relationship id is unknown
+        Then the insert fails with 23514 or 23503
+    abuse: |
+      Scenario: AB-1 Rewriting a credit decision (repudiation)
+        When code running as the application account edits `new_limit`
+        Then the change is refused and the row is unchanged
+    implementation:
+      create: [prisma/migrations/<timestamp>_rel_003_credit_limit_changes/migration.sql, tests/integration/relationship/credit-limit-changes-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/person/phone-change-log.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-8.3.1: only INSERT and SELECT are granted to `distribo_app`."
+      - "v5.0.0-16.3.3: each credit decision has an author and a server time."
+    tests: |
+      add and read | integration | AC-1, CreditLimitChange:required, C-35 | as `distribo_app` → row with server time
+      immutable | security | AC-2, AB-1, C-32, C-39, WSTG-ATHZ-03 | UPDATE, DELETE → 42501
+      empty limits | integration | AC-3 | each Examples row → accepted
+      author and key | integration | AC-4, C-04, CreditLimitChange:fk | guest → 23514; unknown relationship → 23503
+    command: npx vitest run tests/integration/relationship/credit-limit-changes-table.test.ts
+    out_of_scope:
+      - "Writing rows: the trigger in REL-004 and the route in REL-012."
+  - id: REL-004
+    title: Credit limit rules and journal trigger
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [REL-002, REL-003]
+    read_first: [prisma/schema.prisma, tests/integration/relationship/party-rules.test.ts]
+    design_refs: [relations-commerciales/customerrelationship, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-10]
+    asvs: [v5.0.0-2.2.3, v5.0.0-16.3.3]
+    story: "Technical story: enforce the credit limit rules and write the journal row from the database, so that no code path can change a limit without a trace."
+    context: |
+      - Exists: `customer_relationships` with `credit_limit` (nullable bigint), `credit_limit_set_by_id`, `credit_limit_set_at`; `credit_limit_changes` (REL-003).
+      - Adds: one migration. New rows get `credit_limit` 0 by default. CHECK: a counter (no customer) has `credit_limit = 0`; `credit_limit_set_by_id` and `credit_limit_set_at` are both null or both set; `credit_limit >= 0` when set.
+      - Trigger `AFTER UPDATE OF credit_limit`: when the value changes it inserts one `credit_limit_changes` row (`previous_limit` = old, `new_limit` = new, `set_by_id` = `credit_limit_set_by_id`, `set_at` = `now()`); the same statement must also change `credit_limit_set_by_id` (a change with an unchanged author is refused with 23514) and sets `credit_limit_set_at` to `now()`.
+    acceptance: |
+      Scenario: AC-1 Default
+        When a relationship is inserted without `credit_limit`
+        Then `credit_limit` is 0 and no journal row exists
+      Scenario Outline: AC-2 Rules
+        When a row has <values>
+        Then the statement <result>
+        Examples:
+          | values                                                   | result          |
+          | counter with credit_limit 10000                          | rejects (23514) |
+          | credit_limit -1                                          | rejects (23514) |
+          | credit_limit_set_by_id set, credit_limit_set_at empty    | rejects (23514) |
+          | credit_limit empty (no ceiling) on a customer            | accepts         |
+      Scenario: AC-3 Journal from the database
+        When an update sets `credit_limit` 50000 and `credit_limit_set_by_id` to a registered person
+        Then one journal row has previous 0, new 50000, that author and a server time, and `credit_limit_set_at` is that time
+      Scenario: AC-4 Author must change with the value
+        When an update changes `credit_limit` without changing `credit_limit_set_by_id`
+        Then the update fails with 23514 and the value is unchanged
+      Scenario: AC-5 Same value is no change
+        When an update sets the same `credit_limit`
+        Then no journal row is added
+      Scenario: AC-6 Same transaction
+        When the transaction rolls back
+        Then neither the limit nor the journal row exists
+    abuse: |
+      Scenario: AB-1 Silent limit change (repudiation)
+        When code raises a limit and tries to avoid the journal
+        Then the journal row exists anyway, or the update fails
+    implementation:
+      create: [prisma/migrations/<timestamp>_rel_004_credit_limit_rules/migration.sql, tests/integration/relationship/credit-limit-rules.test.ts]
+      modify: []
+      pattern: tests/integration/relationship/party-rules.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: limit, author and time are checked together."
+      - "v5.0.0-16.3.3: the journal is written by a trigger, so it cannot be skipped."
+    tests: |
+      default | integration | AC-1, C-10 | limit 0, no journal
+      rules | integration | AC-2, C-10 | each Examples row → accepted or 23514
+      journal | integration | AC-3, C-10 | one row with previous, new, author, time
+      author changes | integration | AC-4 | 23514, unchanged
+      same value | integration | AC-5 | no row
+      transaction | integration | AC-6, CWE-362 | rollback → nothing
+      silent change | security | AB-1, CWE-778 | update without journal impossible
+    command: npx vitest run tests/integration/relationship/credit-limit-rules.test.ts
+    out_of_scope:
+      - "The route that changes a limit (REL-012)."
+  - id: REL-005
+    title: Visibility predicate and party projections
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [REL-002, ORG-005]
+    read_first: [docs/stories/modules/organization/contracts.md, prisma/schema.prisma]
+    design_refs: [relations-commerciales/customerrelationship, identite-et-organisation/person]
+    constraints: [CM-19, CM-20]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.2.3, v5.0.0-8.4.1, v5.0.0-15.3.1]
+    story: "Technical story: provide the one predicate that says which relationships a viewer may see and the projections that give each party only its own fields."
+    context: |
+      - Exists: `customer_relationships` (REL-001, REL-002); `toPublicPerson`.
+      - Adds: `src/modules/relationship/relationship.visibility.ts`.
+      - `visibleRelationsWhere({ personId, organizationIds })` returns a Prisma filter: live rows (`deleted_at` and `merged_into_id` null) where the supplier or customer organization is in `organizationIds`, or `customer_person_id` = `personId`, or `supplier_person_id` = `personId`.
+      - `projectForSupplier` returns `id, status, customer (public person view or organization name), customer_label, supplier_notes, delivery_address, credit_limit, credit_limit_set_by_id, credit_limit_set_at, balance, ended_by_party, created_at`; `projectForCustomer` returns `id, status, supplier (organization name and description, or person public view), supplier_label, delivery_address, credit_limit, balance, ended_by_party, created_at`; `projectForDriver` returns `id, customer name, available_credit` (limit minus balance, null when there is no ceiling).
+    acceptance: |
+      Scenario Outline: AC-1 Who sees a row
+        Given a relationship between supplier organization S and customer person C
+        When the viewer is <viewer>
+        Then the row is <result>
+        Examples:
+          | viewer                                        | result  |
+          | a member of S                                 | visible |
+          | C                                             | visible |
+          | a member of another organization              | hidden  |
+          | another person                                | hidden  |
+          | the supplier person of a PENDING invitation   | visible |
+          | S when the row is deleted or merged           | hidden  |
+      Scenario: AC-2 Supplier projection
+        Then it contains customer_label and supplier_notes and does not contain supplier_label
+      Scenario: AC-3 Customer projection
+        Then it contains supplier_label and does not contain customer_label or supplier_notes
+      Scenario: AC-4 Driver projection
+        When the limit is 50000 and the balance 40000
+        Then available_credit is 10000 and neither credit_limit nor balance is present
+        And with no ceiling available_credit is null
+    abuse: |
+      Scenario: AB-1 Reading another organization's relationships (horizontal)
+        When a viewer of organization A applies the predicate to a table holding B's rows
+        Then no row of B is returned
+      Scenario: AB-2 Private fields of the other party (information disclosure)
+        When any projection is serialized
+        Then none of the other party's private fields appears
+    implementation:
+      create: [src/modules/relationship/relationship.visibility.ts, tests/integration/relationship/visibility.test.ts]
+      modify: []
+      pattern: src/modules/tasks/tasks.repository.ts
+      signatures:
+        - "visibleRelationsWhere(viewer: { personId: string; organizationIds: string[] }): Prisma.CustomerRelationshipWhereInput"
+        - "projectForSupplier(row: RelationshipRow): SupplierRelationshipView"
+        - "projectForCustomer(row: RelationshipRow): CustomerRelationshipView"
+        - "projectForDriver(row: RelationshipRow): DriverRelationshipView"
+      types:
+        - "DriverRelationshipView = { id: string; customer_name: string | null; available_credit: number | null }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: one predicate for every consumer."
+      - "v5.0.0-8.2.3: projections are built from explicit field lists."
+      - "v5.0.0-8.4.1: an empty `organizationIds` matches no organization row."
+    tests: |
+      who sees | integration | AC-1 | each Examples row → visible or hidden
+      supplier view | unit | AC-2, CM-19, CM-20 | keys checked; the customer person part has exactly public_name, phone_number, registered
+      customer view | unit | AC-3, CM-19 | keys checked
+      driver view | unit | AC-4 | available_credit arithmetic; no limit or balance
+      other organization | security | AB-1, WSTG-ATHZ-04 | no foreign rows
+      private fields | security | AB-2, CWE-200 | serialized views lack the other side's fields
+    command: npx vitest run tests/integration/relationship/visibility.test.ts
+    out_of_scope:
+      - "Routes that use it (REL-008 onward)."
+  - id: REL-006
+    title: Every new organization gets its first counter
+    kind: change
+    size: S
+    risk: medium
+    depends_on: [REL-004, ORG-004]
+    amends: [ORG-004]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/organization, relations-commerciales/customerrelationship/comptoirs]
+    constraints: [C-06, C-10]
+    asvs: [v5.0.0-2.3.3]
+    story: "Technical story: create the counter 'Client de passage' with every new organization, so that anonymous sales have a relationship to belong to."
+    context: |
+      - Exists: `createOrganization` in `organization.service.ts` (ORG-004) creating the organization and the OWNER collaboration in one transaction.
+      - Adds: `src/modules/relationship/relationship.repository.ts` with `createCounter(tx, { supplierOrganizationId, label, createdById })` (no customer, `credit_limit` 0, status ACTIVE).
+      - Changes: `createOrganization` calls it in the same transaction with label "Client de passage" and the owner as creator.
+    acceptance: |
+      Scenario: AC-1 Counter created
+        When an organization is created
+        Then exactly one relationship exists with no customer, customer_label "Client de passage", credit_limit 0, status ACTIVE and the owner as created_by
+      Scenario: AC-2 Atomic
+        When the counter insert fails
+        Then no organization and no collaboration exist
+      Scenario: AC-3 Existing behavior
+        Then the response of POST /api/v1/organizations is unchanged
+      Scenario: AC-4 Repeat
+        When the same creation body is posted twice
+        Then one counter exists
+    implementation:
+      create: [src/modules/relationship/relationship.repository.ts, tests/integration/relationship/default-counter.test.ts]
+      modify: [src/modules/organization/organization.service.ts]
+      pattern: src/modules/organization/organization.repository.ts
+      signatures:
+        - "createCounter(tx: Prisma.TransactionClient, input: { supplierOrganizationId: string; label: string; createdById: string }): Promise<CustomerRelationship>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: organization, owner and counter are one transaction."
+    tests: |
+      counter | integration | AC-1, C-06, C-10 | one counter with the stated values
+      atomic | integration | AC-2, CWE-362 | forced failure → nothing stored
+      unchanged response | integration | AC-3 | same body as before
+      repeat | integration | AC-4 | one counter
+    command: npx vitest run tests/integration/relationship/default-counter.test.ts tests/integration/organization/create.test.ts
+    out_of_scope:
+      - "Extra counters (REL-011)."
+    tests_to_update: []
+  - id: REL-007
+    title: Seller adds a customer by phone number
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [REL-006, REL-005, ACC-002, ACC-007, PER-005, NTF-002]
+    read_first: [docs/stories/modules/relationship/contracts.md, src/modules/relationship/relationship.repository.ts]
+    design_refs: [relations-commerciales/customerrelationship/entree-en-relation-le-numero-comme, relations-commerciales/customerrelationship]
+    constraints: [C-06, C-07, C-10]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-2.3.3]
+    story: As a seller, I want to add a customer by phone number so that I can sell to them at once.
+    context: |
+      - Exists: `createCounter` (REL-006); `findOrCreateByPhone` (PER-005); `requireAbility('create', 'CustomerRelationship')` (ACC-002, DAYS_3 rule; this route is online); `assertOrganizationActive`; `idempotent()`; `notify`; `projectForSupplier` (REL-005).
+      - Adds: `POST /api/v1/organizations/{organizationId}/customers` with `{ id, phone_number, customer_label?, delivery_address? }` and `ensureCustomerRelationship` in `relationship.repository.ts`. Response 201 with `projectForSupplier`.
+      - The person is found or created as a guest. The relationship is ACTIVE, `credit_limit` 0, `balance` 0, `created_by_id` the caller. An existing live relationship for the same organization and person is returned with 200 instead of creating another. A registered customer gets a notification `customer.added`.
+      - `customer_label` 1 to 100 characters, `delivery_address` up to 2000 (Q-027). The organization must be ACTIVE.
+    acceptance: |
+      Scenario: AC-1 New customer
+        When a seller posts a new number with label "Maman Ngono"
+        Then the response is 201, the relationship is ACTIVE with credit_limit 0 and balance 0, and a guest person holds the number
+      Scenario: AC-2 Registered customer is notified
+        When the number belongs to a registered person
+        Then that person has one unread notification `customer.added`
+      Scenario: AC-3 Existing customer
+        When the same number is added again
+        Then the response is 200 with the same relationship and nothing new is created
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                            | status                      |
+          | a landline                         | 400 VALIDATION_ERROR        |
+          | customer_label of 101 characters   | 400 VALIDATION_ERROR        |
+          | a CLOSED organization              | 409 ORGANIZATION_NOT_ACTIVE |
+          | a DRIVER caller                    | 403 FORBIDDEN               |
+      Scenario: AC-5 Repeat of one gesture
+        When the same body with the same id is posted twice
+        Then both answers are equal
+    abuse: |
+      Scenario: AB-1 Credit chosen by the client (mass assignment)
+        When the body contains credit_limit, balance, status or created_by_id
+        Then the response is 400 and nothing is stored
+      Scenario: AB-2 Adding a customer to another business (horizontal)
+        When a member of A posts to business B
+        Then the response is 404
+    implementation:
+      create: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, tests/integration/relationship/add-customer.test.ts]
+      modify: [src/modules/relationship/relationship.repository.ts, src/app.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "addCustomer(actor: Actor, input: AddCustomerInput): Promise<{ created: boolean; relationship: SupplierRelationshipView }>"
+        - "ensureCustomerRelationship(tx: Prisma.TransactionClient, input: EnsureInput): Promise<{ relationship: CustomerRelationship; created: boolean }>"
+      types:
+        - "AddCustomerInput = { id: string; phone_number: string; customer_label?: string; delivery_address?: string }"
+      errors: ["VALIDATION_ERROR 400", "ORGANIZATION_NOT_ACTIVE 409", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: behind `loadActor` and `requireAbility`."
+      - "v5.0.0-15.3.3: strict schema with four fields; the credit limit starts at 0."
+      - "v5.0.0-2.3.3: person, relationship and notification are written together."
+    tests: |
+      new customer | integration | AC-1, C-06, C-10 | 201, ACTIVE, limit 0, guest person
+      notified | integration | AC-2 | notification row
+      existing | integration | AC-3, C-07 | 200, no new row
+      refusals | integration | AC-4 | each Examples row → status
+      repeat | integration | AC-5 | equal answers
+      mass assignment | security | AB-1, CWE-915 | 400
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/relationship/add-customer.test.ts
+    out_of_scope:
+      - "Adding a customer offline: the phone writes `customer_phone_number` and the server resolves it (SYNC module)."
+      - "OpenAPI registration of this route (REL-008)."
+  - id: REL-008
+    title: Seller lists the customers
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [REL-007, FND-009]
+    read_first: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.visibility.ts]
+    design_refs: [relations-commerciales/customerrelationship]
+    constraints: [CM-19]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.4.1, v5.0.0-15.3.1]
+    story: As a seller, I want to list my customers so that I can find one to sell to.
+    context: |
+      - Exists: `POST .../customers` (REL-007); `visibleRelationsWhere`, `projectForSupplier`; pagination helpers.
+      - Adds: `GET /api/v1/organizations/{organizationId}/customers?limit&cursor&status&counter` (SELLER and above; DRIVER gets 403). `status` filters ACTIVE, PENDING or ENDED; `counter=true` returns only counters, `false` only customers. Rows are the organization's relationships as supplier, `projectForSupplier`, newest first.
+      - Adds `relationship.openapi.ts` documenting this route and REL-007's; `relationship.routes.ts` imports it for its side effect.
+    acceptance: |
+      Scenario: AC-1 List
+        Given an organization with 3 customers and the default counter
+        When a SELLER lists
+        Then 4 items are returned newest first, each with customer_label and supplier_notes and no supplier_label
+      Scenario Outline: AC-2 Filters
+        When the query has <query>
+        Then <count> items are returned
+        Examples:
+          | query           | count |
+          | counter=true    | 1     |
+          | counter=false   | 3     |
+          | status=ENDED    | 0     |
+      Scenario: AC-3 Pagination
+        When limit 2 is used with the returned cursor
+        Then the pages hold 2 and 2 items
+      Scenario: AC-4 Driver refused
+        When a DRIVER lists
+        Then the response is 403 `FORBIDDEN`
+    abuse: |
+      Scenario: AB-1 Another business's customers (horizontal)
+        When a member of A lists the customers of B
+        Then the response is 404
+      Scenario: AB-2 Customer-side fields (information disclosure)
+        When the list is read
+        Then no supplier_label appears
+    implementation:
+      create: [src/modules/relationship/relationship.openapi.ts, tests/integration/relationship/list-customers.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.schemas.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "listCustomers(actor: Actor, query: ListCustomersQuery): Promise<{ items: SupplierRelationshipView[]; next_cursor: string | null }>"
+      types:
+        - "ListCustomersQuery = { limit: number; cursor?: string; status?: 'PENDING' | 'ACTIVE' | 'ENDED'; counter?: boolean }"
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.2: the query starts from the visibility predicate for the actor's organization."
+      - "v5.0.0-15.3.1: the projection lists fields explicitly."
+    tests: |
+      list | integration | AC-1, CM-19 | 4 items, supplier view
+      filters | integration | AC-2 | each Examples row → count
+      paging | integration | AC-3 | 2 and 2
+      driver | integration | AC-4 | 403
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+      customer fields | security | AB-2, CWE-200 | no supplier_label
+    command: npx vitest run tests/integration/relationship/list-customers.test.ts
+    out_of_scope:
+      - "Search by name."
+  - id: REL-009
+    title: Seller opens one customer
+    kind: feature
+    size: XS
+    risk: medium
+    depends_on: [REL-008]
+    read_first: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.service.ts]
+    design_refs: [relations-commerciales/customerrelationship]
+    constraints: [CM-19]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a seller, I want to open a customer's record so that I see their balance, credit limit and notes.
+    context: |
+      - Exists: `GET .../customers` (REL-008).
+      - Adds: `GET /api/v1/organizations/{organizationId}/customers/{relationshipId}` (SELLER and above) returning `projectForSupplier`. An id outside the organization's relationships, malformed or deleted answers 404 or 400.
+    acceptance: |
+      Scenario: AC-1 Open
+        When a SELLER opens a customer of their organization
+        Then the response is 200 with the supplier view including balance and credit_limit
+      Scenario Outline: AC-2 Not found
+        When the id is <case>
+        Then the response is <status>
+        Examples:
+          | case                                  | status |
+          | a relationship of another business    | 404    |
+          | a deleted relationship                | 404    |
+          | not a UUID                            | 400    |
+      Scenario: AC-3 Driver refused
+        Then a DRIVER gets 403
+    abuse: |
+      Scenario: AB-1 Reading a relationship by id from another business (horizontal)
+        When a member of A requests a relationship id of B under A's path
+        Then the response is 404
+    implementation:
+      create: [tests/integration/relationship/get-customer.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "getCustomer(actor: Actor, relationshipId: string): Promise<SupplierRelationshipView>"
+      types: []
+      errors: ["NOT_FOUND 404", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the row is selected by id and the visibility predicate together."
+    tests: |
+      open | integration | AC-1, CM-19 | supplier view
+      not found | integration | AC-2 | each Examples row → status
+      driver | integration | AC-3 | 403
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/relationship/get-customer.test.ts
+    out_of_scope:
+      - "Orders and ledger of the customer (ORD, FIN modules)."
+  - id: REL-010
+    title: Seller edits the supplier-side fields
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [REL-009, ACC-002]
+    read_first: [src/modules/relationship/relationship.service.ts, src/shared/access/ability.ts]
+    design_refs: [relations-commerciales/customerrelationship]
+    constraints: [CM-19, C-06]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.3, v5.0.0-15.3.3]
+    story: As a seller, I want to change a customer's label, address and notes so that my records stay right.
+    context: |
+      - Exists: `GET .../customers/{id}` (REL-009); `abilityFor` with the ACC-002 field rules.
+      - Adds: `PATCH /api/v1/organizations/{organizationId}/customers/{relationshipId}` with any of `customer_label` (1 to 100), `delivery_address` (up to 2000), `supplier_notes` (up to 2000; null clears); response 200 `projectForSupplier`.
+      - The service asks `abilityFor(role, { onServer: false, online: true, daysSinceSync: 0 })` whether the role may update each field sent; a field not allowed answers 403 `FORBIDDEN` and nothing is changed. At least one field is required.
+    acceptance: |
+      Scenario: AC-1 Edit
+        When a SELLER patches customer_label and supplier_notes
+        Then the response is 200 with the new values
+      Scenario Outline: AC-2 Limits
+        When the body has <field> = <value>
+        Then the response is <status>
+        Examples:
+          | field           | value      | status |
+          | customer_label  | empty      | 400    |
+          | customer_label  | 101 chars  | 400    |
+          | supplier_notes  | 2001 chars | 400    |
+          | (no field)      |            | 400    |
+      Scenario: AC-3 Counter label
+        When a counter's customer_label is set to empty
+        Then the response is 400 because a counter needs a label
+      Scenario: AC-4 Driver refused
+        Then a DRIVER gets 403
+    abuse: |
+      Scenario: AB-1 Credit and balance in the body (mass assignment)
+        When the body contains credit_limit, balance, status, supplier_label or customer_person_id
+        Then the response is 400 and nothing changes
+      Scenario: AB-2 Another business's customer (horizontal)
+        When a member of A patches a relationship of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/relationship/edit-customer.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "editCustomer(actor: Actor, relationshipId: string, input: EditCustomerInput): Promise<SupplierRelationshipView>"
+      types:
+        - "EditCustomerInput = { customer_label?: string; delivery_address?: string | null; supplier_notes?: string | null }"
+      errors: ["VALIDATION_ERROR 400", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.3: field-level check per key through the rules table."
+      - "v5.0.0-15.3.3: strict schema with three optional fields."
+    tests: |
+      edit | integration | AC-1, CM-19 | 200, new values
+      limits | integration | AC-2 | each Examples row → 400
+      counter label | integration | AC-3, C-06 | 400
+      driver | integration | AC-4 | 403
+      mass assignment | security | AB-1, CWE-915 | 400, unchanged
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/relationship/edit-customer.test.ts
+    out_of_scope:
+      - "Credit limit (REL-012). Ending the relationship (REL-014)."
+  - id: REL-011
+    title: Manager adds a counter
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [REL-007, ACC-002, REL-008]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts]
+    design_refs: [relations-commerciales/customerrelationship/comptoirs]
+    constraints: [C-06, C-10]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: As a manager, I want to add a named counter so that sales at another place have their own prices.
+    context: |
+      - Exists: `createCounter` (REL-006); the ACC-002 rule for MANAGER, ONLINE, create, CustomerRelationship with condition `counter: true` (Q-029); `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/counters` with `{ id, customer_label }`; response 201 `projectForSupplier`. The service checks the ability with subject `{ counter: true }`.
+      - A counter has no customer, `credit_limit` 0, status ACTIVE. Two counters of one organization may not share a label (409 `COUNTER_LABEL_TAKEN`).
+    acceptance: |
+      Scenario: AC-1 Add
+        When a MANAGER posts "Comptoir usine"
+        Then the response is 201 and a counter with that label and credit_limit 0 exists
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                            | status                   |
+          | a SELLER caller                    | 403 FORBIDDEN            |
+          | an empty label                     | 400 VALIDATION_ERROR     |
+          | a label already used by a counter  | 409 COUNTER_LABEL_TAKEN  |
+          | credit_limit in the body           | 400 VALIDATION_ERROR     |
+      Scenario: AC-3 Repeat
+        When the same body is posted twice
+        Then one counter exists
+    abuse: |
+      Scenario: AB-1 Seller creates a counter (vertical)
+        When a SELLER or DRIVER posts
+        Then the response is 403 and nothing is stored
+    implementation:
+      create: [tests/integration/relationship/add-counter.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "addCounter(actor: Actor, input: { id: string; customer_label: string }): Promise<SupplierRelationshipView>"
+      types: []
+      errors: ["COUNTER_LABEL_TAKEN 409", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager and online only."
+      - "v5.0.0-15.3.3: strict schema with two fields."
+    tests: |
+      add | integration | AC-1, C-06, C-10 | 201, counter
+      refusals | integration | AC-2 | each Examples row → status
+      repeat | integration | AC-3 | one counter
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/relationship/add-counter.test.ts
+    out_of_scope:
+      - "Counter prices (CAT module)."
+  - id: REL-012
+    title: Owner or manager sets a credit limit
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [REL-009, REL-004, ACC-002, ACC-007, NTF-002]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts]
+    design_refs: [relations-commerciales/customerrelationship/plafond-de-credit-une-seule-regle, relations-commerciales/creditlimitchange]
+    constraints: [C-10, C-04]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: As an owner, I want to set a customer's credit limit so that credit is granted only by decision.
+    context: |
+      - Exists: the credit rules and the journal trigger (REL-004); `requireAbility('update', 'CustomerRelationship')` field `credit_limit` (ACC-002: MANAGER online, OWNER always); `notify`; `idempotent()`.
+      - Adds: `PUT /api/v1/organizations/{organizationId}/customers/{relationshipId}/credit-limit` with `{ id, credit_limit }`, an integer of at least 0 or `null` (no ceiling); response 200 `projectForSupplier`.
+      - One update sets `credit_limit`, `credit_limit_set_by_id` (the caller) and `credit_limit_set_at`; the trigger writes the journal.
+      - Refused: a counter (409 `COUNTER_NO_CREDIT`); a relationship where the caller is the customer or manages the customer organization (403 `OWN_RECORD`; such gestures return to the owner, and an owner is refused only on a customer person equal to themselves); a PENDING or ENDED relationship (409 `RELATIONSHIP_NOT_ACTIVE`).
+      - When a MANAGER raises a limit, the owner gets a notification `credit_limit.raised`.
+    acceptance: |
+      Scenario: AC-1 Set a limit
+        When an OWNER sets 100000 on an ACTIVE customer
+        Then the response is 200, credit_limit is 100000, the author is the OWNER and one journal row exists
+      Scenario: AC-2 Manager raises
+        When a MANAGER raises the limit to 500000
+        Then the owner gets one notification `credit_limit.raised`
+      Scenario: AC-3 Lower and clear
+        When the limit is lowered to 20000, then set to null
+        Then two more journal rows exist, the last with new_limit empty
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and the limit is unchanged
+        Examples:
+          | problem                                      | status                    |
+          | a SELLER or DRIVER caller                    | 403 FORBIDDEN             |
+          | a counter                                    | 409 COUNTER_NO_CREDIT     |
+          | credit_limit -1                              | 400 VALIDATION_ERROR      |
+          | credit_limit 1.5                             | 400 VALIDATION_ERROR      |
+          | a manager on their own customer record       | 403 OWN_RECORD            |
+          | a PENDING or ENDED relationship              | 409 RELATIONSHIP_NOT_ACTIVE |
+      Scenario: AC-5 Repeat
+        When the same id is sent twice
+        Then one journal row exists
+    abuse: |
+      Scenario: AB-1 Seller or driver grants credit (vertical)
+        When a SELLER or DRIVER puts a limit
+        Then the response is 403 and no journal row exists
+      Scenario: AB-2 Manager grants credit to themselves (elevation)
+        When a MANAGER who is the customer person raises their own limit
+        Then the response is 403 `OWN_RECORD`
+      Scenario: AB-3 Author chosen by the client (mass assignment)
+        When the body contains credit_limit_set_by_id or credit_limit_set_at
+        Then the response is 400
+    implementation:
+      create: [tests/integration/relationship/credit-limit.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "setCreditLimit(actor: Actor, relationshipId: string, input: { id: string; credit_limit: number | null }): Promise<SupplierRelationshipView>"
+      types: []
+      errors: ["COUNTER_NO_CREDIT 409", "OWN_RECORD 403", "RELATIONSHIP_NOT_ACTIVE 409", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: owner, or manager online, decided by the rules table."
+      - "v5.0.0-2.3.3: limit, author, time and journal row are one statement."
+      - "v5.0.0-16.3.1: log `warn` event `credit_limit_changed` with relationship id, author id, previous and new limit."
+    tests: |
+      set | integration | AC-1, C-10, C-04 | 200, author, one journal row
+      manager raises | integration | AC-2 | owner notified
+      lower and clear | integration | AC-3 | three rows, last new_limit empty
+      refusals | integration | AC-4 | each Examples row → status, unchanged
+      repeat | integration | AC-5 | one row
+      seller or driver | security | AB-1, WSTG-ATHZ-03 | 403, no row
+      own record | security | AB-2, CWE-639 | 403 OWN_RECORD
+      author from client | security | AB-3, CWE-915 | 400
+    command: npx vitest run tests/integration/relationship/credit-limit.test.ts
+    out_of_scope:
+      - "Raising the limit inside a sale (DLV module)."
+  - id: REL-013
+    title: Owner reads the credit limit history
+    kind: feature
+    size: XS
+    risk: medium
+    depends_on: [REL-012, FND-009]
+    read_first: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.repository.ts]
+    design_refs: [relations-commerciales/creditlimitchange]
+    constraints: []
+    asvs: [v5.0.0-8.2.2, v5.0.0-16.3.3]
+    story: As an owner, I want to read the history of a customer's credit limit so that I know who decided what and when.
+    context: |
+      - Exists: journal rows (REL-004, REL-012).
+      - Adds: `GET /api/v1/organizations/{organizationId}/customers/{relationshipId}/credit-limit-changes` (OWNER and MANAGER; paginated, newest first; `previous_limit, new_limit, set_by_id, set_at`). SELLER and DRIVER get 403.
+    acceptance: |
+      Scenario: AC-1 History
+        Given three changes on one relationship
+        When the owner reads the history
+        Then three items are returned newest first
+      Scenario Outline: AC-2 Roles
+        When the caller is <role>
+        Then the response is <status>
+        Examples:
+          | role    | status |
+          | OWNER   | 200    |
+          | MANAGER | 200    |
+          | SELLER  | 403    |
+          | DRIVER  | 403    |
+      Scenario: AC-3 Pagination
+        Given 5 changes
+        Then limit 2 with cursors returns pages of 2, 2 and 1
+    abuse: |
+      Scenario: AB-1 Another business's history (horizontal)
+        When a member of A requests the history of a relationship of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/relationship/credit-limit-history.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "listCreditLimitChanges(actor: Actor, relationshipId: string, query: { limit: number; cursor?: string }): Promise<{ items: CreditLimitChangeView[]; next_cursor: string | null }>"
+      types: []
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the relationship is loaded through the visibility predicate first."
+    tests: |
+      history | integration | AC-1 | three items newest first
+      roles | integration | AC-2 | each Examples row → status
+      paging | integration | AC-3 | 2, 2, 1
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/relationship/credit-limit-history.test.ts
+    out_of_scope:
+      - "Notifications (kept 24 months) are not the history."
+  - id: REL-014
+    title: Reassignment journal table
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [REL-002, FND-002, PER-008, REL-003]
+    read_first: [prisma/schema.prisma, tests/integration/relationship/credit-limit-changes-table.test.ts]
+    design_refs: [relations-commerciales/customerrelationshipreassignment]
+    constraints: [CustomerRelationshipReassignment:required, CustomerRelationshipReassignment:fk, C-12, C-04, C-35, C-32, C-39]
+    asvs: [v5.0.0-8.3.1, v5.0.0-16.3.3]
+    fields: ["CustomerRelationshipReassignment.{customer_relationship_id,previous_person_id,new_person_id,reassigned_by_id,reason,reassigned_at}"]
+    story: "Technical story: create the immutable journal of customer changes on a relationship so that every correction and contestation is traceable."
+    context: |
+      - Exists: `customer_relationships` (REL-001), role `distribo_app`, `require_registered_person()`.
+      - Adds: table `customer_relationship_reassignments` with `server_updated_at`, triggers `require_registered_person('reassigned_by_id')` and `set_server_updated_at()`, `REVOKE UPDATE, DELETE, TRUNCATE ... FROM distribo_app`.
+      - A contestation is a row whose `reassigned_by_id` equals `previous_person_id`. A partial unique index on (`customer_relationship_id`, `previous_person_id`) where `reassigned_by_id = previous_person_id` allows one contestation per relationship and person.
+    acceptance: |
+      Scenario: AC-1 Rows can be added and read
+        When the application account inserts a row and selects it
+        Then both succeed and `server_updated_at` is set
+      Scenario: AC-2 Rows cannot change
+        When the application account runs UPDATE or DELETE
+        Then PostgreSQL answers permission denied (42501)
+      Scenario Outline: AC-3 Contestation rule
+        When a second row for the same relationship and previous person has <values>
+        Then the insert <result>
+        Examples:
+          | values                                                  | result          |
+          | reassigned_by_id equal to previous_person_id (both)     | rejects (23505) |
+          | reassigned_by_id another person (a correction)          | accepts         |
+      Scenario: AC-4 Required and keys
+        When `new_person_id` is null, the relationship is unknown, or `reassigned_by_id` is a guest
+        Then the insert fails with 23502, 23503 or 23514
+    abuse: |
+      Scenario: AB-1 Erasing a contestation (repudiation)
+        When code running as the application account deletes a row
+        Then the delete is refused and the row remains
+    implementation:
+      create: [prisma/migrations/<timestamp>_rel_014_reassignments/migration.sql, tests/integration/relationship/reassignment-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/relationship/credit-limit-changes-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-8.3.1: only INSERT and SELECT are granted to `distribo_app`."
+      - "v5.0.0-16.3.3: the journal keeps who moved a relationship and why."
+    tests: |
+      add and read | integration | AC-1, C-35 | as `distribo_app` → row with server time
+      immutable | security | AC-2, AB-1, C-32, C-39, WSTG-ATHZ-03 | UPDATE, DELETE → 42501
+      contestation rule | integration | AC-3, C-12 | each Examples row → accepted or 23505
+      required and keys | integration | AC-4, CustomerRelationshipReassignment:required, CustomerRelationshipReassignment:fk, C-04 | rejected
+    command: npx vitest run tests/integration/relationship/reassignment-table.test.ts
+    out_of_scope:
+      - "Writing rows (REL-023, REL-024)."
+  - id: REL-015
+    title: Manager ends and reopens a relationship as supplier
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [REL-009, ACC-002, ACC-007]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.routes.ts]
+    design_refs: [relations-commerciales/customerrelationship/fin-de-relation]
+    constraints: [C-09]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.1]
+    story: As a manager, I want to end a relationship with a customer, and reopen it, so that I can block a customer and later accept them again.
+    context: |
+      - Exists: `GET .../customers/{id}` (REL-009); rules `end` and `reopen` on CustomerRelationship for MANAGER online (ACC-002, Q-030); `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/customers/{relationshipId}/end` and `.../reopen` with `{ id }`; response 200 `projectForSupplier`.
+      - End: ACTIVE becomes ENDED with `ended_by_party` SUPPLIER; history, balance and payments stay. Reopen: only when ENDED with `ended_by_party` SUPPLIER; a relationship ended by the customer answers 409 `ENDED_BY_OTHER_PARTY`.
+      - A counter cannot be ended (409 `COUNTER_CANNOT_END`); a PENDING relationship cannot be ended here (409 `RELATIONSHIP_NOT_ACTIVE`).
+    acceptance: |
+      Scenario: AC-1 End
+        When a MANAGER ends an ACTIVE customer relationship
+        Then it is ENDED with ended_by_party SUPPLIER and the balance is unchanged
+      Scenario: AC-2 Reopen own closure
+        When the manager reopens it
+        Then it is ACTIVE with ended_by_party empty
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                        | status                      |
+          | reopening a relationship the customer ended    | 409 ENDED_BY_OTHER_PARTY    |
+          | ending a counter                               | 409 COUNTER_CANNOT_END      |
+          | ending a PENDING relationship                  | 409 RELATIONSHIP_NOT_ACTIVE |
+          | a SELLER caller                                | 403 FORBIDDEN               |
+      Scenario: AC-4 Repeat
+        When the same id is sent twice
+        Then both answers are equal
+    abuse: |
+      Scenario: AB-1 Seller blocks a customer (vertical)
+        When a SELLER or DRIVER posts end
+        Then the response is 403 and nothing changes
+      Scenario: AB-2 Reopening a relationship ended by the customer (tampering)
+        When the supplier reopens a relationship the customer ended
+        Then the response is 409 and it stays ENDED
+    implementation:
+      create: [tests/integration/relationship/end-reopen-supplier.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "endRelationship(actor: Actor, relationshipId: string): Promise<SupplierRelationshipView>"
+        - "reopenRelationship(actor: Actor, relationshipId: string): Promise<SupplierRelationshipView>"
+      types: []
+      errors: ["ENDED_BY_OTHER_PARTY 409", "COUNTER_CANNOT_END 409", "RELATIONSHIP_NOT_ACTIVE 409", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager and online only."
+      - "v5.0.0-2.3.1: state transitions are checked in one conditional update."
+    tests: |
+      end | integration | AC-1, C-09 | ENDED, SUPPLIER, balance same
+      reopen | integration | AC-2, C-09 | ACTIVE
+      refusals | integration | AC-3 | each Examples row → status
+      repeat | integration | AC-4 | equal answers
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+      other party | security | AB-2, CWE-841 | 409
+    command: npx vitest run tests/integration/relationship/end-reopen-supplier.test.ts
+    out_of_scope:
+      - "Refusing new orders on an ended relationship (ORD module)."
+  - id: REL-016
+    title: Customer lists their suppliers
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [REL-005, FND-009, REL-006, REL-007, REL-008]
+    read_first: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.visibility.ts]
+    design_refs: [relations-commerciales/customerrelationship]
+    constraints: [CM-19]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a customer, I want to list my suppliers so that I see who I buy from and what I owe.
+    context: |
+      - Exists: `visibleRelationsWhere`, `projectForCustomer` (REL-005); pagination.
+      - Adds: `GET /api/v1/suppliers?limit&cursor&status` for any signed-in person: relationships where `customer_person_id` is the caller (ACTIVE, ENDED, and PENDING invitations the caller sent), newest first, `projectForCustomer`.
+    acceptance: |
+      Scenario: AC-1 List
+        Given a person who is the customer of two organizations and invited one supplier
+        When they list
+        Then three items are returned with supplier_label and balance and without customer_label or supplier_notes
+      Scenario: AC-2 Status filter
+        When status=PENDING is used
+        Then only the invitation is returned
+      Scenario: AC-3 Pagination
+        When limit 2 is used with the returned cursor
+        Then the pages hold 2 and 1 items
+      Scenario: AC-4 Only own
+        Then relationships of other people and deleted rows never appear
+    abuse: |
+      Scenario: AB-1 Another person's suppliers (horizontal)
+        When person A lists
+        Then no relationship of person B appears
+      Scenario: AB-2 Supplier-side fields (information disclosure)
+        When the list is read
+        Then no customer_label or supplier_notes appears
+    implementation:
+      create: [tests/integration/relationship/list-suppliers.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "listSuppliersOfPerson(personId: string, query: ListSuppliersQuery): Promise<{ items: CustomerRelationshipView[]; next_cursor: string | null }>"
+      types: []
+      errors: ["UNAUTHORIZED 401", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the filter is the visibility predicate for the caller's person id."
+      - "v5.0.0-15.3.1: customer projection only."
+    tests: |
+      list | integration | AC-1, CM-19 | three items, customer view
+      status | integration | AC-2 | PENDING only
+      paging | integration | AC-3 | 2 and 1
+      only own | integration | AC-4 | none foreign
+      other person | security | AB-1, WSTG-ATHZ-04 | no foreign rows
+      supplier fields | security | AB-2, CWE-200 | absent
+    command: npx vitest run tests/integration/relationship/list-suppliers.test.ts
+    out_of_scope:
+      - "Organizations as customers (REL-018)."
+  - id: REL-017
+    title: Customer names, ends and reopens a supplier
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [REL-016, ACC-007, REL-006, REL-007, REL-008]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.routes.ts]
+    design_refs: [relations-commerciales/customerrelationship/fin-de-relation, relations-commerciales/customerrelationship]
+    constraints: [C-09, CM-19]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.2.3, v5.0.0-15.3.3]
+    story: As a customer, I want to name a supplier, leave one, and come back so that my list stays mine.
+    context: |
+      - Exists: `GET /api/v1/suppliers` (REL-016); `idempotent()`.
+      - Adds: `PATCH /api/v1/suppliers/{relationshipId}` with `{ supplier_label }` (1 to 100); `POST /api/v1/suppliers/{relationshipId}/end` and `.../reopen` with `{ id }`. Responses 200 `projectForCustomer`.
+      - The caller must be `customer_person_id`. End: ACTIVE becomes ENDED with `ended_by_party` CUSTOMER; balance and payments stay. Reopen only when the customer ended it; otherwise 409 `ENDED_BY_OTHER_PARTY`.
+    acceptance: |
+      Scenario: AC-1 Name a supplier
+        When the customer patches supplier_label "Chez Fotso"
+        Then the response is 200 with that label and the supplier never sees it
+      Scenario: AC-2 End and reopen
+        When the customer ends an ACTIVE relationship and then reopens it
+        Then it is ENDED with ended_by_party CUSTOMER, then ACTIVE with ended_by_party empty
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                                           | status                   |
+          | reopening a relationship the supplier ended       | 409 ENDED_BY_OTHER_PARTY |
+          | supplier_label of 101 characters                  | 400 VALIDATION_ERROR     |
+          | credit_limit or customer_label in the body        | 400 VALIDATION_ERROR     |
+          | a relationship of another person                  | 404 NOT_FOUND            |
+    abuse: |
+      Scenario: AB-1 Reopening a block (tampering)
+        When a customer blocked by the supplier posts reopen
+        Then the response is 409 and it stays ENDED
+      Scenario: AB-2 Another person's relationship (horizontal)
+        When person A patches or ends a relationship of person B
+        Then the response is 404 and it is unchanged
+    implementation:
+      create: [tests/integration/relationship/customer-actions.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "customerEditSupplier(personId: string, relationshipId: string, input: { supplier_label: string }): Promise<CustomerRelationshipView>"
+        - "customerEndRelationship(personId: string, relationshipId: string): Promise<CustomerRelationshipView>"
+        - "customerReopenRelationship(personId: string, relationshipId: string): Promise<CustomerRelationshipView>"
+      types: []
+      errors: ["ENDED_BY_OTHER_PARTY 409", "VALIDATION_ERROR 400", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the row is selected with the caller's person id as customer."
+      - "v5.0.0-15.3.3: only `supplier_label` is writable."
+    tests: |
+      set label | integration | AC-1, CM-19 | label stored, invisible to supplier
+      end and reopen | integration | AC-2, C-09 | states as described
+      refusals | integration | AC-3 | each Examples row → status
+      reopen a block | security | AB-1, CWE-841 | 409
+      other person | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/relationship/customer-actions.test.ts
+    out_of_scope:
+      - "Organization customers (REL-018, REL-019)."
+  - id: REL-018
+    title: Organization lists and names its suppliers
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [REL-017, ACC-002, REL-006, REL-007, REL-008]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.routes.ts]
+    design_refs: [relations-commerciales/customerrelationship/organisation-cliente]
+    constraints: [CM-19]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a manager, I want to list and name the suppliers of my business so that its purchases are organized.
+    context: |
+      - Exists: customer-side views and label edit for persons (REL-016, REL-017); `loadActor`.
+      - Adds: `GET /api/v1/organizations/{organizationId}/suppliers` (MANAGER and above; paginated `projectForCustomer` of relationships where the organization is `customer_organization_id`) and `PATCH /api/v1/organizations/{organizationId}/suppliers/{relationshipId}` with `{ supplier_label }` (MANAGER online).
+      - A SELLER or DRIVER answers 403.
+    acceptance: |
+      Scenario: AC-1 List
+        Given an organization that buys from two suppliers
+        When its MANAGER lists
+        Then two items are returned in the customer view
+      Scenario: AC-2 Name
+        When the MANAGER patches supplier_label
+        Then the response is 200 with the label
+      Scenario Outline: AC-3 Roles
+        When the caller is <role>
+        Then GET answers <status>
+        Examples:
+          | role    | status |
+          | OWNER   | 200    |
+          | MANAGER | 200    |
+          | SELLER  | 403    |
+          | DRIVER  | 403    |
+      Scenario: AC-4 Limits
+        When supplier_label has 101 characters or the body has other keys
+        Then the response is 400
+    abuse: |
+      Scenario: AB-1 Another business's suppliers (horizontal)
+        When a member of A lists or patches for business B
+        Then the response is 404
+      Scenario: AB-2 Supplier-side fields (information disclosure)
+        When the list is read
+        Then no customer_label or supplier_notes appears
+    implementation:
+      create: [tests/integration/relationship/org-suppliers.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "listSuppliersOfOrganization(actor: Actor, query: ListSuppliersQuery): Promise<{ items: CustomerRelationshipView[]; next_cursor: string | null }>"
+        - "orgEditSupplier(actor: Actor, relationshipId: string, input: { supplier_label: string }): Promise<CustomerRelationshipView>"
+      types: []
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager and above; the label edit online."
+      - "v5.0.0-15.3.1: customer projection only."
+    tests: |
+      list | integration | AC-1, CM-19 | two items
+      set label | integration | AC-2 | label stored
+      roles | integration | AC-3 | each Examples row → status
+      limits | integration | AC-4 | 400
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+      supplier fields | security | AB-2, CWE-200 | absent
+    command: npx vitest run tests/integration/relationship/org-suppliers.test.ts
+    out_of_scope:
+      - "Ending and reopening as an organization (REL-019)."
+  - id: REL-019
+    title: Organization ends and reopens a supplier
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [REL-018, ACC-007, REL-006, REL-007, REL-008]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.routes.ts]
+    design_refs: [relations-commerciales/customerrelationship/fin-de-relation]
+    constraints: [C-09]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.1]
+    story: As a manager, I want my business to leave a supplier and come back so that its list stays current.
+    context: |
+      - Exists: `GET .../suppliers`, label edit (REL-018); end and reopen rules for MANAGER online (ACC-002); `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/suppliers/{relationshipId}/end` and `.../reopen` with `{ id }`; response 200 `projectForCustomer`. Same rules as REL-017: `ended_by_party` CUSTOMER; reopen only if the customer side ended it.
+    acceptance: |
+      Scenario: AC-1 End and reopen
+        When a MANAGER ends and then reopens a supplier relationship
+        Then the states are ENDED with CUSTOMER, then ACTIVE
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                                   | status                   |
+          | reopening a block by the supplier         | 409 ENDED_BY_OTHER_PARTY |
+          | a SELLER or DRIVER caller                 | 403 FORBIDDEN            |
+          | a relationship of another business        | 404 NOT_FOUND            |
+      Scenario: AC-3 Repeat
+        When the same id is sent twice
+        Then the answers are equal
+    abuse: |
+      Scenario: AB-1 Seller ends a supplier (vertical)
+        When a SELLER posts end
+        Then the response is 403 and nothing changes
+    implementation:
+      create: [tests/integration/relationship/org-end-reopen.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "orgEndSupplier(actor: Actor, relationshipId: string): Promise<CustomerRelationshipView>"
+        - "orgReopenSupplier(actor: Actor, relationshipId: string): Promise<CustomerRelationshipView>"
+      types: []
+      errors: ["ENDED_BY_OTHER_PARTY 409", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager and online only."
+    tests: |
+      end and reopen | integration | AC-1, C-09 | states as described
+      refusals | integration | AC-2 | each Examples row → status
+      repeat | integration | AC-3 | equal answers
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/relationship/org-end-reopen.test.ts
+    out_of_scope:
+      - "Refusing orders on ended relationships (ORD module)."
+  - id: REL-020
+    title: Customer invites a supplier by phone number
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [REL-016, ORG-018, ACC-005, ACC-007, PER-006, REL-006, REL-007, REL-008]
+    read_first: [src/modules/relationship/relationship.repository.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [relations-commerciales/customerrelationship/invitation-d-un-fournisseur-par-un]
+    constraints: [C-06, C-07, C-08, C-10]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.4.1, v5.0.0-15.3.3]
+    story: As a customer, I want to invite a supplier by phone number so that we can trade once they join.
+    context: |
+      - Exists: `findOrCreateByPhone`; `findOrganizationsByPublicNumber` (ORG-018); the shared lookup limit key `lookup:<personId>` (PER-006); `requireAbility('invite_supplier', 'CustomerRelationship')` for an organization (MANAGER, network); `idempotent()`.
+      - Adds: `POST /api/v1/suppliers/invitations` (a registered person as customer) and `POST /api/v1/organizations/{organizationId}/suppliers/invitations` (an organization as customer, MANAGER or OWNER), both with `{ id, phone_number, supplier_label }`; response 201 `projectForCustomer`.
+      - The number must not be a public number of an organization (409 `NUMBER_IS_ORGANIZATION`: the customer orders from it instead). The supplier person is found or created as a guest. The relationship is PENDING, `supplier_person_id` set, `credit_limit` 0, `created_by_id` the caller. An existing live relationship for the pair answers 409 `RELATIONSHIP_EXISTS`.
+      - Each call consumes one unit of the caller's lookup limit (60 per hour); over it answers 429 `RATE_LIMITED`. No SMS is sent; the customer sends the invitation from their own phone.
+    acceptance: |
+      Scenario: AC-1 Person invites
+        When a customer person invites a number that no organization publishes, with supplier_label "Chez Paul"
+        Then the response is 201, the relationship is PENDING with supplier_person_id set and credit_limit 0
+      Scenario: AC-2 Organization invites
+        When a MANAGER invites on behalf of their organization
+        Then the customer of the relationship is that organization
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                     | status                   |
+          | a public number of an organization          | 409 NUMBER_IS_ORGANIZATION |
+          | the number of an existing live relationship | 409 RELATIONSHIP_EXISTS  |
+          | a SELLER on behalf of an organization       | 403 FORBIDDEN            |
+          | a landline                                  | 400 VALIDATION_ERROR     |
+          | supplier_label empty                        | 400 VALIDATION_ERROR     |
+      Scenario: AC-4 Limit
+        When 61 invitations or lookups are made in one hour
+        Then the 61st answers 429 `RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 Order or credit on a pending supplier (business logic)
+        Then the relationship is PENDING, so no order can be placed on it (ORD rule) and its credit limit is 0
+      Scenario: AB-2 Probing numbers through invitations (anti-automation)
+        When one person sends invitations to 61 numbers in an hour
+        Then the 61st is refused with 429
+      Scenario: AB-3 Server-owned fields (mass assignment)
+        When the body contains status, credit_limit or supplier_organization_id
+        Then the response is 400
+    implementation:
+      create: [tests/integration/relationship/invite-supplier.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "inviteSupplier(viewer: { personId: string; organizationId?: string; role?: Role }, input: InviteSupplierInput): Promise<CustomerRelationshipView>"
+      types:
+        - "InviteSupplierInput = { id: string; phone_number: string; supplier_label: string }"
+      errors: ["NUMBER_IS_ORGANIZATION 409", "RELATIONSHIP_EXISTS 409", "RATE_LIMITED 429", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod, ioredis]
+    security:
+      - "v5.0.0-8.2.1: an organization customer is represented by a MANAGER or OWNER only, online."
+      - "v5.0.0-2.4.1: shared per-person lookup limit."
+      - "v5.0.0-15.3.3: strict schema with three fields."
+    tests: |
+      person invites | integration | AC-1, C-08, C-06, C-10 | 201, PENDING
+      organization invites | integration | AC-2 | organization as customer
+      refusals | integration | AC-3, C-07 | each Examples row → status
+      limit | integration | AC-4 | 61st → 429
+      pending is inert | security | AB-1, CWE-841 | limit 0, status PENDING
+      probing | security | AB-2, WSTG-BUSL-07 | 429
+      mass assignment | security | AB-3, CWE-915 | 400
+    command: npx vitest run tests/integration/relationship/invite-supplier.test.ts
+    out_of_scope:
+      - "The supplier accepting (REL-021)."
+  - id: REL-021
+    title: Invited supplier accepts or declines
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [REL-020, REL-006, REL-007, REL-008]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts]
+    design_refs: [relations-commerciales/customerrelationship/invitation-d-un-fournisseur-par-un]
+    constraints: [CM-25, C-08, C-07]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: As a manager, I want to see the customers who invited me and accept them for my business so that they become my customers.
+    context: |
+      - Exists: PENDING relationships (REL-020); `getActiveCollaboration`.
+      - Adds: `GET /api/v1/supplier-invitations` (relationships with `supplier_person_id` = caller, PENDING; `id, supplier_label, customer` public view); `POST /api/v1/supplier-invitations/{id}/accept` with `{ organization_id }`; `POST /api/v1/supplier-invitations/{id}/decline`.
+      - Accept: the caller must be MANAGER or OWNER of `organization_id` (ACTIVE, not CLOSED or SUSPENDED). One transaction sets `supplier_person_id` empty, `supplier_organization_id` = the organization and status ACTIVE. If the organization already has a live relationship with that customer, the invitation is deleted (`deleted_at`) and the answer is 200 `{ merged: true }`.
+      - Decline: the row is deleted (`deleted_at`); the customer is notified `supplier.declined`.
+      - A customer notification `supplier.accepted` follows an acceptance.
+    acceptance: |
+      Scenario: AC-1 List
+        Given two invitations addressed to the caller's number
+        Then the list shows both with the customers' public view
+      Scenario: AC-2 Accept
+        When the caller accepts for an organization they manage
+        Then the relationship is ACTIVE with that organization as supplier and no supplier person
+      Scenario: AC-3 Existing relationship
+        Given the organization already has a live relationship with that customer
+        When the caller accepts
+        Then the response is 200 `{ merged: true }` and the invitation is deleted
+      Scenario: AC-4 Decline
+        When the caller declines
+        Then the invitation is deleted and the customer is notified
+      Scenario Outline: AC-5 Refusals
+        When the accept call has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                       | status                      |
+          | an organization the caller only sells for     | 403 FORBIDDEN               |
+          | an organization they are not a member of      | 404 NOT_FOUND               |
+          | a CLOSED organization                         | 409 ORGANIZATION_NOT_ACTIVE |
+          | an invitation addressed to someone else       | 404 NOT_FOUND               |
+    abuse: |
+      Scenario: AB-1 Taking another person's invitation (horizontal)
+        When person A accepts an invitation whose supplier person is B
+        Then the response is 404 and it stays PENDING
+      Scenario: AB-2 Accepting for a business one does not manage (elevation)
+        When a SELLER of the organization accepts
+        Then the response is 403
+    implementation:
+      create: [tests/integration/relationship/supplier-invitations.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "acceptSupplierInvitation(personId: string, invitationId: string, organizationId: string): Promise<{ merged: boolean; relationship?: SupplierRelationshipView }>"
+        - "declineSupplierInvitation(personId: string, invitationId: string): Promise<void>"
+      types: []
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404", "ORGANIZATION_NOT_ACTIVE 409"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: only a MANAGER or OWNER of the target organization accepts."
+      - "v5.0.0-8.2.2: the invitation is selected by id and `supplier_person_id` = caller."
+      - "v5.0.0-2.3.3: the swap of supplier columns is one conditional update."
+    tests: |
+      list | integration | AC-1 | two items
+      accept | integration | AC-2, CM-25, C-08 | ACTIVE with organization
+      existing relationship | integration | AC-3, C-07 | merged true, deleted
+      decline | integration | AC-4 | deleted, customer notified
+      refusals | integration | AC-5 | each Examples row → status
+      other person | security | AB-1, WSTG-ATHZ-04 | 404
+      seller accepts | security | AB-2, WSTG-ATHZ-03 | 403
+    command: npx vitest run tests/integration/relationship/supplier-invitations.test.ts
+    out_of_scope:
+      - "Orders on the new relationship (ORD module)."
+  - id: REL-022
+    title: Newly registered person sees what is attached to their number
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [REL-021, ORG-008, REL-006, REL-007, REL-008]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/person, relations-commerciales/customerrelationship/entree-en-relation-le-numero-comme]
+    constraints: [CM-19]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a customer, I want to see everything attached to my number after registering so that I accept or contest each item.
+    context: |
+      - Exists: customer relationships (REL-016), team invitations (ORG-008), supplier invitations (REL-021).
+      - Adds: `GET /api/v1/people/me/attachments`, response 200 `{ relationships: [...], team_invitations: [...], supplier_invitations: [...] }`. `relationships` are the caller's ACTIVE and ENDED relationships as customer (`projectForCustomer`, with the supplier's public name and balance), `team_invitations` and `supplier_invitations` as in their own lists.
+      - Each list is capped at 100 items.
+    acceptance: |
+      Scenario: AC-1 Everything attached
+        Given a guest completed by registration who had 2 relationships as customer, 1 team invitation and 1 supplier invitation
+        When the person calls the route
+        Then all four items appear in their lists
+      Scenario: AC-2 Nothing attached
+        When the person has none
+        Then the three lists are empty
+      Scenario: AC-3 Views
+        Then relationships have no customer_label or supplier_notes
+      Scenario: AC-4 Cap
+        When there are 150 relationships
+        Then 100 are returned
+    abuse: |
+      Scenario: AB-1 Another number's attachments (horizontal)
+        When the request is made with the token of person B
+        Then only B's items appear
+      Scenario: AB-2 No token (unauthenticated)
+        Then the response is 401
+    implementation:
+      create: [tests/integration/relationship/attachments.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "getAttachments(personId: string): Promise<{ relationships: CustomerRelationshipView[]; team_invitations: TeamInvitationView[]; supplier_invitations: SupplierInvitationView[] }>"
+      types: []
+      errors: ["UNAUTHORIZED 401"]
+      dependencies: [express]
+    security:
+      - "v5.0.0-8.2.2: every query filters on the person id from the token."
+      - "v5.0.0-15.3.1: customer projections only."
+    tests: |
+      attached | integration | AC-1 | four items
+      none | integration | AC-2 | empty lists
+      views | integration | AC-3, CM-19 | private fields absent
+      cap | integration | AC-4 | 100 of 150
+      other person | security | AB-1, WSTG-ATHZ-04 | only own items
+      no token | security | AB-2, WSTG-ATHN-04 | 401
+    command: npx vitest run tests/integration/relationship/attachments.test.ts
+    out_of_scope:
+      - "The accept or contest gestures (REL-017, REL-023, ORG-008)."
+  - id: REL-023
+    title: Customer contests a relationship ("this is not me")
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [REL-014, REL-016, ACC-007, NTF-002, REL-006, REL-007, REL-008]
+    read_first: [src/modules/relationship/relationship.repository.ts, src/modules/person/person.repository.ts]
+    design_refs: [relations-commerciales/customerrelationshipreassignment/ce-n-est-pas-moi-erreurs-de-saisie-et]
+    constraints: [C-12, CM-24, CM-03, C-02]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: As a customer, I want to say "this is not me" about a relationship so that a debt entered on my number by mistake or by the previous holder leaves my account.
+    context: |
+      - Exists: the reassignment journal (REL-014); `bumpScopeVersion`; `notify`; `idempotent()`.
+      - Adds: `POST /api/v1/suppliers/{relationshipId}/contest` with `{ id, reason? }`; response 204. The caller must be `customer_person_id` of an ACTIVE or ENDED relationship.
+      - One transaction: a ghost person is created (no name, no active number, `released_phone_number` = the caller's active number, not registered); the relationship's `customer_person_id` becomes the ghost; one journal row is added (`previous_person_id` = caller, `new_person_id` = ghost, `reassigned_by_id` = caller, `reason`); the caller's `scope_version` is bumped; the supplier's OWNER and MANAGERs are notified `relationship.contested` ("un numéro est à corriger"). The relationship disappears from the caller's lists.
+      - A second contestation of the same relationship by the same person answers 409 `ALREADY_CONTESTED`. Balance and history are untouched.
+    acceptance: |
+      Scenario: AC-1 Contest
+        When a customer contests a relationship
+        Then the relationship points to a ghost person holding the number as released number, one journal row exists, and the caller no longer sees it
+      Scenario: AC-2 Notices and counters
+        Then the caller's scope_version is +1 and the supplier's owner and managers have one notification `relationship.contested`
+      Scenario: AC-3 History kept
+        Then balance, orders and ledger entries still point to the same relationship
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                         | status                |
+          | a second contestation by the same person        | 409 ALREADY_CONTESTED |
+          | a relationship of another person                | 404 NOT_FOUND         |
+          | a PENDING invitation (decline it instead)       | 404 NOT_FOUND         |
+      Scenario: AC-5 Atomic
+        When the journal insert fails
+        Then no ghost person exists and the relationship is unchanged
+    abuse: |
+      Scenario: AB-1 Making a debt disappear in a loop (tampering)
+        When the customer contests, the supplier restores the same number, and the customer contests again
+        Then the second contestation answers 409 and the debt stays on the customer's account
+      Scenario: AB-2 Contesting someone else's relationship (horizontal)
+        When person A contests a relationship of person B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/relationship/contest.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "contestRelationship(personId: string, relationshipId: string, input: { id: string; reason?: string }): Promise<void>"
+      types: []
+      errors: ["ALREADY_CONTESTED 409", "NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the relationship is selected with the caller as `customer_person_id`."
+      - "v5.0.0-2.3.3: ghost person, reassignment, journal and scope bump are one transaction."
+      - "v5.0.0-16.3.1: log `warn` event `relationship_contested` with relationship and person ids."
+    tests: |
+      contest | integration | AC-1, C-12, C-02 | ghost, journal row, hidden from caller
+      notices | integration | AC-2, CM-03 | scope +1, notifications
+      history kept | integration | AC-3 | ids unchanged
+      refusals | integration | AC-4, CM-24 | each Examples row → status
+      atomic | integration | AC-5, CWE-362 | forced failure → unchanged
+      loop | security | AB-1, CWE-841 | second contest → 409
+      other person | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/relationship/contest.test.ts
+    out_of_scope:
+      - "Contesting a team invitation (ORG-008 decline) or a supplier invitation (REL-021 decline)."
+  - id: REL-024
+    title: Owner or manager corrects a customer's number
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [REL-023, ACC-002, ACC-007, REL-006, REL-007, REL-008]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/person/person.repository.ts]
+    design_refs: [relations-commerciales/customerrelationshipreassignment/correction-par-le-fournisseur, relations-commerciales/customerrelationshipreassignment]
+    constraints: [C-12, CM-24, CM-03, C-07]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: As an owner, I want to point a customer's relationship to the right number so that the account follows the right person.
+    context: |
+      - Exists: contestation and the journal (REL-023); rule `reassign` on CustomerRelationship for MANAGER online, OWNER always (ACC-002); `findOrCreateByPhone`; `bumpScopeVersion`; `notify`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/customers/{relationshipId}/correct-number` with `{ id, phone_number, reason?, confirm_same_customer? }`; response 200 `projectForSupplier`.
+      - One transaction: the target person is found or created by the number; `customer_person_id` is repointed; one journal row is added (`reassigned_by_id` = caller); the scope versions of the previous and new persons are bumped; a registered new person is notified `customer.added`.
+      - The target must not already have a live relationship with this supplier (409 `RELATIONSHIP_EXISTS`; the pair index would also refuse it). When the target is a person who contested this relationship, `confirm_same_customer: true` and a `reason` are required (409 `CONFIRMATION_REQUIRED` otherwise); the relationship then comes back to them and they can no longer contest it.
+      - A manager cannot correct a relationship where they are the customer or manage the customer organization (403 `OWN_RECORD`); counters and organization customers cannot be corrected (409 `NOT_A_PERSON_CUSTOMER`).
+    acceptance: |
+      Scenario: AC-1 Correct a typo
+        When an OWNER posts the right number for a customer entered wrongly
+        Then the relationship points to the new number's person, one journal row exists, balance and history are unchanged
+        And both persons' scope_version is +1 and a registered new person is notified
+      Scenario: AC-2 Existing relationship
+        When the new number's person already has a live relationship with this supplier
+        Then the response is 409 `RELATIONSHIP_EXISTS` and nothing changes
+      Scenario: AC-3 Same customer after contestation
+        Given the customer contested the relationship
+        When the supplier posts the customer's own number without confirmation
+        Then the response is 409 `CONFIRMATION_REQUIRED`
+        And with confirm_same_customer true and a reason the relationship returns to that person and a second contestation is refused
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                                       | status                      |
+          | a SELLER or DRIVER caller                     | 403 FORBIDDEN               |
+          | a MANAGER on their own customer record        | 403 OWN_RECORD              |
+          | a counter                                     | 409 NOT_A_PERSON_CUSTOMER   |
+    abuse: |
+      Scenario: AB-1 Moving a debt to an innocent person (tampering)
+        Then the journal records who moved it, and the moved person can contest it once
+    implementation:
+      create: [tests/integration/relationship/correct-number.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts]
+      pattern: src/modules/relationship/relationship.routes.ts
+      signatures:
+        - "correctCustomerNumber(actor: Actor, relationshipId: string, input: CorrectNumberInput): Promise<SupplierRelationshipView>"
+      types:
+        - "CorrectNumberInput = { id: string; phone_number: string; reason?: string; confirm_same_customer?: boolean }"
+      errors: ["RELATIONSHIP_EXISTS 409", "CONFIRMATION_REQUIRED 409", "OWN_RECORD 403", "NOT_A_PERSON_CUSTOMER 409", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: owner, or manager online."
+      - "v5.0.0-2.3.3: repoint, journal row and scope bumps are one transaction."
+    tests: |
+      correct | integration | AC-1, C-12, CM-03 | repointed, journal, history unchanged, scope +1 each, notification
+      existing | integration | AC-2, C-07 | 409
+      same customer | integration | AC-3, CM-24 | confirmation flow and later refusal to contest
+      refusals | integration | AC-4 | each Examples row → status
+      innocent person | security | AB-1, CWE-841 | journal row exists; contest possible once
+    command: npx vitest run tests/integration/relationship/correct-number.test.ts
+    out_of_scope:
+      - "Merging two histories: never done by the model."
+  - id: REL-025
+    title: Merge a duplicate customer record
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [REL-007]
+    read_first: [src/modules/relationship/relationship.repository.ts, tests/integration/relationship/party-rules.test.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, relations-commerciales/customerrelationship]
+    constraints: [C-07, C-06, C-35]
+    asvs: [v5.0.0-2.3.3, v5.0.0-2.3.4]
+    story: "Technical story: provide the function that folds a customer record created twice offline into the first one, so that the sync server never blocks on a duplicate."
+    context: |
+      - Exists: `ensureCustomerRelationship`, the pair index (REL-002).
+      - Adds to `relationship.repository.ts`: `mergeDuplicateRelation(tx, duplicateId, keptId)` and `resolveMergedRelation(id, tx?)`.
+      - Merge: both rows must have the same supplier organization and resolve to the same person (or the duplicate's `customer_phone_number` normalizes to the kept row's person number); the duplicate gets `deleted_at` = now, `merged_into_id` = kept id and its `customer_phone_number` emptied. The kept row keeps all its settings. No ledger entry or order is rewritten.
+      - `resolveMergedRelation` follows `merged_into_id` (at most 5 hops) and returns the live id; an id that is not merged returns itself.
+    acceptance: |
+      Scenario: AC-1 Merge
+        Given two live relationships of one supplier for one person
+        When mergeDuplicateRelation runs
+        Then the duplicate is deleted with merged_into_id set and the kept row is unchanged
+      Scenario: AC-2 Resolve
+        Then resolveMergedRelation(duplicateId) returns the kept id and resolveMergedRelation(keptId) returns itself
+      Scenario Outline: AC-3 Refusals
+        When the pair is <case>
+        Then mergeDuplicateRelation throws `httpError(409, 'CANNOT_MERGE', ...)` and changes nothing
+        Examples:
+          | case                                         |
+          | from two different suppliers                 |
+          | for two different people                     |
+          | a counter                                    |
+          | the same row twice                           |
+      Scenario: AC-4 Atomic and repeatable
+        When the merge runs twice, or its transaction rolls back
+        Then the second run changes nothing, or nothing changed at all
+    abuse: |
+      Scenario: AB-1 Merging two identities (tampering)
+        When a merge is tried between relationships of two different people
+        Then it is refused and both stay live
+    implementation:
+      create: [tests/integration/relationship/merge-duplicate.test.ts]
+      modify: [src/modules/relationship/relationship.repository.ts]
+      pattern: src/modules/relationship/relationship.repository.ts
+      signatures:
+        - "mergeDuplicateRelation(tx: Prisma.TransactionClient, duplicateId: string, keptId: string): Promise<void>"
+        - "resolveMergedRelation(id: string, tx?: Prisma.TransactionClient): Promise<string>"
+      types: []
+      errors: ["CANNOT_MERGE 409"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: the merge is one transaction."
+      - "v5.0.0-2.3.4: the duplicate is locked (`SELECT ... FOR UPDATE`) before it is changed."
+    tests: |
+      merge | integration | AC-1, C-07, C-35 | deleted, merged_into_id, kept unchanged
+      resolve | integration | AC-2 | kept id; itself
+      refusals | integration | AC-3, C-06 | each Examples row → CANNOT_MERGE
+      repeat and rollback | integration | AC-4, CWE-362 | idempotent; rolled back leaves nothing
+      two identities | security | AB-1, CWE-841 | refused
+    command: npx vitest run tests/integration/relationship/merge-duplicate.test.ts
+    out_of_scope:
+      - "Detecting duplicates on a sync push and redirecting incoming rows (SYNC module)."

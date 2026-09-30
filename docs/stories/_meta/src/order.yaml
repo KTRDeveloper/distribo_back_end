@@ -1,0 +1,1345 @@
+kind: module
+module: order
+prefix: ORD
+title: Order
+responsibility: Owns orders and their lines, the order state machine, and the gestures that place, accept, refuse, enter, change and cancel orders before delivery.
+entities: [Order, OrderLine]
+depends_on: [foundation, person, notification, access, organization, relationship, catalog]
+asvs_level: L2
+asvs_rationale: Orders fix prices and totals that become debts; the server computes every price and total and enforces the state machine.
+classification:
+  - "OrderLine.unit_price_applied, reference_price, amount | confidential | visible to both parties of the relationship"
+  - "OrderLine.price_set_by_id | internal | visible to the supplier's owner and managers only"
+  - "Order.customer_note, supplier_note | confidential | visible to both parties"
+  - "Order.sync_issue | internal | supplier team only"
+threats:
+  - "T1 | T | A client chooses its own price | the server computes the reference price and applies it; the customer never sends a price | ORD-009 AB-1"
+  - "T2 | T | A supplier raises a price after the customer's order | acceptance may only lower a price; prices freeze at acceptance | ORD-011 AB-1"
+  - "T3 | T | A step is skipped or a frozen order is changed | one state machine with conditional updates | ORD-008 AB-1, ORD-014 AB-1"
+  - "T4 | E | A driver or seller does a manager's or customer's step | rules table per step | ORD-011 AB-2, ORD-016 AB-1"
+  - "T5 | I | A party reads another business's orders | visibility predicate through the relationship | ORD-019 AB-1"
+  - "T6 | R | A price gap has no author | price_set_by_id and price_set_at are required when the applied price differs | ORD-004 AB-1"
+constraints:
+  C-14: "An order is created only on an ACTIVE relationship whose supplier is an ACTIVE organization (not suspended, not closed)."
+  C-15: "Every order line is for an ACTIVE product of the relationship's supplier; on a customer-placed order the quantity is at least `min_order_quantity` when sent."
+  C-16: "`cancelled_by_party`, `cancelled_by_id` and `cancelled_at` are set if and only if `status` is CANCELLED; `cancellation_reason` only when CANCELLED and required when the supplier cancelled."
+  C-17: "`status` PENDING requires `placed_by_party` CUSTOMER."
+  C-18: "Status changes follow the permitted steps; delivery wins; a delivered or cancelled order is frozen except `supplier_note`."
+  C-19: "`delivered_at` and `delivered_by_id` are set if and only if `status` is DELIVERED; every line then has `delivered_quantity`; `total_amount` equals the sum of line amounts plus `delivery_cost`."
+  C-24: "A SALE ledger entry has `order_id` set and `amount` equal to `Order.total_amount` (server-fixed), and there is at most one non-reversed sale per order; the payment born of 'Commande livrée' also carries `order_id`."
+  C-20: "Line `amount` is quantity times applied price rounded to the franc, half up; on a customer-placed order `unit_price_applied` equals `reference_price` when sent and is never raised afterward; `price_set_by_id` and `price_set_at` are set if and only if `unit_price_applied` differs from `reference_price`."
+  C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
+  CM-12: "Allowed transitions only: PENDING to CONFIRMED or CANCELLED; CONFIRMED to IN_DELIVERY, DELIVERED or CANCELLED; IN_DELIVERY to DELIVERED or CONFIRMED (failed attempt); DELIVERED wins over CANCELLED; DELIVERED and CANCELLED are frozen except supplier_note."
+  CM-14: "Line amount = quantity in thousandths times applied price, divided by 1000, rounded to the nearest franc with 0.5 rounded up, integer arithmetic only; 2.5 x 333 gives 833."
+  CM-16: "Customer-placed order: unit_price_applied equals the server-computed reference price at sending; the supplier may only lower it, at acceptance; prices freeze at acceptance (customer order) or at departure or delivery (supplier order)."
+  CM-11: "Reference price of a line = negotiated price when one exists (even higher than the product price), else the product price."
+  CM-10: "CLOSED (by the owner, reopenable): no new order or customer, not findable by number, pending orders refused with reason 'Commerce fermé', team revoked, subscription stopped; relations, balances and history stay visible and payments stay possible."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+contracts:
+  provides:
+    - name: OrderCalculations
+      file: src/modules/order/order.calculations.ts
+      story: ORD-007
+      items:
+        - "lineAmountOf(line: { quantityMilli: bigint; deliveredQuantityMilli?: bigint | null; unitPriceApplied: bigint }): bigint — uses `lineAmount` and the delivered quantity when set"
+        - "orderTotal(amounts: bigint[], deliveryCost: bigint): bigint"
+      used_by: [delivery, sync]
+    - name: OrderStateMachine
+      file: src/modules/order/order.state.ts
+      story: ORD-008
+      items:
+        - "transitionOrder(tx, orderId: string, to: OrderStatus, actor: { personId: string; party: 'CUSTOMER' | 'SUPPLIER' }, fields?: TransitionFields): Promise<Order> — applies only a permitted step by a conditional update; DELIVERED wins over CANCELLED; frozen orders change only supplier_note"
+      used_by: [delivery, sync]
+  consumes:
+    - "catalog: getReferencePrice, getActiveProduct (docs/stories/modules/catalog/contracts.md)"
+    - "relationship: ensureCustomerRelationship, visibleRelationsWhere, projectForSupplier (docs/stories/modules/relationship/contracts.md)"
+    - "organization: loadActor, assertOrganizationActive (docs/stories/modules/organization/contracts.md)"
+    - "access: requireAbility, abilityFor, idempotent (docs/stories/modules/access/contracts.md)"
+stories:
+  - id: ORD-001
+    title: Orders table
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [REL-002, PER-008, FND-005]
+    read_first: [prisma/schema.prisma, tests/integration/relationship/relationship-table.test.ts]
+    design_refs: [commandes-et-livraisons/order, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Order:required, Order.placed_by_party:enum, Order.status:enum, Order.cancelled_by_party:enum, Order:fk, C-35, C-04, C-01]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Order.{customer_relationship_id,placed_by_party,entered_by_id,delivery_address_applied,total_amount,delivery_cost,status,delivered_at,delivered_by_id,created_at,desired_delivery_date,cancelled_by_party,cancelled_by_id,cancelled_at,cancellation_reason,parent_order_id,customer_note,supplier_note,sync_issue}"]
+    story: "Technical story: create the orders table with its columns and keys so that orders can be stored."
+    context: |
+      - Exists: `customer_relationships`, `require_registered_person()`, `set_server_updated_at()`.
+      - Adds: table `orders` (Prisma model `Order`, table name `orders`; `total_amount` and `delivery_cost` bigint, `delivery_cost` default 0, `status` default CONFIRMED, `created_at` default now, `server_updated_at`, `deleted_at`), foreign keys including `parent_order_id` to itself, indexes on `customer_relationship_id`, `status`, and (`delivered_by_id`, `delivered_at`), and triggers `require_registered_person('entered_by_id', 'delivered_by_id', 'cancelled_by_id')` and `set_server_updated_at()`.
+      - State, cancellation, delivery and creation rules follow in ORD-002, ORD-003 and ORD-006.
+    acceptance: |
+      Scenario: AC-1 Order defaults
+        When an order is inserted with a relationship, placed_by_party SUPPLIER, entered_by_id and total_amount 0
+        Then `delivery_cost` is 0, `status` is CONFIRMED, and `created_at` and `server_updated_at` are set
+      Scenario Outline: AC-2 Enums and keys
+        When a row has <values>
+        Then the insert <result>
+        Examples:
+          | values                                   | result          |
+          | status "LATE"                            | rejects         |
+          | placed_by_party "ADMIN"                  | rejects         |
+          | cancelled_by_party "PLATFORM"            | rejects         |
+          | an unknown relationship                  | rejects (23503) |
+          | entered_by_id of a guest                 | rejects (23514) |
+          | parent_order_id of an existing order     | accepts         |
+      Scenario: AC-3 Required
+        When placed_by_party, entered_by_id or total_amount is null
+        Then the insert fails with 23502
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_001_orders/migration.sql, tests/integration/order/order-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/relationship/relationship-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: enums, keys and author checks are enforced by the database."
+    tests: |
+      defaults | integration | AC-1, C-01, C-35 | insert → defaults; column types
+      enums and keys | integration | AC-2, Order.placed_by_party:enum, Order.status:enum, Order.cancelled_by_party:enum, Order:fk, C-04 | each Examples row → accepted or rejected
+      required | integration | AC-3, Order:required | null → 23502
+    command: npx vitest run tests/integration/order/order-table.test.ts
+    out_of_scope:
+      - "Order rules in the database (ORD-002, ORD-003, ORD-006)."
+  - id: ORD-002
+    title: Order status, cancellation and delivery rules in the database
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ORD-001]
+    read_first: [prisma/schema.prisma, tests/integration/order/order-table.test.ts]
+    design_refs: [commandes-et-livraisons/order, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-16, C-17, C-18, C-19, CM-12]
+    asvs: [v5.0.0-2.3.1, v5.0.0-2.2.3]
+    story: "Technical story: enforce the order status rules with CHECKs and a transition trigger, so that no code path can skip a step or change a frozen order."
+    context: |
+      - Exists: `orders` (ORD-001).
+      - Adds: one migration. CHECKs: `cancelled_by_party`, `cancelled_by_id` and `cancelled_at` are all set exactly when `status = 'CANCELLED'`; `cancellation_reason` is null unless CANCELLED and not null when `cancelled_by_party = 'SUPPLIER'`; `status = 'PENDING'` requires `placed_by_party = 'CUSTOMER'`; `delivered_at` and `delivered_by_id` are both set exactly when `status = 'DELIVERED'`.
+      - A BEFORE UPDATE trigger allows only these status steps: PENDING to CONFIRMED or CANCELLED; CONFIRMED to IN_DELIVERY, DELIVERED or CANCELLED; IN_DELIVERY to DELIVERED or CONFIRMED; CANCELLED to DELIVERED is allowed only when `sync_issue` is set in the same update (delivery wins over an earlier cancellation, and the cancellation columns are cleared); DELIVERED to CANCELLED is refused; a row that is DELIVERED or CANCELLED may otherwise change only `supplier_note`, `sync_issue` and `server_updated_at`. Anything else raises SQLSTATE 23514.
+    acceptance: |
+      Scenario Outline: AC-1 Cancellation columns
+        When a row has status <status> and <cancel>
+        Then the statement <result>
+        Examples:
+          | status    | cancel                                                | result          |
+          | CANCELLED | party, person and time set, reason set                | accepts         |
+          | CANCELLED | party SUPPLIER, reason empty                          | rejects (23514) |
+          | CANCELLED | party CUSTOMER, reason empty                          | accepts         |
+          | CANCELLED | time empty                                            | rejects (23514) |
+          | CONFIRMED | cancelled_by_party set                                | rejects (23514) |
+          | CONFIRMED | cancellation_reason set                               | rejects (23514) |
+      Scenario: AC-2 PENDING is the customer's
+        When a row has status PENDING and placed_by_party SUPPLIER
+        Then the insert fails with 23514
+      Scenario: AC-3 Delivery columns
+        Then `delivered_at` and `delivered_by_id` are required for DELIVERED and refused for every other status
+      Scenario Outline: AC-4 Steps
+        When an order goes from <from> to <to>
+        Then the update <result>
+        Examples:
+          | from        | to          | result          |
+          | PENDING     | CONFIRMED   | accepts         |
+          | PENDING     | CANCELLED   | accepts         |
+          | PENDING     | DELIVERED   | rejects (23514) |
+          | CONFIRMED   | IN_DELIVERY | accepts         |
+          | CONFIRMED   | DELIVERED   | accepts         |
+          | IN_DELIVERY | CONFIRMED   | accepts         |
+          | IN_DELIVERY | CANCELLED   | rejects (23514) |
+          | DELIVERED   | CANCELLED   | rejects (23514) |
+          | CANCELLED   | CONFIRMED   | rejects (23514) |
+          | CANCELLED   | DELIVERED, sync_issue set    | accepts         |
+          | CANCELLED   | DELIVERED, sync_issue empty  | rejects (23514) |
+      Scenario: AC-5 Frozen orders
+        When a DELIVERED order gets a new `delivery_cost`, and then a new `supplier_note`
+        Then the first update fails with 23514 and the second succeeds
+    abuse: |
+      Scenario: AB-1 Reviving or altering a finished order (tampering)
+        When code moves a CANCELLED order back to CONFIRMED or edits a DELIVERED order's cost
+        Then PostgreSQL refuses it, even though no validation ran
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_002_status_rules/migration.sql, tests/integration/order/status-rules.test.ts]
+      modify: []
+      pattern: tests/integration/relationship/party-rules.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.3.1: the permitted steps live in the database, so every path obeys them."
+      - "v5.0.0-2.2.3: related columns are checked together."
+    tests: |
+      cancellation columns | integration | AC-1, C-16 | each Examples row → accepted or 23514
+      pending is customer's | integration | AC-2, C-17 | 23514
+      delivery columns | integration | AC-3, C-19 | required for DELIVERED, refused otherwise
+      steps | integration | AC-4, C-18, CM-12 | each Examples row → accepted or 23514
+      frozen | integration | AC-5, C-18 | cost refused, note accepted
+      crafted update | security | AB-1, CWE-841 | revive and edit both refused
+    command: npx vitest run tests/integration/order/status-rules.test.ts
+    out_of_scope:
+      - "Applying the steps from routes (ORD-008)."
+  - id: ORD-003
+    title: Orders only on live relationships of active organizations
+    kind: technical
+    size: XS
+    risk: high
+    depends_on: [ORD-001, ORG-001, ORD-002]
+    read_first: [prisma/schema.prisma, tests/integration/order/order-table.test.ts]
+    design_refs: [commandes-et-livraisons/order/autres-regles, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-14]
+    asvs: [v5.0.0-2.3.1, v5.0.0-2.2.3]
+    story: "Technical story: refuse in the database an order on a relationship that is not ACTIVE or whose supplier is not an active organization."
+    context: |
+      - Exists: `orders`, `customer_relationships` (status), `organizations` (status).
+      - Adds: a BEFORE INSERT trigger on `orders`: the relationship must have `status = 'ACTIVE'`, no `deleted_at`, `supplier_organization_id` not null, and that organization `ACTIVE`; otherwise SQLSTATE 23514. It applies to inserts only, so old orders of a closed business stay valid.
+      - Counters (relationships without a customer) are allowed.
+    acceptance: |
+      Scenario Outline: AC-1 Relationship and supplier state
+        When an order is inserted on a relationship <case>
+        Then the insert <result>
+        Examples:
+          | case                                             | result          |
+          | ACTIVE, supplier organization ACTIVE             | accepts         |
+          | PENDING                                          | rejects (23514) |
+          | ENDED                                            | rejects (23514) |
+          | ACTIVE with the supplier organization SUSPENDED  | rejects (23514) |
+          | ACTIVE with the supplier organization CLOSED     | rejects (23514) |
+          | deleted                                          | rejects (23514) |
+          | a counter of an ACTIVE organization              | accepts         |
+      Scenario: AC-2 Old orders stay
+        When an organization is closed after it received orders
+        Then updating a `supplier_note` on an old order still works
+    abuse: |
+      Scenario: AB-1 Order on a blocked relationship by a crafted write (tampering)
+        When code inserts an order on an ENDED relationship
+        Then PostgreSQL refuses it
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_003_creation_guard/migration.sql, tests/integration/order/creation-guard.test.ts]
+      modify: []
+      pattern: tests/integration/order/status-rules.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.3.1: the business rule holds for every insert path, including sync."
+    tests: |
+      creation states | integration | AC-1, C-14 | each Examples row → accepted or 23514
+      old orders | integration | AC-2 | note update works
+      crafted insert | security | AB-1, CWE-841 | 23514
+    command: npx vitest run tests/integration/order/creation-guard.test.ts
+    out_of_scope:
+      - "Refusing pending orders when a business closes (ORD-018)."
+  - id: ORD-004
+    title: Order lines table
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [ORD-001, CAT-001, PER-008, FND-003, ORD-002]
+    read_first: [prisma/schema.prisma, tests/integration/order/order-table.test.ts]
+    design_refs: [commandes-et-livraisons/orderline, contraintes-a-poser-au-niveau-base-de]
+    constraints: [OrderLine:required, OrderLine:fk, C-20, CM-14, C-04, C-01, C-35]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.2.3]
+    fields: ["OrderLine.{order_id,product_id,label_applied,quantity,delivered_quantity,reference_price,unit_price_applied,amount,price_set_by_id,price_set_at}"]
+    story: "Technical story: create the order lines table with the amount and price-gap rules in the database, so that an amount is always the rounded product of quantity and applied price."
+    context: |
+      - Exists: `orders` (ORD-001), `products` (CAT-001); `lineAmount` (FND-003).
+      - Adds: table `order_lines` (`quantity` and `delivered_quantity` numeric(12,3), `server_updated_at`, `deleted_at`, indexes on `order_id` and `product_id`), triggers `require_registered_person('price_set_by_id')` and `set_server_updated_at()`.
+      - CHECKs: `quantity > 0`; `delivered_quantity` null or between 0 and `quantity`; `reference_price >= 0`; `unit_price_applied >= 0`; `amount = (((coalesce(delivered_quantity, quantity) * 1000)::bigint * unit_price_applied) + 500) / 1000` (integer arithmetic, half up); `price_set_by_id` and `price_set_at` both set exactly when `unit_price_applied <> reference_price`.
+    acceptance: |
+      Scenario Outline: AC-1 Amount rule
+        When a line has quantity <q>, delivered_quantity <d>, unit_price_applied <p> and amount <a>
+        Then the insert <result>
+        Examples:
+          | q   | d     | p    | a     | result          |
+          | 2.5 | empty | 333  | 833   | accepts         |
+          | 2.5 | empty | 333  | 832   | rejects (23514) |
+          | 10  | 8     | 3000 | 24000 | accepts         |
+          | 10  | 8     | 3000 | 30000 | rejects (23514) |
+          | 0.001 | empty | 500 | 1    | accepts         |
+          | 0.001 | empty | 499 | 0    | accepts         |
+      Scenario Outline: AC-2 Quantities
+        When a line has quantity <q> and delivered_quantity <d>
+        Then the insert <result>
+        Examples:
+          | q  | d   | result          |
+          | 0  | empty | rejects (23514) |
+          | 10 | 11  | rejects (23514) |
+          | 10 | 0   | accepts         |
+      Scenario Outline: AC-3 Price gap
+        When a line has unit_price_applied <applied>, reference_price <ref> and <author>
+        Then the insert <result>
+        Examples:
+          | applied | ref  | author                        | result          |
+          | 2800    | 3000 | price_set_by_id and price_set_at set | accepts  |
+          | 2800    | 3000 | no author                     | rejects (23514) |
+          | 3000    | 3000 | an author set                 | rejects (23514) |
+          | 3000    | 3000 | no author                     | accepts         |
+      Scenario: AC-4 Keys and required
+        When the order or the product is unknown, or `label_applied` is null
+        Then the insert fails with 23503 or 23502
+    abuse: |
+      Scenario: AB-1 A price gap without an author (repudiation)
+        When code inserts a line whose applied price differs from the reference and no author
+        Then PostgreSQL refuses it
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_004_order_lines/migration.sql, tests/integration/order/order-line-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/order/status-rules.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: amounts and quantities are validated in the database."
+      - "v5.0.0-2.2.3: price, quantity, amount and author are checked together."
+    tests: |
+      amount rule | integration | AC-1, C-20, CM-14, C-01, C-35 | each Examples row → accepted or 23514; column types
+      quantities | integration | AC-2 | each Examples row → accepted or 23514
+      price gap | integration | AC-3, C-20, C-04 | each Examples row → accepted or 23514
+      customer orders | integration | AC-4, C-20 | above → 23514; insert equal only
+      keys and required | integration | AC-4, OrderLine:required, OrderLine:fk | rejected
+      gap without author | security | AB-1, CWE-778 | 23514
+    command: npx vitest run tests/integration/order/order-line-table.test.ts
+    out_of_scope:
+      - "Product and quantity rules (ORD-005) and totals (ORD-006)."
+  - id: ORD-005
+    title: Order line product and minimum quantity rules
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ORD-004, ORD-003]
+    read_first: [prisma/schema.prisma, tests/integration/order/order-line-table.test.ts]
+    design_refs: [commandes-et-livraisons/order/autres-regles, catalogue/product]
+    constraints: [C-15, C-20, CM-16]
+    asvs: [v5.0.0-2.2.3, v5.0.0-8.2.2]
+    story: "Technical story: refuse a line for a product that is not an active product of the relationship's supplier, and a customer order below the minimum quantity."
+    context: |
+      - Exists: `order_lines`, `orders`, `products`, `customer_relationships`.
+      - Adds: a BEFORE INSERT OR UPDATE trigger on `order_lines`. On insert: the product must belong to the supplier organization of the order's relationship and have `status = 'ACTIVE'` and no `deleted_at`; when the order was placed by the CUSTOMER and the product has `min_order_quantity`, `quantity` must be at least that value. On an order placed by the CUSTOMER, `unit_price_applied` must equal `reference_price` on insert and may never exceed it on update. Otherwise SQLSTATE 23514. Product and quantity are not re-checked on update, so a later product change never blocks an old order.
+    acceptance: |
+      Scenario Outline: AC-1 Product rule
+        When a line is inserted for <product>
+        Then the insert <result>
+        Examples:
+          | product                                       | result          |
+          | an ACTIVE product of the supplier             | accepts         |
+          | an INACTIVE product of the supplier           | rejects (23514) |
+          | a product of another organization             | rejects (23514) |
+          | a deleted product                             | rejects (23514) |
+      Scenario Outline: AC-2 Minimum quantity
+        Given a product with min_order_quantity 5
+        When a line for an order placed by <party> has quantity <q>
+        Then the insert <result>
+        Examples:
+          | party    | q     | result          |
+          | CUSTOMER | 4.999 | rejects (23514) |
+          | CUSTOMER | 5     | accepts         |
+          | SUPPLIER | 1     | accepts         |
+      Scenario: AC-3 Later changes do not block
+        When the product becomes INACTIVE after the line exists
+        Then updating the line's `delivered_quantity` still works
+      Scenario: AC-4 Customer orders never above the reference
+        Given an order placed by the CUSTOMER
+        Then a line inserted with unit_price_applied different from reference_price is refused with 23514
+        And an update that raises unit_price_applied above reference_price is refused, and one that lowers it is accepted
+    abuse: |
+      Scenario: AB-1 Line for a foreign product by a crafted write (tampering)
+        When code inserts a line for another business's product
+        Then PostgreSQL refuses it
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_005_line_rules/migration.sql, tests/integration/order/line-rules.test.ts]
+      modify: []
+      pattern: tests/integration/order/creation-guard.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: product ownership and status are checked in the database."
+      - "v5.0.0-8.2.2: a line cannot point outside the supplier's own catalog."
+    tests: |
+      product rule | integration | AC-1, C-15 | each Examples row → accepted or 23514
+      minimum quantity | integration | AC-2, C-15 | each Examples row → accepted or 23514
+      later changes | integration | AC-3 | update works
+      customer order prices | integration | AC-4, C-20, CM-16 | equal on insert, never above on update
+      foreign product | security | AB-1, CWE-639 | 23514
+    command: npx vitest run tests/integration/order/line-rules.test.ts
+    out_of_scope:
+      - "Totals (ORD-006)."
+  - id: ORD-006
+    title: Order total equals the sum of its lines
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ORD-005]
+    read_first: [prisma/schema.prisma, tests/integration/order/line-rules.test.ts]
+    design_refs: [commandes-et-livraisons/order, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-19]
+    asvs: [v5.0.0-2.2.3, v5.0.0-2.3.3]
+    story: "Technical story: make the database check, at the end of each transaction, that an order's total is the sum of its line amounts plus its delivery cost, and that a delivered order's lines all carry a delivered quantity."
+    context: |
+      - Exists: `orders.total_amount`, `orders.delivery_cost`, `order_lines.amount`, `order_lines.delivered_quantity`.
+      - Adds: deferred constraint triggers (initially deferred) on `orders` and `order_lines`: at commit, for every touched order, `total_amount = sum(amount of its non-deleted lines) + delivery_cost`; an order with no lines is allowed only when `total_amount = delivery_cost`; when `status = 'DELIVERED'` every non-deleted line has `delivered_quantity` set. Violation: SQLSTATE 23514 at commit.
+    acceptance: |
+      Scenario: AC-1 Consistent order
+        When one transaction inserts an order with total 33000 and lines of 15000 and 15000 with delivery_cost 3000
+        Then the commit succeeds
+      Scenario Outline: AC-2 Inconsistent totals
+        When the transaction commits an order with <case>
+        Then the commit <result>
+        Examples:
+          | case                                                     | result          |
+          | total 30000 for lines summing to 33000 with cost 0       | rejects (23514) |
+          | total changed without changing a line                    | rejects (23514) |
+          | a line amount changed without changing the total         | rejects (23514) |
+          | an order with no lines and total_amount = delivery_cost  | accepts         |
+      Scenario: AC-3 Delivered needs delivered quantities
+        When an order is set DELIVERED while a line has no delivered_quantity
+        Then the commit fails with 23514
+      Scenario: AC-4 Same transaction
+        When the lines and the total change together in one transaction
+        Then the commit succeeds
+    abuse: |
+      Scenario: AB-1 A total that hides a discount (tampering)
+        When code lowers `total_amount` below the sum of the lines
+        Then PostgreSQL refuses the commit
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_006_total_check/migration.sql, tests/integration/order/total-check.test.ts]
+      modify: []
+      pattern: tests/integration/order/line-rules.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the total is a database invariant."
+      - "v5.0.0-2.3.3: the check runs when the transaction ends, so lines and total may be written in any order."
+    tests: |
+      consistent | integration | AC-1 | commit passes
+      inconsistent | integration | AC-2, C-19 | each Examples row → accepted or 23514
+      delivered quantities | integration | AC-3, C-19 | 23514 at commit
+      same transaction | integration | AC-4 | commit passes
+      hidden discount | security | AB-1, CWE-345 | commit refused
+    command: npx vitest run tests/integration/order/total-check.test.ts
+    out_of_scope:
+      - "Computing totals in code (ORD-007)."
+  - id: ORD-007
+    title: Order calculations and party views
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [ORD-004, FND-003]
+    read_first: [src/shared/money.ts, docs/stories/modules/foundation/contracts.md]
+    design_refs: [commandes-et-livraisons/orderline, commandes-et-livraisons/order]
+    constraints: [CM-14, C-19]
+    asvs: [v5.0.0-2.2.1, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: "Technical story: provide the pure functions that compute line amounts and totals and the two views of an order, so that every route computes and shows orders the same way."
+    context: |
+      - Exists: `lineAmount`, `parseQuantity` (FND-003); order tables (ORD-001, ORD-004).
+      - Adds: `src/modules/order/order.calculations.ts` (`lineAmountOf`, `orderTotal`) and `src/modules/order/order.views.ts` (`projectOrderForSupplier`, `projectOrderForCustomer`); no database access.
+      - `lineAmountOf` uses the delivered quantity when set, else the ordered one. `orderTotal` is the sum plus the delivery cost.
+      - Supplier view: all order fields and lines including `price_set_by_id` and `price_set_at` only for the roles OWNER and MANAGER (the caller passes the role), and `sync_issue`. Customer view: no `entered_by_id`, `delivered_by_id`, `cancelled_by_id`, `sync_issue`, `price_set_by_id`; `placed_by_party` and `cancelled_by_party` stay. Both show each line's `reference_price` and `unit_price_applied` so a gap is visible.
+    acceptance: |
+      Scenario Outline: AC-1 Line amount
+        When lineAmountOf receives quantity <q>, delivered <d> and price <p>
+        Then the result is <amount>
+        Examples:
+          | q      | d      | p    | amount |
+          | 2500   | none   | 333  | 833    |
+          | 10000  | 8000   | 3000 | 24000  |
+          | 1      | none   | 500  | 1      |
+      Scenario: AC-2 Total
+        When orderTotal receives amounts 15000, 15000 and delivery cost 3000
+        Then the result is 33000
+      Scenario: AC-3 Supplier view by role
+        When an order with a price gap is projected for a SELLER, then for an OWNER
+        Then price_set_by_id and price_set_at are absent for the SELLER and present for the OWNER
+      Scenario: AC-4 Customer view
+        Then the customer view has none of entered_by_id, delivered_by_id, cancelled_by_id, sync_issue or price_set_by_id and shows reference and applied prices
+    abuse: |
+      Scenario: AB-1 Private fields reach the customer (information disclosure)
+        When the customer view of a fully populated order is serialized
+        Then no supplier-team person id and no sync issue appears
+    implementation:
+      create: [src/modules/order/order.calculations.ts, src/modules/order/order.views.ts, tests/unit/order/calculations-and-views.test.ts]
+      modify: []
+      pattern: src/shared/money.ts
+      signatures:
+        - "lineAmountOf(line: { quantityMilli: bigint; deliveredQuantityMilli?: bigint | null; unitPriceApplied: bigint }): bigint"
+        - "orderTotal(amounts: bigint[], deliveryCost: bigint): bigint"
+        - "projectOrderForSupplier(order: OrderWithLines, role: Role): SupplierOrderView"
+        - "projectOrderForCustomer(order: OrderWithLines): CustomerOrderView"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.3: views are built from explicit field lists; the price author is role-restricted."
+      - "v5.0.0-15.3.1: no whole-row serialization."
+    tests: |
+      line amount | unit | AC-1, CM-14 | each Examples row → amount
+      total | unit | AC-2, C-19 | 33000
+      supplier view | unit | AC-3 | author fields by role
+      customer view | unit | AC-4 | key list
+      private fields | security | AB-1, CWE-200 | serialized view lacks them
+    command: npx vitest run tests/unit/order/calculations-and-views.test.ts
+    out_of_scope:
+      - "Routes (ORD-009 onward)."
+  - id: ORD-008
+    title: Order state machine
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [ORD-002, ORD-007]
+    read_first: [prisma/schema.prisma, tests/integration/order/status-rules.test.ts]
+    design_refs: [commandes-et-livraisons/order, annexe-la-table-des-regles/etapes-d-une-commande]
+    constraints: [CM-12, C-18, C-16]
+    asvs: [v5.0.0-2.3.1, v5.0.0-2.3.4]
+    story: "Technical story: provide the one function that changes an order's status by a permitted step, so that every route and the sync judge share the same rules."
+    context: |
+      - Exists: the DB status rules (ORD-002).
+      - Adds: `src/modules/order/order.state.ts` (`transitionOrder`) and `src/modules/order/order.repository.ts`.
+      - `transitionOrder(tx, orderId, to, actor, fields)` runs `UPDATE orders SET status = $to, ... WHERE id = $id AND status = ANY($allowedFrom) RETURNING *`. Allowed origins: CONFIRMED from PENDING; CANCELLED from PENDING or CONFIRMED (fields `cancelled_by_party`, `cancelled_by_id`, `cancelled_at` = now, `cancellation_reason`; reason required for SUPPLIER); IN_DELIVERY from CONFIRMED; DELIVERED from CONFIRMED or IN_DELIVERY (fields `delivered_at` = now, `delivered_by_id`); CONFIRMED from IN_DELIVERY (failed attempt). No row updated: 409 `INVALID_TRANSITION` naming the current status.
+      - Option `viaSync: true`: CANCELLED to DELIVERED is allowed and sets `sync_issue` "Livrée après annulation" and clears the cancellation columns; DELIVERED to CANCELLED changes nothing and sets `sync_issue` "Annulation impossible : commande livrée" (the call returns the unchanged order).
+    acceptance: |
+      Scenario Outline: AC-1 Steps
+        When transitionOrder moves an order from <from> to <to>
+        Then the result is <result>
+        Examples:
+          | from        | to          | result                |
+          | PENDING     | CONFIRMED   | updated               |
+          | PENDING     | CANCELLED   | updated               |
+          | CONFIRMED   | IN_DELIVERY | updated               |
+          | CONFIRMED   | DELIVERED   | updated               |
+          | CONFIRMED   | CANCELLED   | updated               |
+          | IN_DELIVERY | DELIVERED   | updated               |
+          | IN_DELIVERY | CONFIRMED   | updated               |
+          | IN_DELIVERY | CANCELLED   | 409 INVALID_TRANSITION |
+          | DELIVERED   | CANCELLED   | 409 INVALID_TRANSITION |
+          | CANCELLED   | CONFIRMED   | 409 INVALID_TRANSITION |
+          | PENDING     | DELIVERED   | 409 INVALID_TRANSITION |
+      Scenario: AC-2 Cancellation fields
+        When an order is cancelled by the SUPPLIER without a reason
+        Then the call throws 400 `VALIDATION_ERROR`
+        And with a reason the order stores party, person, time and reason
+      Scenario: AC-3 Parallel steps
+        When an order is cancelled and delivered at the same time
+        Then exactly one succeeds and the order is in a valid final status
+      Scenario: AC-4 Delivery wins through sync
+        When viaSync delivers an order that is CANCELLED
+        Then it is DELIVERED with sync_issue "Livrée après annulation" and no cancellation columns
+        And viaSync cancelling a DELIVERED order leaves it DELIVERED with sync_issue "Annulation impossible : commande livrée"
+    abuse: |
+      Scenario: AB-1 Skipping a step (tampering)
+        When code asks for PENDING to DELIVERED
+        Then the answer is 409 and the order is unchanged
+    implementation:
+      create: [src/modules/order/order.state.ts, src/modules/order/order.repository.ts, tests/integration/order/state-machine.test.ts]
+      modify: []
+      pattern: src/modules/tasks/tasks.repository.ts
+      signatures:
+        - "transitionOrder(tx: Prisma.TransactionClient, orderId: string, to: OrderStatus, actor: { personId: string; party: 'CUSTOMER' | 'SUPPLIER' }, fields?: TransitionFields, options?: { viaSync?: boolean }): Promise<Order>"
+      types:
+        - "TransitionFields = { cancellationReason?: string }"
+      errors: ["INVALID_TRANSITION 409", "VALIDATION_ERROR 400"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.1: a step is applied only by a conditional update on the current status."
+      - "v5.0.0-2.3.4: parallel steps are settled by the row update, not by read-then-write."
+    tests: |
+      steps | integration | AC-1, CM-12, C-18 | each Examples row → result
+      cancellation fields | integration | AC-2, C-16 | reason required for supplier; fields stored
+      parallel | integration | AC-3, CWE-362 | one success
+      delivery wins | integration | AC-4 | sync outcomes
+      skipped step | security | AB-1, WSTG-BUSL-06 | 409, unchanged
+    command: npx vitest run tests/integration/order/state-machine.test.ts
+    out_of_scope:
+      - "Who may take each step (routes, ACC rules)."
+  - id: ORD-009
+    title: Customer places an order
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORD-008, ORD-005, ORD-006, REL-007, CAT-003, ACC-007, NTF-002]
+    read_first: [docs/stories/modules/catalog/contracts.md, docs/stories/modules/relationship/contracts.md]
+    design_refs: [commandes-et-livraisons/order, relations-commerciales/customerrelationship/entree-en-relation-le-numero-comme]
+    constraints: [C-14, C-15, C-17]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3, v5.0.0-8.2.2]
+    story: As a customer, I want to order articles from a business so that it can prepare them for me.
+    context: |
+      - Exists: `getActiveProduct`, `getReferencePrice`, `ensureCustomerRelationship`, `lineAmountOf`, `orderTotal`, `projectOrderForCustomer`, `assertOrganizationActive`, `notify`, `idempotent()`.
+      - Adds: `POST /api/v1/orders` with `{ id, supplier_organization_id, delivery_address?, desired_delivery_date?, customer_note?, lines: [{ id, product_id, quantity }] }` (1 to 100 lines). Response 201 `projectOrderForCustomer`.
+      - One transaction: the supplier organization must be ACTIVE; the relationship is found or created for the caller as customer person (ACTIVE, credit limit 0); it must be ACTIVE (else 409 `RELATIONSHIP_NOT_ACTIVE`); each line takes the ACTIVE product, applies `quantity` (at least `min_order_quantity`), freezes `label_applied` = "<name> (<unit>)", `reference_price` from `getReferencePrice`, `unit_price_applied` equal to it, and the rounded `amount`; the order is PENDING, `placed_by_party` CUSTOMER, `entered_by_id` the caller, `delivery_address_applied` = the body value or the relationship's default, `delivery_cost` 0, `total_amount` the sum.
+      - The supplier's OWNER, MANAGERs and SELLERs get a notification `order.placed`. The customer never sends a price.
+    acceptance: |
+      Scenario: AC-1 Order with negotiated and default prices
+        Given article A priced 3000 (customer price 2800) and article B priced 500
+        When the customer orders 10 of A and 2.5 of B
+        Then the order is PENDING with lines at 2800 and 500, amounts 28000 and 1250, total 29250, unit_price_applied equal to reference_price
+      Scenario: AC-2 First order creates the relationship
+        When the caller has no relationship with the business
+        Then an ACTIVE relationship with credit_limit 0 is created in the same transaction
+      Scenario: AC-3 Team notified
+        Then the owner, managers and sellers each have one unread `order.placed`
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                              | status                      |
+          | a quantity below min_order_quantity                  | 400 VALIDATION_ERROR        |
+          | an INACTIVE or foreign product                       | 404 NOT_FOUND               |
+          | a CLOSED or SUSPENDED business                       | 409 ORGANIZATION_NOT_ACTIVE |
+          | a relationship ENDED by either party                 | 409 RELATIONSHIP_NOT_ACTIVE |
+          | more than 100 lines, or zero lines                   | 400 VALIDATION_ERROR        |
+          | quantity 0 or with 4 decimals                        | 400 VALIDATION_ERROR        |
+      Scenario: AC-5 Repeat
+        When the same body is posted twice
+        Then one order exists and both answers are equal
+    abuse: |
+      Scenario: AB-1 A price chosen by the client (tampering)
+        When a line carries unit_price_applied, reference_price or amount, or the body carries total_amount or status
+        Then the response is 400 and nothing is stored
+      Scenario: AB-2 Ordering for another person (horizontal)
+        When the body carries a customer id or relationship id
+        Then the response is 400 and the customer is always the caller
+    implementation:
+      create: [src/modules/order/order.routes.ts, src/modules/order/order.schemas.ts, src/modules/order/order.service.ts, tests/integration/order/place-order.test.ts]
+      modify: [src/modules/order/order.repository.ts, src/app.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "placeOrder(customer: { personId: string; organizationId?: string }, input: PlaceOrderInput): Promise<CustomerOrderView>"
+      types:
+        - "PlaceOrderInput = { id: string; supplier_organization_id: string; delivery_address?: string; desired_delivery_date?: string; customer_note?: string; lines: Array<{ id: string; product_id: string; quantity: string | number }> }"
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "ORGANIZATION_NOT_ACTIVE 409", "RELATIONSHIP_NOT_ACTIVE 409"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-2.2.1: prices, amounts and totals are computed on the server; the request carries only ids and quantities."
+      - "v5.0.0-2.3.3: relationship, order, lines and notifications are one transaction."
+      - "v5.0.0-15.3.3: strict schemas."
+      - "v5.0.0-8.2.2: the customer is the caller."
+    tests: |
+      prices and totals | integration | AC-1, C-17 | lines, amounts, total, PENDING
+      first order | integration | AC-2, C-14 | relationship created
+      team notified | integration | AC-3 | notifications
+      refusals | integration | AC-4, C-15 | each Examples row → status
+      repeat | integration | AC-5 | one order
+      client price | security | AB-1, CWE-915, WSTG-BUSL-02 | 400
+      other customer | security | AB-2, WSTG-ATHZ-04 | 400
+    command: npx vitest run tests/integration/order/place-order.test.ts
+    out_of_scope:
+      - "An organization as customer (ORD-010). OpenAPI registration (ORD-019)."
+  - id: ORD-010
+    title: Organization manager orders from a supplier
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ORD-009, ACC-005]
+    read_first: [src/modules/order/order.service.ts, src/modules/order/order.routes.ts]
+    design_refs: [commandes-et-livraisons/order, relations-commerciales/customerrelationship/organisation-cliente]
+    constraints: [C-14, C-17]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3]
+    story: As a manager, I want to order from a supplier on behalf of my business so that it buys with its own account.
+    context: |
+      - Exists: `placeOrder` (ORD-009); rule `order_from_supplier` on CustomerRelationship (MANAGER, network; ACC-005); `loadActor`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/purchases` with the body of ORD-009; response 201 `projectOrderForCustomer`.
+      - The customer of the relationship is the calling organization, which must be ACTIVE; the supplier must be a different organization (400 `VALIDATION_ERROR`). The organization's own relationship is used, never the manager's personal one. A SELLER or DRIVER answers 403.
+    acceptance: |
+      Scenario: AC-1 Order as an organization
+        When a MANAGER posts an order for their business
+        Then the order's relationship has the business as customer_organization_id and the manager's personal relationship is unchanged
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                                   | status                      |
+          | a SELLER or DRIVER caller                 | 403 FORBIDDEN               |
+          | the same organization as supplier         | 400 VALIDATION_ERROR        |
+          | a CLOSED calling organization             | 409 ORGANIZATION_NOT_ACTIVE |
+      Scenario: AC-3 Same rules as a person
+        Then prices, minimum quantities and notifications behave as in ORD-009
+    abuse: |
+      Scenario: AB-1 Seller commits the business's debt (vertical)
+        When a SELLER posts
+        Then the response is 403 and nothing is stored
+      Scenario: AB-2 Another business (horizontal)
+        When a member of A posts under B's path
+        Then the response is 404
+    implementation:
+      create: [tests/integration/order/place-purchase.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.service.ts, src/modules/order/order.schemas.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures: []
+      types: []
+      errors: ["FORBIDDEN 403", "VALIDATION_ERROR 400", "ORGANIZATION_NOT_ACTIVE 409"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager and above, online (network)."
+    tests: |
+      organization order | integration | AC-1, C-14 | customer organization set
+      refusals | integration | AC-2 | each Examples row → status
+      same rules | integration | AC-3, C-17 | as ORD-009
+      seller | security | AB-1, WSTG-ATHZ-03 | 403
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/order/place-purchase.test.ts
+    out_of_scope:
+      - "Inviting a supplier (REL-020)."
+  - id: ORD-011
+    title: Supplier accepts an order, lowering prices if needed
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORD-008, ACC-003, ACC-007, NTF-002, ORD-009]
+    read_first: [src/modules/order/order.state.ts, src/modules/order/order.service.ts]
+    design_refs: [commandes-et-livraisons/order, commandes-et-livraisons/orderline]
+    constraints: [C-20, CM-16, CM-12]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.1, v5.0.0-15.3.3]
+    story: As a seller, I want to accept a customer's order, and lower a price if we agreed, so that a negotiation ends in the order.
+    context: |
+      - Exists: `transitionOrder`, `lineAmountOf`, `orderTotal`; rule `accept` on Order for SELLER with status PENDING (ACC-003); `loadActor`; `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/orders/{orderId}/accept` with `{ id, line_prices?: [{ line_id, unit_price_applied }] }`; response 200 `projectOrderForSupplier`.
+      - One transaction: the order (supplier side, PENDING) is locked; each listed price must be an integer between 0 and the line's current `unit_price_applied` (a higher price answers 400 `PRICE_INCREASE_REFUSED`); lowered lines get `price_set_by_id` = the caller and `price_set_at` = now; amounts and `total_amount` are recomputed; the order becomes CONFIRMED; the customer is notified `order.status_changed`. Prices are frozen from here.
+      - A non-PENDING order answers 409 `INVALID_TRANSITION`.
+    acceptance: |
+      Scenario: AC-1 Accept as is
+        When a SELLER accepts a PENDING order with no line_prices
+        Then it is CONFIRMED with the same prices and total, and the customer is notified
+      Scenario: AC-2 Lower a price
+        When line_prices lowers a line from 2800 to 2500 for quantity 10
+        Then the line's applied price is 2500, its amount 25000, price_set_by_id is the caller, the total is recomputed, and reference_price stays 2800
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and the order stays PENDING
+        Examples:
+          | problem                                  | status                    |
+          | a price above the current one            | 400 PRICE_INCREASE_REFUSED |
+          | a negative price or 1.5                  | 400 VALIDATION_ERROR      |
+          | a line of another order                  | 404 NOT_FOUND             |
+          | an order not PENDING                     | 409 INVALID_TRANSITION    |
+          | a DRIVER caller                          | 403 FORBIDDEN             |
+      Scenario: AC-4 Repeat
+        When the same id is sent twice
+        Then the second answer equals the first
+    abuse: |
+      Scenario: AB-1 Raising a price after the customer ordered (tampering)
+        When line_prices contains a higher price
+        Then the response is 400 and no price changed
+      Scenario: AB-2 Accepting another business's order (horizontal)
+        When a member of A accepts an order of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/order/accept-order.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.schemas.ts, src/modules/order/order.service.ts, src/modules/order/order.repository.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures:
+        - "acceptOrder(actor: Actor, orderId: string, input: AcceptInput): Promise<SupplierOrderView>"
+      types:
+        - "AcceptInput = { id: string; line_prices?: Array<{ line_id: string; unit_price_applied: number }> }"
+      errors: ["PRICE_INCREASE_REFUSED 400", "INVALID_TRANSITION 409", "NOT_FOUND 404", "FORBIDDEN 403", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: seller and above, checked with the order status as condition."
+      - "v5.0.0-2.3.1: acceptance is a conditional status update."
+      - "v5.0.0-15.3.3: only line ids and prices are writable."
+    tests: |
+      accept | integration | AC-1, CM-12 | CONFIRMED, notification
+      lower price | integration | AC-2, C-20, CM-16 | applied, amount, total, author
+      refusals | integration | AC-3 | each Examples row → status
+      repeat | integration | AC-4 | equal answers
+      price increase | security | AB-1, WSTG-BUSL-02, CWE-345 | 400, unchanged
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/order/accept-order.test.ts
+    out_of_scope:
+      - "Refusing (ORD-012)."
+  - id: ORD-012
+    title: Supplier refuses an order
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ORD-008, ACC-003, ACC-007, NTF-002, ORD-009]
+    read_first: [src/modules/order/order.service.ts, src/modules/order/order.routes.ts]
+    design_refs: [commandes-et-livraisons/order/refus-et-annulation]
+    constraints: [C-16, CM-12]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.1]
+    story: As a seller, I want to refuse a customer's order with a reason so that the customer knows why.
+    context: |
+      - Exists: `transitionOrder`; rule `refuse` on Order for SELLER with status PENDING (ACC-003).
+      - Adds: `POST /api/v1/organizations/{organizationId}/orders/{orderId}/refuse` with `{ id, reason }`; `reason` 1 to 2000 characters, required; response 200 `projectOrderForSupplier`.
+      - The order becomes CANCELLED with `cancelled_by_party` SUPPLIER, `cancelled_by_id` the caller, `cancelled_at` now and the reason; the customer is notified `order.status_changed`. Only a PENDING order can be refused.
+    acceptance: |
+      Scenario: AC-1 Refuse
+        When a SELLER refuses a PENDING order with reason "rupture de stock"
+        Then it is CANCELLED with SUPPLIER, the caller, a time and the reason, and the customer is notified
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                            | status                  |
+          | no reason or an empty reason       | 400 VALIDATION_ERROR    |
+          | a reason of 2001 characters        | 400 VALIDATION_ERROR    |
+          | an order not PENDING               | 409 INVALID_TRANSITION  |
+          | a DRIVER caller                    | 403 FORBIDDEN           |
+      Scenario: AC-3 Repeat
+        When the same id is sent twice
+        Then the answers are equal
+    abuse: |
+      Scenario: AB-1 Refusing another business's order (horizontal)
+        When a member of A refuses an order of B
+        Then the response is 404 and it stays PENDING
+    implementation:
+      create: [tests/integration/order/refuse-order.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.schemas.ts, src/modules/order/order.service.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures:
+        - "refuseOrder(actor: Actor, orderId: string, input: { id: string; reason: string }): Promise<SupplierOrderView>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "INVALID_TRANSITION 409", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: seller and above."
+      - "v5.0.0-2.3.1: refusal is a conditional status update from PENDING."
+    tests: |
+      refuse | integration | AC-1, C-16, CM-12 | CANCELLED with fields, notification
+      refusals | integration | AC-2 | each Examples row → status
+      repeat | integration | AC-3 | equal answers
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/order/refuse-order.test.ts
+    out_of_scope:
+      - "Cancelling a confirmed order (ORD-016)."
+  - id: ORD-013
+    title: Seller enters an order for a customer
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORD-008, ORD-005, REL-009, CAT-003, ACC-003, ACC-007, ORD-009]
+    read_first: [src/modules/order/order.service.ts, docs/stories/modules/catalog/contracts.md]
+    design_refs: [commandes-et-livraisons/order, commandes-et-livraisons/orderline]
+    constraints: [C-14, C-15, C-17]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As a seller, I want to enter an order for a customer so that it is ready to be delivered without waiting for anyone.
+    context: |
+      - Exists: `getActiveProduct`, `getReferencePrice`, `lineAmountOf`, `orderTotal`, `projectOrderForSupplier`; rule `create` on Order (SELLER; ACC-003) and `update` on OrderLine field `unit_price_applied`; `assertOrganizationActive`; `idempotent()`.
+      - Adds: `POST /api/v1/organizations/{organizationId}/orders` with `{ id, customer_relationship_id, delivery_address?, delivery_cost?, desired_delivery_date?, customer_note?, lines: [{ id, product_id, quantity, unit_price_applied? }] }` (1 to 100 lines); response 201 `projectOrderForSupplier`.
+      - The order is CONFIRMED at once, `placed_by_party` SUPPLIER, `entered_by_id` the caller. `reference_price` comes from `getReferencePrice`; `unit_price_applied` defaults to it; a different price is a gap: `price_set_by_id` = the caller and `price_set_at` = now (any price of at least 0; the minimum quantity does not apply).
+      - The relationship must belong to the organization as supplier, be ACTIVE and not a counter (a counter answers 409 `USE_COUNTER_SALE`; counter sales are made by DLV-009). `delivery_cost` is an integer of at least 0 (default 0).
+    acceptance: |
+      Scenario: AC-1 Enter at the reference price
+        When a SELLER enters 10 units of an article priced 3000 for a customer without a negotiated price
+        Then the order is CONFIRMED, placed by SUPPLIER, the line's applied price is 3000 and equals reference_price, total 30000
+      Scenario: AC-2 Price gap has an author
+        When a line is entered at 2800 while the reference is 3000
+        Then price_set_by_id is the caller, price_set_at is set, reference_price stays 3000, and the amount uses 2800
+      Scenario: AC-3 Delivery cost
+        When delivery_cost 2000 is given
+        Then total_amount is the sum of lines plus 2000
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is stored
+        Examples:
+          | problem                                        | status                      |
+          | a counter relationship                         | 409 USE_COUNTER_SALE        |
+          | an ENDED or PENDING relationship               | 409 RELATIONSHIP_NOT_ACTIVE |
+          | an INACTIVE product                            | 404 NOT_FOUND               |
+          | a relationship of another business             | 404 NOT_FOUND               |
+          | a DRIVER caller                                | 403 FORBIDDEN               |
+          | zero lines or more than 100                    | 400 VALIDATION_ERROR        |
+          | total_amount or status in the body             | 400 VALIDATION_ERROR        |
+      Scenario: AC-5 Repeat
+        When the same body is posted twice
+        Then one order exists
+    abuse: |
+      Scenario: AB-1 Entering an order for another business's customer (horizontal)
+        When the relationship belongs to business B
+        Then the response is 404
+      Scenario: AB-2 Client-chosen totals (tampering)
+        When the body carries amount, reference_price or total_amount
+        Then the response is 400
+    implementation:
+      create: [tests/integration/order/enter-order.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.schemas.ts, src/modules/order/order.service.ts, src/modules/order/order.repository.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures:
+        - "enterOrder(actor: Actor, input: EnterOrderInput): Promise<SupplierOrderView>"
+      types:
+        - "EnterOrderInput = { id: string; customer_relationship_id: string; delivery_address?: string; delivery_cost?: number; desired_delivery_date?: string; customer_note?: string; lines: Array<{ id: string; product_id: string; quantity: string | number; unit_price_applied?: number }> }"
+      errors: ["USE_COUNTER_SALE 409", "RELATIONSHIP_NOT_ACTIVE 409", "NOT_FOUND 404", "FORBIDDEN 403", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: seller and above."
+      - "v5.0.0-2.3.3: order and lines are one transaction."
+      - "v5.0.0-15.3.3: amounts, totals and reference prices are never accepted from the client."
+    tests: |
+      reference price | integration | AC-1, C-17 | CONFIRMED, equal prices, total
+      price gap | integration | AC-2 | author and time, amount at 2800
+      delivery cost | integration | AC-3, C-14 | total includes 2000
+      refusals | integration | AC-4, C-15 | each Examples row → status
+      repeat | integration | AC-5 | one order
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+      client totals | security | AB-2, CWE-915 | 400
+    command: npx vitest run tests/integration/order/enter-order.test.ts
+    out_of_scope:
+      - "Counter sales (DLV-009). Editing (ORD-014)."
+  - id: ORD-014
+    title: Seller edits an order they entered, before departure
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORD-013, ORD-009]
+    read_first: [src/modules/order/order.service.ts, src/modules/order/order.repository.ts]
+    design_refs: [commandes-et-livraisons/order, commandes-et-livraisons/orderline]
+    constraints: [C-18]
+    asvs: [v5.0.0-2.3.1, v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: As a seller, I want to correct an order I entered until it leaves for delivery so that mistakes are fixed before the customer is served.
+    context: |
+      - Exists: `enterOrder` (ORD-013); the DB status rules freeze orders that are IN_DELIVERY, DELIVERED or CANCELLED.
+      - Adds: `PATCH /api/v1/organizations/{organizationId}/orders/{orderId}` with any of `delivery_address`, `delivery_cost`, `desired_delivery_date`, `customer_note` (each nullable to clear) and `lines` (the full new list, same shape as ORD-013); response 200 `projectOrderForSupplier`.
+      - Only an order with `placed_by_party` SUPPLIER and status CONFIRMED can be edited; otherwise 409 `ORDER_FROZEN`. A `lines` list replaces the old lines (old ones get `deleted_at`), with the same price, product and gap rules as ORD-013, and the total is recomputed in the same transaction.
+      - Customer-placed orders never change after sending (409 `ORDER_FROZEN`). At least one field is required.
+    acceptance: |
+      Scenario: AC-1 Edit fields
+        When a SELLER changes delivery_cost to 1500 and delivery_address on their CONFIRMED order
+        Then the response is 200 and total_amount is lines plus 1500
+      Scenario: AC-2 Replace lines
+        When lines are replaced with two new lines
+        Then the old lines are deleted, the new lines carry reference and applied prices, and the total matches
+      Scenario Outline: AC-3 Frozen
+        When the order is <case>
+        Then the response is 409 `ORDER_FROZEN` and nothing changes
+        Examples:
+          | case                                  |
+          | IN_DELIVERY                           |
+          | DELIVERED                             |
+          | CANCELLED                             |
+          | placed by the customer                |
+      Scenario: AC-4 Validation
+        When the body is empty, has a status or total_amount, or an INACTIVE product
+        Then the response is 400 or 404 and nothing changes
+    abuse: |
+      Scenario: AB-1 Changing a delivered order (tampering)
+        When a seller patches a DELIVERED order
+        Then the response is 409 and the order is unchanged
+      Scenario: AB-2 Another business's order (horizontal)
+        When a member of A patches an order of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/order/edit-order.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.schemas.ts, src/modules/order/order.service.ts, src/modules/order/order.repository.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures:
+        - "editOrder(actor: Actor, orderId: string, input: EditOrderInput): Promise<SupplierOrderView>"
+      types: []
+      errors: ["ORDER_FROZEN 409", "VALIDATION_ERROR 400", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-2.3.1: the order is locked and its status and origin checked before any change."
+      - "v5.0.0-15.3.3: strict schema; totals and amounts are recomputed."
+    tests: |
+      edit fields | integration | AC-1, C-18 | total with new cost
+      replace lines | integration | AC-2 | old deleted, new priced
+      frozen | integration | AC-3 | each Examples row → 409
+      validation | integration | AC-4 | 400 or 404
+      delivered order | security | AB-1, CWE-841 | 409, unchanged
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/order/edit-order.test.ts
+    out_of_scope:
+      - "The supplier's note, editable at any time (ORD-015)."
+  - id: ORD-015
+    title: Seller writes a note on an order at any time
+    kind: feature
+    size: XS
+    risk: low
+    depends_on: [ORD-009]
+    read_first: [src/modules/order/order.service.ts, src/modules/order/order.routes.ts]
+    design_refs: [commandes-et-livraisons/order]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: As a seller, I want to write a remark on an order, even after delivery, so that the customer sees what is happening.
+    context: |
+      - Exists: orders (ORD-009, ORD-013); `supplier_note` is the only field a DELIVERED or CANCELLED order still accepts (ORD-002); rule `update` on Order field `supplier_note` for SELLER (ACC-003).
+      - Adds: `PATCH /api/v1/organizations/{organizationId}/orders/{orderId}/note` with `{ supplier_note }` (up to 2000 characters, null clears); response 200 `projectOrderForSupplier`. The note is visible to the customer.
+    acceptance: |
+      Scenario Outline: AC-1 Write in any status
+        When a SELLER sets the note on an order that is <status>
+        Then the response is 200 and the note is stored
+        Examples:
+          | status      |
+          | PENDING     |
+          | CONFIRMED   |
+          | DELIVERED   |
+          | CANCELLED   |
+      Scenario: AC-2 Clear and limit
+        Then null clears the note and 2001 characters answer 400
+      Scenario: AC-3 Only the note
+        When the body has another key
+        Then the response is 400 and nothing changes
+      Scenario: AC-4 Driver refused
+        Then a DRIVER answers 403
+    abuse: |
+      Scenario: AB-1 Another business's order (horizontal)
+        When a member of A writes a note on an order of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/order/order-note.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.schemas.ts, src/modules/order/order.service.ts, src/modules/order/order.repository.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures:
+        - "setSupplierNote(actor: Actor, orderId: string, note: string | null): Promise<SupplierOrderView>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: seller and above."
+      - "v5.0.0-15.3.3: only `supplier_note` is writable."
+    tests: |
+      any status | integration | AC-1 | each Examples row → 200
+      clear and limit | integration | AC-2 | null and 2001
+      only the note | integration | AC-3 | 400
+      driver | integration | AC-4 | 403
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/order/order-note.test.ts
+    out_of_scope:
+      - "Any other change to a finished order."
+  - id: ORD-016
+    title: Supplier cancels an order before departure
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ORD-008, ACC-003, ACC-007, NTF-002, ORD-009]
+    read_first: [src/modules/order/order.state.ts, src/modules/order/order.service.ts]
+    design_refs: [commandes-et-livraisons/order/refus-et-annulation]
+    constraints: [C-16]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.1]
+    story: As a seller, I want to cancel a confirmed order with a reason so that the customer knows it will not come.
+    context: |
+      - Exists: `transitionOrder`; rule `cancel` on Order for SELLER with status PENDING or CONFIRMED (ACC-003).
+      - Adds: `POST /api/v1/organizations/{organizationId}/orders/{orderId}/cancel` with `{ id, reason }` (1 to 2000, required); response 200 `projectOrderForSupplier`. The order becomes CANCELLED with SUPPLIER, the caller, now, the reason; the customer is notified `order.status_changed`.
+      - An order that has left (IN_DELIVERY) or is finished answers 409 `INVALID_TRANSITION`. Unstarted deliveries of the order are removed by DLV-010.
+    acceptance: |
+      Scenario: AC-1 Cancel
+        When a SELLER cancels a CONFIRMED order with reason "article plus disponible"
+        Then it is CANCELLED with the four cancellation fields and the customer is notified
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                              | status                  |
+          | an order IN_DELIVERY                 | 409 INVALID_TRANSITION  |
+          | a DELIVERED or CANCELLED order       | 409 INVALID_TRANSITION  |
+          | no reason                            | 400 VALIDATION_ERROR    |
+          | a DRIVER caller                      | 403 FORBIDDEN           |
+      Scenario: AC-3 Note kept
+        Given the order has a supplier_note
+        Then the note and the cancellation reason both remain
+    abuse: |
+      Scenario: AB-1 Driver cancels (vertical)
+        When a DRIVER posts cancel
+        Then the response is 403 and the status is unchanged
+      Scenario: AB-2 Another business's order (horizontal)
+        When a member of A cancels an order of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/order/cancel-order-supplier.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.schemas.ts, src/modules/order/order.service.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures:
+        - "cancelOrderAsSupplier(actor: Actor, orderId: string, input: { id: string; reason: string }): Promise<SupplierOrderView>"
+      types: []
+      errors: ["INVALID_TRANSITION 409", "VALIDATION_ERROR 400", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: seller and above."
+      - "v5.0.0-2.3.1: conditional status update."
+    tests: |
+      cancel | integration | AC-1, C-16 | fields and notification
+      refusals | integration | AC-2 | each Examples row → status
+      note kept | integration | AC-3 | both texts present
+      driver | security | AB-1, WSTG-ATHZ-03 | 403
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/order/cancel-order-supplier.test.ts
+    out_of_scope:
+      - "Removing unstarted deliveries (DLV-010)."
+  - id: ORD-017
+    title: Customer cancels an order before departure
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [ORD-009, ORD-010, ORD-016]
+    read_first: [src/modules/order/order.service.ts, src/modules/order/order.routes.ts]
+    design_refs: [commandes-et-livraisons/order/refus-et-annulation, commandes-et-livraisons/order]
+    constraints: [C-16]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.1]
+    story: As a customer, I want to cancel an order that has not left so that I can change my mind at no cost.
+    context: |
+      - Exists: `transitionOrder`; orders placed by persons (ORD-009) and organizations (ORD-010).
+      - Adds: `POST /api/v1/orders/{orderId}/cancel` for the person who is the customer, and `POST /api/v1/organizations/{organizationId}/purchases/{orderId}/cancel` (MANAGER or OWNER, network), both with `{ id, reason? }` (up to 2000); response 200 `projectOrderForCustomer`.
+      - Allowed from PENDING or CONFIRMED (any order the customer's relationship owns, whoever entered it); the order becomes CANCELLED with `cancelled_by_party` CUSTOMER and the caller. The supplier's OWNER, MANAGERs and SELLERs are notified `order.status_changed`. IN_DELIVERY, DELIVERED or CANCELLED orders answer 409 `INVALID_TRANSITION`.
+    acceptance: |
+      Scenario: AC-1 Person cancels
+        When a customer cancels their PENDING order
+        Then it is CANCELLED with party CUSTOMER and the supplier team is notified
+      Scenario: AC-2 Confirmed order
+        When the customer cancels a CONFIRMED order that has not left
+        Then it is CANCELLED and any reason is stored
+      Scenario: AC-3 Organization cancels
+        When a MANAGER cancels through the purchases route
+        Then the same happens; a SELLER answers 403
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status>
+        Examples:
+          | problem                          | status                 |
+          | an order IN_DELIVERY             | 409 INVALID_TRANSITION |
+          | a DELIVERED order                | 409 INVALID_TRANSITION |
+          | an order of another customer     | 404 NOT_FOUND          |
+    abuse: |
+      Scenario: AB-1 Cancelling someone else's order (horizontal)
+        When person A cancels an order of person B
+        Then the response is 404 and B's order is unchanged
+      Scenario: AB-2 Cancelling after the goods left (business logic)
+        When the order is IN_DELIVERY
+        Then the response is 409 and the delivery continues
+    implementation:
+      create: [tests/integration/order/cancel-order-customer.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.schemas.ts, src/modules/order/order.service.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures:
+        - "cancelOrderAsCustomer(customer: { personId: string; organizationId?: string; role?: Role }, orderId: string, input: { id: string; reason?: string }): Promise<CustomerOrderView>"
+      types: []
+      errors: ["INVALID_TRANSITION 409", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the order is selected through the caller's own customer relationship."
+      - "v5.0.0-2.3.1: conditional status update."
+    tests: |
+      person cancels | integration | AC-1, C-16 | CANCELLED CUSTOMER, notified
+      confirmed | integration | AC-2 | CANCELLED with reason
+      organization cancels | integration | AC-3 | manager ok, seller 403
+      refusals | integration | AC-4 | each Examples row → status
+      other customer | security | AB-1, WSTG-ATHZ-04 | 404
+      after departure | security | AB-2, WSTG-BUSL-06 | 409
+    command: npx vitest run tests/integration/order/cancel-order-customer.test.ts
+    out_of_scope:
+      - "Cancellation fees (v2)."
+  - id: ORD-018
+    title: Closing a business refuses its pending orders
+    kind: change
+    size: S
+    risk: medium
+    depends_on: [ORD-008, ORG-016]
+    amends: [ORG-016]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/order/order.state.ts]
+    design_refs: [identite-et-organisation/organization]
+    constraints: [CM-10]
+    asvs: [v5.0.0-2.3.3]
+    story: "Technical story: refuse every PENDING order of a business when its owner closes it, so that no customer waits for a closed business."
+    context: |
+      - Exists: `closeOrganization` (ORG-016), `transitionOrder` (ORD-008), `notify`.
+      - Changes: in the same transaction as the close, every PENDING order whose relationship has this organization as supplier is cancelled with `cancelled_by_party` SUPPLIER, `cancelled_by_id` the owner, `cancellation_reason` "Commerce fermé"; each customer is notified `order.status_changed`. CONFIRMED and IN_DELIVERY orders are untouched.
+    acceptance: |
+      Scenario: AC-1 Pending orders refused
+        Given 2 PENDING, 1 CONFIRMED and 1 DELIVERED order of the business
+        When the owner closes it
+        Then the 2 PENDING orders are CANCELLED with reason "Commerce fermé" and the others are unchanged
+      Scenario: AC-2 Customers told
+        Then each customer of a refused order has one unread `order.status_changed`
+      Scenario: AC-3 Atomic
+        When a refusal fails
+        Then the organization is still ACTIVE and every order unchanged
+      Scenario: AC-4 No pending orders
+        Then closing works as before
+    implementation:
+      create: [tests/integration/order/close-refuses-pending.test.ts]
+      modify: [src/modules/organization/organization.service.ts, src/modules/order/order.repository.ts]
+      pattern: src/modules/order/order.repository.ts
+      signatures:
+        - "refusePendingOrders(tx: Prisma.TransactionClient, organizationId: string, byPersonId: string): Promise<number>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: close and refusals are one transaction."
+    tests: |
+      pending refused | integration | AC-1, CM-10 | statuses and reason
+      customers told | integration | AC-2 | notifications
+      atomic | integration | AC-3, CWE-362 | forced failure → unchanged
+      no pending | integration | AC-4 | as before
+    command: npx vitest run tests/integration/order/close-refuses-pending.test.ts tests/integration/organization/close.test.ts
+    out_of_scope:
+      - "Orders already confirmed or delivered."
+    tests_to_update: []
+  - id: ORD-019
+    title: Seller lists the orders
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ORD-013, FND-009, ORD-009]
+    read_first: [src/modules/order/order.routes.ts, src/modules/relationship/relationship.visibility.ts]
+    design_refs: [commandes-et-livraisons/order]
+    constraints: []
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.4.1, v5.0.0-15.3.1]
+    story: As a seller, I want to list my organization's orders so that I find the ones to handle.
+    context: |
+      - Exists: orders (ORD-009 onward); `visibleRelationsWhere`; `projectOrderForSupplier`.
+      - Adds: `GET /api/v1/organizations/{organizationId}/orders?limit&cursor&status&customer_relationship_id` (SELLER and above; DRIVER gets 403): the orders of relationships where the organization is supplier, newest first, with lines. `status` filters one status; `customer_relationship_id` one customer.
+      - Adds `order.openapi.ts` documenting this route and the order routes of ORD-009 to ORD-017; `order.routes.ts` imports it for its side effect.
+    acceptance: |
+      Scenario: AC-1 List orders
+        Given 5 orders across two customers
+        When a SELLER lists
+        Then 5 orders are returned newest first, each with its lines
+      Scenario Outline: AC-2 Filters
+        When the query has <query>
+        Then <count> orders are returned
+        Examples:
+          | query                                   | count |
+          | status=PENDING                          | 2     |
+          | customer_relationship_id of customer 1  | 3     |
+          | status=DELIVERED                        | 0     |
+      Scenario: AC-3 Pagination
+        When limit 2 is used with the returned cursor
+        Then the pages hold 2, 2 and 1 orders
+      Scenario: AC-4 Driver refused
+        Then a DRIVER answers 403
+    abuse: |
+      Scenario: AB-1 Another business's orders (horizontal)
+        When a member of A lists the orders of B
+        Then the response is 404
+      Scenario: AB-2 Filtering by a foreign customer (horizontal)
+        When customer_relationship_id belongs to another business
+        Then the list is empty
+    implementation:
+      create: [src/modules/order/order.openapi.ts, tests/integration/order/list-orders.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.service.ts, src/modules/order/order.repository.ts, src/modules/order/order.schemas.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "listOrders(actor: Actor, query: ListOrdersQuery): Promise<{ items: SupplierOrderView[]; next_cursor: string | null }>"
+      types: []
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.2: the query starts from the visibility predicate for the actor's organization."
+      - "v5.0.0-15.3.1: supplier projection only."
+    tests: |
+      list | integration | AC-1 | 5 orders with lines
+      filters | integration | AC-2 | each Examples row → count
+      paging | integration | AC-3 | 2, 2, 1
+      driver | integration | AC-4 | 403
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+      foreign customer filter | security | AB-2, WSTG-ATHZ-02 | empty
+    command: npx vitest run tests/integration/order/list-orders.test.ts
+    out_of_scope:
+      - "Orders to deliver for drivers (DLV-003)."
+  - id: ORD-020
+    title: Seller opens one order
+    kind: feature
+    size: XS
+    risk: medium
+    depends_on: [ORD-019, ORD-009]
+    read_first: [src/modules/order/order.routes.ts, src/modules/order/order.service.ts]
+    design_refs: [commandes-et-livraisons/order]
+    constraints: []
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a seller, I want to open an order so that I see its lines, prices and status.
+    context: |
+      - Exists: `GET .../orders` (ORD-019).
+      - Adds: `GET /api/v1/organizations/{organizationId}/orders/{orderId}` (SELLER and above) returning `projectOrderForSupplier` with the caller's role; a missing, foreign or malformed id answers 404 or 400.
+    acceptance: |
+      Scenario: AC-1 Open
+        When a SELLER opens an order of their organization
+        Then the response is 200 with lines, totals, notes and status
+      Scenario: AC-2 Price author by role
+        Then an OWNER sees price_set_by_id on gap lines and a SELLER does not
+      Scenario Outline: AC-3 Not found
+        When the id is <case>
+        Then the response is <status>
+        Examples:
+          | case                              | status |
+          | an order of another business      | 404    |
+          | not a UUID                        | 400    |
+      Scenario: AC-4 Driver refused
+        Then a DRIVER answers 403
+    abuse: |
+      Scenario: AB-1 Reading an order by id from another business (horizontal)
+        When a member of A requests an order id of B under A's path
+        Then the response is 404
+    implementation:
+      create: [tests/integration/order/get-order.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.service.ts, src/modules/order/order.repository.ts, src/modules/order/order.openapi.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures:
+        - "getOrder(actor: Actor, orderId: string): Promise<SupplierOrderView>"
+      types: []
+      errors: ["NOT_FOUND 404", "VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the order is selected by id and the visibility predicate."
+    tests: |
+      open | integration | AC-1 | full view
+      author by role | integration | AC-2 | owner sees, seller does not
+      not found | integration | AC-3 | each Examples row → status
+      driver | integration | AC-4 | 403
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/order/get-order.test.ts
+    out_of_scope:
+      - "The receipt: generated on the phone."
+  - id: ORD-021
+    title: Customer lists and opens their orders
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ORD-017, ORD-019, FND-009]
+    read_first: [src/modules/order/order.routes.ts, src/modules/relationship/relationship.visibility.ts]
+    design_refs: [commandes-et-livraisons/order]
+    constraints: []
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a customer, I want to list and open my orders so that I follow what I bought.
+    context: |
+      - Exists: customer projection (ORD-007); `visibleRelationsWhere`.
+      - Adds: `GET /api/v1/orders?limit&cursor&status&supplier_relationship_id` and `GET /api/v1/orders/{orderId}` for a signed-in person (orders on relationships where they are `customer_person_id`), and `GET /api/v1/organizations/{organizationId}/purchases` and `GET /api/v1/organizations/{organizationId}/purchases/{orderId}` (MANAGER and above) for an organization as customer. All return `projectOrderForCustomer`, newest first.
+    acceptance: |
+      Scenario: AC-1 Person's orders
+        Given a person with 3 orders at two suppliers
+        When they list
+        Then 3 orders are returned in the customer view with lines and reference and applied prices
+      Scenario: AC-2 Opening one
+        Then opening their own order returns 200 and another person's order id returns 404
+      Scenario: AC-3 Organization purchases
+        When a MANAGER lists the purchases of their business
+        Then only that business's orders as customer are returned; a SELLER answers 403
+      Scenario: AC-4 Filters and pages
+        Then status and supplier_relationship_id filter, and limit 2 with the cursor pages 2 and 1
+    abuse: |
+      Scenario: AB-1 Another customer's orders (horizontal)
+        When person A lists or opens orders of person B
+        Then nothing of B appears
+      Scenario: AB-2 Supplier-side data (information disclosure)
+        When an order is read by its customer
+        Then no entered_by_id, delivered_by_id, sync_issue or price author appears
+    implementation:
+      create: [tests/integration/order/customer-orders.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.service.ts, src/modules/order/order.repository.ts, src/modules/order/order.schemas.ts, src/modules/order/order.openapi.ts]
+      pattern: src/modules/order/order.routes.ts
+      signatures:
+        - "listOrdersAsCustomer(customer: { personId: string; organizationId?: string }, query: ListOrdersQuery): Promise<{ items: CustomerOrderView[]; next_cursor: string | null }>"
+        - "getOrderAsCustomer(customer: { personId: string; organizationId?: string }, orderId: string): Promise<CustomerOrderView>"
+      types: []
+      errors: ["NOT_FOUND 404", "FORBIDDEN 403", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: every query starts from the visibility predicate for the caller as customer."
+      - "v5.0.0-15.3.1: customer projection only."
+    tests: |
+      person orders | integration | AC-1 | 3 orders, customer view
+      open | integration | AC-2 | own 200, foreign 404
+      organization purchases | integration | AC-3 | manager ok, seller 403
+      filters and pages | integration | AC-4 | counts
+      other customer | security | AB-1, WSTG-ATHZ-04 | nothing of B
+      supplier data | security | AB-2, CWE-200 | fields absent
+    command: npx vitest run tests/integration/order/customer-orders.test.ts
+    out_of_scope:
+      - "Receipts: generated on the phone."

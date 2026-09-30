@@ -1,0 +1,251 @@
+kind: module
+module: notification
+prefix: NTF
+title: Notification
+responsibility: Stores in-app notifications for registered people and lets them list and mark them as read.
+entities: [Notification]
+depends_on: [foundation, person]
+asvs_level: L2
+asvs_rationale: Notifications carry business events and names about a person's own account and are private to the recipient.
+classification:
+  - "Notification.content | PII | visible to the recipient only; may name customers and amounts; never logged"
+threats:
+  - "T1 | I | A person reads another person's notifications | every query filters on the recipient id from the session | NTF-003 AB-1, NTF-004 AB-1"
+  - "T2 | T | A client marks or creates notifications for others | no create route; read state changes only on own rows | NTF-004 AB-2"
+constraints:
+  C-30: "`Notification` recipient is a registered person; `related_entity_type` and `related_entity_id` are both set or both empty."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+contracts:
+  provides:
+    - name: NotificationService
+      file: src/modules/notification/notification.service.ts
+      story: NTF-002
+      items:
+        - "notify(input: NotifyInput, tx?: Prisma.TransactionClient): Promise<void> — stores one unread notification"
+        - "recipientLanguage(personId: string): Promise<'FR' | 'EN'> — preferred language, FR when empty"
+      used_by: [auth, organization, relationship, order, finance, delivery, admin, sync]
+  consumes:
+    - "person: PER-008 require_registered_person trigger (docs/stories/modules/person/contracts.md)"
+    - "foundation: newId, paginationQuerySchema, httpError (docs/stories/modules/foundation/contracts.md)"
+stories:
+  - id: NTF-001
+    title: Notifications table
+    kind: technical
+    size: XS
+    risk: low
+    depends_on: [PER-008, FND-005]
+    read_first: [prisma/schema.prisma, tests/integration/person/registered-guard.test.ts]
+    design_refs: [notifications/notification, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Notification:required, Notification.read_status:enum, C-30, C-01, C-35]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Notification.{recipient_id,organization_id,content,source_event,related_entity_type,related_entity_id,read_status,pushed_at,created_at}"]
+    story: "Technical story: create the notifications table with its constraints so that later modules can store events for people."
+    context: |
+      - Exists: `people` (PER-002), `require_registered_person()` (PER-008), `set_server_updated_at()` (FND-002).
+      - Adds: table `notifications` with `server_updated_at` and `deleted_at`; `organization_id` is a plain `uuid` column for now (the foreign key is added when organizations exist, ORG-002); `related_entity_id` is a polymorphic id with no foreign key.
+      - Triggers: `require_registered_person('recipient_id')`; `set_server_updated_at()`.
+      - Indexes: `(recipient_id, read_status, created_at desc)`.
+    acceptance: |
+      Scenario: AC-1 Row stored with defaults
+        When a notification is inserted for a registered person with content and source_event
+        Then `read_status` is UNREAD, `created_at` and `server_updated_at` are set, `pushed_at` is empty
+      Scenario: AC-2 Guest recipient refused
+        When the recipient is a guest
+        Then the insert fails with 23514
+      Scenario Outline: AC-3 Related entity pair
+        When a row has related_entity_type <type> and related_entity_id <id>
+        Then the insert <result>
+        Examples:
+          | type    | id             | result  |
+          | Order   | a UUID         | accepts |
+          | empty   | empty          | accepts |
+          | Order   | empty          | rejects |
+          | empty   | a UUID         | rejects |
+      Scenario: AC-4 Enum and foreign key
+        When read_status is "SEEN" or recipient_id is unknown
+        Then the insert fails
+    implementation:
+      create: [prisma/migrations/<timestamp>_ntf_001_notifications/migration.sql, tests/integration/notification/notification-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/person/person-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the pair rule and the registered-recipient rule are enforced by the database."
+    tests: |
+      defaults | integration | AC-1, Notification:required, C-35, C-01 | insert → UNREAD, timestamps set; column types via expectColumnType
+      guest recipient | integration | AC-2, C-30 | guest → 23514
+      pair rule | integration | AC-3, C-30 | each Examples row → accepted or 23514
+      enum and fk | integration | AC-4, Notification.read_status:enum | 'SEEN' → rejected; unknown recipient → 23503
+    command: npx vitest run tests/integration/notification/notification-table.test.ts
+    out_of_scope:
+      - "The foreign key on `organization_id` (ORG-002)."
+      - "Push delivery (Q-007)."
+  - id: NTF-002
+    title: Notify service
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [NTF-001, FND-006]
+    read_first: [docs/stories/modules/foundation/contracts.md, src/modules/tasks/tasks.repository.ts]
+    design_refs: [notifications/notification]
+    constraints: [Notification:required, C-30]
+    asvs: [v5.0.0-16.2.5, v5.0.0-2.2.1]
+    story: "Technical story: provide `notify` and `recipientLanguage` so every module stores notifications the same way."
+    context: |
+      - Exists: `notifications` (NTF-001); `newId`; `httpError`.
+      - Adds: `src/modules/notification/notification.repository.ts` and `notification.service.ts`.
+      - `NotifyInput = { recipientId, organizationId?, sourceEvent, content, related?: { type, id } }`. `sourceEvent` is one of the design's event names, for example `order.placed` or `customer.added`.
+      - Content is written by the caller in the recipient's language (`recipientLanguage`, Q-028). A notification never contains a password, code or token.
+    acceptance: |
+      Scenario: AC-1 Store a notification
+        When notify is called with a registered recipient, sourceEvent "order.placed" and content "Nouvelle commande"
+        Then one UNREAD row exists with that content and source_event
+      Scenario: AC-2 Inside a caller's transaction
+        When notify runs with a transaction that later rolls back
+        Then no notification exists
+      Scenario Outline: AC-3 Invalid input
+        When notify receives <input>
+        Then it throws `httpError(400, 'VALIDATION_ERROR', ...)`
+        Examples:
+          | input                                  |
+          | empty sourceEvent                      |
+          | empty content                          |
+          | related with a type but no id          |
+          | a guest recipient                      |
+      Scenario: AC-4 Language
+        Then recipientLanguage returns the person's preferred language, or FR when it is empty
+    implementation:
+      create: [src/modules/notification/notification.repository.ts, src/modules/notification/notification.service.ts, tests/integration/notification/notify.test.ts]
+      modify: []
+      pattern: src/modules/tasks/tasks.repository.ts
+      signatures:
+        - "notify(input: NotifyInput, tx?: Prisma.TransactionClient): Promise<void>"
+        - "recipientLanguage(personId: string): Promise<'FR' | 'EN'>"
+      types:
+        - "NotifyInput = { recipientId: string; organizationId?: string; sourceEvent: string; content: string; related?: { type: string; id: string } }"
+      errors: ["VALIDATION_ERROR 400"]
+      dependencies: ["@prisma/client", zod]
+    security:
+      - "v5.0.0-16.2.5: the service never logs `content`; it logs the recipient id and `sourceEvent` only."
+    tests: |
+      store | integration | AC-1, Notification:required | notify → one UNREAD row
+      transaction | integration | AC-2 | rollback → zero rows
+      invalid input | integration | AC-3, C-30 | each Examples row → 400 error, no row
+      language | integration | AC-4 | EN person → EN; empty → FR
+    command: npx vitest run tests/integration/notification/notify.test.ts
+    out_of_scope:
+      - "Sending push notifications (Q-007)."
+  - id: NTF-003
+    title: Person lists their notifications
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [NTF-002, FND-009]
+    read_first: [docs/stories/modules/notification/contracts.md, src/modules/tasks/tasks.routes.ts]
+    design_refs: [notifications/notification]
+    constraints: []
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a customer, I want to list my notifications, newest first, so that I see what changed on my account.
+    context: |
+      - Exists: `notify` (NTF-002); `paginationQuerySchema` and cursors (FND-009); `authMiddleware`.
+      - Adds: `GET /api/v1/notifications?limit&cursor&unread=true`. Response `{ items: [{ id, organization_id, content, source_event, related_entity_type, related_entity_id, read_status, created_at }], next_cursor }`. Rows with `deleted_at` are excluded.
+    acceptance: |
+      Scenario: AC-1 Own notifications, newest first
+        Given a person with 3 notifications
+        When they GET /api/v1/notifications
+        Then the response is 200 with 3 items ordered by created_at descending
+      Scenario: AC-2 Unread filter
+        When they GET with unread=true after reading one
+        Then only unread items are returned
+      Scenario: AC-3 Pagination
+        Given 5 notifications
+        When they GET with limit 2, then with the returned next_cursor
+        Then the pages hold 2, 2 and 1 items with no repeat
+    abuse: |
+      Scenario: AB-1 Another person's notifications (horizontal)
+        Given notifications for person B
+        When person A lists notifications
+        Then none of B's rows appear
+      Scenario: AB-2 No token (unauthenticated)
+        When the request has no valid access token
+        Then the response is 401
+    implementation:
+      create: [src/modules/notification/notification.routes.ts, src/modules/notification/notification.schemas.ts, src/modules/notification/notification.openapi.ts, tests/integration/notification/list.test.ts]
+      modify: [src/modules/notification/notification.repository.ts, src/app.ts]
+      pattern: src/modules/tasks/tasks.routes.ts
+      signatures:
+        - "listNotifications(personId: string, query: ListQuery): Promise<{ items: NotificationView[]; next_cursor: string | null }>"
+      types:
+        - "ListQuery = { limit: number; cursor?: string; unread?: boolean }"
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.2: the query filters on `recipient_id` from the session."
+      - "v5.0.0-15.3.1: response built from the listed fields."
+    tests: |
+      own rows | integration | AC-1 | 3 rows → 3 items, descending
+      unread filter | integration | AC-2 | one read → 2 items
+      paging | integration | AC-3 | limit 2 → 2, 2, 1 without repeats
+      other person | security | AB-1, WSTG-ATHZ-04 | B's rows never appear for A
+      no token | security | AB-2, WSTG-ATHN-04 | no header → 401
+    command: npx vitest run tests/integration/notification/list.test.ts
+    out_of_scope:
+      - "Marking as read (NTF-004)."
+  - id: NTF-004
+    title: Person marks notifications as read
+    kind: feature
+    size: XS
+    risk: medium
+    depends_on: [NTF-003]
+    read_first: [docs/stories/modules/notification/contracts.md, src/modules/notification/notification.routes.ts]
+    design_refs: [notifications/notification]
+    constraints: [Notification.read_status:enum]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a customer, I want to mark my notifications as read so that I see only what is new.
+    context: |
+      - Exists: `GET /api/v1/notifications` (NTF-003).
+      - Adds: `POST /api/v1/notifications/{id}/read` (204, idempotent) and `POST /api/v1/notifications/read-all` (204). Only `read_status` changes; no other field is writable.
+    acceptance: |
+      Scenario: AC-1 Mark one
+        When a person posts to /api/v1/notifications/{id}/read for their own unread notification
+        Then the response is 204 and `read_status` is READ
+        And a second identical call is also 204
+      Scenario: AC-2 Mark all
+        When a person posts to /api/v1/notifications/read-all
+        Then every unread notification of that person is READ and other people's are unchanged
+      Scenario: AC-3 Unknown id
+        When the id does not exist or is not a UUID
+        Then the response is 404 `NOT_FOUND` or 400 `VALIDATION_ERROR`
+    abuse: |
+      Scenario: AB-1 Another person's notification (horizontal)
+        When person A posts to read a notification of person B
+        Then the response is 404 and B's row is unchanged
+      Scenario: AB-2 Writing other fields (mass assignment)
+        When the body contains content or recipient_id
+        Then the response is 400 and nothing changes
+    implementation:
+      create: [tests/integration/notification/read.test.ts]
+      modify: [src/modules/notification/notification.routes.ts, src/modules/notification/notification.service.ts, src/modules/notification/notification.repository.ts, src/modules/notification/notification.openapi.ts]
+      pattern: src/modules/notification/notification.routes.ts
+      signatures:
+        - "markRead(personId: string, id: string): Promise<void>"
+        - "markAllRead(personId: string): Promise<void>"
+      types: []
+      errors: ["NOT_FOUND 404", "VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: the update filters on `id` and `recipient_id` together."
+      - "v5.0.0-15.3.3: the routes take no body fields."
+    tests: |
+      mark one | integration | AC-1, Notification.read_status:enum | own unread → 204, READ, repeat 204
+      mark all | integration | AC-2 | all own READ, other person's still UNREAD
+      bad id | integration | AC-3 | unknown UUID → 404; 'abc' → 400
+      other person | security | AB-1, WSTG-ATHZ-04 | A reads B's id → 404, unchanged
+      extra fields | security | AB-2, CWE-915 | body with content → 400
+    command: npx vitest run tests/integration/notification/read.test.ts
+    out_of_scope:
+      - "Deleting notifications."

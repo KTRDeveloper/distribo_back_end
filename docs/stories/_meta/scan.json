@@ -1,0 +1,60 @@
+{
+  "ci_tools": {},
+  "commit_conventions": [
+    "conventional-commits"
+  ],
+  "doc_files": [
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    "skills_prompts/design-to-user-stories/assets/README.md",
+    "skills_prompts/design-to-user-stories/references/examples/README.md",
+    "skills_prompts/README.md",
+    "specs/001-delivery-data-model/contracts/README.md",
+    "tests/README.md",
+    "openapi/README.md"
+  ],
+  "fingerprints": {
+    "ci": "",
+    "data_layer": "",
+    "docs": "990797c2df0e5534",
+    "stack": "7ae45ad102eab3b6",
+    "test": "2ab557590bc20a90"
+  },
+  "languages": {
+    "Python": 25,
+    "TypeScript": 97
+  },
+  "manifests": {
+    "package.json": "npm"
+  },
+  "orm_tools": [
+    "django-migrations"
+  ],
+  "project_root": ".",
+  "security_tools": {},
+  "test_framework": {
+    "commands": [
+      "npm run test",
+      "npm run test:watch",
+      "npm run test:coverage",
+      "npm run test:db:up",
+      "npm run test:db:down",
+      "npm run test:db:setup",
+      "npm run test:integration"
+    ],
+    "framework": "vitest"
+  },
+  "total_files": 330,
+  "versions": {
+    "express": "^5.1.0",
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0",
+    "prisma": "^7.0.0",
+    "vitest": "^4.0.0"
+  },
+  "workspace": {
+    "packages": [],
+    "type": "single"
+  }
+}

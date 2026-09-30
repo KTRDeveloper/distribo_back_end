@@ -1,0 +1,1424 @@
+kind: module
+module: sync
+prefix: SYNC
+title: Synchronization
+responsibility: Owns the WatermelonDB pull and push endpoints, the judging of every pushed line, the archive of received batches, full resynchronization and replay.
+entities: [SyncArchive]
+depends_on: [foundation, person, notification, access, auth, organization, relationship, catalog, order, finance, delivery, admin]
+asvs_level: L2
+asvs_rationale: A phone can be modified; the server judges every pushed line for scope, fields, steps and controls, and never trusts a computed value or a date from the phone.
+classification:
+  - "SyncArchive.changes | confidential | full pushed batches, administrators only, kept 90 days"
+  - "Pull responses | confidential | each phone receives only what its user may see; a driver receives available credit instead of balance and limit"
+threats:
+  - "T1 | E | A phone writes rows of another organization | every pushed row is checked against the viewer's scope | SYNC-010 AB-1"
+  - "T2 | T | A phone writes fields it may not, or computed fields | field rights by role, computed fields ignored | SYNC-010 AB-2"
+  - "T3 | T | A phone sends a lower sale or a forged balance | sale amount, totals and balances are recomputed by the server | SYNC-014 AB-1"
+  - "T4 | I | A driver's phone receives customer debts | pull projects available credit only | SYNC-004 AB-1"
+  - "T5 | E | A revoked collaborator keeps writing | the first push after a rights change is judged with current rights | SYNC-019 AB-1"
+  - "T6 | D | One duplicate blocks a phone forever | duplicates are merged or stored closed and unknown rows are set aside | SYNC-009 AB-1, SYNC-011 AB-1"
+  - "T7 | E | A replay runs with an administrator's rights | replay is judged as its author with current rights | SYNC-023 AB-1"
+constraints:
+  C-32: "Immutable journals are never updated or deleted by the application; only the retention purge removes them."
+  C-39: "The application account has only INSERT and SELECT on the immutable tables."
+  C-29: "`Administrator.totp_secret` is required; `recovery_email` differs from `Person.email`; `AdminAction` has exactly one target, a reason, `sync_archive_id` only for REPLAY_SYNC (super administrators only), and is immutable."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+  C-36: "No uniqueness rule makes a sync fail; every possible duplicate has a written behavior, and a line no rule can write is set aside."
+  CM-27: "Sync: computed fields (balance, amount_held, balance_effect, totals, line amounts, sale amount, customer-order reference price, price_updated_at, credit_limit_set_at, ended_by_party, last_synced_at, scope_version, server_updated_at) are ignored on receipt and recomputed."
+  CM-28: "Sync outcomes: a business problem is stored with sync_issue; a conflict is refused until the phone pulls and resends; a forbidden send is refused, recorded, and triggers a full resync plus a notification to its author; a line no rule can write is set aside while the rest passes."
+  CM-29: "First send after a rights change (scope_version_seen older than scope_version): judged with current rights; seller operations (sales, deliveries, collections) are always accepted and reported to the owner, any other forbidden operation is refused and reported."
+  CM-30: "Sync pull returns only what the user may see; a driver receives, per customer, only the available credit instead of balance and limit; the phone keeps all customers, the catalog, open orders and the last 90 days of the rest."
+  CM-31: "The server refuses a sync from an app version below the platform minimum; a phone clock more than 5 minutes off makes the app ask for automatic time; operations dated in the future or more than 3 days after the phone's last sync are reported to the owner, never refused."
+  CM-32: "Only a SUPER_ADMIN replays an archived batch, with a mandatory reason, logged as REPLAY_SYNC; it is judged as if sent by its author with their current rights, never the administrator's; the author and the owner are notified."
+  CM-35: "Retention: commercial data and journals at least 10 years; notifications 24 months; SyncArchive 90 days; expired or revoked verification codes and tokens 30 days."
+  CM-03: "`Person.scope_version` is incremented by the server on every rights change."
+  CM-22: "Partial delivery: 'later' creates a CONFIRMED order for the remainder at the original order's prices; 'abandon' closes the order on what was delivered."
+  CM-23: "Crossed departures: the server keeps the first delivery and stores the other closed with sync_issue 'Livraison déjà prise par <name>'; if the second one delivered, the delivery wins and the other is closed."
+  CM-12: "Allowed transitions only: PENDING to CONFIRMED or CANCELLED; CONFIRMED to IN_DELIVERY, DELIVERED or CANCELLED; IN_DELIVERY to DELIVERED or CONFIRMED; DELIVERED wins over CANCELLED; DELIVERED and CANCELLED are frozen except supplier_note."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+contracts:
+  provides:
+    - name: SyncEngine
+      file: src/modules/sync/sync.judge.ts
+      story: SYNC-010
+      items:
+        - "judgeBatch(viewer: Viewer, batch: PushBatch, options: { replay?: boolean }): Promise<PushResult> — the only way a batch is applied, from a push or a replay"
+        - "SyncAdapter registry: registerAdapter(adapter: SyncAdapter) with pull(viewer, since) and push(ctx, change) per table"
+      used_by: [admin]
+  consumes:
+    - "order: transitionOrder, lineAmountOf, orderTotal (docs/stories/modules/order/contracts.md)"
+    - "delivery: deliverOrder, deleteUnstartedDeliveries (docs/stories/modules/delivery/contracts.md)"
+    - "finance: appendLedgerEntry (docs/stories/modules/finance/contracts.md)"
+    - "relationship: visibleRelationsWhere, projectForDriver, mergeDuplicateRelation, resolveMergedRelation (docs/stories/modules/relationship/contracts.md)"
+    - "catalog: getReferencePrice (docs/stories/modules/catalog/contracts.md)"
+    - "access: abilityFor (docs/stories/modules/access/contracts.md)"
+    - "admin: recordAdminAction (docs/stories/modules/admin/contracts.md)"
+stories:
+  - id: SYNC-001
+    title: Sync types, adapter registry and viewer
+    kind: technical
+    size: M
+    risk: medium
+    depends_on: [ORG-005, AUTH-006, ACC-001]
+    read_first: [docs/stories/modules/access/contracts.md, src/modules/organization/organization.repository.ts]
+    design_refs: [synchronisation-hors-ligne/principes-la-synchronisation-classique, synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone]
+    constraints: []
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.3.1]
+    story: "Technical story: define the shapes of a sync exchange, the adapter registry and the viewer, so that every table plugs into pull and push in one way."
+    context: |
+      - Exists: `abilityFor` (ACC-001), collaborations (ORG-003), `authMiddleware` giving person and device ids.
+      - Adds: `src/modules/sync/sync.types.ts` (types below), `src/modules/sync/sync.registry.ts` (`registerAdapter`, `getAdapters`, `getAdapter(table)`) and `src/modules/sync/sync.viewer.ts` (`buildViewer(personId, deviceId)`).
+      - `Viewer = { personId, deviceId, memberships: Array<{ organizationId, role, status }> (ACTIVE only), scopeVersion, isOnline: false }`. The registry has one adapter per table name; registering the same table twice throws.
+      - `SyncAdapter = { table: SyncTable; pull(viewer, since: Date | null, tx): Promise<{ created: Row[]; updated: Row[]; deleted: string[] }>; push(ctx: PushContext, change: TableChange): Promise<LineOutcome[]> }`. `SyncTable` is one of `organizations, collaborations, people, customer_relationships, customer_prices, products, orders, order_lines, deliveries, ledger_entries, expenses, handovers, credit_limit_changes, notifications` (Q-014).
+      - `LineOutcome = { table, id, kind: 'accepted' | 'issue' | 'forbidden' | 'aside'; code?: string; message?: string }`.
+    acceptance: |
+      Scenario: AC-1 Viewer
+        Given a person who is OWNER of A, SELLER of B, INVITED in C and REVOKED in D
+        When buildViewer runs
+        Then memberships contain A as OWNER and B as SELLER only, and scopeVersion is the person's current value
+      Scenario: AC-2 Registry
+        When an adapter is registered and looked up by table
+        Then it is returned
+        And registering the same table again throws
+      Scenario: AC-3 Unknown table
+        Then getAdapter of a name outside the 14 tables throws `httpError(400, 'SYNC_UNKNOWN_TABLE', ...)`
+    implementation:
+      create: [src/modules/sync/sync.types.ts, src/modules/sync/sync.registry.ts, src/modules/sync/sync.viewer.ts, tests/integration/sync/registry-viewer.test.ts]
+      modify: []
+      pattern: src/modules/organization/organization.repository.ts
+      signatures:
+        - "buildViewer(personId: string, deviceId: string): Promise<Viewer>"
+        - "registerAdapter(adapter: SyncAdapter): void"
+        - "getAdapter(table: string): SyncAdapter"
+      types:
+        - "Viewer = { personId: string; deviceId: string; memberships: Array<{ organizationId: string; role: Role }>; scopeVersion: number }"
+      errors: ["SYNC_UNKNOWN_TABLE 400"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the viewer is built from the database, never from the request."
+    tests: |
+      viewer | integration | AC-1 | active memberships only
+      registry | unit | AC-2 | lookup and duplicate error
+      unknown table | unit | AC-3 | SYNC_UNKNOWN_TABLE
+    command: npx vitest run tests/integration/sync/registry-viewer.test.ts
+    out_of_scope:
+      - "Adapters (SYNC-003 onward)."
+  - id: SYNC-002
+    title: Sync archive table
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [AUTH-007, ADM-002, FND-002]
+    read_first: [prisma/schema.prisma, tests/integration/admin/admin-action-table.test.ts]
+    design_refs: [synchronisation-hors-ligne/syncarchive, contraintes-a-poser-au-niveau-base-de]
+    constraints: [SyncArchive:required, SyncArchive:fk, C-32, C-39, C-35, CM-35, C-29]
+    asvs: [v5.0.0-8.3.1, v5.0.0-16.3.1]
+    fields: ["SyncArchive.{person_id,device_id,received_at,changes}"]
+    story: "Technical story: create the immutable archive of received batches and link the administration journal to it, so that a batch can be examined and replayed later."
+    context: |
+      - Exists: `people`, `devices`, `admin_actions` with a plain `sync_archive_id` column (ADM-002), role `distribo_app`.
+      - Adds: table `sync_archives` (`received_at` default now, `changes` jsonb not null, `server_updated_at`), foreign keys, an index on (`person_id`, `received_at` desc), trigger `set_server_updated_at()`, and `REVOKE UPDATE, DELETE, TRUNCATE ... FROM distribo_app`. A migration adds the foreign key `admin_actions.sync_archive_id` to `sync_archives(id)`.
+    acceptance: |
+      Scenario: AC-1 Rows can be added and read
+        When the application account inserts an archive row and reads it back
+        Then `changes` is returned unchanged and `received_at` and `server_updated_at` are set
+      Scenario: AC-2 Rows cannot change
+        When the application account updates or deletes a row
+        Then PostgreSQL answers permission denied (42501)
+      Scenario: AC-3 Required and keys
+        When `changes` is null, or the person or device is unknown
+        Then the insert fails with 23502 or 23503
+      Scenario: AC-4 Journal link
+        When a REPLAY_SYNC journal row points to an unknown archive id
+        Then the insert fails with 23503
+    abuse: |
+      Scenario: AB-1 Erasing evidence of a batch (repudiation)
+        When code running as the application account deletes an archive row
+        Then the delete is refused
+    implementation:
+      create: [prisma/migrations/<timestamp>_sync_002_sync_archives/migration.sql, tests/integration/sync/archive-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/admin/admin-action-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-8.3.1: only INSERT and SELECT are granted to `distribo_app`."
+      - "v5.0.0-16.3.1: every received batch is kept for 90 days."
+    tests: |
+      add and read | integration | AC-1, C-35 | jsonb round trip
+      immutable | security | AC-2, AB-1, C-32, C-39, CM-35, WSTG-ATHZ-03 | 42501
+      required and keys | integration | AC-3, SyncArchive:required, SyncArchive:fk | rejected
+      journal link | integration | AC-4, C-29 | 23503
+    command: npx vitest run tests/integration/sync/archive-table.test.ts
+    out_of_scope:
+      - "Writing archives (SYNC-009). The 90-day purge (PRIV module)."
+  - id: SYNC-003
+    title: Pull endpoint and identity tables
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-001, FND-008]
+    read_first: [src/modules/sync/sync.registry.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [synchronisation-hors-ligne/principes-la-synchronisation-classique, synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone]
+    constraints: [C-35, CM-30]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1, v5.0.0-2.2.1]
+    story: As a seller, I want my phone to receive what changed since its last synchronization so that it works offline with current data.
+    context: |
+      - Exists: registry and viewer (SYNC-001); `server_updated_at` and `deleted_at` on synchronized tables; `authMiddleware`.
+      - Adds: `GET /api/v1/sync/pull?last_pulled_at=<epoch ms | empty>` returning 200 `{ changes: { <table>: { created, updated, deleted } }, timestamp }` for every registered adapter, and the adapters for `organizations`, `collaborations` and `people`. Files: `sync.routes.ts`, `sync.schemas.ts`, `sync.service.ts`, `sync.openapi.ts`, `adapters/identity.adapter.ts`.
+      - `timestamp` is the server time read before the queries (epoch ms). With `last_pulled_at` empty every visible row is `created` and nothing is `deleted`. With a value, a row is `created` when its `created_at` is later, else `updated`; a row with `deleted_at` and `server_updated_at` later is listed by id in `deleted`. Rows use snake_case columns, timestamps as epoch ms, bigint as numbers, quantities as numbers.
+      - Identity adapters: `organizations` (the viewer's ACTIVE organizations, all columns), `collaborations` (rows of those organizations; `amount_held` only for the viewer's own row and for an OWNER viewer), `people` (only the public fields `id, full_name, phone_number` of people appearing in the viewer's collaborations and relationships; nothing else).
+    acceptance: |
+      Scenario: AC-1 First pull
+        Given a SELLER of organization A
+        When the phone pulls with last_pulled_at empty
+        Then organizations holds A, collaborations hold A's team, people hold their public fields, all as `created`
+      Scenario: AC-2 Incremental pull
+        When a collaborator's role changes after the last pull
+        Then that collaboration is `updated` and unchanged rows are absent
+      Scenario: AC-3 Amount held
+        Then a SELLER sees `amount_held` only on their own row and an OWNER sees all
+      Scenario: AC-4 Other organizations
+        Then rows of organizations the viewer does not belong to never appear
+      Scenario Outline: AC-5 Bad parameter
+        When last_pulled_at is <value>
+        Then the response is 400 `VALIDATION_ERROR`
+        Examples:
+          | value        |
+          | abc          |
+          | -5           |
+          | a future time |
+    abuse: |
+      Scenario: AB-1 Pulling another business (horizontal)
+        When a member of A pulls
+        Then no row of B appears in any table
+      Scenario: AB-2 Private person fields (information disclosure)
+        When people are pulled
+        Then no email, language, password hash or dates appear
+    implementation:
+      create: [src/modules/sync/sync.routes.ts, src/modules/sync/sync.service.ts, src/modules/sync/sync.schemas.ts, src/modules/sync/adapters/identity.adapter.ts, tests/integration/sync/pull-identity.test.ts]
+      modify: [src/app.ts]
+      pattern: src/modules/organization/organization.routes.ts
+      signatures:
+        - "pullChanges(viewer: Viewer, lastPulledAt: number | null): Promise<{ changes: Record<string, TableChanges>; timestamp: number }>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: every adapter starts from the viewer's memberships."
+      - "v5.0.0-15.3.1: explicit column lists per table."
+    tests: |
+      first pull | integration | AC-1, C-35 | created rows
+      incremental | integration | AC-2 | updated only
+      amount held | integration | AC-3, CM-30 | per role
+      other organizations | integration | AC-4 | none
+      bad parameter | integration | AC-5 | each Examples row → 400
+      other business | security | AB-1, WSTG-ATHZ-04 | none of B
+      private fields | security | AB-2, CWE-200 | absent
+    command: npx vitest run tests/integration/sync/pull-identity.test.ts
+    out_of_scope:
+      - "Schema and migration parameters of WatermelonDB: not used."
+      - "OpenAPI registration (SYNC-006)."
+  - id: SYNC-004
+    title: Pull relationships and negotiated prices
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-003, REL-005, CAT-002]
+    read_first: [src/modules/sync/adapters/identity.adapter.ts, src/modules/relationship/relationship.visibility.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, relations-commerciales/customerrelationship/cloisonnement]
+    constraints: [CM-30, C-35]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As a driver, I want my phone to know each customer's available credit, and nothing more, so that I can check credit offline without seeing debts.
+    context: |
+      - Exists: pull engine (SYNC-003); `visibleRelationsWhere`, `projectForSupplier`, `projectForCustomer`, `projectForDriver` (REL-005).
+      - Adds: `adapters/relationship.adapter.ts` registering `customer_relationships` and `customer_prices`.
+      - Relationships for an organization viewer: the organization's rows as supplier (all customers and counters) in the supplier projection for SELLER and above; for a DRIVER only rows that have a CONFIRMED order with an address or a delivery of theirs, sent with `credit_limit` = the available credit (limit minus balance, null when there is no ceiling), `balance` = 0 and no notes or labels except `customer_label`. The customer person's own rows use the customer projection. Deleted and merged rows go to `deleted`.
+      - `customer_prices`: rows for the organization's customers to OWNER, MANAGER and SELLER; a customer person receives only their own relationships' rows; a DRIVER receives none.
+    acceptance: |
+      Scenario: AC-1 Seller receives customers
+        When a SELLER pulls
+        Then all the organization's customers and counters arrive with customer_label, supplier_notes, credit_limit and balance
+      Scenario: AC-2 Driver receives available credit only
+        Given a customer with limit 50000 and balance 40000 and a confirmed order to deliver
+        When a DRIVER pulls
+        Then that relationship has credit_limit 10000 and balance 0, and no supplier_notes
+      Scenario: AC-3 No ceiling
+        When the limit is empty
+        Then the driver's credit_limit is null
+      Scenario: AC-4 Customer person
+        When a customer person pulls
+        Then their relationships arrive in the customer view (supplier_label, no customer_label)
+      Scenario: AC-5 Merged and deleted
+        Then a merged duplicate is listed in `deleted`
+    abuse: |
+      Scenario: AB-1 A driver's phone learns debts (information disclosure)
+        When the driver's pull is searched for balance, credit_limit or notes of any customer
+        Then only available credit in the credit_limit column appears
+    implementation:
+      create: [src/modules/sync/adapters/relationship.adapter.ts, tests/integration/sync/pull-relationships.test.ts]
+      modify: [src/modules/sync/sync.service.ts]
+      pattern: src/modules/sync/adapters/identity.adapter.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.3: the driver projection replaces balance and limit."
+      - "v5.0.0-8.2.2: rows come from the visibility predicate."
+    tests: |
+      seller | integration | AC-1, C-35 | supplier view
+      driver | integration | AC-2, CM-30 | 10000 and 0
+      no ceiling | integration | AC-3 | null
+      customer person | integration | AC-4 | customer view
+      merged | integration | AC-5 | in deleted
+      driver debts | security | AB-1, CWE-200 | none
+    command: npx vitest run tests/integration/sync/pull-relationships.test.ts
+    out_of_scope:
+      - "Orders and deliveries (SYNC-006)."
+  - id: SYNC-005
+    title: Pull the catalog
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [SYNC-004, CAT-001, CAT-003]
+    read_first: [src/modules/sync/adapters/relationship.adapter.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, catalogue/product]
+    constraints: [C-35]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a seller, I want my phone to hold the catalog so that I can sell offline at the right prices.
+    context: |
+      - Exists: `products` (CAT-001), pull engine.
+      - Adds: `adapters/catalog.adapter.ts` registering `products`: for OWNER, MANAGER and SELLER, every product of the organization (any status, deleted rows in `deleted`); a DRIVER receives the ACTIVE and INACTIVE products named by lines of orders they can see (names only: `id, name, unit`); a customer person receives no product rows (they browse online, CAT-007).
+    acceptance: |
+      Scenario: AC-1 Seller catalog
+        When a SELLER pulls
+        Then every product of the organization arrives with price and min_order_quantity
+      Scenario: AC-2 Driver
+        Then a DRIVER receives only id, name and unit of products on orders to deliver
+      Scenario: AC-3 Customer person
+        Then a customer person receives no product rows
+      Scenario: AC-4 Incremental
+        When a price changes after the last pull
+        Then the product is `updated` with the new price
+    abuse: |
+      Scenario: AB-1 Another business's catalog (horizontal)
+        When a member of A pulls
+        Then no product of B arrives
+    implementation:
+      create: [src/modules/sync/adapters/catalog.adapter.ts, tests/integration/sync/pull-catalog.test.ts]
+      modify: [src/modules/sync/sync.service.ts]
+      pattern: src/modules/sync/adapters/identity.adapter.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: products come from the viewer's organizations only."
+      - "v5.0.0-15.3.1: the driver gets three columns."
+    tests: |
+      seller | integration | AC-1, C-35 | all products
+      driver | integration | AC-2 | three columns
+      customer | integration | AC-3 | none
+      incremental | integration | AC-4 | updated
+      other business | security | AB-1, WSTG-ATHZ-04 | none
+    command: npx vitest run tests/integration/sync/pull-catalog.test.ts
+    out_of_scope:
+      - "Customer-specific prices for customers: online browsing."
+  - id: SYNC-006
+    title: Pull orders, lines and deliveries
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-005, ORD-007, DLV-001]
+    read_first: [src/modules/sync/adapters/relationship.adapter.ts, src/modules/order/order.views.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone]
+    constraints: [CM-30, C-35]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As a driver, I want my phone to hold the orders to deliver and my deliveries so that I can work without network.
+    context: |
+      - Exists: orders, lines, deliveries; pull engine; `projectOrderForSupplier`, `projectOrderForCustomer`.
+      - Adds: `adapters/order.adapter.ts` registering `orders`, `order_lines` and `deliveries`, and `sync.openapi.ts` documenting `GET /api/v1/sync/pull` (imported by `sync.routes.ts`).
+      - Retention: open orders (PENDING, CONFIRMED, IN_DELIVERY) always; DELIVERED and CANCELLED orders of the last 90 days; their lines and deliveries follow their order.
+      - Scope: OWNER, MANAGER and SELLER receive all orders of the organization as supplier (supplier view; `price_set_by_id` only for OWNER and MANAGER; `sync_issue` included); a DRIVER receives CONFIRMED and IN_DELIVERY orders with an address, orders they delivered in the last 90 days and their own deliveries, without `customer_note` of other... every order field except `sync_issue`; a customer person receives their orders in the customer view.
+    acceptance: |
+      Scenario: AC-1 Seller gets all open orders
+        Given open orders and a delivered order 100 days old
+        When a SELLER pulls
+        Then the open orders arrive with lines and the 100-day-old delivered order does not
+      Scenario: AC-2 Driver gets the pool and own deliveries
+        Then a DRIVER receives CONFIRMED orders with an address, IN_DELIVERY orders, and their deliveries, and no PENDING order
+      Scenario: AC-3 Customer person
+        Then a customer person receives their orders in the customer view without sync_issue
+      Scenario: AC-4 Lines follow orders
+        When an order is updated
+        Then its lines are sent with it
+      Scenario: AC-5 Incremental
+        When one delivery changed after the last pull
+        Then only that delivery is `updated`
+    abuse: |
+      Scenario: AB-1 Another business's orders (horizontal)
+        When a member of A pulls
+        Then no order, line or delivery of B arrives
+    implementation:
+      create: [src/modules/sync/adapters/order.adapter.ts, src/modules/sync/sync.openapi.ts, tests/integration/sync/pull-orders.test.ts]
+      modify: [src/modules/sync/sync.routes.ts, src/modules/sync/sync.service.ts]
+      pattern: src/modules/sync/adapters/relationship.adapter.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client", "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.2: scope starts from the viewer's memberships or person id."
+      - "v5.0.0-8.2.3: per-role field lists."
+    tests: |
+      seller | integration | AC-1, CM-30 | open and recent only
+      driver | integration | AC-2 | pool and own
+      customer | integration | AC-3 | customer view
+      lines | integration | AC-4, C-35 | with order
+      incremental | integration | AC-5 | one row
+      other business | security | AB-1, WSTG-ATHZ-04 | none
+    command: npx vitest run tests/integration/sync/pull-orders.test.ts
+    out_of_scope:
+      - "Ledger, expenses and handovers (SYNC-007)."
+  - id: SYNC-007
+    title: Pull the ledger, money records and notifications
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-006, FIN-001, FIN-014, REL-003, NTF-001, FIN-003]
+    read_first: [src/modules/sync/adapters/order.adapter.ts, src/modules/finance/ledger.service.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, finances/handover]
+    constraints: [CM-30, C-35]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As a manager, I want my phone to hold the recent ledger, expenses, handovers and notifications so that I can consult them offline.
+    context: |
+      - Exists: pull engine and adapters (SYNC-003 to SYNC-006); ledger, expenses, handovers, credit limit journal, notifications.
+      - Adds: `adapters/money.adapter.ts` registering `ledger_entries`, `expenses`, `handovers`, `credit_limit_changes` and `notifications`. Retention on the phone: the last 90 days by `occurred_at`, `cancelled_at`, `set_at` or `created_at`, except notifications (all unread and the last 90 days).
+      - Scope: `ledger_entries` for OWNER, MANAGER and SELLER: entries of the organization's relationships (with `recorded_by_id` for OWNER and MANAGER only); a DRIVER receives none; a customer person receives entries of their relationships without `recorded_by_id` and `transaction_reference`. `expenses`, `handovers` and `credit_limit_changes`: OWNER and MANAGER all rows of the organization; SELLER and DRIVER only handovers where they are `from_person_id` or `to_person_id`. `notifications`: the viewer's own rows (`recipient_id`), never others'.
+    acceptance: |
+      Scenario: AC-1 Seller ledger
+        Given ledger entries, 40 days old and 120 days old
+        When a SELLER pulls
+        Then the 40-day-old entries arrive and the 120-day-old ones do not
+      Scenario: AC-2 Driver gets no ledger
+        Then a DRIVER receives no ledger_entries, expenses or credit_limit_changes, and only handovers involving them
+      Scenario: AC-3 Customer person
+        Then their ledger entries arrive without recorded_by_id
+      Scenario: AC-4 Notifications
+        Then each viewer receives only their own notifications
+      Scenario: AC-5 Money records for managers
+        Then an OWNER and a MANAGER receive all expenses and handovers of the organization
+    abuse: |
+      Scenario: AB-1 Other people's notifications and other businesses' money (horizontal)
+        When a member of A pulls
+        Then no ledger entry, expense, handover or notification of B or of another person appears
+    implementation:
+      create: [src/modules/sync/adapters/money.adapter.ts, tests/integration/sync/pull-money.test.ts]
+      modify: [src/modules/sync/sync.service.ts]
+      pattern: src/modules/sync/adapters/order.adapter.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: scope from memberships and the person id."
+      - "v5.0.0-8.2.3: recorder and reference fields by role."
+    tests: |
+      seller ledger | integration | AC-1, CM-30 | recent only
+      driver | integration | AC-2 | none but own handovers
+      customer | integration | AC-3, C-35 | no author
+      notifications | integration | AC-4 | own only
+      managers | integration | AC-5 | all rows
+      other scopes | security | AB-1, WSTG-ATHZ-04 | none
+    command: npx vitest run tests/integration/sync/pull-money.test.ts
+    out_of_scope:
+      - "Writing any of these tables (SYNC-015, SYNC-016)."
+  - id: SYNC-008
+    title: Device tracking and full resynchronization
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-003, AUTH-007, PER-005]
+    read_first: [src/modules/sync/sync.service.ts, src/modules/sync/sync.viewer.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, acces-et-securite/device]
+    constraints: [CM-03, C-34]
+    asvs: [v5.0.0-7.4.2, v5.0.0-8.2.2]
+    story: As a seller, I want my phone to start again from zero when my rights change so that it never keeps data I lost the right to see.
+    context: |
+      - Exists: pull (SYNC-003); `devices.last_synced_at` and `scope_version_seen` written only by sync; `Person.scope_version` bumped by rights changes (CM-03).
+      - Changes: the pull route reads header `X-Scope-Version` (the version the phone knows). When it is lower than `Person.scope_version`, or the device is revoked, the response is 200 `{ resync_required: true, timestamp }` with no `changes`. A pull with `last_pulled_at` empty is a full pull and, when it completes, sets the device's `scope_version_seen` to the person's current value. Every pull sets `last_synced_at` to server time.
+      - A revoked device (`revoked_at` set) answers 401 `SESSION_REVOKED`. The response always contains `scope_version`.
+    acceptance: |
+      Scenario: AC-1 Rights changed
+        Given the person's scope_version is 5 and the phone sends 4
+        When it pulls
+        Then the response is `{ resync_required: true }` without changes
+      Scenario: AC-2 Full pull records the version
+        When the phone then pulls with last_pulled_at empty
+        Then `scope_version_seen` is 5 and the response carries scope_version 5
+      Scenario: AC-3 Up to date
+        When the phone sends 5
+        Then a normal incremental pull is returned
+      Scenario: AC-4 Last sync time
+        Then every pull sets the device's last_synced_at to server time
+      Scenario: AC-5 Revoked device
+        When the device was revoked
+        Then the response is 401 `SESSION_REVOKED`
+    abuse: |
+      Scenario: AB-1 A phone claiming a newer version (tampering)
+        When the phone sends X-Scope-Version 999
+        Then the server still compares with the database and the pull is normal; scope_version_seen never exceeds the person's value
+    implementation:
+      create: [tests/integration/sync/resync.test.ts]
+      modify: [src/modules/sync/sync.routes.ts, src/modules/sync/sync.service.ts, src/modules/sync/sync.viewer.ts]
+      pattern: src/modules/sync/sync.service.ts
+      signatures:
+        - "recordPull(viewer: Viewer, phoneScopeVersion: number, full: boolean): Promise<void>"
+      types: []
+      errors: ["SESSION_REVOKED 401"]
+      dependencies: [express, "@prisma/client"]
+    security:
+      - "v5.0.0-7.4.2: a revoked device cannot pull."
+      - "v5.0.0-8.2.2: the server compares with its own scope_version."
+    tests: |
+      rights changed | integration | AC-1, CM-03 | resync_required
+      full pull | integration | AC-2, C-34 | seen = 5
+      up to date | integration | AC-3 | normal
+      last sync | integration | AC-4 | server time
+      revoked | integration | AC-5 | 401
+      newer claim | security | AB-1, CWE-345 | not trusted
+    command: npx vitest run tests/integration/sync/resync.test.ts
+    out_of_scope:
+      - "Erasing data on the phone (client)."
+  - id: SYNC-009
+    title: Push endpoint, archive and envelope
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-008, SYNC-002, SYNC-006]
+    read_first: [src/modules/sync/sync.routes.ts, src/modules/sync/sync.registry.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, synchronisation-hors-ligne/syncarchive]
+    constraints: [C-36, CM-28, CM-31]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: As a seller, I want my phone to send what I did offline so that the server records it and tells me what it could not.
+    context: |
+      - Exists: registry (SYNC-001), archive table (SYNC-002), device tracking (SYNC-008).
+      - Adds: `POST /api/v1/sync/push?last_pulled_at=<epoch ms>` with body `{ changes: { <table>: { created: [], updated: [], deleted: [] } } }` (at most 2000 rows in total, 400 `VALIDATION_ERROR` above) and `src/modules/sync/sync.push.ts`; the body limit for this path is 5 MB (FND-008).
+      - Order of work: (1) archive the batch as received in its own committed transaction; (2) refuse an app version below the platform minimum, read from remote-config `sync` / `min_app_version` and header `X-App-Version` compared as dotted numbers: 426 `APP_UPDATE_REQUIRED` (nothing is lost, the batch stays archived); (3) set `clock_skew: true` in the response when header `X-Client-Time` differs from server time by more than 5 minutes; (4) conflict check: if any `updated` row exists on the server with `server_updated_at` later than `last_pulled_at`, answer 409 `SYNC_CONFLICT` and apply nothing; (5) hand the batch to `judgeBatch` (SYNC-010) in one transaction; (6) set the device's `last_synced_at`.
+      - A table name the registry does not know is set aside: it is counted in `aside` and the rest of the batch passes. A known table that the phone may not write yields a `forbidden` outcome (SYNC-018).
+      - Response 200 `{ accepted, rejected: [{ table, id, code, message }], aside, clock_skew, resync_required }`.
+    acceptance: |
+      Scenario: AC-1 Batch archived first
+        When a phone pushes any batch
+        Then one archive row holds the changes exactly as received, whatever the outcome
+      Scenario Outline: AC-2 Version and time
+        When the request has <case>
+        Then the result is <result>
+        Examples:
+          | case                                              | result                               |
+          | X-App-Version below the minimum                   | 426 APP_UPDATE_REQUIRED, archived    |
+          | X-App-Version at the minimum                      | processed                            |
+          | no minimum configured                             | processed                            |
+          | X-Client-Time 6 minutes off                       | 200 with clock_skew true             |
+          | X-Client-Time 4 minutes off                       | 200 with clock_skew false            |
+      Scenario: AC-3 Conflict
+        Given a row updated on the server after last_pulled_at
+        When the phone pushes an update of that row
+        Then the response is 409 `SYNC_CONFLICT` and no row of the batch is applied
+      Scenario: AC-4 Unknown table set aside
+        When the batch has a table named "widgets" and a valid line
+        Then `aside` is 1 and the valid line is processed
+      Scenario: AC-5 Size
+        When the batch has 2001 rows
+        Then the response is 400 `VALIDATION_ERROR` and nothing is archived as applied
+      Scenario: AC-6 Last sync
+        Then the device's last_synced_at is set to server time after a processed push
+    abuse: |
+      Scenario: AB-1 One bad row blocks a phone forever (denial of service)
+        When a batch holds an unknown table and a row that breaks a uniqueness rule
+        Then the response is still 200 and the other lines are processed
+    implementation:
+      create: [src/modules/sync/sync.push.ts, tests/integration/sync/push-envelope.test.ts]
+      modify: [src/modules/sync/sync.routes.ts, src/modules/sync/sync.schemas.ts, src/modules/sync/sync.service.ts, src/modules/sync/sync.openapi.ts]
+      pattern: src/modules/sync/sync.service.ts
+      signatures:
+        - "pushChanges(viewer: Viewer, input: { lastPulledAt: number; changes: PushBatch; appVersion: string; clientTime?: string }): Promise<PushResponse>"
+      types: []
+      errors: ["APP_UPDATE_REQUIRED 426", "SYNC_CONFLICT 409", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: size and shape limits on the batch."
+      - "v5.0.0-16.3.1: every batch is archived; version refusals are logged."
+      - "v5.0.0-2.3.3: the judged batch is applied in one transaction."
+    tests: |
+      archived first | integration | AC-1, CM-28 | one row, exact changes
+      version and time | integration | AC-2, CM-31 | each Examples row → result
+      conflict | integration | AC-3 | 409, nothing applied
+      unknown table | integration | AC-4, C-36 | aside 1
+      size | integration | AC-5 | 400
+      last sync | integration | AC-6 | set
+      never blocked | security | AB-1, CWE-400 | 200
+    command: npx vitest run tests/integration/sync/push-envelope.test.ts
+    out_of_scope:
+      - "Judging lines (SYNC-010 onward)."
+  - id: SYNC-010
+    title: "Judge pipeline: scope, field rights, computed fields"
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-009, ACC-002]
+    read_first: [src/modules/sync/sync.push.ts, src/shared/access/ability.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, annexe-la-table-des-regles/qui-et-ou]
+    constraints: [CM-27, CM-28]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-8.2.3, v5.0.0-15.3.3]
+    story: As an owner, I want the server to judge each line a phone sends so that nobody writes outside their scope or their fields.
+    context: |
+      - Exists: `pushChanges` (SYNC-009), `abilityFor` with the ACC rules, `Viewer` (SYNC-001).
+      - Adds: `src/modules/sync/sync.judge.ts` with `judgeBatch(viewer, batch, options)` and the helpers `checkScope`, `checkFields`, `stripComputed`. Tables are processed in this order: `customer_relationships`, `orders`, `order_lines`, `deliveries`, `ledger_entries`, `notifications`; each has an adapter `push` (SYNC-011 onward).
+      - Scope: a pushed row must belong to an organization the viewer is an ACTIVE member of (or, for a customer person, to their own relationships); anything else is `forbidden` with code `OUT_OF_SCOPE`.
+      - Field rights: the abilities are built with context `{ onServer: true, online: false, daysSinceSync: 0 }` and each changed field is checked with `can(action, subject, field)`; a field the role may not write makes the line `forbidden` with code `FIELD_NOT_ALLOWED`.
+      - Computed fields (`balance`, `amount_held`, `balance_effect`, `total_amount`, line `amount`, sale amount, `price_updated_at`, `credit_limit_set_at`, `ended_by_party`, `last_synced_at`, `scope_version`, `server_updated_at`) are removed from the row before the adapter sees it, and the server recomputes them. The author of a create is always the viewer.
+    acceptance: |
+      Scenario: AC-1 Scope
+        When a SELLER of A pushes an order of organization B
+        Then the line is forbidden with OUT_OF_SCOPE and nothing of B changes
+      Scenario: AC-2 Fields
+        When a SELLER pushes a relationship with a new credit_limit
+        Then the line is forbidden with FIELD_NOT_ALLOWED and the limit is unchanged
+      Scenario: AC-3 Computed fields ignored
+        When a pushed relationship carries balance 999999 and server_updated_at in the past
+        Then those values are ignored and the server's values stand
+      Scenario: AC-4 Author from the session
+        When a pushed order names another person as entered_by_id
+        Then the stored author is the viewer
+      Scenario: AC-5 Order of tables
+        Then relationships are judged before orders, orders before lines, lines before deliveries and ledger entries
+      Scenario: AC-6 Honest lines pass
+        When a line is in scope and uses allowed fields
+        Then it is handed to its adapter
+    abuse: |
+      Scenario: AB-1 Writing in another business by knowing an id (horizontal)
+        When a phone pushes an update of a row id belonging to another organization
+        Then the line is forbidden and the row is unchanged
+      Scenario: AB-2 Writing a field the role may not (elevation)
+        When a DRIVER pushes a change to unit_price_applied
+        Then the line is forbidden
+    implementation:
+      create: [src/modules/sync/sync.judge.ts, tests/integration/sync/judge.test.ts]
+      modify: [src/modules/sync/sync.push.ts]
+      pattern: src/modules/sync/sync.push.ts
+      signatures:
+        - "judgeBatch(viewer: Viewer, batch: PushBatch, options?: { replay?: boolean }): Promise<PushResult>"
+        - "stripComputed(table: SyncTable, row: Row): Row"
+      types: []
+      errors: []
+      dependencies: ["@casl/ability", "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: object-level scope on every pushed row."
+      - "v5.0.0-8.2.3: field-level check through the rules table."
+      - "v5.0.0-15.3.3: computed and author fields are never taken from the phone."
+    tests: |
+      scope | integration | AC-1 | OUT_OF_SCOPE
+      fields | integration | AC-2 | FIELD_NOT_ALLOWED
+      computed ignored | integration | AC-3, CM-27 | server values
+      author | integration | AC-4 | viewer
+      table order | unit | AC-5 | order list
+      honest lines | integration | AC-6, CM-28 | adapter called
+      foreign id | security | AB-1, WSTG-ATHZ-04, CWE-639 | forbidden
+      forbidden field | security | AB-2, WSTG-ATHZ-03, CWE-915 | forbidden
+    command: npx vitest run tests/integration/sync/judge.test.ts
+    out_of_scope:
+      - "The table adapters (SYNC-011 onward)."
+  - id: SYNC-011
+    title: Push new and edited customers, and merge duplicates
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-010, REL-025, REL-007, SYNC-004]
+    read_first: [src/modules/relationship/relationship.repository.ts, src/modules/sync/sync.judge.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, relations-commerciales/customerrelationship/entree-en-relation-le-numero-comme]
+    constraints: [C-36, C-06]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-2.4.1]
+    story: As a seller, I want a customer I added offline to be resolved by the server without duplicates so that no phone is ever blocked.
+    context: |
+      - Exists: judge pipeline (SYNC-010); `findOrCreateByPhone`, `ensureCustomerRelationship`, `mergeDuplicateRelation`, `resolveMergedRelation` (REL-025).
+      - Adds: `adapters/relationship.push.ts` registering the push side of `customer_relationships`.
+      - Create (SELLER and above): the row carries `id`, `customer_phone_number`, `customer_label`, `delivery_address`; the supplier is the viewer's organization from the row's `supplier_organization_id` (checked by scope); credit limit 0, balance 0, status ACTIVE; a counter (no customer number) is forbidden here (`COUNTER_ONLINE_ONLY`). The number is normalized; an invalid one makes the line an `issue` with code `INVALID_PHONE` and it is not stored. The server finds or creates the person, sets `customer_person_id`, empties `customer_phone_number`.
+      - Duplicate: when the organization already has a live relationship with that person, the new row is merged into the existing one (`mergeDuplicateRelation`); an info issue `MERGED` ("<label> ajoutée deux fois : fiches réunies") is reported and later pushed rows that name the duplicate id are redirected to the surviving id for the rest of the batch.
+      - Update: `customer_label`, `delivery_address`, `supplier_notes` (a SELLER may write these; others are forbidden by SYNC-010).
+    acceptance: |
+      Scenario: AC-1 New customer
+        When a SELLER pushes a relationship with customer_phone_number "6 77 12 34 56"
+        Then a guest person holds +237677123456 and the relationship has customer_person_id set, an empty phone column, limit 0 and balance 0
+      Scenario: AC-2 Duplicate merged
+        Given the organization already has that customer
+        When a second phone pushes the same number as a new row
+        Then the new row is deleted with merged_into_id set and the batch is not rejected
+      Scenario: AC-3 Redirect
+        When the same batch has an order for the duplicate's id
+        Then the order is stored on the surviving relationship
+      Scenario: AC-4 Invalid number
+        When the phone number is not a valid mobile
+        Then the line is an issue INVALID_PHONE and nothing is stored, and the rest of the batch passes
+      Scenario: AC-5 Edit
+        When a SELLER updates customer_label and supplier_notes
+        Then both are stored
+      Scenario: AC-6 Repeat
+        When the same created row is pushed twice
+        Then one relationship exists
+    abuse: |
+      Scenario: AB-1 A duplicate never blocks the batch (denial of service)
+        When two phones add the same customer offline
+        Then both batches succeed
+      Scenario: AB-2 Credit chosen by the phone (mass assignment)
+        When the pushed row carries credit_limit or status ENDED
+        Then the line is forbidden and the relationship is created with defaults or unchanged
+    implementation:
+      create: [src/modules/sync/adapters/relationship.push.ts, tests/integration/sync/push-relationships.test.ts]
+      modify: [src/modules/sync/sync.judge.ts, src/modules/sync/sync.types.ts]
+      pattern: src/modules/sync/adapters/relationship.adapter.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: create and update follow the rules table."
+      - "v5.0.0-2.3.3: person, relationship and merge in one transaction."
+      - "v5.0.0-2.4.1: creating persons is bounded by the batch size limit."
+    tests: |
+      new customer | integration | AC-1, C-06 | person and row
+      duplicate merged | integration | AC-2, C-36 | merged_into_id
+      redirect | integration | AC-3 | order on survivor
+      invalid number | integration | AC-4 | issue, rest passes
+      edit | integration | AC-5 | stored
+      repeat | integration | AC-6 | one row
+      never blocked | security | AB-1, CWE-400 | both succeed
+      credit by phone | security | AB-2, CWE-915 | forbidden
+    command: npx vitest run tests/integration/sync/push-relationships.test.ts
+    out_of_scope:
+      - "Orders (SYNC-012)."
+  - id: SYNC-012
+    title: Push orders entered offline
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-011, ORD-013]
+    read_first: [src/modules/order/order.calculations.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, commandes-et-livraisons/order]
+    constraints: [CM-27, CM-16]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.3.3, v5.0.0-8.2.1]
+    story: As a seller, I want orders I entered offline to be stored with correct amounts so that my customers are billed exactly.
+    context: |
+      - Exists: judge pipeline; `lineAmountOf`, `orderTotal`; `getActiveProduct`; ORD table rules.
+      - Adds: `adapters/order.push.ts` registering the push side of `orders` and `order_lines` (create only; status changes are SYNC-013).
+      - Create (SELLER and above): an order row with `id`, `customer_relationship_id` (redirected if merged), `delivery_address_applied`, `delivery_cost`, `desired_delivery_date`, `customer_note`, `created_at` and its lines (`id`, `product_id`, `quantity`, `reference_price`, `unit_price_applied`). The server sets `placed_by_party` SUPPLIER, `entered_by_id` the viewer, status CONFIRMED, computes `label_applied`, every `amount` and `total_amount`, ignores pushed totals and amounts.
+      - The phone's `reference_price` (the price it had in front of it) is kept; when `unit_price_applied` differs the line gets `price_set_by_id` the viewer and `price_set_at` = server now.
+      - A product that is INACTIVE or deleted now is not refused: the order is stored and its `sync_issue` says "Article retiré de la vente depuis la saisie" (code `PRODUCT_RETIRED`). A relationship that is not ACTIVE, or a counter, makes the line an issue that is not stored (`RELATIONSHIP_NOT_ACTIVE`, `USE_COUNTER_SALE`) and `forbidden` never applies to honest phones.
+    acceptance: |
+      Scenario: AC-1 Order stored with server amounts
+        When a SELLER pushes an order of 10 units priced 3000 with total_amount 3 and line amount 1
+        Then the stored line amount is 30000 and total_amount 30000
+      Scenario: AC-2 Price gap has an author
+        When a line's unit_price_applied is 2800 and reference_price 3000
+        Then price_set_by_id is the viewer and price_set_at is set by the server
+      Scenario: AC-3 Retired article
+        When the product became INACTIVE after the entry
+        Then the order is stored with sync_issue code PRODUCT_RETIRED
+      Scenario Outline: AC-4 Not stored
+        When the order is on <case>
+        Then the line is an issue <code> and nothing is stored
+        Examples:
+          | case                              | code                 |
+          | an ENDED or PENDING relationship  | RELATIONSHIP_NOT_ACTIVE |
+          | a counter                         | USE_COUNTER_SALE     |
+      Scenario: AC-5 Repeat and author
+        When the same batch is pushed twice, or entered_by_id names someone else
+        Then one order exists and its author is the viewer
+    abuse: |
+      Scenario: AB-1 Phone-chosen amounts (tampering)
+        When a phone pushes a lower amount or total for an order
+        Then the stored amounts are recomputed by the server
+      Scenario: AB-2 Someone else's customer (horizontal)
+        When the relationship belongs to another organization
+        Then the line is forbidden OUT_OF_SCOPE
+    implementation:
+      create: [src/modules/sync/adapters/order.push.ts, tests/integration/sync/push-orders.test.ts]
+      modify: [src/modules/sync/sync.judge.ts]
+      pattern: src/modules/sync/adapters/relationship.push.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: quantities parsed with `parseQuantity`; amounts recomputed."
+      - "v5.0.0-2.3.3: order and lines are one transaction."
+      - "v5.0.0-8.2.1: create needs SELLER or above."
+    tests: |
+      server amounts | integration | AC-1, CM-27 | 30000
+      price gap | integration | AC-2, CM-16 | author and time
+      retired article | integration | AC-3 | sync_issue
+      not stored | integration | AC-4 | each Examples row → issue
+      repeat and author | integration | AC-5 | one order
+      client amounts | security | AB-1, CWE-345 | recomputed
+      other organization | security | AB-2, WSTG-ATHZ-04 | forbidden
+    command: npx vitest run tests/integration/sync/push-orders.test.ts
+    out_of_scope:
+      - "Controls on price of the moment (SYNC-016). Status changes (SYNC-013)."
+  - id: SYNC-013
+    title: Push order status changes and deliveries
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-012, ORD-008, DLV-005, DLV-006]
+    read_first: [src/modules/order/order.state.ts, src/modules/delivery/delivery.repository.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, commandes-et-livraisons/delivery]
+    constraints: [CM-12, CM-23, C-36]
+    asvs: [v5.0.0-2.3.1, v5.0.0-2.3.4, v5.0.0-8.2.1]
+    story: As a driver, I want departures, failures and cancellations I made offline to be applied only when they are allowed so that the order status follows what really happened.
+    context: |
+      - Exists: `transitionOrder` with `viaSync` (ORD-008), delivery routes' logic (DLV-005, DLV-006), judge pipeline.
+      - Adds: `adapters/delivery.push.ts` registering `deliveries` and the status side of `orders`.
+      - Order updates: `status` to CANCELLED (SELLER; `cancellation_reason` required for the supplier), `supplier_note` (SELLER, any status); other status changes come through deliveries (below) or delivery closing (SYNC-015). Each change goes through `transitionOrder` with `viaSync`: a step not allowed from the current status is a business problem: the order keeps its status and its `sync_issue` gets the message ("Annulation impossible : commande livrée par <name> à <time>"), never a refusal of the batch.
+      - Deliveries: create (DRIVER) with `id`, `order_id`, `departed_at`: the server sets `assigned_to_id` the viewer and moves the order to IN_DELIVERY; crossed departures: when a delivery in progress already exists for the order, the pushed one is stored closed (`failed_at` = now, `failure_reason` "Livraison déjà prise par <name>") and its `sync_issue` says so; if the pushed delivery is the one that delivered (SYNC-015), delivery wins and the other is the one closed. Update: `failed_at` and `failure_reason` (order back to CONFIRMED).
+    acceptance: |
+      Scenario: AC-1 Departure
+        When a DRIVER pushes a new delivery for a CONFIRMED order
+        Then the delivery is stored for them and the order is IN_DELIVERY
+      Scenario: AC-2 Crossed departures
+        Given another driver already left with the order
+        When this driver's departure arrives
+        Then their delivery is stored closed with "Livraison déjà prise par <name>" and the order still belongs to the first
+      Scenario: AC-3 Failure
+        When a driver pushes failed_at and a reason
+        Then the order is CONFIRMED again
+      Scenario: AC-4 Cancel after delivery
+        Given the order was delivered
+        When a cancellation arrives
+        Then the order stays DELIVERED and its sync_issue names who delivered and when
+      Scenario: AC-5 Cancel allowed
+        When a SELLER cancels a CONFIRMED order with a reason
+        Then it is CANCELLED with the fields set
+      Scenario: AC-6 Repeat
+        When the same departure is pushed twice
+        Then one delivery exists
+    abuse: |
+      Scenario: AB-1 Skipping the state machine (tampering)
+        When a phone pushes status DELIVERED directly on an order
+        Then the change is refused as a business problem and the status is unchanged
+      Scenario: AB-2 Driver cancels (vertical)
+        When a DRIVER pushes status CANCELLED
+        Then the line is forbidden
+    implementation:
+      create: [src/modules/sync/adapters/delivery.push.ts, tests/integration/sync/push-deliveries.test.ts]
+      modify: [src/modules/sync/sync.judge.ts, src/modules/sync/adapters/order.push.ts]
+      pattern: src/modules/sync/adapters/order.push.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.1: every status change goes through the state machine."
+      - "v5.0.0-2.3.4: the unique in-progress index settles crossed departures."
+      - "v5.0.0-8.2.1: field and action rights from the rules table."
+    tests: |
+      departure | integration | AC-1, CM-12 | IN_DELIVERY
+      crossed | integration | AC-2, CM-23, C-36 | closed second
+      failure | integration | AC-3 | CONFIRMED
+      cancel after delivery | integration | AC-4 | DELIVERED, issue
+      cancel allowed | integration | AC-5 | CANCELLED
+      repeat | integration | AC-6 | one delivery
+      skipped step | security | AB-1, WSTG-BUSL-06 | unchanged
+      driver cancels | security | AB-2, WSTG-ATHZ-03 | forbidden
+    command: npx vitest run tests/integration/sync/push-deliveries.test.ts
+    out_of_scope:
+      - "Closing an order with sale and payment (SYNC-014)."
+  - id: SYNC-014
+    title: Push the closing of an order with its sale and payments
+    kind: change
+    size: M
+    risk: high
+    depends_on: [SYNC-013, DLV-008]
+    amends: [DLV-007, DLV-008]
+    read_first: [src/modules/delivery/delivery.service.ts, src/modules/sync/adapters/delivery.push.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, commandes-et-livraisons/order/clore-une-commande-commande-livree]
+    constraints: [CM-27, CM-22]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.3.3, v5.0.0-8.2.1]
+    story: As a driver, I want a delivery I closed offline to be recorded with the server's own sale amount so that customers and totals stay exact.
+    context: |
+      - Exists: `deliverOrder` (DLV-007, DLV-008); pushed rows of `orders`, `order_lines`, `deliveries`, `ledger_entries`.
+      - Changes `deliverOrder`: `options` gains `payments: Array<{ id, amount, mode }>` (used instead of the single collected amount when present) and `viaSync: true` now means: the credit rule never refuses (the result carries `creditExceededBy`, a number of francs, 0 when within the limit), an order that is CANCELLED is delivered anyway (delivery wins, `sync_issue` "Livrée après annulation"), and a repeat of an already delivered order by the same person returns the stored result.
+      - Adds to the sync adapters: when a pushed order row has `status` DELIVERED, the server calls `deliverOrder(viewer, orderId, input, { viaSync: true, payments })` with the viewer's pushed PAYMENT rows for that `order_id` (their ids and modes kept, their amounts summed only by `appendLedgerEntry`), the pushed `delivered_quantity` values as partial lines, and `rest` LATER when a pushed order row has `parent_order_id` = this order (its id is used for the created order) else ABANDON when a line is short. A pushed SALE row is ignored: the sale is written by the server at the order's total; a pushed SALE amount is never used.
+      - The delivery of the viewer for that order gets `arrived_at`.
+    acceptance: |
+      Scenario: AC-1 Delivered offline
+        When a DRIVER pushes an order DELIVERED with a SALE of 3000 and a PAYMENT of 30000 for an order totalling 30000
+        Then the server writes a SALE of 30000 and a PAYMENT of 30000 and the balance is right
+      Scenario: AC-2 Partial with rest later
+        When lines show 8 of 10 delivered and a child order row with parent_order_id is pushed
+        Then the order is DELIVERED on 8, a child CONFIRMED order exists with the pushed id and the original prices
+      Scenario: AC-3 Abandon
+        When a line is short and no child order is pushed
+        Then the rest is abandoned and appears in the owner's exceptions
+      Scenario: AC-4 Delivery wins
+        Given the order was cancelled before the delivery arrived
+        Then it becomes DELIVERED with sync_issue "Livrée après annulation" and the sale and payment are written
+      Scenario: AC-5 Credit exceeded is not refused
+        When the delivery exceeds the customer's limit because another phone was not up to date
+        Then it is recorded and the result carries creditExceededBy above 0
+      Scenario: AC-6 Repeat
+        When the same batch is pushed twice
+        Then the sale and payments exist once
+    abuse: |
+      Scenario: AB-1 A forged lower sale (tampering)
+        When a phone pushes a SALE of 3000 for an order of 30000
+        Then the stored SALE is 30000
+      Scenario: AB-2 Someone else's delivery (horizontal)
+        When a DRIVER pushes DELIVERED for an order that another driver departed with
+        Then the delivery is judged by the crossed-departures rule and the sale is written once
+    implementation:
+      create: [src/modules/sync/adapters/closing.push.ts, tests/integration/sync/push-closing.test.ts]
+      modify: [src/modules/delivery/delivery.service.ts, src/modules/sync/sync.judge.ts]
+      pattern: src/modules/delivery/delivery.service.ts
+      signatures:
+        - "deliverOrder(actor: Actor, orderId: string, input: DeliverInput, options?: { viaSync?: boolean; payments?: Array<{ id: string; amount: bigint; mode: 'CASH' | 'MOBILE_MONEY' }> }): Promise<DeliverResult & { creditExceededBy: number }>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the sale amount is always the order total computed on the server."
+      - "v5.0.0-2.3.3: one transaction per closed order."
+      - "v5.0.0-8.2.1: only the viewer's own PAYMENT rows count."
+    tests: |
+      delivered offline | integration | AC-1, CM-27 | server sale
+      partial later | integration | AC-2, CM-22 | child order
+      abandon | integration | AC-3 | short line
+      delivery wins | integration | AC-4 | DELIVERED with issue
+      credit exceeded | integration | AC-5 | recorded, flagged
+      repeat | integration | AC-6 | once
+      forged sale | security | AB-1, CWE-345 | 30000
+      other driver | security | AB-2, CWE-362 | one sale
+    command: npx vitest run tests/integration/sync/push-closing.test.ts tests/integration/delivery/deliver.test.ts
+    out_of_scope:
+      - "Turning the flags into issues and notifications (SYNC-016, SYNC-017)."
+    tests_to_update: []
+  - id: SYNC-015
+    title: Push payments and notification reads
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [SYNC-014, FIN-004, NTF-004]
+    read_first: [src/modules/finance/ledger.service.ts, src/modules/sync/sync.judge.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, finances/ledgerentry]
+    constraints: [CM-27, C-36]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-2.3.4]
+    story: As a seller, I want payments I collected offline to reach the customer's account so that balances stay right.
+    context: |
+      - Exists: `appendLedgerEntry` (FIN-003), rules for ledger kinds (ACC-004), judge pipeline.
+      - Adds: `adapters/ledger.push.ts` registering `ledger_entries` and `notifications` push sides.
+      - Ledger create: a PAYMENT with `id`, `customer_relationship_id` (redirected if merged), `amount`, `mode`, `transaction_reference`, `note`, `occurred_at`, `order_id` empty (payments tied to a delivery are handled by SYNC-014), by SELLER and above; the server sets `recorded_by_id` the viewer and appends it through `appendLedgerEntry` (balance down, viewer's held money up). `balance_effect` is ignored. Any other kind (REFUND, CREDIT_NOTE, OPENING_BALANCE, a reversal) and any update or delete of a ledger row is `forbidden` (`ONLINE_ONLY`). A PENDING relationship or a missing one is an issue that is not stored.
+      - Notifications: an update of `read_status` on the viewer's own notification is accepted; any other field or another person's notification is forbidden.
+      - A payment id already stored is accepted without a second write.
+    acceptance: |
+      Scenario: AC-1 Payment
+        When a SELLER pushes a cash PAYMENT of 20000 for a customer with balance 45000
+        Then the balance is 25000 and the seller's amount_held is +20000
+      Scenario Outline: AC-2 Forbidden kinds
+        When a phone pushes <row>
+        Then the line is forbidden with ONLINE_ONLY and nothing is stored
+        Examples:
+          | row                                   |
+          | a REFUND                              |
+          | a CREDIT_NOTE                         |
+          | an OPENING_BALANCE                    |
+          | an update of an existing entry        |
+          | a delete of an entry                  |
+      Scenario: AC-3 Repeat
+        When the same payment is pushed twice
+        Then one entry exists and the caches change once
+      Scenario: AC-4 Notification read
+        When the viewer pushes read_status READ on their notification
+        Then it is READ; another person's notification or another field is forbidden
+      Scenario: AC-5 Merged customer
+        When the payment names a merged duplicate relationship
+        Then it is stored on the surviving one
+    abuse: |
+      Scenario: AB-1 A phone credits itself money it did not collect (tampering)
+        When a SELLER pushes a REFUND or a negative balance_effect
+        Then the line is forbidden and no entry exists
+      Scenario: AB-2 Payment on another business's customer (horizontal)
+        Then the line is forbidden OUT_OF_SCOPE
+    implementation:
+      create: [src/modules/sync/adapters/ledger.push.ts, tests/integration/sync/push-payments.test.ts]
+      modify: [src/modules/sync/sync.judge.ts]
+      pattern: src/modules/sync/adapters/order.push.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: only the SELLER payment kind is writable by sync."
+      - "v5.0.0-2.3.4: caches change by addition through `appendLedgerEntry`."
+      - "v5.0.0-2.3.3: entry and caches are one transaction."
+    tests: |
+      payment | integration | AC-1, CM-27 | balance and held
+      forbidden kinds | integration | AC-2 | each Examples row → ONLINE_ONLY
+      repeat | integration | AC-3, C-36 | once
+      notification read | integration | AC-4 | as described
+      merged | integration | AC-5 | survivor
+      self-credit | security | AB-1, CWE-345 | forbidden
+      other business | security | AB-2, WSTG-ATHZ-04 | forbidden
+    command: npx vitest run tests/integration/sync/push-payments.test.ts
+    out_of_scope:
+      - "Every other table: online only."
+  - id: SYNC-016
+    title: "Controls on arrival: prices, articles and dates"
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [SYNC-012, NTF-002]
+    read_first: [src/modules/sync/adapters/order.push.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, annexe-la-table-des-regles/controles-a-l-arrivee]
+    constraints: [CM-31, CM-28]
+    asvs: [v5.0.0-2.3.1, v5.0.0-16.3.3]
+    story: As an owner, I want sales at an old price, retired articles and odd dates flagged rather than refused so that I review exceptions only.
+    context: |
+      - Exists: order push (SYNC-012) with the retired-article issue; `getReferencePrice` (CAT-003); orders' `sync_issue` text.
+      - Adds: `src/modules/sync/sync.controls.ts` (`runControls`), called after an order is stored. Controls never refuse; each sets the order's `sync_issue` (joined by " ; " when several) with a code prefix `CODE: message`.
+      - `PRICE_CHANGED`: a line's `reference_price` differs from the current reference price and the change date (`changedAt`) is later than the order's `created_at`: "vendu 3 000 ; prix passé à 3 200 lundi à 8 h". Such a line is not a price gap by the seller: `price_set_by_id` and `price_set_at` are cleared when the applied price equals the phone's reference price.
+      - `DATE_IN_FUTURE`: `created_at` later than the server now plus 5 minutes. `DATE_OUT_OF_ORDER`: `created_at` earlier than the device's previous `last_synced_at` minus 92 days.
+      - After a batch with any issue, each OWNER of the organization gets one notification `sync.anomalies` ("<n> écarts à vérifier").
+    acceptance: |
+      Scenario: AC-1 Sold at the old price
+        Given the price rose from 3000 to 3200 on Monday 8h and a seller sold at 3000 on Sunday offline
+        When the order arrives on Monday afternoon
+        Then the order is stored, its sync_issue starts with PRICE_CHANGED, and no price gap author is set
+      Scenario: AC-2 A real discount
+        When the applied price is below the phone's own reference price
+        Then it stays a price gap with its author and no PRICE_CHANGED issue
+      Scenario: AC-3 Dates
+        When created_at is 2 hours ahead of the server
+        Then the issue DATE_IN_FUTURE is set and the order is stored
+      Scenario: AC-4 Owner told once per batch
+        When a batch produces 3 issues
+        Then each owner has one unread `sync.anomalies` mentioning 3
+      Scenario: AC-5 Clean batch
+        Then no issue and no notification result
+    abuse: |
+      Scenario: AB-1 Hiding a discount behind an old date (tampering)
+        When a phone claims an old reference price that never existed
+        Then the reference is compared with the price history the server has and the discount stays visible
+    implementation:
+      create: [src/modules/sync/sync.controls.ts, tests/integration/sync/controls-prices.test.ts]
+      modify: [src/modules/sync/adapters/order.push.ts, src/modules/sync/sync.judge.ts]
+      pattern: src/modules/sync/adapters/order.push.ts
+      signatures:
+        - "runControls(tx: Prisma.TransactionClient, ctx: PushContext, order: Order): Promise<string[]>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.1: controls run on the server against current data."
+      - "v5.0.0-16.3.3: anomalies produce a notification with a fixed event name."
+    tests: |
+      old price | integration | AC-1, CM-28 | PRICE_CHANGED
+      real discount | integration | AC-2 | gap kept
+      dates | integration | AC-3, CM-31 | issue, stored
+      owner told | integration | AC-4 | one notification
+      clean | integration | AC-5 | none
+      hidden discount | security | AB-1, CWE-345 | visible
+    command: npx vitest run tests/integration/sync/controls-prices.test.ts
+    out_of_scope:
+      - "Credit and restricted-mode controls (SYNC-017)."
+  - id: SYNC-017
+    title: "Controls on arrival: credit, restricted mode and long absence"
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [SYNC-016, SYNC-014]
+    read_first: [src/modules/sync/sync.controls.ts, src/modules/delivery/delivery.service.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, synchronisation-hors-ligne/fraicheur-synchronisation-automatique]
+    constraints: [CM-31, CM-15]
+    asvs: [v5.0.0-2.3.1, v5.0.0-16.3.3]
+    story: As an owner, I want credit overruns and operations made too long after the last sync flagged so that I can call the seller or the customer.
+    context: |
+      - Exists: `runControls` (SYNC-016), `creditExceededBy` from viaSync deliveries (SYNC-014), the device's `last_synced_at` before the push.
+      - Adds to `sync.controls.ts`: `CREDIT_EXCEEDED`: when a delivered order's `creditExceededBy` is above 0, its `sync_issue` gets "<customer_label> : plafond dépassé de <amount>"; `RESTRICTED_MODE`: an operation dated more than 3 days after the device's previous `last_synced_at` gets "opération faite après 3 jours sans synchronisation"; `LONG_ABSENCE`: a push from a device whose previous `last_synced_at` is more than 3 days old adds one information line for the owner: notification `sync.anomalies` "<name> s'est resynchronisé après <n> jours".
+      - The server never refuses for these; a batch is judged on content only.
+    acceptance: |
+      Scenario: AC-1 Credit exceeded
+        When a synced delivery exceeds a customer's limit by 15000
+        Then the order's sync_issue starts with CREDIT_EXCEEDED naming 15000 and the delivery is recorded
+      Scenario: AC-2 Restricted mode
+        Given the device last synced 6 days ago
+        When it pushes a sale dated 5 days after that sync
+        Then the sale is stored with RESTRICTED_MODE in sync_issue
+      Scenario: AC-3 Long absence line
+        When a device returns after 6 days
+        Then the owner has one information notification "s'est resynchronisé après 6 jours"
+      Scenario: AC-4 Nothing refused
+        Then none of these controls changes the response to anything but 200
+      Scenario: AC-5 Within limits
+        When the delivery is within the limit and the sync is recent
+        Then no issue is set
+    abuse: |
+      Scenario: AB-1 Waiting out the restricted mode on a tampered phone (tampering)
+        When a tampered phone pushes operations dated late
+        Then they are stored and flagged, so the absence is visible to the owner
+    implementation:
+      create: [tests/integration/sync/controls-credit.test.ts]
+      modify: [src/modules/sync/sync.controls.ts, src/modules/sync/adapters/closing.push.ts, src/modules/sync/sync.judge.ts]
+      pattern: src/modules/sync/sync.controls.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.1: the 3-day rule is a check on the server, never a refusal."
+      - "v5.0.0-16.3.3: fixed event names."
+    tests: |
+      credit exceeded | integration | AC-1, CM-15 | issue with amount
+      restricted mode | integration | AC-2, CM-31 | issue
+      long absence | integration | AC-3 | notification
+      nothing refused | integration | AC-4 | 200
+      within limits | integration | AC-5 | none
+      tampered phone | security | AB-1, CWE-345 | flagged
+    command: npx vitest run tests/integration/sync/controls-credit.test.ts
+    out_of_scope:
+      - "The phone-side restricted mode (client)."
+  - id: SYNC-018
+    title: Forbidden sends are refused, recorded and trigger a resync
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-010, NTF-002]
+    read_first: [src/modules/sync/sync.judge.ts, src/modules/sync/sync.push.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne]
+    constraints: [CM-28, C-36]
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.3.2, v5.0.0-16.3.3]
+    story: As a seller, I want to be told when the server did not record something I did so that my phone shows the truth.
+    context: |
+      - Exists: `forbidden` outcomes (SYNC-010), the envelope (SYNC-009).
+      - Adds: handling of every `forbidden` outcome and every `aside` line at the end of `judgeBatch`: each is logged at `warn` with event `sync_line_refused` (table, row id, code, person id; no row content); the response's `rejected` lists it; `resync_required` is true so the phone erases and pulls again; the author gets one notification `sync.refused` per batch: "<n> opération(s) non enregistrée(s). Motif : <code>" (French or English by language), naming for each of the first 5 lines a label built from the table and a short code, never amounts or names.
+      - A line no rule knows how to write is set aside (`aside` count, the rest of the batch passes); an administrator can replay the batch later (SYNC-022).
+    acceptance: |
+      Scenario: AC-1 Refusal is reported
+        When a batch holds one forbidden line and two good lines
+        Then the two good lines are stored, `rejected` has one item and resync_required is true
+      Scenario: AC-2 Author notified
+        Then the author has one unread `sync.refused` mentioning 1 refused operation
+      Scenario: AC-3 Set aside
+        When a line no adapter can write is in the batch
+        Then it is counted in `aside`, the author is notified, and the batch is otherwise applied
+      Scenario: AC-4 Logging without content
+        Then the `warn` log has table, id, code and person id and no field values
+      Scenario: AC-5 Clean batch
+        Then rejected is empty and resync_required is false
+    abuse: |
+      Scenario: AB-1 Probing the rules through refusals (information disclosure)
+        When a phone sends many forbidden lines
+        Then the codes reveal only OUT_OF_SCOPE, FIELD_NOT_ALLOWED or ONLINE_ONLY and never other data
+    implementation:
+      create: [tests/integration/sync/forbidden-sends.test.ts]
+      modify: [src/modules/sync/sync.judge.ts, src/modules/sync/sync.push.ts]
+      pattern: src/modules/sync/sync.judge.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [pino, "@prisma/client"]
+    security:
+      - "v5.0.0-16.3.2: refused authorization attempts are logged."
+      - "v5.0.0-8.2.1: a refused line changes nothing."
+    tests: |
+      refusal reported | integration | AC-1, CM-28 | rejected and resync
+      author notified | integration | AC-2 | notification
+      set aside | integration | AC-3, C-36 | counted
+      log without content | integration | AC-4 | no values
+      clean | integration | AC-5 | empty
+      probing | security | AB-1, CWE-200 | codes only
+    command: npx vitest run tests/integration/sync/forbidden-sends.test.ts
+    out_of_scope:
+      - "Rights changes (SYNC-019)."
+  - id: SYNC-019
+    title: First push after a rights change
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-018, SYNC-014]
+    read_first: [src/modules/sync/sync.judge.ts, src/modules/sync/sync.viewer.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne]
+    constraints: [CM-29, CM-03]
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.3.1]
+    story: As an owner, I want a demoted or revoked collaborator's late sales and collections to be kept, and their other operations refused and reported, so that no cash is left without a trace.
+    context: |
+      - Exists: judge pipeline, forbidden handling (SYNC-018), `Device.scope_version_seen` and `Person.scope_version`.
+      - Adds: when the pushing device's `scope_version_seen` is lower than the person's `scope_version` (the phone did not know about a rights change), the batch is judged with the current rights and: sales, order entry for delivered orders, deliveries and payments (operations a SELLER or DRIVER may make) are accepted even if the current role no longer allows them, and each is reported to the organization's OWNERs in one notification `sync.rights_changed` ("<n> opération(s) faites avec d'anciens droits"); every other operation the current rights do not allow is refused and reported to the OWNERs and the author.
+      - A person with no ACTIVE membership in the organization of a row is treated the same way for those operations only (a revoked collaborator's late sales pass), never for anything else. The device's `scope_version_seen` is not advanced by a push; only a full pull sets it (SYNC-008).
+    acceptance: |
+      Scenario: AC-1 Demoted manager's sales pass
+        Given a manager demoted to seller while offline with 5 sales pushed after
+        When the batch arrives
+        Then the 5 sales are stored and the owner has one `sync.rights_changed`
+      Scenario: AC-2 Their manager powers are refused
+        When the same batch has a credit note or a price change
+        Then those lines are forbidden and the owner is told
+      Scenario: AC-3 Revoked collaborator
+        When a revoked driver pushes 2 deliveries with collected payments made before they learned
+        Then the deliveries and payments are stored and reported
+      Scenario: AC-4 Up-to-date phone
+        When scope_version_seen equals scope_version
+        Then the normal rules apply and no `sync.rights_changed` is sent
+      Scenario: AC-5 Nothing else opens
+        When a revoked collaborator pushes a new customer, a cancellation or a note
+        Then those lines are forbidden
+    abuse: |
+      Scenario: AB-1 Using the grace as a back door (elevation)
+        When a revoked person pushes operations that are not sales, deliveries or payments
+        Then they are all refused
+    implementation:
+      create: [tests/integration/sync/rights-change.test.ts]
+      modify: [src/modules/sync/sync.judge.ts, src/modules/sync/sync.viewer.ts, src/modules/sync/sync.push.ts]
+      pattern: src/modules/sync/sync.judge.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: only the three seller operations are honored under old rights."
+      - "v5.0.0-16.3.1: every such batch is reported to the owners."
+    tests: |
+      demoted manager | integration | AC-1, CM-29 | sales stored, notice
+      powers refused | integration | AC-2, CM-03 | forbidden
+      revoked driver | integration | AC-3 | stored, reported
+      up to date | integration | AC-4 | no notice
+      nothing else | integration | AC-5 | forbidden
+      back door | security | AB-1, CWE-284 | refused
+    command: npx vitest run tests/integration/sync/rights-change.test.ts
+    out_of_scope:
+      - "The full resync after the push (SYNC-008, SYNC-018)."
+  - id: SYNC-020
+    title: The list of things to resolve
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [SYNC-017, FND-009, SYNC-006]
+    read_first: [src/modules/sync/sync.routes.ts, src/modules/order/order.repository.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne]
+    constraints: []
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a seller, I want the list of my orders and deliveries flagged by the server so that I can fix them.
+    context: |
+      - Exists: `sync_issue` on orders and deliveries.
+      - Adds: `GET /api/v1/sync/issues?limit&cursor` returning, for the caller, orders and deliveries with a non-empty `sync_issue` that they entered, delivered or are assigned to (an OWNER sees all of the organization's): `{ table, id, order_id, code, message, created_at }` where `code` is the prefix before the first colon. Newest first, paginated. An issue disappears when the record is corrected (the field becomes empty).
+    acceptance: |
+      Scenario: AC-1 Own issues
+        Given two flagged orders entered by Jean and one by Paul
+        When Jean lists
+        Then Jean's two are returned
+      Scenario: AC-2 Owner sees all
+        Then the OWNER sees all three
+      Scenario: AC-3 Corrected
+        When an issue text is emptied
+        Then it no longer appears
+      Scenario: AC-4 Pagination and code
+        Then pages follow without repeats and each item has its code and message
+    abuse: |
+      Scenario: AB-1 Another business's issues (horizontal)
+        When a member of A lists
+        Then nothing of B appears
+    implementation:
+      create: [tests/integration/sync/issues.test.ts]
+      modify: [src/modules/sync/sync.routes.ts, src/modules/sync/sync.service.ts, src/modules/sync/sync.schemas.ts, src/modules/sync/sync.openapi.ts]
+      pattern: src/modules/sync/sync.routes.ts
+      signatures:
+        - "listIssues(viewer: Viewer, query: { limit: number; cursor?: string }): Promise<{ items: IssueView[]; next_cursor: string | null }>"
+      types: []
+      errors: ["VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: scope by organization and author."
+      - "v5.0.0-15.3.1: explicit fields."
+    tests: |
+      own | integration | AC-1 | two items
+      owner | integration | AC-2 | three items
+      corrected | integration | AC-3 | gone
+      paging | integration | AC-4 | no repeats
+      other business | security | AB-1, WSTG-ATHZ-04 | none
+    command: npx vitest run tests/integration/sync/issues.test.ts
+    out_of_scope:
+      - "Fixing the record: normal order routes."
+  - id: SYNC-021
+    title: Owner reads the synchronization exceptions grouped by cause
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [SYNC-020, SYNC-006]
+    read_first: [src/modules/sync/sync.service.ts, src/modules/finance/finance.service.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.1]
+    story: As an owner, I want the flagged operations grouped by cause with their amounts so that I review two lines instead of a hundred.
+    context: |
+      - Exists: issues (SYNC-016, SYNC-017).
+      - Adds: `GET /api/v1/organizations/{organizationId}/exceptions/sync?from&to` (OWNER only; same period rules as FIN-019): `{ items: [{ code, count, amount, persons: [person_id] }] }`. The amount per code: `PRICE_CHANGED` sum of (applied − current reference) × quantity on affected lines when negative; `CREDIT_EXCEEDED` the sum of amounts over the limit; other codes 0.
+    acceptance: |
+      Scenario: AC-1 Grouped by cause
+        Given 7 lines sold at the old price for 1400 in total and one credit overrun of 15000
+        When the owner reads the week
+        Then two items are returned: PRICE_CHANGED (count 1 order, amount 1400) and CREDIT_EXCEEDED (15000)
+      Scenario Outline: AC-2 Validation and roles
+        When the request has <case>
+        Then the response is <status>
+        Examples:
+          | case                        | status |
+          | a MANAGER caller            | 403    |
+          | a period of 93 days         | 400    |
+      Scenario: AC-3 Period
+        Then issues older than `from` are not counted
+    abuse: |
+      Scenario: AB-1 Another business (horizontal)
+        When a member of A reads the exceptions of B
+        Then the response is 404
+    implementation:
+      create: [tests/integration/sync/exceptions.test.ts]
+      modify: [src/modules/sync/sync.routes.ts, src/modules/sync/sync.service.ts, src/modules/sync/sync.schemas.ts, src/modules/sync/sync.openapi.ts]
+      pattern: src/modules/sync/sync.routes.ts
+      signatures:
+        - "syncExceptions(actor: Actor, query: { from?: string; to?: string }): Promise<{ items: SyncExceptionItem[] }>"
+      types: []
+      errors: ["FORBIDDEN 403", "VALIDATION_ERROR 400", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: owner only."
+    tests: |
+      grouped | integration | AC-1 | two items
+      validation and roles | integration | AC-2 | each Examples row → status
+      period | integration | AC-3 | old ignored
+      other business | security | AB-1, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/sync/exceptions.test.ts
+    out_of_scope:
+      - "A dedicated table: these are reads."
+  - id: SYNC-022
+    title: Super administrator replays an archived batch
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [SYNC-018, ADM-009, ADM-002, SYNC-006]
+    read_first: [src/modules/sync/sync.judge.ts, src/modules/admin/admin.repository.ts]
+    design_refs: [synchronisation-hors-ligne/syncarchive, gouvernance-de-la-plateforme/adminaction]
+    constraints: [CM-32, C-29]
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.3.1, v5.0.0-2.3.3]
+    story: As a super-admin, I want to replay an archived batch after the cause of a refusal is fixed so that lost operations are reintegrated safely.
+    context: |
+      - Exists: archives (SYNC-002, SYNC-009), `judgeBatch` with `options.replay`, `recordAdminAction`, `adminAuthMiddleware`, `requireAdminRole`.
+      - Adds: `POST /api/v1/admin/sync-archives/{archiveId}/replay` with `{ reason }` (1 to 2000, required); SUPER_ADMIN only; response 200 `PushResult`.
+      - The batch's author is loaded as a `Viewer` with their current rights (never the administrator's). `judgeBatch(viewer, batch, { replay: true })` runs through the normal path and skips only the version, clock and conflict checks. A `REPLAY_SYNC` journal row (author the administrator, target the batch's author person, `sync_archive_id`, reason) is written in the same transaction. The batch's author and the organizations' OWNERs get a notification `sync.replayed`: "Des opérations envoyées le <date> depuis votre téléphone ont été réintégrées par l'équipe de la plateforme."
+      - A batch can be replayed more than once; repeated lines are idempotent by record id.
+    acceptance: |
+      Scenario: AC-1 Replay
+        Given an archived batch whose sale was set aside
+        When a SUPER_ADMIN replays it after the cause is fixed
+        Then the sale is stored, a REPLAY_SYNC journal row exists with the archive id and reason, and the author and owner are notified
+      Scenario: AC-2 Author's rights
+        When the author has since been demoted
+        Then the batch is judged with their current rights, not the administrator's
+      Scenario: AC-3 Idempotent
+        When the batch is replayed twice
+        Then nothing is written twice
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                      | status                  |
+          | a MODERATOR                  | 403 FORBIDDEN           |
+          | an empty reason              | 400 VALIDATION_ERROR    |
+          | an unknown archive           | 404 NOT_FOUND           |
+          | a normal access token        | 401 UNAUTHORIZED        |
+      Scenario: AC-5 Atomic
+        When the journal insert fails
+        Then no line of the batch is applied
+    abuse: |
+      Scenario: AB-1 Replay with administrator power (elevation)
+        When a batch containing a manager-only operation is replayed by a SUPER_ADMIN for a seller
+        Then that line is refused, because the seller's rights apply
+      Scenario: AB-2 Untraced replay (repudiation)
+        When any replay runs
+        Then a journal row exists
+    implementation:
+      create: [tests/integration/sync/replay.test.ts]
+      modify: [src/modules/sync/sync.routes.ts, src/modules/sync/sync.service.ts, src/modules/sync/sync.judge.ts, src/modules/sync/sync.schemas.ts, src/modules/sync/sync.openapi.ts]
+      pattern: src/modules/sync/sync.routes.ts
+      signatures:
+        - "replayArchive(admin: AdminContext, archiveId: string, input: { reason: string }): Promise<PushResult>"
+      types: []
+      errors: ["FORBIDDEN 403", "VALIDATION_ERROR 400", "NOT_FOUND 404"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: super administrators only."
+      - "v5.0.0-2.3.3: journal row and applied lines are one transaction."
+      - "v5.0.0-16.3.1: the replay is journaled with a reason."
+    tests: |
+      replay | integration | AC-1, CM-32, C-29 | stored, journal, notices
+      author's rights | integration | AC-2 | current rights
+      idempotent | integration | AC-3 | once
+      refusals | integration | AC-4 | each Examples row → status
+      atomic | integration | AC-5, CWE-362 | nothing applied
+      admin power | security | AB-1, CWE-269 | refused line
+      traced | security | AB-2, CWE-778 | journal row
+    command: npx vitest run tests/integration/sync/replay.test.ts
+    out_of_scope:
+      - "Choosing which archive to replay (SYNC-023)."
+  - id: SYNC-023
+    title: Administrators list and open archived batches
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [SYNC-022, FND-009, SYNC-006]
+    read_first: [src/modules/sync/sync.routes.ts, src/modules/admin/admin.routes.ts]
+    design_refs: [synchronisation-hors-ligne/syncarchive]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.1, v5.0.0-14.2.4]
+    story: As a moderator, I want to find an archived batch by person and date so that I can see what a phone sent.
+    context: |
+      - Exists: archives (SYNC-002), admin auth (ADM-006).
+      - Adds: `GET /api/v1/admin/sync-archives?limit&cursor&person_id&from&to` (any administrator; `{ id, person_id, device_id, received_at, row_counts }` where `row_counts` is the number of created, updated and deleted rows per table) and `GET /api/v1/admin/sync-archives/{archiveId}` (SUPER_ADMIN only; adds `changes`).
+    acceptance: |
+      Scenario: AC-1 List
+        Given 3 archives of two people
+        When a MODERATOR lists with person_id of one
+        Then only that person's archives are returned newest first with row counts and no `changes`
+      Scenario: AC-2 Open
+        When a SUPER_ADMIN opens one
+        Then `changes` is returned; a MODERATOR gets 403
+      Scenario: AC-3 Period and paging
+        Then from and to filter and limit 1 pages without repeats
+      Scenario: AC-4 Access
+        Then a normal token or none answers 401
+    abuse: |
+      Scenario: AB-1 A customer reads batches (elevation)
+        When a customer's token is used
+        Then the response is 401 and nothing is returned
+    implementation:
+      create: [tests/integration/sync/archive-read.test.ts]
+      modify: [src/modules/sync/sync.routes.ts, src/modules/sync/sync.service.ts, src/modules/sync/sync.schemas.ts, src/modules/sync/sync.openapi.ts]
+      pattern: src/modules/sync/sync.routes.ts
+      signatures:
+        - "listArchives(query: ListArchivesQuery): Promise<{ items: ArchiveSummary[]; next_cursor: string | null }>"
+        - "getArchive(archiveId: string): Promise<ArchiveDetail>"
+      types: []
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404", "VALIDATION_ERROR 400", "UNAUTHORIZED 401"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: admin token; content only for super administrators."
+      - "v5.0.0-14.2.4: full batches are sensitive and limited to SUPER_ADMIN."
+    tests: |
+      list | integration | AC-1 | filtered summaries
+      open | integration | AC-2 | changes and 403
+      period and paging | integration | AC-3 | as described
+      access | integration | AC-4 | 401
+      customer token | security | AB-1, WSTG-ATHZ-03 | 401
+    command: npx vitest run tests/integration/sync/archive-read.test.ts
+    out_of_scope:
+      - "Editing an archive: never."

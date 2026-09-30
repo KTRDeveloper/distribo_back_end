@@ -1,0 +1,553 @@
+kind: module
+module: person
+prefix: PER
+title: Person
+responsibility: Owns the single identity record of every person (registered or guest), its phone-number history and the public view organizations get of a person.
+entities: [Person, PhoneNumberChangeLog]
+depends_on: [foundation]
+asvs_level: L2
+asvs_rationale: Personal data (name, phone number, email) and credentials; every other module points to Person.
+classification:
+  - "Person.phone_number | PII | public to organizations only as a closed list; never logged"
+  - "Person.released_phone_number | PII | kept for organization history; never returned to other people"
+  - "Person.email | PII | private; never returned to an organization"
+  - "Person.password_hash | credential | never returned, never logged"
+  - "Person.full_name | PII | public name, written only by the person"
+threats:
+  - "T1 | I | An organization reads private fields of a person | closed-list projection `toPublicPerson` used for every organization-facing response | PER-005 AB-1, PER-006 AB-1"
+  - "T2 | I | Someone enumerates registered names by number | per-person lookup limit, guests and released numbers look alike | PER-006 AB-2"
+  - "T3 | T | A client writes another person's profile or server-owned fields | strict schema, person id from the session | PER-007 AB-1, AB-2"
+  - "T4 | R | A phone number change leaves no trace | immutable PhoneNumberChangeLog | PER-004 AB-1"
+constraints:
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+  C-05: "`Collaboration` is unique per person and organization; an ACTIVE collaboration needs a registered person; exactly one ACTIVE OWNER per organization; `is_public_contact` needs ACTIVE status and a person with an active number. Owned by the organization module."
+  C-29: "`Administrator.totp_secret` is required; `recovery_email` differs from `Person.email`; `AdminAction` has exactly one target, a reason, `sync_archive_id` only for REPLAY_SYNC (super administrators only), and is immutable. Owned by the admin module."
+  C-02: "`phone_number` is unique, E.164 (`^\\+[1-9][0-9]{7,14}$`); exactly one of `phone_number` and `released_phone_number` is set; status ANONYMIZED means `phone_number` is empty."
+  C-03: "A registered person (`registered_at` set) who is not ANONYMIZED has `full_name` and `password_hash`, and `phone_verified_at` when `phone_number` is set; empty `phone_number` means empty `phone_verified_at`; empty `email` means empty `email_verified_at`."
+  C-32: "`PhoneNumberChangeLog` rows are never updated or deleted by the application; only the retention purge removes them."
+  C-39: "The application account has only INSERT and SELECT on `PhoneNumberChangeLog`."
+  CM-03: "`scope_version` is incremented by the server on every rights change."
+  CM-20: "An organization receives from a person only the public name, the number and whether they are registered."
+contracts:
+  provides:
+    - name: PersonRepository
+      file: src/modules/person/person.repository.ts
+      story: PER-005
+      items:
+        - "findByActivePhone(e164: string): Promise<Person | null> — reads only the active number"
+        - "findOrCreateByPhone(e164: string, tx?): Promise<Person> — server only; creates a guest (`registered_at` empty)"
+        - "toPublicPerson(person: Person): { public_name: string | null; phone_number: string | null; registered: boolean }"
+        - "bumpScopeVersion(personId: string, tx?): Promise<number> — increments and returns the new value"
+        - "findByVerifiedEmail(email: string): Promise<Person | null> — added by AUTH-015"
+      used_by: [auth, organization, relationship, admin, sync]
+    - name: RegisteredGuard
+      file: prisma/migrations
+      story: PER-008
+      items:
+        - "SQL function require_registered_person('col', ...) for BEFORE INSERT OR UPDATE triggers on author columns"
+      used_by: [notification, organization, relationship, order, finance, delivery, admin]
+  consumes:
+    - "foundation: normalizeE164, newId, httpError (docs/stories/modules/foundation/contracts.md)"
+stories:
+  - id: PER-001
+    title: Retire the old sign-in module
+    kind: removal
+    size: M
+    risk: medium
+    depends_on: [FND-001, FND-006]
+    read_first: [src/app.ts, src/modules/user/user.repository.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: []
+    asvs: [v5.0.0-15.2.3]
+    story: "Technical story: retire the old phone-and-password sign-in module so that the v10 authentication (AUTH module) is built on the new tables instead of patched onto the old ones."
+    amends: [FND-001]
+    context: |
+      - Exists: `src/modules/auth/` (7 files), `scripts/create-user.ts`, `tests/integration/auth.test.ts`, `tests/fixtures/auth.ts`; `src/modules/user/user.repository.ts` imports `toAuthUser` from the auth repository; four API-docs tests use the auth routes.
+      - Removes: the auth module, its routes in `src/app.ts` and its OpenAPI registration, the create-user script, the auth integration test and fixtures. Keeps `src/lib/otp.ts`, `refresh-token.ts`, `otp-delivery-queue.ts`, `rate-limit.ts`, `jwt.ts`, `src/middleware/auth.ts`, the database tables, and the OTP worker.
+      - Changes: `user.repository.ts` maps the account and person itself instead of importing from the auth module.
+      - After this story nobody can register or log in until the AUTH stories land; tests sign tokens directly with `tests/helpers/request.ts`.
+    acceptance: |
+      Scenario: AC-1 Legacy routes are gone
+        When a client posts to `/api/v1/auth/register`, `/api/v1/auth/login` or `/api/v1/auth/refresh`
+        Then the response is 404 `NOT_FOUND`
+      Scenario: AC-2 Documentation matches
+        When GET `/api/v1/docs/openapi.json` is read
+        Then no path starts with `/api/v1/auth` and `/api/v1/users/me` is still listed
+      Scenario: AC-3 Profile still works with a signed token
+        Given a seeded account and a token signed with `createAuthenticatedRequest`
+        When the client calls GET `/api/v1/users/me`
+        Then the response is 200 with the same fields as before this story
+      Scenario: AC-4 The suite is green
+        When `npm test` runs
+        Then every remaining test passes
+    implementation:
+      create: []
+      modify: [src/app.ts, src/modules/user/user.repository.ts]
+      pattern: src/modules/user/user.repository.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-15.2.3: no unused authentication code stays in the production build."
+    tests: |
+      routes removed | integration | AC-1 | POST register, login, refresh → 404 NOT_FOUND
+      docs updated | integration | AC-2 | openapi paths → none under /api/v1/auth; /api/v1/users/me present
+      profile works | integration | AC-3 | seeded account, signed token → GET /api/v1/users/me → 200 with id and name
+      suite green | integration | AC-4 | full `npm test` → no failure
+    command: npx vitest run tests/integration/user.test.ts tests/integration/api-docs
+    out_of_scope:
+      - "New registration and login (AUTH module)."
+      - "Person table rebuild (PER-002)."
+    tests_to_update:
+      - "tests/integration/auth.test.ts | tests the removed routes | file deleted"
+      - "tests/integration/api-docs/catalog.test.ts | asserts `/api/v1/auth/*` paths | assert `/api/v1/health` and `/api/v1/users/me` instead and that no auth path exists"
+      - "tests/integration/api-docs/auth-execute.test.ts | registers through the removed API to get a token | seed an account and sign the token with `createAuthenticatedRequest`"
+      - "tests/integration/api-docs/error-response.test.ts | posts to `/api/v1/auth/register` | post invalid input to `/api/v1/tasks` and keep the 4xx assertions"
+      - "tests/integration/api-docs/generate-script.test.ts | expects `/api/v1/auth/login` | expect `/api/v1/users/me`"
+  - id: PER-002
+    title: Replace the legacy Person and Account with the v10 Person table
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [PER-001, FND-002, FND-005]
+    read_first: [prisma/schema.prisma, src/modules/user/user.repository.ts]
+    design_refs: [identite-et-organisation/person, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Person:required, Person.phone_number:unique, Person.preferred_language:enum, Person.status:enum, C-01, C-35]
+    asvs: [v5.0.0-14.2.4, v5.0.0-11.4.2]
+    fields: ["Person.{full_name,phone_number,released_phone_number,phone_verified_at,email,email_verified_at,password_hash,registered_at,preferred_language,created_at,status,anonymized_at,scope_version}"]
+    story: "Technical story: create the single v10 `Person` table and drop the old account and verification tables, so that every module points to one identity record."
+    context: |
+      - Exists: models `Person`, `Account`, `OtpChallenge`, `EmailVerificationRequest`, `RefreshToken` (FND-001); no code uses the last three after PER-001; `Task.accountId` points to `Account`; `user.repository.ts` reads `prisma.account`.
+      - Adds: migration that drops `accounts`, `otp_challenges`, `email_verification_requests`, `refresh_tokens`, recreates `people` with the design columns plus `scope_version` (int, default 0) and `server_updated_at` (trigger `set_server_updated_at()` from FND-002), and repoints `tasks.account_id` to `people(id)` (the Prisma field keeps the name `accountId`; it holds a person id).
+      - Person id is `uuid` with no default; server code sets it with `newId()`. Phone, completeness and email CHECKs come in PER-003.
+      - `user.repository.ts` reads `prisma.person` and returns `{ id, email, name, emailVerifiedAt, createdAt }` as before.
+      - `seedAccount` in `tests/helpers/database.ts` creates a registered Person (name, phone, `registered_at`, `phone_verified_at`, a hash-shaped placeholder) and returns `{ id, email, name, phoneNumber }`.
+    acceptance: |
+      Scenario: AC-1 Tables and columns
+        When the migration ran
+        Then table `people` has the design columns with types uuid, timestamptz and int
+        And the tables `accounts`, `otp_challenges`, `email_verification_requests`, `refresh_tokens` do not exist
+      Scenario: AC-2 Number uniqueness
+        When two people are inserted with the same active number
+        Then the second insert fails with 23505
+      Scenario: AC-3 Enums and required columns
+        When a row has status "DELETED" or language "ES", or omits `created_at`
+        Then the database rejects the status and language; `created_at` defaults to now
+      Scenario: AC-4 Server time and defaults
+        When a guest is inserted without `scope_version` and `server_updated_at`
+        Then `scope_version` is 0 and `server_updated_at` is set by the database
+      Scenario: AC-5 Existing behavior keeps working
+        When `npx vitest run tests/integration/user.test.ts tests/integration/remote-config.test.ts` runs
+        Then every test that passed before this story passes
+    abuse: |
+      Scenario: AB-1 Two identities for one number (spoofing)
+        When code inserts a second person with a number that is already active
+        Then PostgreSQL rejects it, even though no validation ran
+    implementation:
+      create: [prisma/migrations/<timestamp>_per_002_person_v10/migration.sql, tests/integration/person/person-table.test.ts]
+      modify: [prisma/schema.prisma, src/modules/user/user.repository.ts, tests/helpers/database.ts]
+      pattern: prisma/migrations/20260914130000_add_refresh_tokens/migration.sql
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-14.2.4: `password_hash` is never selected by `user.repository.ts`."
+      - "v5.0.0-11.4.2: the seed helper stores only a hash-shaped placeholder, never a real password."
+    tests: |
+      table shape | integration | AC-1, C-01, Person:required | `expectColumnType` on id, phone_number, scope_version, created_at, server_updated_at; old tables absent
+      unique number | integration | AC-2, Person.phone_number:unique | same number twice → 23505
+      enums | integration | AC-3, Person.status:enum, Person.preferred_language:enum | status 'DELETED', language 'ES' → rejected
+      defaults and trigger | integration | AC-4, C-35 | guest insert → scope_version 0, server_updated_at near now()
+      existing suites | integration | AC-5 | user and remote-config suites pass
+      one identity per number | security | AB-1, CWE-289 | raw second insert with an active number → 23505
+    command: npx vitest run tests/integration/person/person-table.test.ts tests/integration/user.test.ts
+    out_of_scope:
+      - "Phone, completeness and email CHECKs (PER-003)."
+      - "Person lookup and projection (PER-005, PER-006); profile fields (PER-007)."
+      - "Renaming `Task.accountId` to `personId`."
+  - id: PER-003
+    title: Person integrity checks in the database
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [PER-002]
+    read_first: [prisma/schema.prisma, tests/integration/person/person-table.test.ts]
+    design_refs: [identite-et-organisation/person, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-02, C-03]
+    asvs: [v5.0.0-2.2.3, v5.0.0-11.4.2]
+    story: "Technical story: enforce the phone number, registration and email rules with CHECK constraints and a partial unique index, so that PostgreSQL rejects an inconsistent person even when validation is bypassed."
+    context: |
+      - Exists: `people` (PER-002).
+      - Adds: one migration with the CHECKs and the index; no application code. E.164 pattern `^\+[1-9][0-9]{7,14}$` on `phone_number` and on `released_phone_number`.
+      - A partial unique index on `lower(email)` where `email_verified_at` is not null (Q-026).
+    acceptance: |
+      Scenario Outline: AC-1 Phone number rules
+        When a row is inserted directly with <values>
+        Then the database <result>
+        Examples:
+          | values                                                   | result          |
+          | phone_number +237677123456, released number empty       | accepts         |
+          | phone_number empty, released number +237677123456       | accepts         |
+          | both numbers set                                         | rejects (23514) |
+          | both numbers empty                                       | rejects (23514) |
+          | phone_number 0677123456                                  | rejects (23514) |
+          | status ANONYMIZED with an active number                  | rejects (23514) |
+      Scenario Outline: AC-2 Registered person is complete
+        When a person with `registered_at` set is inserted with <values>
+        Then the database <result>
+        Examples:
+          | values                                                    | result          |
+          | full_name, password_hash and phone_verified_at set        | accepts         |
+          | full_name empty                                           | rejects (23514) |
+          | password_hash empty                                       | rejects (23514) |
+          | phone_verified_at empty with an active number             | rejects (23514) |
+          | status ANONYMIZED, no name, no hash, released number set  | accepts         |
+          | released number only and `phone_verified_at` set          | rejects (23514) |
+      Scenario: AC-3 Email dates
+        When `email` is empty and `email_verified_at` is set
+        Then the database rejects the row with 23514
+        And two people cannot both hold the same verified email (23505), in any letter case
+    abuse: |
+      Scenario: AB-1 Bypassing validation (tampering)
+        When code inserts a registered person without a password hash straight into the database
+        Then PostgreSQL rejects it, even though no validation ran
+    implementation:
+      create: [prisma/migrations/<timestamp>_per_003_person_checks/migration.sql, tests/integration/person/person-checks.test.ts]
+      modify: []
+      pattern: tests/integration/person/person-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: related columns are checked together in the database, not only in code."
+    tests: |
+      phone rules | integration | AC-1, C-02 | each Examples row → accepted or SQLSTATE
+      completeness | integration | AC-2, C-03 | each Examples row → accepted or 23514
+      email dates | integration | AC-3, C-03 | empty email with verified date → 23514; second verified holder in another case → 23505
+      no validation bypass | security | AB-1, CWE-20 | raw insert of a registered person with no hash → 23514
+    command: npx vitest run tests/integration/person/person-checks.test.ts
+    out_of_scope:
+      - "Application-level validation of these fields (AUTH and PER-007)."
+  - id: PER-004
+    title: Phone number change journal
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [PER-002]
+    read_first: [prisma/schema.prisma, tests/helpers/app-role.ts]
+    design_refs: [identite-et-organisation/phonenumberchangelog]
+    constraints: [PhoneNumberChangeLog:required, PhoneNumberChangeLog:fk, C-32, C-39, C-35]
+    asvs: [v5.0.0-16.3.3, v5.0.0-8.3.1]
+    fields: ["PhoneNumberChangeLog.{person_id,old_phone_number,new_phone_number,verified_at,changed_at}"]
+    story: "Technical story: create the immutable journal of phone number changes so that every change is traceable and cannot be rewritten."
+    context: |
+      - Exists: `people` (PER-002), role `distribo_app`, `set_server_updated_at()` and `getAppRolePrisma()` (FND-002).
+      - Adds: table `phone_number_change_logs` with E.164 CHECKs on both numbers, `server_updated_at` trigger, and `REVOKE UPDATE, DELETE, TRUNCATE ... FROM distribo_app`.
+    acceptance: |
+      Scenario: AC-1 Rows can be added and read
+        When the application account inserts a row for an existing person and selects it
+        Then both succeed and `server_updated_at` is set
+      Scenario: AC-2 Rows cannot change
+        When the application account runs UPDATE or DELETE on a row
+        Then PostgreSQL answers permission denied (42501)
+      Scenario Outline: AC-3 Number format
+        When a row has old number <old> and new number <new>
+        Then the insert <result>
+        Examples:
+          | old           | new           | result  |
+          | +237677123456 | +237699000111 | accepts |
+          | 677123456     | +237699000111 | rejects |
+          | +237677123456 | 0699000111    | rejects |
+      Scenario: AC-4 Person must exist
+        When a row references a missing person id
+        Then the insert fails with 23503
+    abuse: |
+      Scenario: AB-1 Rewriting history (repudiation)
+        When code running as the application account edits `new_phone_number` of an existing row
+        Then the change is refused and the row is unchanged
+    implementation:
+      create: [prisma/migrations/<timestamp>_per_003_phone_change_log/migration.sql, tests/integration/person/phone-change-log.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/foundation/database-roles.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-8.3.1: only INSERT and SELECT are granted to `distribo_app`."
+      - "v5.0.0-16.3.3: the journal keeps who changed which number and when."
+    tests: |
+      insert and read | integration | AC-1, PhoneNumberChangeLog:required, C-35 | as `distribo_app` insert then select → row with server_updated_at
+      immutable | security | AC-2, AB-1, C-32, C-39, WSTG-ATHZ-03 | as `distribo_app` UPDATE and DELETE → 42501
+      number format | integration | AC-3 | each Examples row → accepted or 23514
+      foreign key | integration | AC-4, PhoneNumberChangeLog:fk | unknown person id → 23503
+    command: npx vitest run tests/integration/person/phone-change-log.test.ts
+    out_of_scope:
+      - "Writing rows: phone change flow (AUTH module)."
+      - "The 10-year retention purge (PRIV module)."
+  - id: PER-005
+    title: Person repository contract and public view
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [PER-002, FND-004, FND-005]
+    read_first: [docs/stories/modules/foundation/contracts.md, src/modules/user/user.repository.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-03, CM-20]
+    asvs: [v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: "Technical story: provide the functions other modules use to find or create a person by number and to show a person to an organization, so that the closed-list rule is written once."
+    context: |
+      - Exists: `people` (PER-002); `normalizeE164` (FND-004); `newId` (FND-005).
+      - Adds: `src/modules/person/person.repository.ts` with `findByActivePhone`, `findOrCreateByPhone`, `toPublicPerson`, `bumpScopeVersion`.
+      - A guest has empty `registered_at`, `full_name`, `password_hash`; only the server creates one.
+      - Public view: `{ public_name, phone_number, registered }`; `public_name` is `full_name` or null; a person whose number is released has `phone_number` null.
+    acceptance: |
+      Scenario: AC-1 Find by active number
+        Given a person with active number +237677123456 and a person whose released number is +237699000111
+        When findByActivePhone is called with each number
+        Then the first returns its person and the second returns null
+      Scenario: AC-2 Find or create
+        When findOrCreateByPhone is called twice with the same number
+        Then one guest is created, both calls return the same id, `registered_at` is empty and `scope_version` is 0
+      Scenario: AC-3 Concurrent creation
+        When two calls create the same number at the same time
+        Then exactly one row exists and both calls return it
+      Scenario: AC-4 Public view is a closed list
+        When toPublicPerson receives a registered person with email, language and password hash
+        Then the result has exactly the keys `public_name`, `phone_number`, `registered`
+      Scenario: AC-5 Scope version
+        When bumpScopeVersion is called twice for one person
+        Then it returns 1 then 2 and the stored value is 2
+    abuse: |
+      Scenario: AB-1 Private fields leak through the public view (information disclosure)
+        When toPublicPerson is applied to a person with every field set
+        Then the serialized result contains none of email, password hash, dates or language
+    implementation:
+      create: [src/modules/person/person.repository.ts, tests/integration/person/person-repository.test.ts]
+      modify: []
+      pattern: src/modules/tasks/tasks.repository.ts
+      signatures:
+        - "findByActivePhone(e164: string): Promise<Person | null>"
+        - "findOrCreateByPhone(e164: string, tx?: Prisma.TransactionClient): Promise<Person>"
+        - "toPublicPerson(person: Person): PublicPerson"
+        - "bumpScopeVersion(personId: string, tx?: Prisma.TransactionClient): Promise<number>"
+      types:
+        - "PublicPerson = { public_name: string | null; phone_number: string | null; registered: boolean }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.3: `toPublicPerson` builds the object from an explicit list of three fields."
+      - "v5.0.0-15.3.1: `findOrCreateByPhone` uses an `INSERT ... ON CONFLICT DO NOTHING` then a read, so a race never creates two rows."
+    tests: |
+      find by active number | integration | AC-1 | active hit, released miss
+      find or create | integration | AC-2 | same id twice, one row, guest fields empty
+      concurrent create | integration | AC-3 | `Promise.all` of 5 calls → one row, one id
+      public view | unit | AC-4, CM-20 | full person → exactly 3 keys
+      scope version | integration | AC-5, CM-03 | two bumps → 1 then 2
+      no private leak | security | AB-1, CWE-200 | JSON of the view contains none of the private values
+    command: npx vitest run tests/integration/person/person-repository.test.ts
+    out_of_scope:
+      - "Who may call these functions (each consumer story)."
+  - id: PER-006
+    title: Look up a person by phone number
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [PER-005, FND-006]
+    read_first: [docs/stories/modules/person/contracts.md, src/modules/tasks/tasks.routes.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-20]
+    asvs: [v5.0.0-2.4.1, v5.0.0-8.2.1, v5.0.0-15.3.1]
+    story: As a seller, I want to see who a phone number belongs to before I add it as a customer so that I catch typing mistakes.
+    context: |
+      - Exists: `findByActivePhone`, `toPublicPerson` (PER-005); `authMiddleware`; `checkAndConsume` in `src/lib/rate-limit.ts`; `normalizeE164`.
+      - Adds: `GET /api/v1/people/lookup?phone=<number>` for any signed-in person. Response 200 `{ phone_number, registered, public_name }`; an unknown number, a guest or a released number all answer `{ phone_number, registered: false, public_name: null }`.
+      - Limit: 60 lookups per hour per person (Q-006), answered 429 `RATE_LIMITED`.
+    acceptance: |
+      Scenario: AC-1 Registered person
+        Given a registered person named "Béatrice Ngono" with number +237677123456
+        When a signed-in person looks up "6 77 12 34 56"
+        Then the response is 200 with phone_number +237677123456, registered true, public_name "Béatrice Ngono"
+      Scenario: AC-2 Unknown, guest and released numbers look the same
+        When a signed-in person looks up an unknown number, a guest's number and a released number
+        Then each response is 200 with registered false and public_name null
+      Scenario: AC-3 Invalid number
+        When the query is missing or not a mobile number
+        Then the response is 400 `VALIDATION_ERROR`
+      Scenario Outline: AC-4 Hourly limit
+        When a person makes <count> lookups within one hour
+        Then the last one answers <status>
+        Examples:
+          | count | status |
+          | 60    | 200    |
+          | 61    | 429    |
+    abuse: |
+      Scenario: AB-1 Private fields (information disclosure)
+        When a lookup hits a registered person with an email
+        Then the body has only phone_number, registered and public_name
+      Scenario: AB-2 Enumeration by guessing numbers (anti-automation)
+        When one person looks up 61 different numbers in an hour
+        Then the 61st is refused with 429 and a `warn` log event `lookup_rate_limited` with the person id
+      Scenario: AB-3 No token (unauthenticated)
+        When the request has no valid access token
+        Then the response is 401
+    implementation:
+      create: [src/modules/person/person.routes.ts, src/modules/person/person.schemas.ts, src/modules/person/person.openapi.ts, tests/integration/person/person-lookup.test.ts]
+      modify: [src/app.ts]
+      pattern: src/modules/tasks/tasks.routes.ts
+      signatures:
+        - "lookupPerson(callerId: string, phone: string): Promise<PublicPerson>"
+      types:
+        - "LookupQuery = { phone: string }"
+      errors: ["VALIDATION_ERROR 400", "RATE_LIMITED 429", "UNAUTHORIZED 401"]
+      dependencies: [express, zod, ioredis, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-2.4.1: key `lookup:<personId>`, limit 60, window 3600 seconds."
+      - "v5.0.0-15.3.1: response built by `toPublicPerson` only."
+      - "v5.0.0-8.2.1: route behind `authMiddleware`."
+    tests: |
+      registered | integration | AC-1 | seeded person, spaced number → 200 with name
+      indistinguishable | integration | AC-2, CM-20 | unknown, guest, released → same shape and values
+      invalid | integration | AC-3 | no query, landline → 400
+      limit | integration | AC-4 | 60 calls → 200, 61st → 429 (rate-limit function mocked with a counter)
+      no private fields | security | AB-1, WSTG-ATHZ-02 | keys are exactly three
+      enumeration | security | AB-2, WSTG-BUSL-07 | 61 numbers → 429 and log event
+      no token | security | AB-3, WSTG-ATHN-04 | no header → 401
+    command: npx vitest run tests/integration/person/person-lookup.test.ts
+    out_of_scope:
+      - "Looking up an organization by number (ORG module)."
+      - "Adding the customer (REL module)."
+  - id: PER-007
+    title: Person reads and edits their own profile
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [PER-005]
+    read_first: [docs/stories/modules/person/contracts.md, src/modules/user/user.routes.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [Person:required, C-03]
+    asvs: [v5.0.0-8.2.3, v5.0.0-15.3.1, v5.0.0-15.3.3]
+    fields: ["Person.{full_name,email,email_verified_at,preferred_language,scope_version}"]
+    story: As a customer, I want to see and change my own name, language and email so that my profile stays right.
+    context: |
+      - Exists: `GET` and `PATCH /api/v1/users/me` in the `user` module (before this story they return the account's id, email, name, email verified date and creation date).
+      - Changes: both routes now read and write `Person` through `src/modules/user/user.*`; response fields are `id, full_name, phone_number, phone_verified, email, email_verified, preferred_language, registered, scope_version, created_at`.
+      - PATCH accepts only `full_name` (1 to 100 characters, Q-027), `preferred_language` (FR or EN) and `email`; a changed email is stored at once and `email_verified_at` is emptied; `email: null` clears both.
+      - The verification code for an email is sent by the AUTH module.
+    acceptance: |
+      Scenario: AC-1 Read own profile
+        Given a signed-in registered person
+        When they GET /api/v1/users/me
+        Then the response is 200 with the ten fields above and no `password_hash`
+      Scenario: AC-2 Update name and language
+        When they PATCH full_name "Béatrice N." and preferred_language "EN"
+        Then the response is 200 with the new values and the row is updated
+      Scenario: AC-3 Change email resets verification
+        Given a person with a verified email
+        When they PATCH email to another address
+        Then email is the new address and email_verified is false
+      Scenario Outline: AC-4 Limits
+        When they PATCH <field> with <value>
+        Then the response is <status>
+        Examples:
+          | field              | value       | status |
+          | full_name          | empty       | 400    |
+          | full_name          | 100 chars   | 200    |
+          | full_name          | 101 chars   | 400    |
+          | preferred_language | ES          | 400    |
+          | email              | not-an-email| 400    |
+    abuse: |
+      Scenario: AB-1 Server-owned fields (mass assignment)
+        When a PATCH contains phone_number, status, scope_version, registered_at or password_hash
+        Then the response is 400 and nothing is stored
+      Scenario: AB-2 Another person's profile (horizontal)
+        When a PATCH contains an `id` of another person
+        Then the response is 400 and the other profile is unchanged
+      Scenario: AB-3 No token (unauthenticated)
+        When the request has no valid token
+        Then the response is 401
+    implementation:
+      create: [tests/integration/person/profile.test.ts]
+      modify: [src/modules/user/user.repository.ts, src/modules/user/user.service.ts, src/modules/user/user.schemas.ts, src/modules/user/user.types.ts, src/modules/user/user.openapi.ts]
+      pattern: src/modules/user/user.service.ts
+      signatures:
+        - "getProfile(personId: string): Promise<Profile>"
+        - "updateProfile(personId: string, input: UpdateProfileInput): Promise<Profile>"
+      types:
+        - "UpdateProfileInput = { full_name?: string; preferred_language?: 'FR' | 'EN'; email?: string | null }"
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401", "NOT_FOUND 404"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-15.3.3: strict schema with three optional fields."
+      - "v5.0.0-8.2.3: the row is selected and updated by the person id from the token only."
+      - "v5.0.0-15.3.1: explicit response field list; `password_hash` is never selected."
+    tests: |
+      read | integration | AC-1 | GET → ten fields, no password_hash
+      update | integration | AC-2 | PATCH name and language → stored
+      email reset | integration | AC-3, C-03 | verified email replaced → email_verified false, date empty
+      limits | integration | AC-4, Person:required | each Examples row → status
+      mass assignment | security | AB-1, CWE-915 | forbidden fields → 400, row unchanged
+      own row only | security | AB-2, WSTG-ATHZ-04 | id in body → 400; other row unchanged
+      no token | security | AB-3, WSTG-ATHN-04 | no header → 401
+    command: npx vitest run tests/integration/person/profile.test.ts tests/integration/user.test.ts
+    out_of_scope:
+      - "Sending the email verification code (AUTH module)."
+      - "Changing the phone number (AUTH module)."
+  - id: PER-008
+    title: Registered-person guard for author columns
+    kind: technical
+    size: XS
+    risk: high
+    depends_on: [PER-003, FND-002]
+    read_first: [tests/integration/foundation/database-roles.test.ts, prisma/schema.prisma]
+    design_refs: [identite-et-organisation/person, contraintes-a-poser-au-niveau-base-de]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.2.3]
+    story: "Technical story: create one SQL trigger function that refuses a guest in any author column, so that each table story can attach it and a guest can never act."
+    context: |
+      - Exists: `people` with `registered_at` (PER-002).
+      - Adds: SQL function `require_registered_person()` used as `CREATE TRIGGER ... BEFORE INSERT OR UPDATE ON <table> FOR EACH ROW EXECUTE FUNCTION require_registered_person('col_a', 'col_b')`. It reads the column names from `TG_ARGV`, skips a null value, and on UPDATE skips a column whose value did not change. A person counts as registered when `registered_at` is set, even if later anonymized.
+      - Each table story attaches the trigger to its own author columns and tests it (constraint C-04).
+    acceptance: |
+      Scenario: AC-1 Registered author accepted
+        Given a scratch table with column `by_id` and the trigger on it
+        When a row references a registered person
+        Then the insert succeeds
+      Scenario: AC-2 Guest refused
+        When a row references a guest (empty `registered_at`)
+        Then the insert fails with SQLSTATE 23514 and a message naming the column
+      Scenario: AC-3 Null skipped
+        When the author column is null
+        Then the insert succeeds
+      Scenario: AC-4 Unchanged column skipped on update
+        Given a row whose author was registered when inserted and was anonymized later
+        When another column of that row is updated
+        Then the update succeeds
+        And changing the author column to a guest fails with 23514
+    abuse: |
+      Scenario: AB-1 Guest acts through a crafted request (elevation)
+        When code inserts an action row whose author is a guest, bypassing every check in the application
+        Then PostgreSQL refuses the row
+    implementation:
+      create: [prisma/migrations/<timestamp>_per_008_registered_person_guard/migration.sql, tests/integration/person/registered-guard.test.ts]
+      modify: []
+      pattern: tests/integration/foundation/database-roles.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: the check lives in the database, so it holds for every code path."
+    tests: |
+      registered accepted | integration | AC-1 | scratch table and trigger → insert with a registered person passes
+      guest refused | integration | AC-2 | insert with a guest → 23514
+      null skipped | integration | AC-3 | null author → passes
+      unchanged skipped | integration | AC-4 | anonymized author row updated elsewhere → passes; author set to a guest → 23514
+      crafted request | security | AB-1, CWE-862 | raw insert with a guest author → 23514
+    command: npx vitest run tests/integration/person/registered-guard.test.ts
+    out_of_scope:
+      - "Attaching the trigger to real tables (each table's story)."
