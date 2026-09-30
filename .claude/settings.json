@@ -7,8 +7,8 @@
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "auto",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "kr/claude-sonnet-4.5",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL2": "deepseek-3.2",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "agy/claude-sonnet-4-6"
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "cx/gpt-5.6-luna-high",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL2": "agy/claude-sonnet-4-6"
 
   },
   "permissions": {
