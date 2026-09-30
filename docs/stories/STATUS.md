@@ -10,8 +10,8 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FND-002 | todo | | |
 | FND-003 | todo | | |
 | FND-004 | todo | | |
-| FND-005 | todo | | |
-| FND-006 | todo | | |
+| FND-005 | done | | Story tests pass: 6 passed |
+| FND-006 | done | | Story test: 2 passed |
 | FND-007 | todo | | |
 | FND-008 | todo | | |
 | FND-009 | todo | | |
