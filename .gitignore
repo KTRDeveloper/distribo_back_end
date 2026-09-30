@@ -48,3 +48,10 @@ specs/
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+
+# Python bytecode (skills_prompts/ scripts and eval helpers)
+__pycache__/
+*.py[cod]
+
+# Skill eval runs: regenerable output (fixtures, outputs, transcripts, grading)
+skills_prompts/design-to-user-stories-workspace/iteration-*/
