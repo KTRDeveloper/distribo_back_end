@@ -48,6 +48,8 @@ specs/
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+!.claude/skills/
+!.claude/agents/
 
 # Python bytecode (skills_prompts/ scripts and eval helpers)
 __pycache__/

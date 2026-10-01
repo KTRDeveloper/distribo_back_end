@@ -1,0 +1,81 @@
+# Project defaults for design-to-user-stories.
+# Used only when the design does not state a value. Exact versions: the
+# dependency allowlist in CONVENTIONS.md is seeded from here.
+target_agent:
+  name: Claude Sonnet 5.5
+  model: claude-sonnet-5-5
+  effort: medium
+  context: 1M-token window; runs as a Claude Code subagent that loads CLAUDE.md
+out: docs/stories
+asvs_level: L2
+git: true
+anchors: heading-paths        # explicit ids in the design (<!-- id: X --> or {#X}) still win
+model_format: auto            # inline Type cells (PK, FK -> X, enum [A / B], nullable, unique) or a Constraints column
+stack:
+  - Node.js 22 (LTS)
+  - TypeScript 5.9.3, strict, ES2022 modules
+  - Express 5.1.0
+  - PostgreSQL 16
+  - Prisma 7.10.0 with @prisma/adapter-pg
+  - Zod 3.25.76 for validation
+  - Vitest 4.0.9 and Supertest 7.1.4 for tests
+  - Pino 10.1.0 for logs
+dependencies:
+  runtime:
+    express: 5.1.0
+    "@prisma/client": 7.10.0
+    "@prisma/adapter-pg": 7.10.0
+    pg: 8.23.0
+    zod: 3.25.76
+    pino: 10.1.0
+    pino-http: 11.0.0
+    helmet: 8.1.0
+    cors: 2.8.5
+    express-rate-limit: 8.2.1
+    jsonwebtoken: 9.0.2
+    argon2: 0.44.0
+    dotenv: 17.4.2
+  dev:
+    typescript: 5.9.3
+    prisma: 7.10.0
+    tsx: 4.20.6
+    vitest: 4.0.9
+    "@vitest/coverage-v8": 4.0.9
+    supertest: 7.1.4
+    eslint: 9.39.1
+    "@eslint/js": 9.39.1
+    typescript-eslint: 8.46.4
+    eslint-plugin-security: 3.0.1
+    globals: 16.5.0
+    prettier: 3.6.2
+    "@types/node": 22.19.1
+    "@types/express": 5.0.5
+    "@types/supertest": 6.0.3
+    "@types/jsonwebtoken": 9.0.10
+    "@types/pg": 8.23.1
+    "@types/cors": 2.8.19
+  ci:
+    actions/checkout: v7
+    actions/setup-node: v7
+    semgrep/semgrep: 1.178.0         # container image, SAST
+    zricethezav/gitleaks: v8.30.1    # container image, secret scanning
+    postgres: 16-alpine              # container image, test database
+commands:
+  install: npm ci
+  build: npm run build
+  lint: npm run lint
+  typecheck: npm run typecheck
+  test_one: npx vitest run <test-file>
+  test_all: npm test
+  test_quiet: npx vitest run --reporter=dot --silent
+  audit: npm audit --audit-level=high
+  db_test: docker compose up -d db-test
+security_tooling:
+  sast: eslint-plugin-security in npm run lint; Semgrep CE (semgrep scan --config p/default --error --metrics=off) in CI
+  secrets: gitleaks detect in CI
+  dependencies: npm audit --audit-level=high in CI
+test_database: PostgreSQL 16 in Docker (compose service db-test, CI service container); integration tests never mock the database
+# SYNC: validate.py warns when a module outgrows these (an ADR trigger, see references/sync.md)
+module_health:
+  max_entities: 8
+  max_active_stories: 25

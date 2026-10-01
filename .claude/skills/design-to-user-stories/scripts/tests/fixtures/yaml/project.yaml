@@ -1,0 +1,31 @@
+kind: project
+name: Boutique
+design: docs/design.md
+out: docs/stories
+asvs_level: L2
+stack:
+  - Node.js 22 (LTS)
+  - TypeScript 5.9.3
+  - Express 5.1.0
+commands:
+  install: npm ci
+  lint: npm run lint
+  test one file: npx vitest run <test-file>
+  full suite: npm test
+layout:
+  - "`src/modules/<module>/`: routes, service and schemas of one module"
+  - "`tests/<module>/`: tests of one module, named `<feature>.test.ts`"
+dependencies:
+  runtime:
+    express: 5.1.0
+    zod: 3.25.76
+    "@prisma/client": 7.10.0
+  dev:
+    vitest: 4.0.9
+    supertest: 7.1.4
+urls:
+  - http://localhost:3000
+roles: [seller, admin]
+glossary:
+  - "seller | `SELLER`, vendeur | Account that manages its own products"
+  - "product | `Product`, produit | An item a seller offers"
