@@ -8,6 +8,11 @@ import { logger } from './logger.js';
  *
  * Prisma 7 requires an explicit driver adapter (no more implicit
  * datasource.url connection) — see prisma.config.ts for the CLI/migrate side.
+ *
+ * Log configuration (ASVS v5.0.0-16.2.5): Only error and warn levels are enabled.
+ * Query logging is disabled to prevent personal data (phone numbers, emails, etc.)
+ * from appearing in application logs. This ensures compliance with data protection
+ * requirements and prevents information disclosure vulnerabilities.
  */
 declare global {
   var prisma: PrismaClient | undefined;
@@ -20,7 +25,6 @@ export const prisma =
   new PrismaClient({
     adapter,
     log: [
-      { level: 'query', emit: 'stdout' },
       { level: 'error', emit: 'stdout' },
       { level: 'warn', emit: 'stdout' },
     ],
