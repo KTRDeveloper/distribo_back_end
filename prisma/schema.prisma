@@ -147,8 +147,25 @@ model Person {
   serverUpdatedAt       DateTime     @default(now()) @map("server_updated_at") @db.Timestamptz
   scopeVersion          Int          @default(0) @map("scope_version")
 
-  tasks Task[]
+  tasks                 Task[]
+  phoneNumberChangeLogs PhoneNumberChangeLog[]
 
   @@map("people")
+}
+
+model PhoneNumberChangeLog {
+  id                String   @id @db.Uuid
+  personId          String   @map("person_id")
+  oldPhoneNumber    String   @map("old_phone_number")
+  newPhoneNumber    String   @map("new_phone_number")
+  verifiedAt        DateTime @map("verified_at") @db.Timestamptz
+  changedAt         DateTime @map("changed_at") @db.Timestamptz
+  serverUpdatedAt   DateTime @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+
+  person Person @relation(fields: [personId], references: [id])
+
+  @@index([personId])
+  @@map("phone_number_change_logs")
 }
 
