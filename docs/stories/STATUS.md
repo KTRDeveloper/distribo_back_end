@@ -17,7 +17,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FND-009 | done | | |
 | PER-001 | done | | |
 | PER-002 | done | | Story tests pass: 10 passed; user tests pass: 5 passed |
-| PER-003 | todo | | |
+| PER-003 | in_progress | | ready for review |
 | PER-004 | todo | | |
 | PER-005 | todo | | |
 | PER-006 | todo | | |
