@@ -8,7 +8,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FND-000 | done | | |
 | FND-001 | done | | Auth tests pass; legacy identity tests require removed delivery models by design |
 | FND-002 | done | | |
-| FND-003 | todo | | |
+| FND-003 | done | | Story tests pass: 12 passed |
 | FND-004 | todo | | |
 | FND-005 | done | | Story tests pass: 6 passed |
 | FND-006 | done | | Story test: 2 passed |
