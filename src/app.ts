@@ -7,6 +7,7 @@ import { config } from './config/index.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+import { jsonBodyParser } from './middleware/body-parser.js';
 import { getMetrics, getMetricsContentType } from './lib/metrics.js';
 
 /**
@@ -75,8 +76,8 @@ app.use(requestIdMiddleware);
 app.use(requestLogger);
 
 // Body parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(jsonBodyParser);
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // Routes
 import { healthRoutes } from './modules/health/health.routes.js';
