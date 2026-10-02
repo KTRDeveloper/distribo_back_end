@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { newId } from '../../src/shared/ids';
 import { prisma } from '../setup';
 import { hash } from 'bcrypt';
 import { uniquePhone } from './phone';
@@ -17,9 +18,10 @@ export async function seedAccount(userData: {
 }) {
   const hashedPassword = await hash(userData.password, 10);
 
+  // FND-011 requires fixtures to exercise the same UUIDv7 identifier boundary as production.
   const person = await prisma.person.create({
     data: {
-      id: userData.id,
+      id: userData.id ?? newId(),
       passwordHash: hashedPassword,
       fullName: userData.name,
       phoneNumber: userData.phoneNumber ?? uniquePhone(),

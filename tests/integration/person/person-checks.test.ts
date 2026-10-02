@@ -1,7 +1,17 @@
+import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { Client } from 'pg';
 import { describe, expect, it } from 'vitest';
+import { newId } from '../../../src/shared/ids';
+import { seedAccount } from '../../helpers/database';
 import { prisma } from '../../setup';
 
 const validPhone = '+237677123456';
+const migrationSql = readFileSync(
+  resolve(process.cwd(), 'prisma/migrations/20261002060000_per_003_person_checks/migration.sql'),
+  'utf8'
+);
 
 /** Extracts the PostgreSQL SQLSTATE preserved by Prisma raw-query errors. */
 function postgresCode(error: unknown): string | undefined {
@@ -60,6 +70,53 @@ async function expectConstraintViolation(
       throw error;
     }
     expect(postgresCode(error)).toBe(code);
+  }
+}
+
+async function withMigrationSandbox(
+  run: (client: Client, schema: string) => Promise<void>
+): Promise<void> {
+  const schema = `fnd_011_${randomUUID().replaceAll('-', '')}`;
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(`CREATE SCHEMA "${schema}"`);
+    await client.query(`SET search_path TO "${schema}", public`);
+    await client.query(`CREATE TYPE "PersonStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'ANONYMIZED')`);
+    await client.query(`
+      CREATE TABLE people (
+        id uuid PRIMARY KEY,
+        phone_number text,
+        released_phone_number text,
+        full_name text,
+        password_hash text,
+        phone_verified_at timestamptz,
+        email text,
+        email_verified_at timestamptz,
+        registered_at timestamptz,
+        status "PersonStatus" NOT NULL DEFAULT 'ACTIVE',
+        CONSTRAINT people_email_key UNIQUE (email)
+      )
+    `);
+    await run(client, schema);
+  } finally {
+    await client.query('ROLLBACK');
+    await client.query('RESET search_path');
+    await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    await client.end();
+  }
+}
+
+async function expectMigrationFailure(client: Client, id: string): Promise<void> {
+  try {
+    await client.query(migrationSql);
+    throw new Error('expected migration preflight failure');
+  } catch (error) {
+    if (error instanceof Error && error.message === 'expected migration preflight failure')
+      throw error;
+    expect(error).toMatchObject({ code: '23514' });
+    expect((error as Error).message).toContain(id);
+    expect((error as Error).message).not.toContain(validPhone);
   }
 }
 
@@ -149,6 +206,161 @@ describe('Person integrity checks', () => {
       fullName: 'Registered person',
       phoneVerifiedAt: new Date(),
       registeredAt: new Date(),
+    });
+  });
+
+  it.each([' \t\n', '  '])(
+    'rejects required and verified text containing only whitespace: %j',
+    async (whitespace) => {
+      await withMigrationSandbox(async (client) => {
+        await client.query(migrationSql);
+        await expect(
+          client.query(
+            `INSERT INTO people
+               (id, phone_number, full_name, password_hash, phone_verified_at, registered_at)
+             VALUES ($1, $2, $3, 'hash', NOW(), NOW())`,
+            [randomUUID(), validPhone, whitespace]
+          )
+        ).rejects.toMatchObject({ code: '23514' });
+        await client.query('ROLLBACK');
+        await client.query('BEGIN');
+        await expect(
+          client.query(
+            `INSERT INTO people
+               (id, phone_number, full_name, password_hash, phone_verified_at, registered_at)
+             VALUES ($1, $2, 'Person', $3, NOW(), NOW())`,
+            [randomUUID(), validPhone, whitespace]
+          )
+        ).rejects.toMatchObject({ code: '23514' });
+        await client.query('ROLLBACK');
+        await client.query('BEGIN');
+        await expect(
+          client.query(
+            `INSERT INTO people (id, phone_number, email, email_verified_at)
+             VALUES ($1, $2, $3, NOW())`,
+            [randomUUID(), validPhone, whitespace]
+          )
+        ).rejects.toMatchObject({ code: '23514' });
+        await client.query('ROLLBACK');
+      });
+    }
+  );
+
+  it('accepts ordinary required and verified text', async () => {
+    await expect(
+      insertPerson({
+        phoneNumber: validPhone,
+        fullName: 'Ordinary Person',
+        passwordHash: 'ordinary-hash',
+        phoneVerifiedAt: new Date(),
+        registeredAt: new Date(),
+        email: 'ordinary@example.test',
+        emailVerifiedAt: new Date(),
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it('uses UUIDv7 person fixture identifiers', async () => {
+    const person = await seedAccount({
+      email: `fixture-${newId()}@example.test`,
+      password: 'fixture password',
+      name: 'Fixture Person',
+    });
+
+    expect(person.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    );
+  });
+
+  it('allows duplicate unverified emails but rejects verifying both', async () => {
+    const email = 'duplicate-unverified@example.test';
+    await insertPerson({ phoneNumber: validPhone, email });
+    await insertPerson({ phoneNumber: '+237677123457', email: email.toUpperCase() });
+    await prisma.$executeRaw`UPDATE people SET email_verified_at = NOW() WHERE phone_number = ${validPhone}`;
+
+    try {
+      await prisma.$executeRaw`
+        UPDATE people SET email_verified_at = NOW() WHERE phone_number = '+237677123457'
+      `;
+      throw new Error('expected verified email uniqueness violation');
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'expected verified email uniqueness violation'
+      ) {
+        throw error;
+      }
+      expect(postgresCode(error)).toBe('23505');
+    }
+  });
+
+  it('audits dirty rows before enforcement and leaves the schema unchanged', async () => {
+    await withMigrationSandbox(async (client) => {
+      const id = randomUUID();
+      await client.query(
+        `INSERT INTO people (id, phone_number, full_name) VALUES ($1, 'invalid phone', 'Private Person')`,
+        [id]
+      );
+      await expectMigrationFailure(client, id);
+      await client.query('ROLLBACK');
+
+      const constraint = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM pg_constraint
+         WHERE conrelid = 'people'::regclass AND conname = 'people_phone_number_e164_check'`
+      );
+      expect(constraint.rows[0]?.count).toBe('0');
+      await expect(
+        client.query(`INSERT INTO people (id, phone_number) VALUES ($1, 'invalid phone')`, [
+          randomUUID(),
+        ])
+      ).resolves.toBeDefined();
+    });
+  });
+
+  it('rolls back the email rule when verified lower-case emails collide', async () => {
+    await withMigrationSandbox(async (client) => {
+      const firstId = randomUUID();
+      const secondId = randomUUID();
+      await client.query(
+        `INSERT INTO people
+           (id, phone_number, email, email_verified_at)
+         VALUES ($1, $2, 'collision@example.test', NOW()),
+                ($3, $4, 'COLLISION@example.test', NOW())`,
+        [firstId, validPhone, secondId, '+237677123457']
+      );
+      await expectMigrationFailure(client, firstId);
+      await client.query('ROLLBACK');
+
+      const oldConstraint = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM pg_constraint
+         WHERE conrelid = 'people'::regclass AND conname = 'people_email_key'`
+      );
+      expect(oldConstraint.rows[0]?.count).toBe('1');
+    });
+  });
+
+  it('atomically installs partial case-insensitive uniqueness for clean data', async () => {
+    await withMigrationSandbox(async (client) => {
+      await client.query(migrationSql);
+      const index = await client.query<{ predicate: string }>(
+        `SELECT pg_get_expr(indpred, indrelid) AS predicate
+         FROM pg_index
+         WHERE indexrelid = 'people_verified_email_lower_unique'::regclass`
+      );
+      expect(index.rows[0]?.predicate).toContain('email_verified_at IS NOT NULL');
+
+      await client.query(
+        `INSERT INTO people (id, phone_number, email) VALUES ($1, $2, 'same@example.test'), ($3, $4, 'SAME@example.test')`,
+        [randomUUID(), validPhone, randomUUID(), '+237677123457']
+      );
+      await client.query(`UPDATE people SET email_verified_at = NOW() WHERE phone_number = $1`, [
+        validPhone,
+      ]);
+      await expect(
+        client.query(`UPDATE people SET email_verified_at = NOW() WHERE phone_number = $1`, [
+          '+237677123457',
+        ])
+      ).rejects.toMatchObject({ code: '23505' });
     });
   });
 });

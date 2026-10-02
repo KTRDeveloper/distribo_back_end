@@ -210,3 +210,4 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | PRIV-002 | todo | | |
 | PRIV-003 | todo | | |
 | PER-009 | done | | Targeted tests: 18 passed; full suite: 247 passed; typecheck, lint and format check pass |
+| FND-011 | in_progress | | ready for review |
