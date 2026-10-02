@@ -15,7 +15,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FND-007 | done | | |
 | FND-008 | done | | |
 | FND-009 | done | | |
-| PER-001 | todo | | |
+| PER-001 | done | | |
 | PER-002 | todo | | |
 | PER-003 | todo | | |
 | PER-004 | todo | | |

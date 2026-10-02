@@ -17,7 +17,7 @@ describe('npm run openapi:generate', () => {
     expect(generated.openapi).toMatch(/^3\.1/);
     expect(Object.keys(generated.paths).length).toBeGreaterThan(0);
     expect(generated.paths).toHaveProperty('/api/v1/health');
-    expect(generated.paths).toHaveProperty('/api/v1/auth/login');
+    expect(generated.paths).toHaveProperty('/api/v1/users/me');
   });
 
   it('matches the set of paths served live at /docs/openapi.json', async () => {

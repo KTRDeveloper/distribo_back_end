@@ -9,8 +9,8 @@ describe('Executing a documented endpoint with invalid input', () => {
   });
 
   it('returns the real 4xx status and error body, not a generic failure', async () => {
-    // Missing required fields (phoneNumber, password) for a documented endpoint.
-    const response = await request(app).post('/api/v1/auth/register').send({ name: 'Only A Name' });
+    // Missing required fields for a documented endpoint.
+    const response = await request(app).post('/api/v1/tasks').send({ title: 'Only A Title' });
 
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(response.status).toBeLessThan(500);

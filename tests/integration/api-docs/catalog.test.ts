@@ -22,14 +22,6 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/health/ready');
     expect(paths).toContain('/api/v1/health/live');
 
-    expect(paths).toContain('/api/v1/auth/register');
-    expect(paths).toContain('/api/v1/auth/register/verify');
-    expect(paths).toContain('/api/v1/auth/login');
-    expect(paths).toContain('/api/v1/auth/password-reset/request');
-    expect(paths).toContain('/api/v1/auth/password-reset/confirm');
-    expect(paths).toContain('/api/v1/auth/email/verify/request');
-    expect(paths).toContain('/api/v1/auth/email/verify/confirm');
-
     expect(paths).toContain('/api/v1/users/me');
 
     expect(paths).toContain('/api/v1/tasks');
@@ -38,6 +30,10 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/remote-config');
     expect(paths).toContain('/api/v1/remote-config/{id}');
     expect(paths).toContain('/api/v1/remote-config/migrate');
+
+    // Verify no auth paths exist
+    const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
+    expect(authPaths).toHaveLength(0);
   });
 
   it('groups endpoints by feature-area tags', async () => {
@@ -45,7 +41,6 @@ describe('GET /docs/openapi.json', () => {
     const { paths } = bodyOf<OpenApiDoc>(response);
 
     expect(paths['/api/v1/health'].get.tags).toContain('health');
-    expect(paths['/api/v1/auth/login'].post.tags).toContain('auth');
     expect(paths['/api/v1/users/me'].get.tags).toContain('user');
     expect(paths['/api/v1/tasks'].get.tags).toContain('tasks');
     expect(paths['/api/v1/remote-config'].get.tags).toContain('remote-config');
@@ -53,9 +48,9 @@ describe('GET /docs/openapi.json', () => {
 
   it('describes each endpoint with request/response schema details', async () => {
     const response = await request(app).get('/api/v1/docs/openapi.json');
-    const registerOp = bodyOf<OpenApiDoc>(response).paths['/api/v1/auth/register'].post;
+    const usersOp = bodyOf<OpenApiDoc>(response).paths['/api/v1/users/me'].get;
 
-    expect(registerOp.requestBody?.content['application/json'].schema).toBeDefined();
-    expect(registerOp.responses?.['201']).toBeDefined();
+    expect(usersOp.security).toBeDefined();
+    expect(usersOp.responses?.['200']).toBeDefined();
   });
 });

@@ -81,7 +81,6 @@ app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // Routes
 import { healthRoutes } from './modules/health/health.routes.js';
-import { authRoutes } from './modules/auth/auth.routes.js';
 import { userRoutes } from './modules/user/user.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js';
@@ -91,7 +90,6 @@ import { apiDocsRoutes } from './modules/api-docs/api-docs.routes.js';
 // (src/lib/openapi/registry.ts) before api-docs.routes.js generates the
 // document. Import side effects only — nothing is exported from these.
 import './modules/health/health.openapi.js';
-import './modules/auth/auth.openapi.js';
 import './modules/user/user.openapi.js';
 import './modules/tasks/tasks.openapi.js';
 import './modules/remote-config/remote-config.openapi.js';
@@ -106,7 +104,6 @@ v1Router.get('/metrics', async (_req, res) => {
 });
 
 v1Router.use('/health', healthRoutes);
-v1Router.use('/auth', authRoutes);
 v1Router.use('/users', userRoutes);
 v1Router.use('/tasks', tasksRoutes);
 v1Router.use('/remote-config', remoteConfigRoutes);
