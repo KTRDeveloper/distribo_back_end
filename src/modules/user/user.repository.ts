@@ -1,54 +1,47 @@
 import { prisma } from '../../lib/db.js';
-import type { Account, Person } from '@prisma/client';
+import type { Person } from '@prisma/client';
 
 /**
  * User repository
- * Handles database operations for user (Account+Person) profile management
+ * Handles database operations for user (Person) profile management
  *
- * Identity is split across two models: `Person` (who someone is — phone
- * number, email, name) and `Account` (their login credentials, attached to
- * a Person). See specs/001-delivery-data-model/.
+ * Identity is stored in the unified `Person` model with all credentials
+ * and profile information. See specs/person-v10/.
  */
-
-export type AccountWithPerson = Account & { person: Person };
 
 /**
- * Flatten an Account+Person pair into the shape API responses expect.
+ * Flatten a Person record into the shape API responses expect.
  */
-function toAuthUser(account: AccountWithPerson) {
+function toAuthUser(person: Person) {
   return {
-    id: account.id,
-    phoneNumber: account.person.phoneNumber,
-    email: account.person.email,
-    name: account.person.fullName,
-    emailVerifiedAt: account.person.emailVerifiedAt,
-    createdAt: account.createdAt,
+    id: person.id,
+    phoneNumber: person.phoneNumber,
+    email: person.email,
+    name: person.fullName,
+    emailVerifiedAt: person.emailVerifiedAt,
+    createdAt: person.createdAt,
   };
 }
 
 export const userRepository = {
   /**
-   * Find account by ID
+   * Find person by ID
    */
   async findById(id: string) {
-    const account = await prisma.account.findUnique({
+    const person = await prisma.person.findUnique({
       where: { id },
-      include: { person: true },
     });
-    return account ? toAuthUser(account as AccountWithPerson) : null;
+    return person ? toAuthUser(person) : null;
   },
 
   /**
-   * Update account holder's profile (name lives on the linked Person)
+   * Update person's profile (name is stored on Person.fullName)
    */
   async updateProfile(id: string, data: { name?: string }) {
-    const account = await prisma.account.update({
+    const person = await prisma.person.update({
       where: { id },
-      data: {
-        person: data.name !== undefined ? { update: { fullName: data.name } } : undefined,
-      },
-      include: { person: true },
+      data: data.name !== undefined ? { fullName: data.name } : {},
     });
-    return toAuthUser(account as AccountWithPerson);
+    return toAuthUser(person);
   },
 };

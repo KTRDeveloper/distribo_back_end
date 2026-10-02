@@ -6,7 +6,7 @@ import { uniquePhone } from './phone';
 const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
 
 /**
- * Seed database with a test account (creates a Person + Account together)
+ * Seed database with a test Person (creates a registered Person with credentials)
  */
 export async function seedAccount(userData: {
   id?: string;
@@ -17,28 +17,25 @@ export async function seedAccount(userData: {
 }) {
   const hashedPassword = await hash(userData.password, 10);
 
-  const account = await prisma.account.create({
+  const person = await prisma.person.create({
     data: {
       id: userData.id,
       passwordHash: hashedPassword,
-      person: {
-        create: {
-          phoneNumber: userData.phoneNumber ?? uniquePhone(),
-          fullName: userData.name,
-          email: userData.email,
-        },
-      },
+      fullName: userData.name,
+      phoneNumber: userData.phoneNumber ?? uniquePhone(),
+      email: userData.email,
+      registeredAt: new Date(),
+      phoneVerifiedAt: new Date(),
     },
-    include: { person: true },
   });
 
-  // Flattened convenience fields alongside the raw Account+Person shape,
-  // matching what the auth API's response body exposes.
+  // Flattened convenience fields matching what the auth API's response body exposes.
   return {
-    ...account,
-    email: account.person.email,
-    name: account.person.fullName,
-    phoneNumber: account.person.phoneNumber,
+    ...person,
+    id: person.id,
+    email: person.email,
+    name: person.fullName,
+    phoneNumber: person.phoneNumber,
     password: hashedPassword,
   };
 }
@@ -70,10 +67,9 @@ export async function seedTask(taskData: {
 }
 
 /**
- * Clear all accounts (and their linked people) from database
+ * Clear all persons from database
  */
 export async function clearUsers() {
-  await prisma.account.deleteMany();
   await prisma.person.deleteMany();
 }
 
@@ -110,32 +106,29 @@ export async function clearDatabase() {
 }
 
 /**
- * Get account by email (joined through Person) from database
+ * Get person by email from database
  */
 export async function getUserByEmail(email: string) {
-  return prisma.account.findFirst({
-    where: { person: { email } },
-    include: { person: true },
+  return prisma.person.findFirst({
+    where: { email },
   });
 }
 
 /**
- * Get account by ID from database
+ * Get person by ID from database
  */
 export async function getUserById(id: string) {
-  return prisma.account.findUnique({
+  return prisma.person.findUnique({
     where: { id },
-    include: { person: true },
   });
 }
 
 /**
- * Get account by phone number (joined through Person) from database
+ * Get person by phone number from database
  */
 export async function getUserByPhoneNumber(phoneNumber: string) {
-  return prisma.account.findFirst({
-    where: { person: { phoneNumber } },
-    include: { person: true },
+  return prisma.person.findFirst({
+    where: { phoneNumber },
   });
 }
 
@@ -171,19 +164,19 @@ export async function getTaskById(id: string) {
 }
 
 /**
- * Get all tasks for an account
+ * Get all tasks for a person
  */
-export async function getTasksByUserId(accountId: string) {
+export async function getTasksByUserId(personId: string) {
   return prisma.task.findMany({
-    where: { accountId },
+    where: { accountId: personId },
   });
 }
 
 /**
- * Count total accounts in database
+ * Count total persons in database
  */
 export async function countUsers(): Promise<number> {
-  return prisma.account.count();
+  return prisma.person.count();
 }
 
 /**
