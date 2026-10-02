@@ -93,7 +93,9 @@ export function createTaskWithLongDescription(accountId: string): TaskFixture {
 /**
  * Create task with minimal data
  */
-export function createMinimalTask(accountId: string): Omit<TaskFixture, 'id' | 'description' | 'status'> {
+export function createMinimalTask(
+  accountId: string
+): Omit<TaskFixture, 'id' | 'description' | 'status'> {
   return {
     title: 'Minimal Task',
     accountId,

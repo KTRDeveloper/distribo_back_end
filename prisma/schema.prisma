@@ -136,7 +136,7 @@ model Person {
   phoneNumber           String?      @unique @map("phone_number")
   releasedPhoneNumber   String?      @map("released_phone_number")
   phoneVerifiedAt       DateTime?    @map("phone_verified_at")
-  email                 String?      @unique
+  email                 String?
   emailVerifiedAt       DateTime?    @map("email_verified_at")
   passwordHash          String?      @map("password_hash")
   registeredAt          DateTime?    @map("registered_at")

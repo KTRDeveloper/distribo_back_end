@@ -2,8 +2,8 @@
 name: story-implementer
 description: Implements exactly one user story file from the stories folder, following CONVENTIONS.md. Use only when given the path of a story file.
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: opus
-effort: medium
+model: haiku
+effort: low
 ---
 You implement exactly one user story: the file whose path you were given.
 Work through to the end without stopping to ask for confirmation. The only reasons to stop early are the blocked cases in step 5.

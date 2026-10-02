@@ -41,10 +41,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 
     return next();
   } catch (error) {
-    logger.warn(
-      { requestId: req.requestId, error },
-      'Authentication failed'
-    );
+    logger.warn({ requestId: req.requestId, error }, 'Authentication failed');
 
     return res.status(401).json({
       error: {

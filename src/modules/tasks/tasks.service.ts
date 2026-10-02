@@ -52,7 +52,10 @@ export const tasksService = {
   /**
    * Get task by ID
    */
-  async getTask(taskId: string, accountId: string): Promise<TaskResponse & { result?: TaskResultResponse }> {
+  async getTask(
+    taskId: string,
+    accountId: string
+  ): Promise<TaskResponse & { result?: TaskResultResponse }> {
     const task = await tasksRepository.findById(taskId);
 
     if (!task) {

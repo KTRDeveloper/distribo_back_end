@@ -28,7 +28,10 @@ openApiRegistry.registerPath({
       description: 'Current user profile',
       content: { 'application/json': { schema: userProfileSchema } },
     },
-    401: { description: 'Missing or invalid token', content: { 'application/json': { schema: errorResponseSchema } } },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
   },
 });
 
@@ -44,6 +47,9 @@ openApiRegistry.registerPath({
       description: 'Updated user profile',
       content: { 'application/json': { schema: userProfileSchema } },
     },
-    401: { description: 'Missing or invalid token', content: { 'application/json': { schema: errorResponseSchema } } },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
   },
 });

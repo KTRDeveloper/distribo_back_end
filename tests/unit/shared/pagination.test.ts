@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ZodError } from 'zod';
-import { decodeCursor, encodeCursor, paginationQuerySchema } from '../../../src/shared/pagination.js';
+import {
+  decodeCursor,
+  encodeCursor,
+  paginationQuerySchema,
+} from '../../../src/shared/pagination.js';
 
 describe('pagination helpers', () => {
   describe('paginationQuerySchema', () => {
@@ -16,7 +20,7 @@ describe('pagination helpers', () => {
       'rejects invalid page size %o',
       (input) => {
         expect(() => paginationQuerySchema.parse(input)).toThrow(ZodError);
-      },
+      }
     );
   });
 

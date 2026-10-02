@@ -11,7 +11,7 @@ export async function expectColumnType(
   table: string,
   column: string,
   dataType: string,
-  numericPrecision?: [number, number],
+  numericPrecision?: [number, number]
 ): Promise<void> {
   const rows = await prisma.$queryRaw<
     Array<{
@@ -32,22 +32,18 @@ export async function expectColumnType(
     throw new Error(`Column ${table}.${column} does not exist`);
   }
 
-  const normalizedExpectedType =
-    dataType === 'timestamptz' ? 'timestamp with time zone' : dataType;
+  const normalizedExpectedType = dataType === 'timestamptz' ? 'timestamp with time zone' : dataType;
   if (actual.data_type !== normalizedExpectedType) {
     throw new Error(
-      `Expected ${table}.${column} to have type ${dataType}, got ${actual.data_type}`,
+      `Expected ${table}.${column} to have type ${dataType}, got ${actual.data_type}`
     );
   }
 
   if (numericPrecision) {
     const [precision, scale] = numericPrecision;
-    if (
-      actual.numeric_precision !== precision ||
-      actual.numeric_scale !== scale
-    ) {
+    if (actual.numeric_precision !== precision || actual.numeric_scale !== scale) {
       throw new Error(
-        `Expected ${table}.${column} to have numeric(${precision},${scale}), got numeric(${actual.numeric_precision},${actual.numeric_scale})`,
+        `Expected ${table}.${column} to have numeric(${precision},${scale}), got numeric(${actual.numeric_precision},${actual.numeric_scale})`
       );
     }
   }

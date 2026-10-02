@@ -81,10 +81,20 @@ openApiRegistry.registerPath({
   responses: {
     201: {
       description: 'Configuration created',
-      content: { 'application/json': { schema: z.object({ success: z.literal(true), data: configResponseSchema }) } },
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.literal(true), data: configResponseSchema }),
+        },
+      },
     },
-    400: { description: 'Validation error', content: { 'application/json': { schema: apiErrorSchema } } },
-    409: { description: 'Category+key already exists', content: { 'application/json': { schema: apiErrorSchema } } },
+    400: {
+      description: 'Validation error',
+      content: { 'application/json': { schema: apiErrorSchema } },
+    },
+    409: {
+      description: 'Category+key already exists',
+      content: { 'application/json': { schema: apiErrorSchema } },
+    },
   },
 });
 
@@ -99,7 +109,11 @@ openApiRegistry.registerPath({
       description: 'List of configurations',
       content: {
         'application/json': {
-          schema: z.object({ success: z.literal(true), data: z.array(configResponseSchema), count: z.number() }),
+          schema: z.object({
+            success: z.literal(true),
+            data: z.array(configResponseSchema),
+            count: z.number(),
+          }),
         },
       },
     },
@@ -115,9 +129,16 @@ openApiRegistry.registerPath({
   responses: {
     200: {
       description: 'The configuration',
-      content: { 'application/json': { schema: z.object({ success: z.literal(true), data: configResponseSchema }) } },
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.literal(true), data: configResponseSchema }),
+        },
+      },
     },
-    404: { description: 'Configuration not found', content: { 'application/json': { schema: apiErrorSchema } } },
+    404: {
+      description: 'Configuration not found',
+      content: { 'application/json': { schema: apiErrorSchema } },
+    },
   },
 });
 
@@ -130,9 +151,16 @@ openApiRegistry.registerPath({
   responses: {
     200: {
       description: 'The configuration',
-      content: { 'application/json': { schema: z.object({ success: z.literal(true), data: configResponseSchema }) } },
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.literal(true), data: configResponseSchema }),
+        },
+      },
     },
-    404: { description: 'Configuration not found', content: { 'application/json': { schema: apiErrorSchema } } },
+    404: {
+      description: 'Configuration not found',
+      content: { 'application/json': { schema: apiErrorSchema } },
+    },
   },
 });
 
@@ -148,9 +176,16 @@ openApiRegistry.registerPath({
   responses: {
     200: {
       description: 'Configuration updated',
-      content: { 'application/json': { schema: z.object({ success: z.literal(true), data: configResponseSchema }) } },
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.literal(true), data: configResponseSchema }),
+        },
+      },
     },
-    404: { description: 'Configuration not found', content: { 'application/json': { schema: apiErrorSchema } } },
+    404: {
+      description: 'Configuration not found',
+      content: { 'application/json': { schema: apiErrorSchema } },
+    },
   },
 });
 
@@ -163,9 +198,14 @@ openApiRegistry.registerPath({
   responses: {
     200: {
       description: 'Configuration deleted',
-      content: { 'application/json': { schema: z.object({ success: z.literal(true), message: z.string() }) } },
+      content: {
+        'application/json': { schema: z.object({ success: z.literal(true), message: z.string() }) },
+      },
     },
-    404: { description: 'Configuration not found', content: { 'application/json': { schema: apiErrorSchema } } },
+    404: {
+      description: 'Configuration not found',
+      content: { 'application/json': { schema: apiErrorSchema } },
+    },
   },
 });
 
@@ -229,7 +269,10 @@ openApiRegistry.registerPath({
         },
       },
     },
-    404: { description: 'Configuration not found', content: { 'application/json': { schema: apiErrorSchema } } },
+    404: {
+      description: 'Configuration not found',
+      content: { 'application/json': { schema: apiErrorSchema } },
+    },
   },
 });
 
@@ -265,6 +308,9 @@ openApiRegistry.registerPath({
         },
       },
     },
-    207: { description: 'Partial success', content: { 'application/json': { schema: apiErrorSchema } } },
+    207: {
+      description: 'Partial success',
+      content: { 'application/json': { schema: apiErrorSchema } },
+    },
   },
 });

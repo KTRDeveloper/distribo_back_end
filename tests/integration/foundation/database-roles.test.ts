@@ -86,7 +86,7 @@ describe('application database role and server-time trigger', () => {
           ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')
         ) AS required(privilege_type)
         WHERE has_table_privilege('distribo_app', '${tableName}', privilege_type)
-        ORDER BY privilege_type`,
+        ORDER BY privilege_type`
       );
 
       expect(privileges.map(({ privilege_type }) => privilege_type)).toEqual([
@@ -114,15 +114,15 @@ describe('application database role and server-time trigger', () => {
       )
     `);
     await prisma.$executeRawUnsafe(
-      `REVOKE UPDATE, DELETE, TRUNCATE ON TABLE ${SCRATCH_JOURNAL} FROM distribo_app`,
+      `REVOKE UPDATE, DELETE, TRUNCATE ON TABLE ${SCRATCH_JOURNAL} FROM distribo_app`
     );
 
     try {
       await appPrisma.$executeRawUnsafe(
-        `INSERT INTO ${SCRATCH_JOURNAL} (id, payload) VALUES (1, 'entry')`,
+        `INSERT INTO ${SCRATCH_JOURNAL} (id, payload) VALUES (1, 'entry')`
       );
       const rows = await appPrisma.$queryRawUnsafe<Array<{ id: number; payload: string }>>(
-        `SELECT id, payload FROM ${SCRATCH_JOURNAL}`,
+        `SELECT id, payload FROM ${SCRATCH_JOURNAL}`
       );
       expect(rows).toEqual([{ id: 1, payload: 'entry' }]);
 
@@ -144,7 +144,7 @@ describe('application database role and server-time trigger', () => {
       }
 
       const unchanged = await prisma.$queryRawUnsafe<Array<{ payload: string }>>(
-        `SELECT payload FROM ${SCRATCH_JOURNAL}`,
+        `SELECT payload FROM ${SCRATCH_JOURNAL}`
       );
       expect(unchanged).toEqual([{ payload: 'entry' }]);
     } finally {
@@ -170,20 +170,20 @@ describe('application database role and server-time trigger', () => {
 
     try {
       await appPrisma.$executeRawUnsafe(
-        `INSERT INTO ${SCRATCH_SERVER_TIME} (id, server_updated_at) VALUES (1, '2001-01-01T00:00:00Z')`,
+        `INSERT INTO ${SCRATCH_SERVER_TIME} (id, server_updated_at) VALUES (1, '2001-01-01T00:00:00Z')`
       );
       const inserted = await prisma.$queryRawUnsafe<Array<{ server_updated_at: Date }>>(
-        `SELECT server_updated_at FROM ${SCRATCH_SERVER_TIME}`,
+        `SELECT server_updated_at FROM ${SCRATCH_SERVER_TIME}`
       );
       const insertedAt = inserted[0].server_updated_at.getTime();
       expect(Math.abs(Date.now() - insertedAt)).toBeLessThan(5_000);
 
       await prisma.$executeRawUnsafe('SELECT pg_sleep(0.01)');
       await appPrisma.$executeRawUnsafe(
-        `UPDATE ${SCRATCH_SERVER_TIME} SET server_updated_at = '2001-01-01T00:00:00Z' WHERE id = 1`,
+        `UPDATE ${SCRATCH_SERVER_TIME} SET server_updated_at = '2001-01-01T00:00:00Z' WHERE id = 1`
       );
       const updated = await prisma.$queryRawUnsafe<Array<{ server_updated_at: Date }>>(
-        `SELECT server_updated_at FROM ${SCRATCH_SERVER_TIME}`,
+        `SELECT server_updated_at FROM ${SCRATCH_SERVER_TIME}`
       );
       expect(updated[0].server_updated_at.getTime()).toBeGreaterThan(insertedAt);
     } finally {

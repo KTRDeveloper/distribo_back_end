@@ -1,5 +1,9 @@
 import { openApiRegistry } from '../../lib/openapi/registry.js';
-import { healthResponseSchema, readinessResponseSchema, livenessResponseSchema } from './health.schemas.js';
+import {
+  healthResponseSchema,
+  readinessResponseSchema,
+  livenessResponseSchema,
+} from './health.schemas.js';
 
 /**
  * Registers the health module's routes with the shared OpenAPI registry.

@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { encrypt, decrypt, maskSensitiveValue, validateEncryptionKey } from '../../src/lib/crypto.js';
+import {
+  encrypt,
+  decrypt,
+  maskSensitiveValue,
+  validateEncryptionKey,
+} from '../../src/lib/crypto.js';
 
 describe('Crypto utilities', () => {
   beforeAll(() => {

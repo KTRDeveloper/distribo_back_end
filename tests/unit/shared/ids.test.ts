@@ -44,7 +44,7 @@ describe('database column type helper', () => {
       await expectColumnType('fnd005_column_type_helper', 'quantity', 'numeric', [12, 3]);
       await expectColumnType('fnd005_column_type_helper', 'at', 'timestamptz');
       await expect(
-        expectColumnType('fnd005_column_type_helper', 'amount', 'uuid'),
+        expectColumnType('fnd005_column_type_helper', 'amount', 'uuid')
       ).rejects.toThrow();
     } finally {
       await prisma.$executeRaw`DROP TABLE fnd005_column_type_helper`;

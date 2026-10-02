@@ -18,7 +18,7 @@ function getEncryptionKey(): Buffer {
   if (!keyString) {
     throw new Error(
       'CONFIG_ENCRYPTION_KEY environment variable is not set. ' +
-        'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"'
+        "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
     );
   }
 
@@ -38,7 +38,7 @@ function getEncryptionKey(): Buffer {
     }
     throw new Error(
       'Invalid CONFIG_ENCRYPTION_KEY format. Must be a base64-encoded 32-byte key. ' +
-        'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"'
+        "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
     );
   }
 }
@@ -72,7 +72,9 @@ export function encrypt(plaintext: string): string {
     return combined.toString('base64');
   } catch (error) {
     logger.error({ error }, 'Encryption failed');
-    throw new Error(`Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
 
@@ -102,7 +104,9 @@ export function decrypt(encryptedData: string): string {
     return plaintext;
   } catch (error) {
     logger.error({ error }, 'Decryption failed');
-    throw new Error(`Decryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Decryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
 

@@ -181,7 +181,12 @@ describe('RemoteConfigService', () => {
       await service.create({ category: 'db', key: 'host', value: 'localhost', enabled: true });
       await service.create({ category: 'db', key: 'port', value: 5432, enabled: true });
       await service.create({ category: 'cache', key: 'ttl', value: 300, enabled: true });
-      await service.create({ category: 'cache', key: 'disabled_key', value: 'test', enabled: false });
+      await service.create({
+        category: 'cache',
+        key: 'disabled_key',
+        value: 'test',
+        enabled: false,
+      });
     });
 
     it('should retrieve all enabled configurations by default', async () => {

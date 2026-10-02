@@ -22,10 +22,13 @@ describe('Executing a documented authenticated endpoint', () => {
   });
 
   it('succeeds when a valid bearer token is sent', async () => {
-    const user = await seedUser({ name: 'Docs Tester', email: 'docs@example.com', password: 'Pass123!' });
+    const user = await seedUser({
+      name: 'Docs Tester',
+      email: 'docs@example.com',
+      password: 'Pass123!',
+    });
 
-    const response = createAuthenticatedRequest(app, user.id)
-      .get('/api/v1/users/me');
+    const response = createAuthenticatedRequest(app, user.id).get('/api/v1/users/me');
 
     const result = await response;
     expect(result.status).toBe(200);

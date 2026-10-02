@@ -77,9 +77,9 @@ Built by build_backlog.py. A dash means not covered yet.
 | RefreshToken.token_hash:unique | AUTH-007 | AUTH-007: token rules |
 | RefreshToken.revoked_reason:enum | AUTH-007 | AUTH-007: enums and keys |
 | RefreshToken:fk | AUTH-007 | AUTH-007: enums and keys |
-| C-01 | FND-005, PER-002, NTF-001, AUTH-001, AUTH-007, ORG-001, ORG-003, ORG-012, REL-001, CAT-001, CAT-002, ORD-001, ORD-004, DLV-001 | FND-005: column helper; PER-002: table shape; NTF-001: defaults; AUTH-001: defaults; AUTH-007: device defaults; ORG-001: defaults; ORG-003: column types and defaults; ORG-012: row; REL-001: defaults; CAT-001: defaults; CAT-002: row; ORD-001: defaults; ORD-004: amount rule; DLV-001: row |
-| C-02 | PER-003, AUTH-010, AUTH-011, AUTH-024, AUTH-025, REL-023, PRIV-002 | PER-003: phone rules; AUTH-010: guest completed; AUTH-011: recycled; AUTH-024: refusals; AUTH-025: change; REL-023: contest; PRIV-002: anonymize |
-| C-03 | PER-003, PER-007, AUTH-010, AUTH-020, AUTH-023, AUTH-025, PRIV-002 | PER-003: completeness; PER-003: email dates; PER-007: email reset; AUTH-010: new person; AUTH-020: reset; AUTH-023: confirm; AUTH-025: after taken number; PRIV-002: anonymize |
+| C-01 | FND-005, FND-011, PER-002, NTF-001, AUTH-001, AUTH-007, ORG-001, ORG-003, ORG-012, REL-001, CAT-001, CAT-002, ORD-001, ORD-004, DLV-001 | FND-005: column helper; FND-011: fixture boundaries; PER-002: table shape; NTF-001: defaults; AUTH-001: defaults; AUTH-007: device defaults; ORG-001: defaults; ORG-003: column types and defaults; ORG-012: row; REL-001: defaults; CAT-001: defaults; CAT-002: row; ORD-001: defaults; ORD-004: amount rule; DLV-001: row |
+| C-02 | FND-011, PER-003, PER-009, AUTH-010, AUTH-011, AUTH-024, AUTH-025, REL-023, PRIV-002 | FND-011: migration preflight; PER-003: phone rules; PER-009: valid Person fixtures; PER-009: isolated enum failures; AUTH-010: guest completed; AUTH-011: recycled; AUTH-024: refusals; AUTH-025: change; REL-023: contest; PRIV-002: anonymize |
+| C-03 | FND-011, PER-003, PER-007, PER-009, AUTH-010, AUTH-020, AUTH-023, AUTH-025, PRIV-002 | FND-011: migration preflight; FND-011: atomic email change; FND-011: whitespace boundaries; FND-011: fixture boundaries; PER-003: completeness; PER-003: email dates; PER-007: email reset; PER-009: valid Person fixtures; PER-009: isolated enum failures; AUTH-010: new person; AUTH-020: reset; AUTH-023: confirm; AUTH-025: after taken number; PRIV-002: anonymize |
 | C-04 | REL-003, REL-012, REL-014, ADM-001, ADM-003, CAT-002, CAT-008, CAT-010, ORD-001, ORD-004, FIN-001, FIN-011, FIN-014, DLV-001 | REL-003: author and key; REL-012: set; REL-014: required and keys; ADM-001: insert rules; ADM-003: insert rules; CAT-002: author and keys; CAT-008: create; CAT-010: copy; ORD-001: enums and keys; ORD-004: price gap; FIN-001: keys and author; FIN-011: insert rules; FIN-014: insert rules; DLV-001: keys and author |
 | C-05 | ORG-003, ORG-004, ORG-007, ORG-008, ORG-011, ORG-015 | ORG-003: table rules; ORG-003: one owner; ORG-003: number released; ORG-004: create; ORG-007: invite guest; ORG-008: accept; ORG-011: toggle; ORG-015: transfer |
 | C-06 | REL-002, REL-006, REL-007, REL-010, REL-011, REL-020, REL-025, SYNC-011 | REL-002: parties; REL-006: counter; REL-007: new customer; REL-010: counter label; REL-011: add; REL-020: person invites; REL-025: refusals; SYNC-011: new customer |
@@ -173,7 +173,7 @@ Built by build_backlog.py. A dash means not covered yet.
 | commandes-et-livraisons/order/le-reste-d-une-livraison-partielle | DLV-008, DLV-012 |
 | commandes-et-livraisons/order/refus-et-annulation | ORD-012, ORD-016, ORD-017 |
 | commandes-et-livraisons/orderline | FND-003, ORD-004, ORD-007, ORD-011, ORD-013, ORD-014, DLV-008 |
-| contraintes-a-poser-au-niveau-base-de | FND-001, FND-002, FND-005, PER-002, PER-003, PER-008, ACC-007, NTF-001, AUTH-001, AUTH-007, ORG-001, ORG-003, REL-001, REL-002, REL-004, ADM-001, ADM-002, ADM-003, CAT-001, CAT-002, ORD-001, ORD-002, ORD-003, ORD-004, ORD-006, FIN-001, FIN-002, FIN-011, FIN-014, DLV-001, DLV-002, SYNC-002 |
+| contraintes-a-poser-au-niveau-base-de | FND-001, FND-002, FND-005, FND-011, PER-002, PER-003, PER-008, PER-009, ACC-007, NTF-001, AUTH-001, AUTH-007, ORG-001, ORG-003, REL-001, REL-002, REL-004, ADM-001, ADM-002, ADM-003, CAT-001, CAT-002, ORD-001, ORD-002, ORD-003, ORD-004, ORD-006, FIN-001, FIN-002, FIN-011, FIN-014, DLV-001, DLV-002, SYNC-002 |
 | donnees-personnelles-et-conservation/cadre-juridique-le-cameroun | FND-007, PRIV-001 |
 | donnees-personnelles-et-conservation/durees-de-conservation | PRIV-002, PRIV-003 |
 | finances/expense | FIN-011, FIN-012, FIN-013, FIN-019, FIN-020 |
@@ -186,11 +186,11 @@ Built by build_backlog.py. A dash means not covered yet.
 | gouvernance-de-la-plateforme/administrator | ADM-001, ADM-004, ADM-005, ADM-006, ADM-007, ADM-008, ADM-009, ADM-010 |
 | identite-et-organisation/collaboration | ACC-005, ORG-003, ORG-004, ORG-005, ORG-006, ORG-007, ORG-008, ORG-009, ORG-010, ORG-011, ORG-015, ORG-019, FIN-017 |
 | identite-et-organisation/organization | ORG-001, ORG-004, ORG-005, ORG-016, ORG-017, ORG-018, REL-006, ORD-018 |
-| identite-et-organisation/person | FND-004, PER-001, PER-002, PER-003, PER-005, PER-006, PER-007, PER-008, AUTH-005, AUTH-006, AUTH-009, AUTH-010, AUTH-011, AUTH-012, AUTH-013, AUTH-014, AUTH-015, AUTH-019, AUTH-020, AUTH-021, AUTH-022, AUTH-023, AUTH-024, AUTH-025, AUTH-026, REL-005, REL-022, PRIV-001, PRIV-002 |
+| identite-et-organisation/person | FND-004, FND-011, PER-001, PER-002, PER-003, PER-005, PER-006, PER-007, PER-008, PER-009, AUTH-005, AUTH-006, AUTH-009, AUTH-010, AUTH-011, AUTH-012, AUTH-013, AUTH-014, AUTH-015, AUTH-019, AUTH-020, AUTH-021, AUTH-022, AUTH-023, AUTH-024, AUTH-025, AUTH-026, REL-005, REL-022, PRIV-001, PRIV-002 |
 | identite-et-organisation/phonenumberchangelog | PER-004, AUTH-025 |
 | legende | FND-003, FND-004, FND-005 |
 | moderation/report | ADM-003, ADM-011, ADM-012, ADM-013, ADM-014 |
-| notes-de-conception | FND-000, FND-006, FND-009 |
+| notes-de-conception | FND-000, FND-006, FND-009, FND-010, FND-011 |
 | notifications/notification | NTF-001, NTF-002, NTF-003, NTF-004, ORG-002 |
 | relations-commerciales/creditlimitchange | REL-003, REL-012, REL-013 |
 | relations-commerciales/customerprice | CAT-002, CAT-003, CAT-007, CAT-008, CAT-009, CAT-010 |
@@ -216,7 +216,7 @@ Built by build_backlog.py. A dash means not covered yet.
 |---|---|
 | v5.0.0-1.2.4 | CAT-006 |
 | v5.0.0-2.2.1 | FND-003, FND-004, FND-005, FND-008, FND-009, NTF-002, CAT-004, ORD-004, ORD-007, ORD-009, DLV-007, DLV-008, DLV-009, SYNC-003, SYNC-009, SYNC-012, SYNC-014 |
-| v5.0.0-2.2.3 | PER-003, PER-008, NTF-001, ORG-001, ORG-002, ORG-003, ORG-012, REL-001, REL-002, REL-004, ADM-001, ADM-003, CAT-001, CAT-002, CAT-003, ORD-001, ORD-002, ORD-003, ORD-004, ORD-005, ORD-006, FIN-002, FIN-011, FIN-014, DLV-001, DLV-002 |
+| v5.0.0-2.2.3 | FND-011, PER-003, PER-008, PER-009, NTF-001, ORG-001, ORG-002, ORG-003, ORG-012, REL-001, REL-002, REL-004, ADM-001, ADM-003, CAT-001, CAT-002, CAT-003, ORD-001, ORD-002, ORD-003, ORD-004, ORD-005, ORD-006, FIN-002, FIN-011, FIN-014, DLV-001, DLV-002 |
 | v5.0.0-2.3.1 | ACC-003, REL-015, REL-019, CAT-003, ORD-002, ORD-003, ORD-008, ORD-011, ORD-012, ORD-014, ORD-016, ORD-017, DLV-002, DLV-004, DLV-005, DLV-006, SYNC-013, SYNC-016, SYNC-017 |
 | v5.0.0-2.3.3 | ACC-007, AUTH-025, ORG-004, ORG-006, ORG-015, ORG-016, REL-006, REL-007, REL-012, REL-021, REL-023, REL-024, REL-025, ADM-009, ADM-013, CAT-010, ORD-006, ORD-009, ORD-010, ORD-013, ORD-018, FIN-002, FIN-003, FIN-004, FIN-005, FIN-008, FIN-009, FIN-012, FIN-013, FIN-015, FIN-017, FIN-018, DLV-007, DLV-008, DLV-009, DLV-010, SYNC-009, SYNC-011, SYNC-012, SYNC-014, SYNC-015, SYNC-022 |
 | v5.0.0-2.3.4 | ACC-007, AUTH-003, ORG-006, REL-025, ORD-008, FIN-003, DLV-005, DLV-007, SYNC-013, SYNC-015 |
@@ -258,8 +258,8 @@ Built by build_backlog.py. A dash means not covered yet.
 | v5.0.0-11.3.2 | ADM-004 |
 | v5.0.0-11.4.2 | PER-002, PER-003, AUTH-002, AUTH-005, AUTH-026 |
 | v5.0.0-13.3.2 | FND-002, ADM-005, PRIV-003 |
-| v5.0.0-13.4.2 | FND-000 |
-| v5.0.0-14.2.4 | FND-001, PER-002, SYNC-023, PRIV-001, PRIV-002, PRIV-003 |
+| v5.0.0-13.4.2 | FND-000, FND-011 |
+| v5.0.0-14.2.4 | FND-001, FND-010, FND-011, PER-002, PER-009, SYNC-023, PRIV-001, PRIV-002, PRIV-003 |
 | v5.0.0-15.2.1 | FND-000, AUTH-026 |
 | v5.0.0-15.2.2 | FND-008, FND-009 |
 | v5.0.0-15.2.3 | PER-001 |

@@ -1,0 +1,152 @@
+kind: stories
+module: foundation
+stories:
+  - id: FND-010
+    title: Restore the TypeScript formatting baseline
+    kind: change
+    size: M
+    risk: medium
+    depends_on: [FND-000]
+    amends: [FND-000]
+    read_first: [package.json, .github/workflows/ci.yml]
+    design_refs: [notes-de-conception]
+    constraints: []
+    asvs: [v5.0.0-14.2.4]
+    story: "Technical story: format the existing TypeScript baseline and enforce the formatter in CI so that every later change starts from a clean, repeatable formatting gate."
+    context: |
+      - Exists: `npm run format` and `npm run format:check` (FND-000), scoped to `src/**/*.ts` and `tests/**/*.ts`; `.github/workflows/ci.yml` runs typecheck, lint and tests but not the formatter gate.
+      - The current working tree reports 88 pre-existing formatting failures: 59 source files and 29 test files. Recount before writing and record any difference without widening the configured scope.
+      - Changes are mechanical Prettier output only. The story adds `npm run format:check` to the existing CI test job and changes no formatter option, dependency or glob.
+    acceptance: |
+      Scenario: AC-1 The TypeScript baseline is formatted
+        Given the existing format scripts select `src/**/*.ts` and `tests/**/*.ts`
+        When `npm run format` runs once
+        Then a following `npm run format:check` exits 0
+        And every changed TypeScript file was reported by the initial format check
+      Scenario: AC-2 Formatting is behavior-neutral
+        When the TypeScript diff is reviewed
+        Then no executable statement, API, import source, fixture value, test name, assertion, snapshot or skip state changes
+        And no test is deleted, weakened or disabled
+      Scenario: AC-3 CI enforces the formatter gate
+        When the test job runs on a push or pull request
+        Then it executes `npm run format:check` after installing dependencies
+        And misformatted TypeScript makes that step fail
+      Scenario: AC-4 Existing quality gates remain green
+        When typecheck, lint and the full test suite run after formatting
+        Then all three exit 0
+    abuse: |
+      Scenario: AB-1 Semantic changes hidden in a mechanical diff (tampering)
+        When the formatting baseline is reviewed
+        Then every TypeScript change is attributable only to the existing Prettier configuration
+    implementation:
+      create: []
+      modify: [.github/workflows/ci.yml, src, tests]
+      pattern: .github/workflows/ci.yml
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-14.2.4: CI applies the same checked-in formatting command used by local development, without downloading an unpinned formatter."
+    tests: |
+      formatted baseline | integration | AC-1 | initial failure list, `npm run format`, then `npm run format:check` → exit 0 and no extra TypeScript paths
+      behavior-neutral diff | security | AC-2, AB-1, CWE-710 | changed TypeScript files → layout-only diff, tests and assertions unchanged
+      CI formatter gate | integration | AC-3 | workflow test job → contains `npm run format:check` after `npm ci`
+      existing gates | integration | AC-4 | typecheck, lint and full suite → exit 0
+    command: npm run format:check && npm run typecheck && npm run lint && npm test
+    out_of_scope:
+      - "Changing the formatting globs, `.prettierrc`, `.prettierignore`, the Prettier version or dependencies."
+      - "Formatting JavaScript, JSON, YAML, Markdown, generated files, documentation, Prisma files, migrations, root configuration files or scripts outside the existing globs."
+      - "Semantic refactors, import reordering, ESLint autofixes and unrelated typecheck, lint or test failures."
+      - "The `tests/helpers/database.ts` behavior blocking PER-009."
+    tests_to_update:
+      - "tests/**/*.ts | pre-existing test and support files fail the existing TypeScript formatting gate | formatting-only changes; inputs, fixtures, names, assertions, snapshots, skip state, coverage and runtime behavior remain unchanged"
+---
+kind: stories
+module: foundation
+constraints:
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-02: "`phone_number` is unique, E.164 (`^\\+[1-9][0-9]{7,14}$`); exactly one of `phone_number` and `released_phone_number` is set; status ANONYMIZED means `phone_number` is empty."
+  C-03: "A registered person (`registered_at` set) who is not ANONYMIZED has `full_name` and `password_hash`, and `phone_verified_at` when `phone_number` is set; empty `phone_number` means empty `phone_verified_at`; empty `email` means empty `email_verified_at`."
+stories:
+  - id: FND-011
+    title: Remediate the PER-003 review findings
+    kind: change
+    size: M
+    risk: high
+    depends_on: [FND-010]
+    amends: [FND-000, FND-010, PER-003, PER-009]
+    read_first: [prisma/migrations/20261002060000_per_003_person_checks/migration.sql, tests/unit/tooling/quality-gates.test.ts]
+    design_refs: [notes-de-conception, identite-et-organisation/person, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-01, C-02, C-03]
+    asvs: [v5.0.0-2.2.3, v5.0.0-13.4.2, v5.0.0-14.2.4]
+    story: "Technical story: remediate all PER-003 review findings so configuration, database rules, tests and metadata are safe and consistent."
+    context: |
+      - Exists: PER-003, FND-010 and PER-009 changes.
+      - Remove the tracked credential without reproducing it; revocation and replacement happen outside the repository.
+      - With no approved Person backfill, audit and abort with IDs only; enforce all changes in one transaction.
+      - Regenerate metadata from `STATUS.md`; edit no status line except FND-011.
+    acceptance: |
+      Scenario: AC-1 Agent configuration is safe and valid
+        When tracked files and this branch's commits are scanned
+        Then neither the exposed nor replacement credential is present
+        And the Haiku alias is exactly `cx/gpt-5.6-sol-low`
+        And unconfirmed revocation blocks the story without recording a credential
+      Scenario: AC-2 CI uses allowed actions
+        Then the workflow uses only `actions/checkout@v7` and `actions/setup-node@v7`
+      Scenario: AC-3 Dirty Person data fails before enforcement
+        Given a row violates a new phone, completeness, verification or nonblank rule
+        When the migration runs
+        Then it aborts before enforcement, reports IDs without personal data and changes no row
+      Scenario: AC-4 Email uniqueness changes atomically
+        Given verified emails collide under `lower(email)`
+        When the migration runs
+        Then it aborts before dropping the old unique constraint and rolls back all changes
+        And clean data receives case-insensitive uniqueness for verified emails only
+      Scenario Outline: AC-5 Required text is usable
+        When `full_name`, `password_hash` or verified `email` contains only <value>
+        Then PostgreSQL rejects it with 23514
+        Examples:
+          | value |
+          | ASCII spaces, tab or newline |
+          | non-breaking or em space |
+      Scenario: AC-6 Fixtures cover identifier and email boundaries
+        Then Person fixtures use `newId()` UUIDv7 values
+        And duplicate unverified emails are accepted but verifying both is rejected with 23505
+        And FND-011 owns the UUIDv7 fixture behavior hidden in FND-010
+      Scenario: AC-7 Metadata and gates agree
+        Then generated metadata agrees with `STATUS.md`
+        And validation, format, typecheck, lint and tests pass
+    abuse: |
+      Scenario: AB-1 Credential remains tracked (information disclosure)
+        Then secret scanning finds no exposed or replacement credential
+      Scenario: AB-2 Migration partially weakens integrity (tampering)
+        When a preflight or validation fails
+        Then one transaction rolls back every constraint and index change
+    implementation:
+      create: []
+      modify: [.claude/settings.json, .github/workflows/ci.yml, prisma/migrations/20261002060000_per_003_person_checks/migration.sql, tests/integration/person/person-checks.test.ts, tests/helpers/database.ts, tests/unit/tooling/quality-gates.test.ts]
+      pattern: tests/unit/tooling/quality-gates.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-13.4.2: remove and revoke the credential without putting credentials in tracked content or output."
+      - "v5.0.0-2.2.3: audit rows and apply checks and uniqueness changes in one transaction."
+      - "v5.0.0-14.2.4: enforce exact policy model and CI action versions."
+    tests: |
+      configuration policy | security | AC-1, AC-2, AB-1, CWE-798 | tracked content and commits → no credential; exact alias and action versions
+      migration preflight | integration | AC-3, AB-2, C-02, C-03 | dirty row → IDs-only abort, no data or schema change
+      atomic email change | integration | AC-4, AB-2, C-03 | collision → old rule retained; clean data → partial index
+      whitespace boundaries | integration | AC-5, C-03 | whitespace-only → 23514; ordinary text → accepted
+      fixture boundaries | integration | AC-6, C-01, C-03 | UUIDv7 and duplicate unverified email → accepted; second verification → 23505
+      backlog and gates | integration | AC-7 | validator and project gates → consistent and passing
+    command: python3 .claude/skills/design-to-user-stories/scripts/validate.py --out docs/stories && npx vitest run tests/unit/tooling/quality-gates.test.ts tests/integration/person/person-checks.test.ts && npm run format:check && npm run typecheck && npm run lint && npm test
+    out_of_scope:
+      - "Repairing violating Person rows without a product rule."
+      - "Storing credentials or rotation evidence."
+    tests_to_update:
+      - "tests/unit/tooling/quality-gates.test.ts | policy coverage missing | reject credentials and incorrect aliases or actions"
+      - "tests/integration/person/person-checks.test.ts | migration boundaries missing | cover audit, rollback, whitespace, UUIDv7 and partial uniqueness"
+      - "tests/helpers/database.ts | semantic change hidden by formatting | characterize the `newId()` default under FND-011"

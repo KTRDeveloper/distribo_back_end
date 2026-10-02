@@ -83,13 +83,11 @@ describe('Remote Config API', () => {
     });
 
     it('should auto-detect and encrypt sensitive keys', async () => {
-      const response = await request(app)
-        .post('/api/v1/remote-config')
-        .send({
-          category: 'payment',
-          key: 'api_key',
-          value: 'sk_live_1234567890',
-        });
+      const response = await request(app).post('/api/v1/remote-config').send({
+        category: 'payment',
+        key: 'api_key',
+        value: 'sk_live_1234567890',
+      });
 
       expect(response.status).toBe(201);
       expect(bodyOf<Envelope<ConfigData>>(response).data.isSensitive).toBe(true);
@@ -98,14 +96,12 @@ describe('Remote Config API', () => {
     });
 
     it('should explicitly encrypt when isSensitive is true', async () => {
-      const response = await request(app)
-        .post('/api/v1/remote-config')
-        .send({
-          category: 'auth',
-          key: 'jwt_secret',
-          value: 'my-super-secret-jwt-key',
-          isSensitive: true,
-        });
+      const response = await request(app).post('/api/v1/remote-config').send({
+        category: 'auth',
+        key: 'jwt_secret',
+        value: 'my-super-secret-jwt-key',
+        isSensitive: true,
+      });
 
       expect(response.status).toBe(201);
       expect(bodyOf<Envelope<ConfigData>>(response).data.isSensitive).toBe(true);
@@ -150,14 +146,12 @@ describe('Remote Config API', () => {
     });
 
     it('should create protected configuration', async () => {
-      const response = await request(app)
-        .post('/api/v1/remote-config')
-        .send({
-          category: 'system',
-          key: 'database_url',
-          value: 'postgresql://localhost',
-          isProtected: true,
-        });
+      const response = await request(app).post('/api/v1/remote-config').send({
+        category: 'system',
+        key: 'database_url',
+        value: 'postgresql://localhost',
+        isProtected: true,
+      });
 
       expect(response.status).toBe(201);
       expect(bodyOf<Envelope<ConfigData>>(response).data.isProtected).toBe(true);
@@ -203,21 +197,27 @@ describe('Remote Config API', () => {
       const response = await request(app).get('/api/v1/remote-config?category=cache');
 
       expect(response.status).toBe(200);
-      expect(bodyOf<Envelope<ConfigData[]>>(response).data.every((c) => c.category === 'cache')).toBe(true);
+      expect(
+        bodyOf<Envelope<ConfigData[]>>(response).data.every((c) => c.category === 'cache')
+      ).toBe(true);
     });
 
     it('should filter by enabled status', async () => {
       const response = await request(app).get('/api/v1/remote-config?enabled=false');
 
       expect(response.status).toBe(200);
-      expect(bodyOf<Envelope<ConfigData[]>>(response).data.every((c) => c.enabled === false)).toBe(true);
+      expect(bodyOf<Envelope<ConfigData[]>>(response).data.every((c) => c.enabled === false)).toBe(
+        true
+      );
     });
 
     it('should include disabled when requested', async () => {
       const response = await request(app).get('/api/v1/remote-config?includeDisabled=true');
 
       expect(response.status).toBe(200);
-      const disabledCount = bodyOf<Envelope<ConfigData[]>>(response).data.filter((c) => !c.enabled).length;
+      const disabledCount = bodyOf<Envelope<ConfigData[]>>(response).data.filter(
+        (c) => !c.enabled
+      ).length;
       expect(disabledCount).toBeGreaterThan(0);
     });
   });
@@ -241,7 +241,9 @@ describe('Remote Config API', () => {
     });
 
     it('should return 404 for non-existent ID', async () => {
-      const response = await request(app).get('/api/v1/remote-config/00000000-0000-0000-0000-000000000000');
+      const response = await request(app).get(
+        '/api/v1/remote-config/00000000-0000-0000-0000-000000000000'
+      );
 
       expect(response.status).toBe(404);
       expect(bodyOf<Envelope<ConfigData>>(response).success).toBe(false);
@@ -264,7 +266,9 @@ describe('Remote Config API', () => {
     });
 
     it('should retrieve configuration by category and key', async () => {
-      const response = await request(app).get('/api/v1/remote-config/category/storage/key/bucket_name');
+      const response = await request(app).get(
+        '/api/v1/remote-config/category/storage/key/bucket_name'
+      );
 
       expect(response.status).toBe(200);
       expect(bodyOf<Envelope<ConfigData>>(response).success).toBe(true);
@@ -282,7 +286,9 @@ describe('Remote Config API', () => {
     it('should fall back to environment variable', async () => {
       process.env.TEST_FALLBACK_VAR = 'from_environment';
 
-      const response = await request(app).get('/api/v1/remote-config/category/test/key/fallback_var');
+      const response = await request(app).get(
+        '/api/v1/remote-config/category/test/key/fallback_var'
+      );
 
       expect(response.status).toBe(200);
       expect(bodyOf<Envelope<ConfigData>>(response).data.value).toBe('from_environment');
@@ -363,9 +369,11 @@ describe('Remote Config API', () => {
     });
 
     it('should return 404 for non-existent ID', async () => {
-      const response = await request(app).put('/api/v1/remote-config/00000000-0000-0000-0000-000000000000').send({
-        value: 'updated',
-      });
+      const response = await request(app)
+        .put('/api/v1/remote-config/00000000-0000-0000-0000-000000000000')
+        .send({
+          value: 'updated',
+        });
 
       expect(response.status).toBe(404);
     });
@@ -408,7 +416,9 @@ describe('Remote Config API', () => {
     });
 
     it('should return 404 for non-existent ID', async () => {
-      const response = await request(app).delete('/api/v1/remote-config/00000000-0000-0000-0000-000000000000');
+      const response = await request(app).delete(
+        '/api/v1/remote-config/00000000-0000-0000-0000-000000000000'
+      );
 
       expect(response.status).toBe(404);
     });
@@ -449,10 +459,14 @@ describe('Remote Config API', () => {
 
       // Create multiple history entries
       for (let i = 2; i <= 5; i++) {
-        await request(app).put(`/api/v1/remote-config/${id}`).send({ value: `v${i}` });
+        await request(app)
+          .put(`/api/v1/remote-config/${id}`)
+          .send({ value: `v${i}` });
       }
 
-      const response = await request(app).get(`/api/v1/remote-config/${id}/history?limit=2&offset=0`);
+      const response = await request(app).get(
+        `/api/v1/remote-config/${id}/history?limit=2&offset=0`
+      );
 
       expect(response.status).toBe(200);
       expect(bodyOf<Envelope<ConfigData[]>>(response).data).toHaveLength(2);
@@ -480,7 +494,9 @@ describe('Remote Config API', () => {
     });
 
     it('should return 404 for non-existent ID', async () => {
-      const response = await request(app).post('/api/v1/remote-config/00000000-0000-0000-0000-000000000000/validate');
+      const response = await request(app).post(
+        '/api/v1/remote-config/00000000-0000-0000-0000-000000000000/validate'
+      );
 
       expect(response.status).toBe(404);
     });
@@ -589,7 +605,9 @@ describe('Remote Config API', () => {
 
       expect(response.status).toBe(200);
       expect(bodyOf<Envelope<MigrateData>>(response).data.skippedCount).toBe(1);
-      expect(bodyOf<Envelope<MigrateData>>(response).data.details[0].reason).toContain('already exists');
+      expect(bodyOf<Envelope<MigrateData>>(response).data.details[0].reason).toContain(
+        'already exists'
+      );
 
       delete process.env.EXISTING_KEY;
     });
@@ -613,7 +631,9 @@ describe('Remote Config API', () => {
 
       expect(response.status).toBe(200);
 
-      const config = await request(app).get('/api/v1/remote-config/category/secure/key/migrated_secret');
+      const config = await request(app).get(
+        '/api/v1/remote-config/category/secure/key/migrated_secret'
+      );
       expect(bodyOf<Envelope<ConfigData>>(config).data.isSensitive).toBe(true);
 
       delete process.env.SENSITIVE_MIGRATE;
@@ -622,18 +642,18 @@ describe('Remote Config API', () => {
 
   describe('Encryption end-to-end', () => {
     it('should encrypt sensitive value in database but mask in response', async () => {
-      const createResponse = await request(app)
-        .post('/api/v1/remote-config')
-        .send({
-          category: 'secure',
-          key: 'api_key',
-          value: 'sk_live_verysecretkey123',
-          isSensitive: true,
-        });
+      const createResponse = await request(app).post('/api/v1/remote-config').send({
+        category: 'secure',
+        key: 'api_key',
+        value: 'sk_live_verysecretkey123',
+        isSensitive: true,
+      });
 
       expect(createResponse.status).toBe(201);
       expect(bodyOf<Envelope<ConfigData>>(createResponse).data.isSensitive).toBe(true);
-      expect(bodyOf<Envelope<ConfigData>>(createResponse).data.value).not.toBe('sk_live_verysecretkey123');
+      expect(bodyOf<Envelope<ConfigData>>(createResponse).data.value).not.toBe(
+        'sk_live_verysecretkey123'
+      );
       expect(bodyOf<Envelope<ConfigData>>(createResponse).data.value).toContain('***');
 
       const id = bodyOf<Envelope<ConfigData>>(createResponse).data.id;
@@ -643,7 +663,9 @@ describe('Remote Config API', () => {
       expect(bodyOf<Envelope<ConfigData>>(getResponse).data.value).toContain('***');
 
       // Retrieve by category+key - should still be masked
-      const getCategoryResponse = await request(app).get('/api/v1/remote-config/category/secure/key/api_key');
+      const getCategoryResponse = await request(app).get(
+        '/api/v1/remote-config/category/secure/key/api_key'
+      );
       expect(bodyOf<Envelope<ConfigData>>(getCategoryResponse).data.value).toContain('***');
     });
   });
@@ -667,11 +689,13 @@ describe('Remote Config API', () => {
       const validCategories = ['database', 'cache_settings', 'api_v2', 'feature_flags_beta'];
 
       for (const category of validCategories) {
-        const response = await request(app).post('/api/v1/remote-config').send({
-          category,
-          key: `${category}_test`,
-          value: 'value',
-        });
+        const response = await request(app)
+          .post('/api/v1/remote-config')
+          .send({
+            category,
+            key: `${category}_test`,
+            value: 'value',
+          });
 
         expect(response.status).toBe(201);
       }

@@ -3173,6 +3173,14 @@
       "path": "modules/foundation/FND-009-shared-limits-and-pagination-helpers.md",
       "sha256": "62d5f4ce9bb65358f80e10e8bb8f8a4ef7ad065dc35b630ccd0c57685927fdd6"
     },
+    "FND-010": {
+      "path": "modules/foundation/FND-010-restore-the-typescript-formatting-baseline.md",
+      "sha256": "d3dbfbe2a16b7e9c2651c734b9f4fbf463cf451aee7e5968cc8ce74bf74d5d6b"
+    },
+    "FND-011": {
+      "path": "modules/foundation/FND-011-remediate-the-per-003-review-findings.md",
+      "sha256": "175b7d709cc3b37f937a9fe82bfb2f543793a3a67c56dc0a3a5f0e2800f07fe1"
+    },
     "NTF-001": {
       "path": "modules/notification/NTF-001-notifications-table.md",
       "sha256": "053732d20cfc6c66205da895c928379cee46df7717e41966b657ee5a6c83e6ff"
@@ -3380,6 +3388,10 @@
     "PER-008": {
       "path": "modules/person/PER-008-registered-person-guard-for-author-columns.md",
       "sha256": "f0126e8b230140c47a1a090dc8878dd10b2d6832b7d6aaacd9e3cfcb25b3e622"
+    },
+    "PER-009": {
+      "path": "modules/person/PER-009-restore-the-test-baseline-after-the-unified.md",
+      "sha256": "4f4cebae210022d52356aac4b2a62dd789bdd36bf90916115fa6c8b71fd67299"
     },
     "PRIV-001": {
       "path": "modules/privacy/PRIV-001-person-checks-whether-they-can-delete-their.md",

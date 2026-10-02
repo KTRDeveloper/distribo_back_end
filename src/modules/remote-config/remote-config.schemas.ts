@@ -55,7 +55,10 @@ export const categorySchema = z
   .string()
   .min(1, 'Category is required')
   .max(CATEGORY_MAX_LENGTH, `Category must be at most ${CATEGORY_MAX_LENGTH} characters`)
-  .regex(CATEGORY_PATTERN, 'Category must be lowercase alphanumeric with underscores, starting with a letter');
+  .regex(
+    CATEGORY_PATTERN,
+    'Category must be lowercase alphanumeric with underscores, starting with a letter'
+  );
 
 /**
  * Key validation schema
@@ -64,7 +67,10 @@ export const keySchema = z
   .string()
   .min(1, 'Key is required')
   .max(KEY_MAX_LENGTH, `Key must be at most ${KEY_MAX_LENGTH} characters`)
-  .regex(KEY_PATTERN, 'Key must be lowercase alphanumeric with underscores, starting with a letter');
+  .regex(
+    KEY_PATTERN,
+    'Key must be lowercase alphanumeric with underscores, starting with a letter'
+  );
 
 /**
  * Configuration value schema

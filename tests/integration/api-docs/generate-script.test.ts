@@ -26,6 +26,8 @@ describe('npm run openapi:generate', () => {
 
     const liveResponse = await request(app).get('/api/v1/docs/openapi.json');
 
-    expect(Object.keys(generated.paths).sort()).toEqual(Object.keys(bodyOf<OpenApiDoc>(liveResponse).paths).sort());
+    expect(Object.keys(generated.paths).sort()).toEqual(
+      Object.keys(bodyOf<OpenApiDoc>(liveResponse).paths).sort()
+    );
   });
 });

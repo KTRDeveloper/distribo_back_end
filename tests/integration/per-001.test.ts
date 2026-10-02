@@ -59,10 +59,13 @@ describe('PER-001: Retire the old sign-in module', () => {
 
   describe('AC-3: Profile still works with a signed token', () => {
     it('returns 200 with expected fields for a seeded account with a signed token', async () => {
-      const user = await seedUser({ name: 'Test User', email: 'test@example.com', password: 'TestPass123' });
+      const user = await seedUser({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'TestPass123',
+      });
 
-      const response = createAuthenticatedRequest(app, user.id)
-        .get('/api/v1/users/me');
+      const response = createAuthenticatedRequest(app, user.id).get('/api/v1/users/me');
 
       const result = await response;
       expect(result.status).toBe(200);

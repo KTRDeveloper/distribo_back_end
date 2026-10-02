@@ -119,7 +119,6 @@ beforeAll(() => {
     console.error('Failed to apply migrations:', error);
     throw error;
   }
-
 });
 
 async function clearDatabase() {

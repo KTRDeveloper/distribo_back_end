@@ -28,7 +28,10 @@ export async function create(data: CreateConfigRequest): Promise<SystemConfig> {
       },
     });
   } catch (error) {
-    logger.error({ error, category: data.category, key: data.key }, 'Failed to create configuration');
+    logger.error(
+      { error, category: data.category, key: data.key },
+      'Failed to create configuration'
+    );
     throw error;
   }
 }
@@ -50,7 +53,10 @@ export async function findById(id: string): Promise<SystemConfig | null> {
 /**
  * Find configuration by category and key
  */
-export async function findByCategoryAndKey(category: string, key: string): Promise<SystemConfig | null> {
+export async function findByCategoryAndKey(
+  category: string,
+  key: string
+): Promise<SystemConfig | null> {
   try {
     return await prisma.systemConfig.findUnique({
       where: {

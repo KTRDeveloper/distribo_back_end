@@ -34,7 +34,10 @@ openApiRegistry.registerPath({
       description: 'Task submitted',
       content: { 'application/json': { schema: taskResponseSchema } },
     },
-    401: { description: 'Missing or invalid token', content: { 'application/json': { schema: errorResponseSchema } } },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
   },
 });
 
@@ -49,7 +52,10 @@ openApiRegistry.registerPath({
       description: 'List of tasks',
       content: { 'application/json': { schema: z.array(taskResponseSchema) } },
     },
-    401: { description: 'Missing or invalid token', content: { 'application/json': { schema: errorResponseSchema } } },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
   },
 });
 
@@ -65,7 +71,13 @@ openApiRegistry.registerPath({
       description: 'The task',
       content: { 'application/json': { schema: taskResponseSchema } },
     },
-    401: { description: 'Missing or invalid token', content: { 'application/json': { schema: errorResponseSchema } } },
-    404: { description: 'Task not found', content: { 'application/json': { schema: errorResponseSchema } } },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Task not found',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
   },
 });

@@ -47,7 +47,10 @@ function deserializeValue(value: string): ConfigValue {
     return JSON.parse(value) as ConfigValue;
   } catch {
     // If not valid JSON, return as string
-    logger.warn({ value: value.substring(0, 50) }, 'Failed to deserialize config value, returning as string');
+    logger.warn(
+      { value: value.substring(0, 50) },
+      'Failed to deserialize config value, returning as string'
+    );
     return value;
   }
 }
@@ -116,7 +119,10 @@ export async function create(data: CreateConfigRequest): Promise<ConfigResponse>
         serializedValue = encrypt(serializedValue);
         configEncryptionOperationsTotal.inc({ operation: 'encrypt', status: 'success' });
       } catch (error) {
-        logger.error({ error, category: data.category, key: data.key }, 'Failed to encrypt sensitive value');
+        logger.error(
+          { error, category: data.category, key: data.key },
+          'Failed to encrypt sensitive value'
+        );
         configEncryptionOperationsTotal.inc({ operation: 'encrypt', status: 'failure' });
         throw new Error('Failed to encrypt configuration value');
       }
@@ -138,12 +144,18 @@ export async function create(data: CreateConfigRequest): Promise<ConfigResponse>
     });
 
     configOperationsTotal.inc({ operation: 'create', status: 'success' });
-    logger.info({ configId: config.id, category: data.category, key: data.key }, 'Configuration created');
+    logger.info(
+      { configId: config.id, category: data.category, key: data.key },
+      'Configuration created'
+    );
 
     return toResponse(config);
   } catch (error) {
     configOperationsTotal.inc({ operation: 'create', status: 'failure' });
-    logger.error({ error, category: data.category, key: data.key }, 'Failed to create configuration');
+    logger.error(
+      { error, category: data.category, key: data.key },
+      'Failed to create configuration'
+    );
     throw error;
   }
 }
@@ -170,7 +182,10 @@ export async function getById(id: string): Promise<ConfigResponse | null> {
 /**
  * Get configuration by category and key
  */
-export async function getByCategoryAndKey(category: string, key: string): Promise<ConfigResponse | null> {
+export async function getByCategoryAndKey(
+  category: string,
+  key: string
+): Promise<ConfigResponse | null> {
   try {
     const config = await repository.findByCategoryAndKey(category, key);
     if (!config) {
