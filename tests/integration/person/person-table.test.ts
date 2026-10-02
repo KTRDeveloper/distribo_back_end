@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { prisma } from '../../setup';
+import { uniquePhone } from '../../helpers/phone';
 
 describe('Person v10 table', () => {
   describe('AC-1: Table shape and columns', () => {
@@ -37,7 +38,12 @@ describe('Person v10 table', () => {
     });
 
     it('old tables accounts, otp_challenges, email_verification_requests, refresh_tokens do not exist', async () => {
-      const tables = ['accounts', 'otp_challenges', 'email_verification_requests', 'refresh_tokens'];
+      const tables = [
+        'accounts',
+        'otp_challenges',
+        'email_verification_requests',
+        'refresh_tokens',
+      ];
 
       for (const tableName of tables) {
         const result = await prisma.$queryRaw<Array<{ table_name: string }>>`
@@ -49,9 +55,7 @@ describe('Person v10 table', () => {
     });
 
     it('required columns have NOT NULL constraints', async () => {
-      const result = await prisma.$queryRaw<
-        Array<{ column_name: string; is_nullable: string }>
-      >`
+      const result = await prisma.$queryRaw<Array<{ column_name: string; is_nullable: string }>>`
         SELECT column_name, is_nullable
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'people'
@@ -99,8 +103,8 @@ describe('Person v10 table', () => {
             status: 'ACTIVE',
           },
         });
-      } catch (err: any) {
-        expect(err.code).toBe('P2002');
+      } catch (error: unknown) {
+        expect(error).toMatchObject({ code: 'P2002' });
       }
     });
   });
@@ -111,10 +115,13 @@ describe('Person v10 table', () => {
 
       await expect(
         prisma.$executeRaw`
-          INSERT INTO people (id, status, created_at, scope_version)
-          VALUES (${personId}, 'DELETED'::text::public."PersonStatus", NOW(), 0)
+          INSERT INTO people (
+            id, phone_number, status, created_at, scope_version, server_updated_at
+          ) VALUES (
+            ${personId}, ${uniquePhone()}, 'DELETED'::text::public."PersonStatus", NOW(), 0, NOW()
+          )
         `
-      ).rejects.toThrow();
+      ).rejects.toThrow(/invalid input value for enum/i);
     });
 
     it('rejects invalid language values', async () => {
@@ -122,10 +129,15 @@ describe('Person v10 table', () => {
 
       await expect(
         prisma.$executeRaw`
-          INSERT INTO people (id, preferred_language, created_at, status, scope_version)
-          VALUES (${personId}, 'ES'::text::public."Language", NOW(), 'ACTIVE', 0)
+          INSERT INTO people (
+            id, phone_number, preferred_language, created_at, status, scope_version,
+            server_updated_at
+          ) VALUES (
+            ${personId}, ${uniquePhone()}, 'ES'::text::public."Language", NOW(),
+            'ACTIVE', 0, NOW()
+          )
         `
-      ).rejects.toThrow();
+      ).rejects.toThrow(/invalid input value for enum/i);
     });
 
     it('accepts required columns with ACTIVE status and valid language', async () => {
@@ -135,7 +147,7 @@ describe('Person v10 table', () => {
         data: {
           id: personId,
           status: 'ACTIVE',
-          phoneNumber: crypto.randomUUID().slice(0, 15),
+          phoneNumber: uniquePhone(),
         },
       });
 
@@ -152,10 +164,10 @@ describe('Person v10 table', () => {
     it('sets scope_version to 0 by default', async () => {
       const personId = crypto.randomUUID();
 
-      const person = await prisma.person.create({
+      await prisma.person.create({
         data: {
           id: personId,
-          phoneNumber: crypto.randomUUID().slice(0, 15),
+          phoneNumber: uniquePhone(),
           status: 'ACTIVE',
         },
       });
@@ -168,10 +180,10 @@ describe('Person v10 table', () => {
     it('sets server_updated_at by database trigger', async () => {
       const personId = crypto.randomUUID();
 
-      const person = await prisma.person.create({
+      await prisma.person.create({
         data: {
           id: personId,
-          phoneNumber: crypto.randomUUID().slice(0, 15),
+          phoneNumber: uniquePhone(),
           status: 'ACTIVE',
         },
       });

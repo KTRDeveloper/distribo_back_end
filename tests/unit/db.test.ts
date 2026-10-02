@@ -8,12 +8,11 @@ describe('Database Client', () => {
     expect(prisma).toHaveProperty('$disconnect');
   });
 
-  it('should have all expected models', () => {
-    expect(prisma.account).toBeDefined();
+  it('should have all models in the current schema', () => {
     expect(prisma.person).toBeDefined();
     expect(prisma.task).toBeDefined();
     expect(prisma.taskResult).toBeDefined();
-    expect(prisma.otpChallenge).toBeDefined();
-    expect(prisma.emailVerificationRequest).toBeDefined();
+    expect(prisma.systemConfig).toBeDefined();
+    expect(prisma.configHistory).toBeDefined();
   });
 });
