@@ -1,33 +1,19 @@
+import { httpError } from '../../lib/http-error.js';
 import { userRepository } from './user.repository.js';
-import type { UserProfile, UpdateProfileInput } from './user.types.js';
-
-/**
- * User service
- * Implements business logic for user management
- */
+import type { Profile, UpdateProfileInput } from './user.types.js';
 
 export const userService = {
-  /**
-   * Get user profile by ID
-   */
-  async getProfile(userId: string): Promise<UserProfile> {
-    const user = await userRepository.findById(userId);
-
-    if (!user) {
-      throw Object.assign(new Error('User not found'), {
-        statusCode: 404,
-        code: 'USER_NOT_FOUND',
-      });
-    }
-
-    return user;
+  /** Returns the explicitly allowlisted profile for the authenticated person. */
+  async getProfile(personId: string): Promise<Profile> {
+    const profile = await userRepository.findById(personId);
+    if (!profile) throw httpError(404, 'NOT_FOUND', 'Profile not found');
+    return profile;
   },
 
-  /**
-   * Update user profile
-   */
-  async updateProfile(userId: string, input: UpdateProfileInput): Promise<UserProfile> {
-    const user = await userRepository.updateProfile(userId, input);
-    return user;
+  /** Applies self-service fields only to the identity supplied by authentication. */
+  async updateProfile(personId: string, input: UpdateProfileInput): Promise<Profile> {
+    const profile = await userRepository.updateProfile(personId, input);
+    if (!profile) throw httpError(404, 'NOT_FOUND', 'Profile not found');
+    return profile;
   },
 };

@@ -1,47 +1,64 @@
 import { prisma } from '../../lib/db.js';
-import type { Person } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import type { Profile, UpdateProfileInput } from './user.types.js';
 
-/**
- * User repository
- * Handles database operations for user (Person) profile management
- *
- * Identity is stored in the unified `Person` model with all credentials
- * and profile information. See specs/person-v10/.
- */
+const profileSelect = {
+  id: true,
+  fullName: true,
+  phoneNumber: true,
+  phoneVerifiedAt: true,
+  email: true,
+  emailVerifiedAt: true,
+  preferredLanguage: true,
+  registeredAt: true,
+  scopeVersion: true,
+  createdAt: true,
+} satisfies Prisma.PersonSelect;
 
-/**
- * Flatten a Person record into the shape API responses expect.
- */
-function toAuthUser(person: Person) {
+type ProfileRow = Prisma.PersonGetPayload<{ select: typeof profileSelect }>;
+
+function toProfile(person: ProfileRow): Profile {
   return {
     id: person.id,
-    phoneNumber: person.phoneNumber,
+    full_name: person.fullName,
+    phone_number: person.phoneNumber,
+    phone_verified: person.phoneVerifiedAt !== null,
     email: person.email,
-    name: person.fullName,
-    emailVerifiedAt: person.emailVerifiedAt,
-    createdAt: person.createdAt,
+    email_verified: person.emailVerifiedAt !== null,
+    preferred_language: person.preferredLanguage,
+    registered: person.registeredAt !== null,
+    scope_version: person.scopeVersion,
+    created_at: person.createdAt,
   };
 }
 
 export const userRepository = {
-  /**
-   * Find person by ID
-   */
-  async findById(id: string) {
+  /** Selects only the fields that may be exposed by the self-profile API. */
+  async findById(id: string): Promise<Profile | null> {
     const person = await prisma.person.findUnique({
       where: { id },
+      select: profileSelect,
     });
-    return person ? toAuthUser(person) : null;
+    return person ? toProfile(person) : null;
   },
 
-  /**
-   * Update person's profile (name is stored on Person.fullName)
-   */
-  async updateProfile(id: string, data: { name?: string }) {
-    const person = await prisma.person.update({
+  /** Updates only profile fields authorized by the strict request schema. */
+  async updateProfile(id: string, input: UpdateProfileInput): Promise<Profile | null> {
+    const data: Prisma.PersonUpdateInput = {};
+
+    if (input.full_name !== undefined) data.fullName = input.full_name;
+    if (input.preferred_language !== undefined) data.preferredLanguage = input.preferred_language;
+    if (input.email !== undefined) {
+      data.email = input.email;
+      data.emailVerifiedAt = null;
+    }
+
+    const result = await prisma.person.updateManyAndReturn({
       where: { id },
-      data: data.name !== undefined ? { fullName: data.name } : {},
+      data,
+      select: profileSelect,
     });
-    return toAuthUser(person);
+    const person = result[0];
+    return person ? toProfile(person) : null;
   },
 };

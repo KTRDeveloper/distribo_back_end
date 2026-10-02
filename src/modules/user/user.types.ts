@@ -1,15 +1,20 @@
-/**
- * TypeScript interfaces for user module
- */
-
-export interface UserProfile {
+export interface Profile {
   id: string;
+  full_name: string | null;
+  phone_number: string | null;
+  phone_verified: boolean;
   email: string | null;
-  name: string | null;
-  emailVerifiedAt: Date | null;
-  createdAt: Date;
+  email_verified: boolean;
+  preferred_language: 'FR' | 'EN' | null;
+  registered: boolean;
+  scope_version: number;
+  created_at: Date;
 }
 
+export type UserProfile = Profile;
+
 export interface UpdateProfileInput {
-  name?: string;
+  full_name?: string;
+  preferred_language?: 'FR' | 'EN';
+  email?: string | null;
 }

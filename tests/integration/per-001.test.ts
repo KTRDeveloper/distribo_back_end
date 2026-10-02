@@ -71,8 +71,8 @@ describe('PER-001: Retire the old sign-in module', () => {
       expect(result.status).toBe(200);
       expect(result.body).toHaveProperty('id');
       expect((result.body as Record<string, unknown>).id).toBe(user.id);
-      expect(result.body).toHaveProperty('name');
-      expect(result.body).toHaveProperty('phoneNumber');
+      expect(result.body).toHaveProperty('full_name');
+      expect(result.body).toHaveProperty('phone_number');
     });
   });
 });

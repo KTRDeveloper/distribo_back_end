@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   callerId: '0199a710-7b55-7000-8000-000000000001',
-  registered: new Map<string, { id: string; full_name: string | null; registered_at: Date | null }>(),
+  registered: new Map<
+    string,
+    { id: string; full_name: string | null; registered_at: Date | null }
+  >(),
   consumed: new Map<string, number>(),
 }));
 
@@ -85,17 +88,20 @@ describe('GET /api/v1/people/lookup', () => {
     }
   );
 
-  it.each([undefined, '+237222123456'])('rejects a missing or non-mobile phone (%s)', async (phone) => {
-    const call = request(app)
-      .get('/api/v1/people/lookup')
-      .set('Authorization', 'Bearer valid-token');
-    if (phone !== undefined) call.query({ phone });
+  it.each([undefined, '+237222123456'])(
+    'rejects a missing or non-mobile phone (%s)',
+    async (phone) => {
+      const call = request(app)
+        .get('/api/v1/people/lookup')
+        .set('Authorization', 'Bearer valid-token');
+      if (phone !== undefined) call.query({ phone });
 
-    const response = await call;
+      const response = await call;
 
-    expect(response.status).toBe(400);
-    expect(response.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
-  });
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+    }
+  );
 
   it('allows 60 lookups in an hour and rejects the 61st', async () => {
     for (let count = 1; count <= 60; count += 1) {
@@ -142,7 +148,9 @@ describe('GET /api/v1/people/lookup', () => {
   });
 
   it('requires a valid access token', async () => {
-    const response = await request(app).get('/api/v1/people/lookup').query({ phone: '+237677123456' });
+    const response = await request(app)
+      .get('/api/v1/people/lookup')
+      .query({ phone: '+237677123456' });
 
     expect(response.status).toBe(401);
   });

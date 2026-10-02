@@ -3,11 +3,7 @@ import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { checkAndConsume } from '../../lib/rate-limit.js';
 import { authMiddleware } from '../../middleware/auth.js';
-import {
-  findByActivePhone,
-  toPublicPerson,
-  type PublicPerson,
-} from './person.repository.js';
+import { findByActivePhone, toPublicPerson, type PublicPerson } from './person.repository.js';
 import { lookupQuerySchema } from './person.schemas.js';
 
 const LOOKUP_LIMIT = 60;
@@ -38,11 +34,7 @@ function callerIdFrom(request: Request): string {
  * @throws A 429 `RATE_LIMITED` error after 60 lookups in an hour.
  */
 export async function lookupPerson(callerId: string, phone: string): Promise<PublicPerson> {
-  const result = await checkAndConsume(
-    `lookup:${callerId}`,
-    LOOKUP_LIMIT,
-    LOOKUP_WINDOW_SECONDS
-  );
+  const result = await checkAndConsume(`lookup:${callerId}`, LOOKUP_LIMIT, LOOKUP_WINDOW_SECONDS);
 
   if (!result.allowed) {
     logger.warn({ event: 'lookup_rate_limited', personId: callerId }, 'Person lookup rate limited');
