@@ -9,14 +9,39 @@ const SCRATCH_CHECK = 'public.fnd_scratch_check';
 const appPrisma = getAppRolePrisma();
 
 type SqlError = {
-  meta?: { code?: string };
+  meta?: {
+    code?: string;
+    driverAdapterError?: {
+      cause?: {
+        code?: string;
+        originalCode?: string;
+      };
+    };
+  };
+  code?: string;
 };
 
 function sqlState(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null) return undefined;
-  const candidate = error as SqlError & { code?: string; message?: string };
-  const messageCode = candidate.message?.match(/Code: (\w+)/)?.[1];
-  return candidate.meta?.code ?? candidate.code ?? messageCode;
+  const candidate = error as SqlError & { message?: string };
+
+  // Check for Prisma adapter error structure
+  if (candidate.meta?.driverAdapterError?.cause?.code) {
+    return candidate.meta.driverAdapterError.cause.code;
+  }
+  if (candidate.meta?.driverAdapterError?.cause?.originalCode) {
+    return candidate.meta.driverAdapterError.cause.originalCode;
+  }
+
+  // Direct meta.code property
+  if (candidate.meta?.code) return candidate.meta.code;
+  // Direct code property
+  if (candidate.code) return candidate.code;
+  // Extract from error message (e.g., "Code: 23514")
+  if (candidate.message?.match(/Code:\s*(\w+)/)) {
+    return candidate.message.match(/Code:\s*(\w+)/)?.[1];
+  }
+  return undefined;
 }
 
 afterAll(async () => {
@@ -54,14 +79,15 @@ describe('application database role and server-time trigger', () => {
     `);
 
     try {
-      const privileges = await prisma.$queryRaw<Array<{ privilege_type: string }>>`
-        SELECT privilege_type
+      const tableName = SCRATCH_DEFAULTS.replace('public.', '');
+      const privileges = await prisma.$queryRawUnsafe<Array<{ privilege_type: string }>>(
+        `SELECT privilege_type
         FROM (VALUES
           ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')
         ) AS required(privilege_type)
-        WHERE has_table_privilege('distribo_app', 'public.${SCRATCH_DEFAULTS.replace('public.', '')}', privilege_type)
-        ORDER BY privilege_type
-      `;
+        WHERE has_table_privilege('distribo_app', '${tableName}', privilege_type)
+        ORDER BY privilege_type`,
+      );
 
       expect(privileges.map(({ privilege_type }) => privilege_type)).toEqual([
         'DELETE',
@@ -75,6 +101,12 @@ describe('application database role and server-time trigger', () => {
   });
 
   it('allows inserts and selects but rejects immutable-table writes', async () => {
+    // Ensure the app role has schema permissions
+    await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO distribo_app`);
+
+    // Drop the table first in case it exists from a previous run
+    await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS ${SCRATCH_JOURNAL}`);
+
     await prisma.$executeRawUnsafe(`
       CREATE TABLE ${SCRATCH_JOURNAL} (
         id integer PRIMARY KEY,
@@ -99,9 +131,16 @@ describe('application database role and server-time trigger', () => {
         `DELETE FROM ${SCRATCH_JOURNAL} WHERE id = 1`,
         `TRUNCATE TABLE ${SCRATCH_JOURNAL}`,
       ]) {
-        await expect(appPrisma.$executeRawUnsafe(statement)).rejects.toSatisfy(
-          (error: unknown) => sqlState(error) === '42501',
-        );
+        let failed = false;
+        let errorCode: string | undefined;
+        try {
+          await appPrisma.$executeRawUnsafe(statement);
+        } catch (error) {
+          failed = true;
+          errorCode = sqlState(error);
+        }
+        expect(failed).toBe(true);
+        expect(errorCode).toBe('42501');
       }
 
       const unchanged = await prisma.$queryRawUnsafe<Array<{ payload: string }>>(
@@ -109,11 +148,14 @@ describe('application database role and server-time trigger', () => {
       );
       expect(unchanged).toEqual([{ payload: 'entry' }]);
     } finally {
-      await prisma.$executeRawUnsafe(`DROP TABLE ${SCRATCH_JOURNAL}`);
+      await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS ${SCRATCH_JOURNAL}`);
     }
   });
 
   it('sets server_updated_at from the database clock on insert and update', async () => {
+    // Drop the table first in case it exists from a previous run
+    await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS ${SCRATCH_SERVER_TIME} CASCADE`);
+
     await prisma.$executeRawUnsafe(`
       CREATE TABLE ${SCRATCH_SERVER_TIME} (
         id integer PRIMARY KEY,
@@ -145,11 +187,14 @@ describe('application database role and server-time trigger', () => {
       );
       expect(updated[0].server_updated_at.getTime()).toBeGreaterThan(insertedAt);
     } finally {
-      await prisma.$executeRawUnsafe(`DROP TABLE ${SCRATCH_SERVER_TIME}`);
+      await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS ${SCRATCH_SERVER_TIME} CASCADE`);
     }
   });
 
   it('enforces CHECK constraints for direct SQL writes', async () => {
+    // Drop the table first in case it exists from a previous run
+    await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS ${SCRATCH_CHECK} CASCADE`);
+
     await prisma.$executeRawUnsafe(`
       CREATE TABLE ${SCRATCH_CHECK} (
         amount integer NOT NULL CHECK (amount > 0)
@@ -157,11 +202,18 @@ describe('application database role and server-time trigger', () => {
     `);
 
     try {
-      await expect(
-        prisma.$executeRawUnsafe(`INSERT INTO ${SCRATCH_CHECK} (amount) VALUES (0)`),
-      ).rejects.toSatisfy((error: unknown) => sqlState(error) === '23514');
+      let failed = false;
+      let errorCode: string | undefined;
+      try {
+        await prisma.$executeRawUnsafe(`INSERT INTO ${SCRATCH_CHECK} (amount) VALUES (0)`);
+      } catch (error) {
+        failed = true;
+        errorCode = sqlState(error);
+      }
+      expect(failed).toBe(true);
+      expect(errorCode).toBe('23514');
     } finally {
-      await prisma.$executeRawUnsafe(`DROP TABLE ${SCRATCH_CHECK}`);
+      await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS ${SCRATCH_CHECK} CASCADE`);
     }
   });
 

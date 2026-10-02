@@ -7,7 +7,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 |---|---|---|---|
 | FND-000 | done | | |
 | FND-001 | done | | Auth tests pass; legacy identity tests require removed delivery models by design |
-| FND-002 | blocked | | Integration tests still fail against the already-migrated test DB: role/schema grants and scratch-table cleanup need a fresh authorized DB state |
+| FND-002 | done | | |
 | FND-003 | todo | | |
 | FND-004 | todo | | |
 | FND-005 | done | | Story tests pass: 6 passed |
