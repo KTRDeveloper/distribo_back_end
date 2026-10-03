@@ -64,3 +64,13 @@ export async function releaseRegisteredHolder(
     emailVerified: holder.emailVerifiedAt !== null,
   };
 }
+
+/** Reads the saved email and its verification state for a person id (the target never comes from the request). */
+export function findEmailState(
+  personId: string
+): Promise<{ email: string | null; emailVerifiedAt: Date | null } | null> {
+  return prisma.person.findUnique({
+    where: { id: personId },
+    select: { email: true, emailVerifiedAt: true },
+  });
+}

@@ -7,7 +7,13 @@ import {
   registerSchema,
 } from './auth.schemas.js';
 import { refreshSession } from './session.service.js';
-import { register, requestLogin, requestRegistrationCode } from './auth.service.js';
+import { authMiddleware } from '../../middleware/auth.js';
+import {
+  register,
+  requestEmailVerification,
+  requestLogin,
+  requestRegistrationCode,
+} from './auth.service.js';
 
 export const authRoutes = Router();
 
@@ -51,5 +57,21 @@ authRoutes.post('/refresh', (req, res, next) => {
       expires_in: s.expiresIn,
       token_type: 'Bearer',
     });
+  })().catch(next);
+});
+
+// Authenticated route: the body is ignored, the target is the saved email.
+authRoutes.post('/email/verify/request', authMiddleware, (req, res, next) => {
+  void (async () => {
+    if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
+    const result = await requestEmailVerification(req.user.id, {
+      ip: req.ip,
+      ...(req.user.deviceId ? { deviceId: req.user.deviceId } : {}),
+    });
+    if (result === null) {
+      res.status(204).end();
+      return;
+    }
+    res.status(202).json(result);
   })().catch(next);
 });

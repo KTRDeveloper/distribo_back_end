@@ -105,3 +105,27 @@ openApiRegistry.registerPath({
     },
   },
 });
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/email/verify/request',
+  tags: ['auth'],
+  summary: 'Ask for an email verification code',
+  security: [{ bearerAuth: [] }],
+  responses: {
+    202: { description: 'Code queued' },
+    204: { description: 'Email already verified' },
+    400: {
+      description: 'EMAIL_MISSING',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'UNAUTHORIZED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    429: {
+      description: 'Code limits reached',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});

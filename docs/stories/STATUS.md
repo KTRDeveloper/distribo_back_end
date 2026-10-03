@@ -55,7 +55,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-019 | todo | | |
 | AUTH-020 | todo | | |
 | AUTH-021 | todo | | |
-| AUTH-022 | todo | | |
+| AUTH-022 | done | | 2 path lists (per-001, catalog) updated with user approval |
 | AUTH-023 | todo | | |
 | AUTH-024 | todo | | |
 | AUTH-025 | todo | | |

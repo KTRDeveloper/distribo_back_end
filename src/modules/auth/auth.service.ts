@@ -8,7 +8,12 @@ import { config } from '../../config/index.js';
 import { logger } from '../../lib/logger.js';
 import { enqueueOtpDelivery } from '../../lib/otp-delivery-queue.js';
 import { notify } from '../notification/notification.service.js';
-import { completeRegistration, inTransaction, releaseRegisteredHolder } from './auth.repository.js';
+import {
+  completeRegistration,
+  findEmailState,
+  inTransaction,
+  releaseRegisteredHolder,
+} from './auth.repository.js';
 import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
 import { issueSession, type DeviceInfo } from './session.service.js';
 
@@ -224,4 +229,27 @@ export async function requestLogin(
   );
   logger.info({ event: 'login_code_sent', personId: holder.id, channel }, 'Login code sent');
   return { sent: true, channel, expires_in: EXPIRES_IN_SECONDS };
+}
+
+/**
+ * Send an EMAIL_VERIFICATION code to the person's saved email (C-33, CM-07). The
+ * target is read from the database, never from the request (v5.0.0-6.5.1); the
+ * per-target limits apply as for any code (v5.0.0-2.4.1).
+ *
+ * @returns null when the email is already verified (nothing sent)
+ * @throws 400 EMAIL_MISSING, 429 OTP_RATE_LIMITED
+ */
+export async function requestEmailVerification(
+  personId: string,
+  clientKeys: ClientKeys = {}
+): Promise<{ sent: true; expires_in: number } | null> {
+  const state = await findEmailState(personId);
+  if (!state?.email) throw httpError(400, 'EMAIL_MISSING', 'No email saved');
+  if (state.emailVerifiedAt) return null;
+  await issueCode(
+    { personId, target: state.email, purpose: 'EMAIL_VERIFICATION', channel: 'EMAIL' },
+    clientKeys
+  );
+  logger.info({ event: 'email_verification_code_sent', personId }, 'Email code sent');
+  return { sent: true, expires_in: EXPIRES_IN_SECONDS };
 }
