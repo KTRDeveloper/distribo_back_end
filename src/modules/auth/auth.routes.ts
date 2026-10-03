@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { httpError } from '../../lib/http-error.js';
-import { loginSchema, registerRequestSchema, registerSchema } from './auth.schemas.js';
+import {
+  loginSchema,
+  refreshSchema,
+  registerRequestSchema,
+  registerSchema,
+} from './auth.schemas.js';
+import { refreshSession } from './session.service.js';
 import { register, requestLogin, requestRegistrationCode } from './auth.service.js';
 
 export const authRoutes = Router();
@@ -30,5 +36,20 @@ authRoutes.post('/login', (req, res, next) => {
     const body = loginSchema.safeParse(req.body);
     if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
     res.status(202).json(await requestLogin(body.data, { ip: req.ip }));
+  })().catch(next);
+});
+
+// Public route: the refresh token itself is the credential.
+authRoutes.post('/refresh', (req, res, next) => {
+  void (async () => {
+    const body = refreshSchema.safeParse(req.body);
+    if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    const s = await refreshSession(body.data.refresh_token);
+    res.status(200).json({
+      access_token: s.accessToken,
+      refresh_token: s.refreshToken,
+      expires_in: s.expiresIn,
+      token_type: 'Bearer',
+    });
   })().catch(next);
 });

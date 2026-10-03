@@ -35,6 +35,7 @@ describe('GET /docs/openapi.json', () => {
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
     expect(authPaths.sort()).toEqual([
       '/api/v1/auth/login',
+      '/api/v1/auth/refresh',
       '/api/v1/auth/register',
       '/api/v1/auth/register/request',
     ]);

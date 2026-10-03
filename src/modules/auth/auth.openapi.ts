@@ -2,6 +2,8 @@ import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry
 import {
   loginResponseSchema,
   loginSchema,
+  refreshResponseSchema,
+  refreshSchema,
   registerRequestResponseSchema,
   registerRequestSchema,
   registerSchema,
@@ -77,6 +79,28 @@ openApiRegistry.registerPath({
     },
     429: {
       description: 'LOGIN_LOCKED or code limits reached',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/refresh',
+  tags: ['auth'],
+  summary: 'Refresh a session; the refresh token is replaced',
+  request: { body: { content: { 'application/json': { schema: refreshSchema } } } },
+  responses: {
+    200: {
+      description: 'New token pair',
+      content: { 'application/json': { schema: refreshResponseSchema } },
+    },
+    400: {
+      description: 'Invalid request',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'INVALID_REFRESH_TOKEN or SESSION_REVOKED',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

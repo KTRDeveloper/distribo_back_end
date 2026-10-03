@@ -60,3 +60,15 @@ export const loginResponseSchema = z
     expires_in: z.number().int(),
   })
   .strict();
+
+/** Body of POST /auth/refresh. */
+export const refreshSchema = z.object({ refresh_token: z.string().min(1).max(512) }).strict();
+
+export const refreshResponseSchema = z
+  .object({
+    access_token: z.string(),
+    refresh_token: z.string(),
+    expires_in: z.number().int(),
+    token_type: z.literal('Bearer'),
+  })
+  .strict();

@@ -6,6 +6,7 @@ import { httpError } from '../../lib/http-error.js';
 import { signAccessToken, getAccessTokenExpiresInSeconds } from '../../lib/jwt.js';
 import { generateRefreshToken, hashRefreshToken } from '../../lib/refresh-token.js';
 import { newId } from '../../shared/ids.js';
+import { logger } from '../../lib/logger.js';
 import { sessionRepository, type RevokedReason } from './session.repository.js';
 
 export type { RevokedReason };
@@ -89,4 +90,41 @@ export function revokeSessions(
   options: { exceptDeviceId?: string } = {}
 ): Promise<number> {
   return sessionRepository.revokeLive(personId, reason, options.exceptDeviceId);
+}
+
+/**
+ * Exchange a refresh token for a new pair (v5.0.0-7.2.2, v5.0.0-7.4.1). Only the
+ * token hash is looked up; rotation is a conditional update. A token already
+ * rotated is a reuse: only that device's session ends (CM-08).
+ * @throws httpError 401 INVALID_REFRESH_TOKEN or SESSION_REVOKED
+ */
+export async function refreshSession(
+  refreshToken: string
+): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+  const newToken = generateRefreshToken();
+  const result = await sessionRepository.rotate(hashRefreshToken(refreshToken), {
+    id: newId(),
+    tokenHash: hashRefreshToken(newToken),
+    expiresAt: new Date(Date.now() + config.jwt.refreshTokenExpiresInDays * DAY_MS),
+  });
+  switch (result.kind) {
+    case 'OK':
+      return {
+        accessToken: signAccessToken({ personId: result.personId, deviceId: result.deviceId }),
+        refreshToken: newToken,
+        expiresIn: getAccessTokenExpiresInSeconds(),
+      };
+    case 'SUSPENDED':
+      await revokeSessions(result.personId, 'ACCOUNT_SUSPENDED');
+      throw httpError(401, 'SESSION_REVOKED', 'Session revoked');
+    case 'REUSE':
+      await sessionRepository.revokeDevice(result.deviceId, 'REUSE_DETECTED');
+      logger.warn(
+        { event: 'refresh_reuse_detected', personId: result.personId, deviceId: result.deviceId },
+        'refresh token reuse detected'
+      );
+      throw httpError(401, 'SESSION_REVOKED', 'Session revoked');
+    default:
+      throw httpError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
+  }
 }
