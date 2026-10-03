@@ -59,7 +59,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-023 | todo | | |
 | AUTH-024 | todo | | |
 | AUTH-025 | todo | | |
-| AUTH-026 | todo | | |
+| AUTH-026 | done | | |
 | ORG-001 | todo | | |
 | ORG-002 | todo | | |
 | ORG-003 | todo | | |

@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { newId } from '../../src/shared/ids';
 import { prisma } from '../setup';
-import { hash } from 'bcrypt';
+import argon2 from 'argon2';
 import { uniquePhone } from './phone';
 
 const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
@@ -16,7 +16,7 @@ export async function seedAccount(userData: {
   name: string;
   phoneNumber?: string;
 }) {
-  const hashedPassword = await hash(userData.password, 10);
+  const hashedPassword = await argon2.hash(userData.password);
 
   // FND-011 requires fixtures to exercise the same UUIDv7 identifier boundary as production.
   const person = await prisma.person.create({

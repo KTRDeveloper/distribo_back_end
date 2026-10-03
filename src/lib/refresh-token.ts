@@ -3,7 +3,7 @@ import { randomBytes, createHash } from 'crypto';
 /**
  * Refresh token generation and hashing helpers.
  *
- * Unlike OTP codes and passwords (low-entropy secrets hashed with bcrypt,
+ * Unlike OTP codes and passwords (low-entropy secrets hashed with Argon2id,
  * see src/lib/otp.ts), a refresh token is a 256-bit random value with no
  * meaningful brute-force risk — a fast cryptographic hash is the correct,
  * standard choice for storage (see specs/005-refresh-tokens/research.md §2).
