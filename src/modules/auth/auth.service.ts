@@ -2,7 +2,11 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { httpError } from '../../lib/http-error.js';
 import { normalizeE164 } from '../../shared/phone.js';
 import { findByActivePhone } from '../person/person.repository.js';
-import { issueCode, type ClientKeys } from './otp.service.js';
+import { hashPassword, validatePasswordRules } from '../../lib/password.js';
+import { logger } from '../../lib/logger.js';
+import { completeRegistration, inTransaction } from './auth.repository.js';
+import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
+import { issueSession, type DeviceInfo } from './session.service.js';
 
 const EXPIRES_IN_SECONDS = 600;
 
@@ -50,5 +54,62 @@ export async function requestRegistrationCode(
     sent: true,
     expires_in: EXPIRES_IN_SECONDS,
     existing_account: registered ? { masked_name: maskName(holder.fullName ?? '') } : null,
+  };
+}
+
+export type RegisterInput = {
+  phone_number: string;
+  code: string;
+  full_name: string;
+  password: string;
+  device: DeviceInfo;
+};
+
+export type SessionResponse = {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: 'Bearer';
+  person: { id: string; full_name: string | null };
+};
+
+/**
+ * Register a person with a REGISTRATION code, creating the account or completing
+ * a guest row (same id, so relations stay intact) and opening a session (CM-05, C-02, C-03).
+ * Password rules are checked before the code is consumed; the code proves number
+ * ownership. Person and session are written in one transaction. Never logs the
+ * password or code.
+ *
+ * @throws 400 VALIDATION_ERROR, OTP_INVALID, OTP_EXPIRED, WEAK_PASSWORD; 409 ACCOUNT_EXISTS
+ */
+export async function register(input: RegisterInput): Promise<SessionResponse> {
+  const phone = normalizeE164(input.phone_number);
+  if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  if ((await validatePasswordRules(input.password)).length > 0) {
+    throw httpError(400, 'WEAK_PASSWORD', 'Password is too weak');
+  }
+  await verifyCode({ target: phone, purpose: 'REGISTRATION', code: input.code });
+  const passwordHash = await hashPassword(input.password);
+
+  const result = await inTransaction(async (tx) => {
+    const person = await completeRegistration(tx, {
+      phone,
+      fullName: input.full_name,
+      passwordHash,
+    });
+    if (!person) return null;
+    return { person, session: await issueSession(person.id, input.device, tx) };
+  });
+  if (!result) {
+    logger.warn({ event: 'registration_refused_account_exists' }, 'Registration refused');
+    throw httpError(409, 'ACCOUNT_EXISTS', 'An account already exists for this number');
+  }
+  logger.info({ event: 'registered', personId: result.person.id }, 'Person registered');
+  return {
+    access_token: result.session.accessToken,
+    refresh_token: result.session.refreshToken,
+    expires_in: result.session.expiresIn,
+    token_type: 'Bearer',
+    person: { id: result.person.id, full_name: result.person.fullName },
   };
 }
