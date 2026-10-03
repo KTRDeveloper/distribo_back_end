@@ -25,6 +25,75 @@ export const RULES: AccessRule[] = [
     action: 'create',
     subject: 'CustomerRelationship',
   },
+  {
+    who: 'SELLER',
+    where: 'DAYS_3',
+    action: 'update',
+    subject: 'CustomerRelationship',
+    fields: ['customer_label', 'delivery_address', 'supplier_notes'],
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'update',
+    subject: 'CustomerRelationship',
+    fields: ['credit_limit'],
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'reassign',
+    subject: 'CustomerRelationship',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'end',
+    subject: 'CustomerRelationship',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'reopen',
+    subject: 'CustomerRelationship',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'create',
+    subject: 'CustomerRelationship',
+    conditions: { counter: true },
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'create',
+    subject: 'Product',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'update',
+    subject: 'Product',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'create',
+    subject: 'CustomerPrice',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'update',
+    subject: 'CustomerPrice',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'delete',
+    subject: 'CustomerPrice',
+  },
 ];
 
 function isAvailable(where: Where, role: string, context: AccessContext): boolean {

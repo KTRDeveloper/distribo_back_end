@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability';
 import { afterEach, describe, expect, it } from 'vitest';
 import { abilityFor, RULES, type AccessRule } from '../../../src/shared/access/ability.js';
 import { atLeast } from '../../../src/shared/access/roles.js';
@@ -52,5 +53,94 @@ describe('deny by default', () => {
     for (const action of ['create', 'read', 'update', 'delete', 'manage']) {
       expect(ability.can(action, 'CustomerRelationship')).toBe(false);
     }
+  });
+});
+
+describe('relationship, catalog and price rules', () => {
+  const phoneTwoDays = { daysSinceSync: 2, online: false, onServer: false };
+  const phoneFourDays = { daysSinceSync: 4, online: false, onServer: false };
+  const phoneNow = { daysSinceSync: 0, online: false, onServer: false };
+  const online = { daysSinceSync: 30, online: true, onServer: false };
+
+  it.each([
+    ['DRIVER', phoneNow, 'create', 'CustomerRelationship', undefined, false],
+    ['SELLER', phoneTwoDays, 'create', 'CustomerRelationship', undefined, true],
+    ['SELLER', phoneFourDays, 'create', 'CustomerRelationship', undefined, false],
+    ['SELLER', phoneTwoDays, 'update', 'CustomerRelationship', 'customer_label', true],
+    ['SELLER', phoneTwoDays, 'update', 'CustomerRelationship', 'credit_limit', false],
+    ['MANAGER', online, 'update', 'CustomerRelationship', 'credit_limit', true],
+    ['MANAGER', phoneNow, 'update', 'CustomerRelationship', 'credit_limit', false],
+    ['OWNER', phoneNow, 'update', 'CustomerRelationship', 'credit_limit', true],
+    ['MANAGER', phoneNow, 'create', 'Product', undefined, false],
+    ['OWNER', phoneNow, 'create', 'Product', undefined, true],
+    ['SELLER', online, 'create', 'CustomerPrice', undefined, false],
+  ] as const)(
+    'answers the examples for %s %s on %s',
+    (role, context, action, resource, field, expected) => {
+      expect(abilityFor(role, context).can(action, resource, field)).toBe(expected);
+    },
+  );
+
+  const contexts = [
+    ['phone 0 days', phoneNow],
+    ['phone 4 days', phoneFourDays],
+    ['online', online],
+    ['server judging a sync', { daysSinceSync: 30, online: false, onServer: true }],
+  ] as const;
+  const roles = ['DRIVER', 'SELLER', 'MANAGER', 'OWNER'] as const;
+
+  it('implements the complete who and where matrix and refuses unlisted actions', () => {
+    for (const role of roles) {
+      for (const [, context] of contexts) {
+        const ability = abilityFor(role, context);
+        const expectedRule = (rule: AccessRule): boolean => {
+          const roleAllowed = atLeast(role, rule.who);
+          const whereAllowed =
+            rule.where === 'ALWAYS' ||
+            (rule.where === 'DAYS_3' &&
+              (role === 'OWNER' || context.onServer || context.daysSinceSync < 3)) ||
+            (rule.where === 'ONLINE' && (role === 'OWNER' || context.online)) ||
+            (rule.where === 'NETWORK' && context.online);
+          return roleAllowed && whereAllowed;
+        };
+
+        for (const rule of RULES) {
+          const field = rule.fields?.[0];
+          const attributes = rule.conditions ?? { counter: false };
+          const target = subject(rule.subject, { ...attributes });
+          const expected = RULES.some(
+            (candidate) =>
+              candidate.action === rule.action &&
+              candidate.subject === rule.subject &&
+              (!field || !candidate.fields || candidate.fields.includes(field)) &&
+              (!candidate.conditions ||
+                Object.entries(candidate.conditions).every(
+                  ([key, value]) => attributes[key] === value,
+                )) &&
+              expectedRule(candidate),
+          );
+          expect(ability.can(rule.action, target, field)).toBe(expected);
+        }
+
+        expect(ability.can('read', 'CustomerRelationship')).toBe(false);
+        expect(ability.can('delete', 'Product')).toBe(false);
+        expect(ability.can('read', 'CustomerPrice')).toBe(false);
+      }
+    }
+  });
+
+  it('requires the counter condition for a manager creating an extra counter', () => {
+    const ability = abilityFor('MANAGER', online);
+
+    expect(ability.can('create', subject('CustomerRelationship', { counter: true }))).toBe(true);
+    expect(ability.can('create', subject('CustomerRelationship', { counter: false }))).toBe(false);
+  });
+
+  it('denies manager powers offline', () => {
+    const ability = abilityFor('MANAGER', phoneNow);
+
+    expect(ability.can('update', 'CustomerRelationship', 'credit_limit')).toBe(false);
+    expect(ability.can('create', 'Product')).toBe(false);
+    expect(ability.can('reassign', 'CustomerRelationship')).toBe(false);
   });
 });
