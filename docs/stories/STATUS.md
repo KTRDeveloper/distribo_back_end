@@ -47,18 +47,18 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-011 | done | | ready for review; story tests 8 passed; full suite 555 passed; typecheck and lint pass |
 | AUTH-012 | done | | |
 | AUTH-013 | done | | ready for review; story tests 9 passed; full suite 564 passed; typecheck and lint pass; per-001 (2 tests) and api-docs catalog test updated with user approval |
-| AUTH-014 | in_progress | | ready for review; story tests 7 passed; full suite 594 passed; typecheck and lint pass; per-001 and api-docs catalog path lists updated with user approval |
+| AUTH-014 | done | | ready for review; story tests 7 passed; full suite 594 passed; typecheck and lint pass; per-001 and api-docs catalog path lists updated with user approval |
 | AUTH-015 | todo | | |
 | AUTH-016 | done | | ready for review; 3 existing tests (per-001 x2, catalog) updated with user approval relayed by coordinator |
 | AUTH-017 | done | | 598/598 tests pass, typecheck clean, lint 0 errors; per-001 and api-docs catalog path lists updated with user approval |
 | AUTH-018 | todo | | |
-| AUTH-019 | in_progress | | ready for review; 62 files, 607 tests pass, lint 0 errors, typecheck clean; per-001 and api-docs catalog path lists updated with user approval |
+| AUTH-019 | done | | ready for review; 62 files, 607 tests pass, lint 0 errors, typecheck clean; per-001 and api-docs catalog path lists updated with user approval |
 | AUTH-020 | todo | | |
 | AUTH-021 | todo | | |
 | AUTH-022 | done | | 2 path lists (per-001, catalog) updated with user approval |
 | AUTH-023 | done | | 614 tests pass, typecheck clean, lint 0 errors; per-001 and api-docs catalog path lists updated with user approval |
 | AUTH-024 | done | | ready for review; 2 path lists (per-001, catalog) updated with user approval |
-| AUTH-025 | in_progress | | ready for review (risk high); 64 files, 624 tests pass, typecheck and lint clean; per-001 and api-docs catalog path lists updated with user approval |
+| AUTH-025 | done | | ready for review (risk high); 64 files, 624 tests pass, typecheck and lint clean; per-001 and api-docs catalog path lists updated with user approval |
 | AUTH-026 | done | | |
 | ORG-001 | todo | | |
 | ORG-002 | todo | | |
