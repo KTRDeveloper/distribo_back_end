@@ -1,28 +1,25 @@
 {
+  "autoCompactWindow": 200000,
   "env": {
-    "CLAUDE_CODE_GLOB_NO_IGNORE": "false"
+    "CLAUDE_CODE_GLOB_NO_IGNORE": "false",
+    "NO_COLOR": "1"
   },
   "permissions": {
     "deny": [
-      "Edit(./data-model/modele-donnees-livraisons.md)",
-      "Write(./data-model/modele-donnees-livraisons.md)",
-      "Read(./node_modules/**)",
-      "Read(./built/**)",
-      "Read(./coverage/**)",
-      "Read(./yarn-error.log)",
+      "Edit(./data-model/**)",
       "Read(./.env)",
-      "Read(./.env-dev)",
-      "Read(./.env-godealy-prod)",
-      "Read(./package.json.save)",
-      "Read(./package.json.2saved)",
-      "Read(./.eslintrc.json.save)",
-      "Read(./jest.config.js.save)",
-      "Grep(./node_modules/**)",
-      "Grep(./built/**)",
-      "Grep(./coverage/**)",
-      "Glob(./node_modules/**)",
-      "Glob(./built/**)",
-      "Glob(./coverage/**)"
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Read(./.env.production)",
+      "Read(./node_modules/**)",
+      "Read(./dist/**)",
+      "Read(./coverage/**)",
+      "Read(./package-lock.json)",
+      "Read(./openapi/openapi.json)",
+      "Read(./docs/stories/_meta/baseline/**)",
+      "Read(./docs/stories/_meta/index.json)",
+      "Read(./docs/stories/_meta/backlog.json)",
+      "Read(./docs/stories/_meta/model.json)"
     ]
   },
   "hooks": {
