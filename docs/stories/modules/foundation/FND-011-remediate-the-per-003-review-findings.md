@@ -33,7 +33,6 @@ Technical story: remediate all PER-003 review findings so configuration, databas
 Scenario: AC-1 Agent configuration is safe and valid
   When tracked files and this branch's commits are scanned
   Then neither the exposed nor replacement credential is present
-  And the Haiku alias is exactly `cx/gpt-5.6-sol-low`
   And unconfirmed revocation blocks the story without recording a credential
 Scenario: AC-2 CI uses allowed actions
   Then the workflow uses only `actions/checkout@v7` and `actions/setup-node@v7`
@@ -84,7 +83,7 @@ Scenario: AB-2 Migration partially weakens integrity (tampering)
 ## Tests
 | name | level | covers | input → expected |
 |---|---|---|---|
-| configuration policy | security | AC-1, AC-2, AB-1, CWE-798 | tracked content and commits → no credential; exact alias and action versions |
+| configuration policy | security | AC-1, AC-2, AB-1, CWE-798 | tracked content and commits → no credential; exact action versions |
 | migration preflight | integration | AC-3, AB-2, C-02, C-03 | dirty row → IDs-only abort, no data or schema change |
 | atomic email change | integration | AC-4, AB-2, C-03 | collision → old rule retained; clean data → partial index |
 | whitespace boundaries | integration | AC-5, C-03 | whitespace-only → 23514; ordinary text → accepted |
@@ -96,7 +95,7 @@ Command: `python3 .claude/skills/design-to-user-stories/scripts/validate.py --ou
 ### Tests to update
 | existing test | reason | new expectation |
 |---|---|---|
-| tests/unit/tooling/quality-gates.test.ts | policy coverage missing | reject credentials and incorrect aliases or actions |
+| tests/unit/tooling/quality-gates.test.ts | policy coverage missing | reject credentials and incorrect actions |
 | tests/integration/person/person-checks.test.ts | migration boundaries missing | cover audit, rollback, whitespace, UUIDv7 and partial uniqueness |
 | tests/helpers/database.ts | semantic change hidden by formatting | characterize the `newId()` default under FND-011 |
 

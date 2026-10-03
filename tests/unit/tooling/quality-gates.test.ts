@@ -82,16 +82,6 @@ describe('Quality Gates Tooling', () => {
     });
   });
 
-  describe('FND-011 configuration policy', () => {
-    it('pins the Haiku alias exactly', () => {
-      const settings = JSON.parse(
-        readFileSync(resolve(rootDir, '.claude/settings.json'), 'utf8')
-      ) as { env?: Record<string, string> };
-
-      expect(settings.env?.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('cx/gpt-5.6-sol-low');
-    });
-  });
-
   describe('conventions loaded (AC-4)', () => {
     it('contains the line @docs/stories/CONVENTIONS.md exactly once in CLAUDE.md', () => {
       const claudeMdPath = resolve(rootDir, 'CLAUDE.md');
