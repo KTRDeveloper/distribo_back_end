@@ -26,7 +26,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ACC-001 | done | | ready for review |
 | ACC-002 | done | | ready for review |
 | ACC-003 | done | | ready for review |
-| ACC-004 | in_progress | | ready for review |
+| ACC-004 | done | | ready for review |
 | ACC-005 | todo | | |
 | ACC-006 | todo | | |
 | ACC-007 | todo | | |
