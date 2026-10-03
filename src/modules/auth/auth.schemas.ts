@@ -30,6 +30,7 @@ export const registerSchema = z
     full_name: z.string().trim().min(1).max(100),
     password: z.string().min(1).max(256),
     device: deviceSchema,
+    new_holder: z.boolean().optional(),
   })
   .strict();
 

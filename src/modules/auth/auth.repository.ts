@@ -32,3 +32,35 @@ export async function completeRegistration(
   if (r.count !== 1) return null;
   return tx.person.findUniqueOrThrow({ where: { id: holder.id } });
 }
+
+/**
+ * Releases the registered holder of a number (CM-04): the number moves to
+ * `released_phone_number`, verification is cleared and `scope_version` is bumped (CM-03).
+ * Name, relations and sessions stay untouched.
+ *
+ * @returns The released person's id, email and verification state, or null when nobody registered holds it.
+ */
+export async function releaseRegisteredHolder(
+  tx: Prisma.TransactionClient,
+  phone: string
+): Promise<{ id: string; email: string | null; emailVerified: boolean } | null> {
+  const holder = await tx.person.findFirst({
+    where: { phoneNumber: phone, registeredAt: { not: null } },
+  });
+  if (!holder) return null;
+  await tx.person.update({
+    where: { id: holder.id },
+    data: {
+      phoneNumber: null,
+      releasedPhoneNumber: phone,
+      phoneVerifiedAt: null,
+      scopeVersion: { increment: 1 },
+      serverUpdatedAt: new Date(),
+    },
+  });
+  return {
+    id: holder.id,
+    email: holder.email,
+    emailVerified: holder.emailVerifiedAt !== null,
+  };
+}

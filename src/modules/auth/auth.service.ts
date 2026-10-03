@@ -4,7 +4,9 @@ import { normalizeE164 } from '../../shared/phone.js';
 import { findByActivePhone } from '../person/person.repository.js';
 import { hashPassword, validatePasswordRules } from '../../lib/password.js';
 import { logger } from '../../lib/logger.js';
-import { completeRegistration, inTransaction } from './auth.repository.js';
+import { enqueueOtpDelivery } from '../../lib/otp-delivery-queue.js';
+import { notify } from '../notification/notification.service.js';
+import { completeRegistration, inTransaction, releaseRegisteredHolder } from './auth.repository.js';
 import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
 import { issueSession, type DeviceInfo } from './session.service.js';
 
@@ -63,6 +65,7 @@ export type RegisterInput = {
   full_name: string;
   password: string;
   device: DeviceInfo;
+  new_holder?: boolean;
 };
 
 export type SessionResponse = {
@@ -83,6 +86,25 @@ export type SessionResponse = {
  * @throws 400 VALIDATION_ERROR, OTP_INVALID, OTP_EXPIRED, WEAK_PASSWORD; 409 ACCOUNT_EXISTS
  */
 export async function register(input: RegisterInput): Promise<SessionResponse> {
+  return registerInternal(input, input.new_holder === true);
+}
+
+/**
+ * Register as the new holder of a recycled number (CM-04, C-02): the code proves the
+ * SIM, the previous registered holder is released in the same transaction, notified
+ * (`phone.taken_over`, plus an email when verified, without the number) and keeps
+ * everything else. Nothing of theirs is reassigned (v5.0.0-8.2.2).
+ *
+ * @throws 400 OTP_INVALID, OTP_EXPIRED, WEAK_PASSWORD, VALIDATION_ERROR; 409 ACCOUNT_EXISTS
+ */
+export function releaseHolderAndRegister(input: RegisterInput): Promise<SessionResponse> {
+  return registerInternal(input, true);
+}
+
+const TAKEN_OVER_TEXT =
+  "Votre numéro est maintenant utilisé par quelqu'un d'autre. Ajoutez votre nouveau numéro.";
+
+async function registerInternal(input: RegisterInput, release: boolean): Promise<SessionResponse> {
   const phone = normalizeE164(input.phone_number);
   if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
   if ((await validatePasswordRules(input.password)).length > 0) {
@@ -91,7 +113,15 @@ export async function register(input: RegisterInput): Promise<SessionResponse> {
   await verifyCode({ target: phone, purpose: 'REGISTRATION', code: input.code });
   const passwordHash = await hashPassword(input.password);
 
+  let released: Awaited<ReturnType<typeof releaseRegisteredHolder>> = null;
   const result = await inTransaction(async (tx) => {
+    released = release ? await releaseRegisteredHolder(tx, phone) : null;
+    if (released) {
+      await notify(
+        { recipientId: released.id, sourceEvent: 'phone.taken_over', content: TAKEN_OVER_TEXT },
+        tx
+      );
+    }
     const person = await completeRegistration(tx, {
       phone,
       fullName: input.full_name,
@@ -103,6 +133,21 @@ export async function register(input: RegisterInput): Promise<SessionResponse> {
   if (!result) {
     logger.warn({ event: 'registration_refused_account_exists' }, 'Registration refused');
     throw httpError(409, 'ACCOUNT_EXISTS', 'An account already exists for this number');
+  }
+  const prev = released as Awaited<ReturnType<typeof releaseRegisteredHolder>>;
+  if (prev) {
+    logger.warn(
+      { event: 'phone_released', previousPersonId: prev.id, personId: result.person.id },
+      'Phone number released'
+    );
+    if (prev.emailVerified && prev.email) {
+      await enqueueOtpDelivery({
+        channel: 'EMAIL',
+        to: prev.email,
+        message: TAKEN_OVER_TEXT,
+        subject: 'Distribo',
+      });
+    }
   }
   logger.info({ event: 'registered', personId: result.person.id }, 'Person registered');
   return {

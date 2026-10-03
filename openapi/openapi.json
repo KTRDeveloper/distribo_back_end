@@ -1029,6 +1029,9 @@
                       "app_version"
                     ],
                     "additionalProperties": false
+                  },
+                  "new_holder": {
+                    "type": "boolean"
                   }
                 },
                 "required": [

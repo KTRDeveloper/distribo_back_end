@@ -44,7 +44,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-008 | done | | ready for review |
 | AUTH-009 | done | | ready for review |
 | AUTH-010 | done | | ready for review; story tests 16 passed; full suite 547 passed; typecheck and lint pass; per-001 and catalog tests updated with user approval |
-| AUTH-011 | todo | | |
+| AUTH-011 | in_progress | | ready for review; story tests 8 passed; full suite 555 passed; typecheck and lint pass |
 | AUTH-012 | done | | |
 | AUTH-013 | todo | | |
 | AUTH-014 | todo | | |
