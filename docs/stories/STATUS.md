@@ -30,7 +30,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ACC-005 | done | | ready for review |
 | ACC-006 | done | | ready for review |
 | ACC-007 | done | | ready for review |
-| NTF-001 | todo | | |
+| NTF-001 | done | | Story tests: 7 passed; full suite: 401 passed; typecheck and lint pass |
 | NTF-002 | todo | | |
 | NTF-003 | todo | | |
 | NTF-004 | todo | | |

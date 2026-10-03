@@ -86,6 +86,11 @@ enum RefreshTokenRevokedReason {
   ACCOUNT_LOCKED
 }
 
+enum NotificationReadStatus {
+  UNREAD
+  READ
+}
+
 model SystemConfig {
   id               String    @id @default(uuid())
   category         String
@@ -150,8 +155,29 @@ model Person {
   tasks                 Task[]
   phoneNumberChangeLogs PhoneNumberChangeLog[]
   idempotencyKeys       IdempotencyKey[]
+  notifications         Notification[]
 
   @@map("people")
+}
+
+model Notification {
+  id                String                 @id @db.Uuid
+  recipientId       String                 @map("recipient_id") @db.Uuid
+  organizationId    String?                @map("organization_id") @db.Uuid
+  content           String                 @db.Text
+  sourceEvent       String                 @map("source_event")
+  relatedEntityType String?                @map("related_entity_type")
+  relatedEntityId   String?                @map("related_entity_id") @db.Uuid
+  readStatus        NotificationReadStatus @default(UNREAD) @map("read_status")
+  pushedAt          DateTime?              @map("pushed_at") @db.Timestamptz
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  serverUpdatedAt   DateTime               @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt         DateTime?              @map("deleted_at") @db.Timestamptz
+
+  recipient Person @relation(fields: [recipientId], references: [id])
+
+  @@index([recipientId, readStatus, createdAt(sort: Desc)])
+  @@map("notifications")
 }
 
 model IdempotencyKey {
