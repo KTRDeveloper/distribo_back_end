@@ -1,6 +1,9 @@
 import { checkAndConsume } from '../../lib/rate-limit.js';
 import { enqueueOtpDelivery } from '../../lib/otp-delivery-queue.js';
 import { generateOtp, hashOtp, verifyOtp } from '../../lib/otp.js';
+import { configService } from '../../lib/config-service.js';
+import { logger } from '../../lib/logger.js';
+import { otpDailyCapReachedTotal } from '../../lib/metrics.js';
 import { httpError } from '../../lib/http-error.js';
 import { isCameroonMobile } from '../../shared/phone.js';
 import { recipientLanguage } from '../notification/notification.service.js';
@@ -19,6 +22,41 @@ const CODE_TTL_MS = 10 * 60 * 1000;
 const HOUR_LIMIT = 3;
 const HOUR_SECONDS = 3600;
 const COOLDOWN_SECONDS = 60;
+const DAY_SECONDS = 86400;
+
+export type ClientKeys = { deviceId?: string; ip?: string };
+
+async function capOf(key: string): Promise<number | null> {
+  const v = await configService.get<number>('otp', key);
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
+}
+
+/** Apply device, IP and global daily caps; an unset cap is off (CM-07, v5.0.0-2.4.1). */
+async function enforceCaps(keys: ClientKeys): Promise<void> {
+  const refuse = () => httpError(429, 'OTP_RATE_LIMITED', 'Too many code requests');
+  const deviceCap = keys.deviceId ? await capOf('max_per_device_per_hour') : null;
+  if (keys.deviceId && deviceCap !== null) {
+    const r = await checkAndConsume(`otp:device:${keys.deviceId}`, deviceCap, HOUR_SECONDS);
+    if (!r.allowed) throw refuse();
+  }
+  const ipCap = keys.ip ? await capOf('max_per_ip_per_hour') : null;
+  if (keys.ip && ipCap !== null) {
+    const r = await checkAndConsume(`otp:ip:${keys.ip}`, ipCap, HOUR_SECONDS);
+    if (!r.allowed) throw refuse();
+  }
+  const dayCap = await capOf('max_per_day');
+  if (dayCap !== null) {
+    const r = await checkAndConsume('otp:day', dayCap, DAY_SECONDS);
+    if (!r.allowed) {
+      const first = await checkAndConsume('otp:day:alerted', 1, DAY_SECONDS);
+      if (first.allowed) {
+        logger.error({ event: 'otp_daily_cap_reached' }, 'OTP daily cap reached');
+        otpDailyCapReachedTotal.inc();
+      }
+      throw refuse();
+    }
+  }
+}
 
 function messageFor(code: string, language: 'FR' | 'EN'): string {
   return language === 'EN'
@@ -35,11 +73,14 @@ function messageFor(code: string, language: 'FR' | 'EN'): string {
  * @throws 429 OTP_RATE_LIMITED when the hourly or resend limit is hit
  */
 export async function issueCode(
-  input: IssueCodeInput
+  input: IssueCodeInput,
+  clientKeys: ClientKeys = {}
 ): Promise<{ challengeId: string; expiresAt: Date }> {
   if (input.channel === 'SMS' && !isCameroonMobile(input.target)) {
     throw httpError(400, 'UNSUPPORTED_NUMBER', 'This number is not supported');
   }
+
+  await enforceCaps(clientKeys);
 
   const cooldown = await checkAndConsume(
     `otp:cooldown:${input.purpose}:${input.target}`,

@@ -37,7 +37,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-001 | done | | |
 | AUTH-002 | done | ready for review | |
 | AUTH-003 | done | | |
-| AUTH-004 | todo | | |
+| AUTH-004 | in_progress | | ready for review |
 | AUTH-005 | todo | | |
 | AUTH-006 | todo | | |
 | AUTH-007 | todo | | |

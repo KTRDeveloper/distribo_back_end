@@ -64,6 +64,11 @@ export const configValidationTotal = new client.Counter({
   labelNames: ['status'],
 });
 
+export const otpDailyCapReachedTotal = new client.Counter({
+  name: 'otp_daily_cap_reached_total',
+  help: 'Times the global daily OTP sending cap was reached',
+});
+
 /**
  * Get metrics in Prometheus format
  */
