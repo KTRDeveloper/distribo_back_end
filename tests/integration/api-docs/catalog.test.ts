@@ -31,9 +31,13 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/remote-config/{id}');
     expect(paths).toContain('/api/v1/remote-config/migrate');
 
-    // AUTH-009/AUTH-010: the auth paths are the registration code request and registration
+    // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
-    expect(authPaths.sort()).toEqual(['/api/v1/auth/register', '/api/v1/auth/register/request']);
+    expect(authPaths.sort()).toEqual([
+      '/api/v1/auth/login',
+      '/api/v1/auth/register',
+      '/api/v1/auth/register/request',
+    ]);
   });
 
   it('groups endpoints by feature-area tags', async () => {

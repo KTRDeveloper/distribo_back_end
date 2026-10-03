@@ -1,5 +1,7 @@
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
+  loginResponseSchema,
+  loginSchema,
   registerRequestResponseSchema,
   registerRequestSchema,
   registerSchema,
@@ -45,6 +47,36 @@ openApiRegistry.registerPath({
     },
     409: {
       description: 'ACCOUNT_EXISTS',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/login',
+  tags: ['auth'],
+  summary: 'Sign in with number and password; a code is sent',
+  request: { body: { content: { 'application/json': { schema: loginSchema } } } },
+  responses: {
+    202: {
+      description: 'Login code queued',
+      content: { 'application/json': { schema: loginResponseSchema } },
+    },
+    400: {
+      description: 'Invalid request or EMAIL_NOT_VERIFIED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'INVALID_CREDENTIALS',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'ACCOUNT_SUSPENDED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    429: {
+      description: 'LOGIN_LOCKED or code limits reached',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

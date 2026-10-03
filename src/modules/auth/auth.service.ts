@@ -2,7 +2,9 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { httpError } from '../../lib/http-error.js';
 import { normalizeE164 } from '../../shared/phone.js';
 import { findByActivePhone } from '../person/person.repository.js';
-import { hashPassword, validatePasswordRules } from '../../lib/password.js';
+import { hashPassword, validatePasswordRules, verifyPassword } from '../../lib/password.js';
+import { checkAndConsume, getCount, resetKey } from '../../lib/rate-limit.js';
+import { config } from '../../config/index.js';
 import { logger } from '../../lib/logger.js';
 import { enqueueOtpDelivery } from '../../lib/otp-delivery-queue.js';
 import { notify } from '../notification/notification.service.js';
@@ -157,4 +159,69 @@ async function registerInternal(input: RegisterInput, release: boolean): Promise
     token_type: 'Bearer',
     person: { id: result.person.id, full_name: result.person.fullName },
   };
+}
+
+export type LoginInput = { phone_number: string; password: string; use_email?: boolean };
+
+const MAX_LOGIN_FAILURES = 5;
+let dummyHash: Promise<string> | undefined;
+/** Fixed Argon2id hash so unknown numbers cost one verification like known ones (v5.0.0-6.3.8). */
+function getDummyHash(): Promise<string> {
+  dummyHash ??= hashPassword('dummy-password-for-timing');
+  return dummyHash;
+}
+
+/**
+ * First login step (CM-05, C-33): check number and password, then send a LOGIN code;
+ * the password alone never opens a session (v5.0.0-6.3.3). Five failures per number
+ * lock it for `loginLockMinutes` (v5.0.0-6.3.1). Every failing credential case does the
+ * same work and gives the same answer (v5.0.0-6.3.8). Logs ids only.
+ *
+ * @throws 400 VALIDATION_ERROR, EMAIL_NOT_VERIFIED; 401 INVALID_CREDENTIALS;
+ *   403 ACCOUNT_SUSPENDED; 429 LOGIN_LOCKED, OTP_RATE_LIMITED
+ */
+export async function requestLogin(
+  input: LoginInput,
+  clientKeys: ClientKeys = {}
+): Promise<{ sent: true; channel: 'SMS' | 'EMAIL'; expires_in: number }> {
+  const phone = normalizeE164(input.phone_number);
+  if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  const key = `login:fail:${phone}`;
+  if ((await getCount(key)) >= MAX_LOGIN_FAILURES) {
+    logger.warn({ event: 'login_locked' }, 'Login locked');
+    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
+  }
+
+  const holder = await findByActivePhone(phone);
+  const hash = holder?.registeredAt && holder.passwordHash ? holder.passwordHash : null;
+  const ok = await verifyPassword(hash ?? (await getDummyHash()), input.password);
+  if (!ok || hash === null || !holder) {
+    await checkAndConsume(key, Number.MAX_SAFE_INTEGER, config.auth.loginLockMinutes * 60);
+    logger.warn(
+      { event: 'login_failed', ...(holder ? { personId: holder.id } : {}) },
+      'Login failed'
+    );
+    throw httpError(401, 'INVALID_CREDENTIALS', 'Invalid credentials');
+  }
+  await resetKey(key);
+  if (holder.status === 'SUSPENDED') {
+    logger.warn({ event: 'login_refused_suspended', personId: holder.id }, 'Login refused');
+    throw httpError(403, 'ACCOUNT_SUSPENDED', 'Account suspended');
+  }
+  const viaEmail = input.use_email === true;
+  if (viaEmail && (!holder.email || !holder.emailVerifiedAt)) {
+    throw httpError(400, 'EMAIL_NOT_VERIFIED', 'Email is not verified');
+  }
+  const channel = viaEmail ? 'EMAIL' : 'SMS';
+  await issueCode(
+    {
+      personId: holder.id,
+      target: viaEmail ? (holder.email ?? '') : phone,
+      purpose: 'LOGIN',
+      channel,
+    },
+    clientKeys
+  );
+  logger.info({ event: 'login_code_sent', personId: holder.id, channel }, 'Login code sent');
+  return { sent: true, channel, expires_in: EXPIRES_IN_SECONDS };
 }

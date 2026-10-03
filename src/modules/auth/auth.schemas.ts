@@ -43,3 +43,20 @@ export const sessionResponseSchema = z
     person: z.object({ id: z.string().uuid(), full_name: z.string().nullable() }).strict(),
   })
   .strict();
+
+/** Body of POST /auth/login; the number is normalized in the service. */
+export const loginSchema = z
+  .object({
+    phone_number: z.string().min(1).max(32),
+    password: z.string().min(1).max(256),
+    use_email: z.boolean().optional(),
+  })
+  .strict();
+
+export const loginResponseSchema = z
+  .object({
+    sent: z.literal(true),
+    channel: z.enum(['SMS', 'EMAIL']),
+    expires_in: z.number().int(),
+  })
+  .strict();

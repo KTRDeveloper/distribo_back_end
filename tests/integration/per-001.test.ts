@@ -20,13 +20,13 @@ describe('PER-001: Retire the old sign-in module', () => {
       expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
     });
 
-    it('POST /api/v1/auth/login returns 404 NOT_FOUND', async () => {
+    it('POST /api/v1/auth/login no longer accepts the legacy payload (AUTH-013)', async () => {
       const response = await request(app)
         .post('/api/v1/auth/login')
         .send({ phoneNumber: '+237123456789', password: 'Pass123!' });
 
-      expect(response.status).toBe(404);
-      expect(bodyOf<ErrorBody>(response).error.code).toBe('NOT_FOUND');
+      expect(response.status).toBe(400);
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
     });
 
     it('POST /api/v1/auth/refresh returns 404 NOT_FOUND', async () => {
@@ -46,7 +46,11 @@ describe('PER-001: Retire the old sign-in module', () => {
       const paths = Object.keys(doc.paths);
 
       const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
-      expect(authPaths.sort()).toEqual(['/api/v1/auth/register', '/api/v1/auth/register/request']);
+      expect(authPaths.sort()).toEqual([
+        '/api/v1/auth/login',
+        '/api/v1/auth/register',
+        '/api/v1/auth/register/request',
+      ]);
     });
 
     it('/api/v1/users/me is still listed in OpenAPI', async () => {
