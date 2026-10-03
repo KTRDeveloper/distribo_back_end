@@ -16,6 +16,8 @@ export type IssueCodeInput = {
   target: string;
   purpose: OtpPurpose;
   channel: 'SMS' | 'EMAIL';
+  /** Skips the recipient lookup (guests have no notification profile); default is the person's language. */
+  language?: 'FR' | 'EN';
 };
 
 const CODE_TTL_MS = 10 * 60 * 1000;
@@ -91,7 +93,8 @@ export async function issueCode(
   const hourly = await checkAndConsume(`otp:hour:${input.target}`, HOUR_LIMIT, HOUR_SECONDS);
   if (!hourly.allowed) throw httpError(429, 'OTP_RATE_LIMITED', 'Too many code requests');
 
-  const language = input.personId ? await recipientLanguage(input.personId) : 'FR';
+  const language =
+    input.language ?? (input.personId ? await recipientLanguage(input.personId) : 'FR');
   const code = generateOtp();
   const expiresAt = new Date(Date.now() + CODE_TTL_MS);
   const challengeId = await otpRepository.createChallenge({

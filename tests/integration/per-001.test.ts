@@ -46,7 +46,7 @@ describe('PER-001: Retire the old sign-in module', () => {
       const paths = Object.keys(doc.paths);
 
       const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
-      expect(authPaths).toHaveLength(0);
+      expect(authPaths).toEqual(['/api/v1/auth/register/request']);
     });
 
     it('/api/v1/users/me is still listed in OpenAPI', async () => {

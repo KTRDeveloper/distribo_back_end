@@ -31,9 +31,9 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/remote-config/{id}');
     expect(paths).toContain('/api/v1/remote-config/migrate');
 
-    // Verify no auth paths exist
+    // AUTH-009: the only auth path is the public registration code request
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
-    expect(authPaths).toHaveLength(0);
+    expect(authPaths).toEqual(['/api/v1/auth/register/request']);
   });
 
   it('groups endpoints by feature-area tags', async () => {

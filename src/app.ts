@@ -86,6 +86,7 @@ import { notificationRoutes } from './modules/notification/notification.routes.j
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import { personRoutes } from './modules/person/person.routes.js';
 import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js';
+import { authRoutes } from './modules/auth/auth.routes.js';
 import { apiDocsRoutes } from './modules/api-docs/api-docs.routes.js';
 
 // Register every module's OpenAPI paths/schemas on the shared registry
@@ -95,6 +96,7 @@ import './modules/health/health.openapi.js';
 import './modules/user/user.openapi.js';
 import './modules/tasks/tasks.openapi.js';
 import './modules/person/person.openapi.js';
+import './modules/auth/auth.openapi.js';
 import './modules/notification/notification.openapi.js';
 import './modules/remote-config/remote-config.openapi.js';
 
@@ -111,6 +113,7 @@ v1Router.use('/health', healthRoutes);
 v1Router.use('/users', userRoutes);
 v1Router.use('/tasks', tasksRoutes);
 v1Router.use('/people', personRoutes);
+v1Router.use('/auth', authRoutes);
 v1Router.use('/notifications', notificationRoutes);
 v1Router.use('/remote-config', remoteConfigRoutes);
 
