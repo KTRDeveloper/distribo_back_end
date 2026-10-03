@@ -66,10 +66,9 @@ describe('Person v10 table', () => {
       ).rejects.toThrow(/invalid input syntax for type uuid/i);
     });
 
-    it('old tables accounts, otp_challenges, email_verification_requests, refresh_tokens do not exist', async () => {
+    it('old tables accounts, email_verification_requests, refresh_tokens do not exist', async () => {
       const tables = [
         'accounts',
-        'otp_challenges',
         'email_verification_requests',
         'refresh_tokens',
       ];

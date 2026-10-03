@@ -20,7 +20,7 @@ enum TaskStatus {
 model Task {
   id           String     @id @default(uuid())
   type         String
-  accountId    String     @db.Uuid @map("account_id")
+  accountId    String     @map("account_id") @db.Uuid
   parameters   Json
   status       TaskStatus @default(QUEUED)
   priority     Int        @default(0)
@@ -59,7 +59,11 @@ model TaskResult {
 
 enum OtpPurpose {
   REGISTRATION
+  LOGIN
   PASSWORD_RESET
+  PHONE_CHANGE
+  EMAIL_VERIFICATION
+  TOTP_RECOVERY
 }
 
 enum OtpChannel {
@@ -136,21 +140,22 @@ model ConfigHistory {
 }
 
 model Person {
-  id                    String       @id @db.Uuid
-  fullName              String?      @map("full_name")
-  phoneNumber           String?      @unique @map("phone_number")
-  releasedPhoneNumber   String?      @map("released_phone_number")
-  phoneVerifiedAt       DateTime?    @map("phone_verified_at")
-  email                 String?
-  emailVerifiedAt       DateTime?    @map("email_verified_at")
-  passwordHash          String?      @map("password_hash")
-  registeredAt          DateTime?    @map("registered_at")
-  preferredLanguage     Language?    @map("preferred_language")
-  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz
-  status                PersonStatus @default(ACTIVE)
-  anonymizedAt          DateTime?    @map("anonymized_at")
-  serverUpdatedAt       DateTime     @default(now()) @map("server_updated_at") @db.Timestamptz
-  scopeVersion          Int          @default(0) @map("scope_version")
+  id                  String         @id @db.Uuid
+  otpChallenges       OtpChallenge[]
+  fullName            String?        @map("full_name")
+  phoneNumber         String?        @unique @map("phone_number")
+  releasedPhoneNumber String?        @map("released_phone_number")
+  phoneVerifiedAt     DateTime?      @map("phone_verified_at")
+  email               String?
+  emailVerifiedAt     DateTime?      @map("email_verified_at")
+  passwordHash        String?        @map("password_hash")
+  registeredAt        DateTime?      @map("registered_at")
+  preferredLanguage   Language?      @map("preferred_language")
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  status              PersonStatus   @default(ACTIVE)
+  anonymizedAt        DateTime?      @map("anonymized_at")
+  serverUpdatedAt     DateTime       @default(now()) @map("server_updated_at") @db.Timestamptz
+  scopeVersion        Int            @default(0) @map("scope_version")
 
   tasks                 Task[]
   phoneNumberChangeLogs PhoneNumberChangeLog[]
@@ -180,12 +185,30 @@ model Notification {
   @@map("notifications")
 }
 
+model OtpChallenge {
+  id         String     @id @db.Uuid
+  personId   String?    @map("person_id") @db.Uuid
+  target     String
+  purpose    OtpPurpose
+  channel    OtpChannel @default(SMS)
+  codeHash   String     @map("code_hash")
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz
+  attempts   Int        @default(0)
+  consumedAt DateTime?  @map("consumed_at") @db.Timestamptz
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  person Person? @relation(fields: [personId], references: [id])
+
+  @@index([target, purpose, createdAt(sort: Desc)])
+  @@map("otp_challenges")
+}
+
 model IdempotencyKey {
-  personId    String   @map("person_id") @db.Uuid
-  key         String   @db.Uuid
-  statusCode  Int?     @map("status_code")
-  responseBody Json?   @map("response_body")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  personId     String   @map("person_id") @db.Uuid
+  key          String   @db.Uuid
+  statusCode   Int?     @map("status_code")
+  responseBody Json?    @map("response_body")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
@@ -194,18 +217,17 @@ model IdempotencyKey {
 }
 
 model PhoneNumberChangeLog {
-  id                String   @id @db.Uuid
-  personId          String   @map("person_id") @db.Uuid
-  oldPhoneNumber    String   @map("old_phone_number")
-  newPhoneNumber    String   @map("new_phone_number")
-  verifiedAt        DateTime @map("verified_at") @db.Timestamptz
-  changedAt         DateTime @map("changed_at") @db.Timestamptz
-  serverUpdatedAt   DateTime @default(now()) @map("server_updated_at") @db.Timestamptz
-  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+  id              String    @id @db.Uuid
+  personId        String    @map("person_id") @db.Uuid
+  oldPhoneNumber  String    @map("old_phone_number")
+  newPhoneNumber  String    @map("new_phone_number")
+  verifiedAt      DateTime  @map("verified_at") @db.Timestamptz
+  changedAt       DateTime  @map("changed_at") @db.Timestamptz
+  serverUpdatedAt DateTime  @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
 
   person Person @relation(fields: [personId], references: [id])
 
   @@index([personId])
   @@map("phone_number_change_logs")
 }
-

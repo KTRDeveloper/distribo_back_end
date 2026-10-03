@@ -22,6 +22,7 @@ Technical story: create the table that holds one-time codes as hashes, with the 
 ## Context
 - Exists: `people` (PER-002); the old `otp_challenges` table was dropped there.
 - Adds: table `otp_challenges` (`person_id` nullable, `channel` default SMS, `attempts` default 0), CHECK `attempts <= 5`, CHECK that a SMS `target` starts with `+237`, and an index on (`target`, `purpose`, `created_at` desc).
+- Enums: the baseline migration created types `OtpPurpose` (REGISTRATION, PASSWORD_RESET) and `OtpChannel` (SMS, EMAIL), still declared in `prisma/schema.prisma`. In the migration, give `OtpPurpose` the six values with `ALTER TYPE "OtpPurpose" ADD VALUE IF NOT EXISTS ...` (or drop and recreate it if the type no longer exists in the database); keep `OtpChannel` as is. Update the Prisma enum to match.
 - Enforced later in code: a consumed or expired code is refused (AUTH-003); an EMAIL code goes to a verified email (AUTH-023, ADM).
 - `OtpChallenge` fields: `person_id` FK → Person, nullable; `target` string; `purpose` enum [REGISTRATION / LOGIN / PASSWORD_RESET / PHONE_CHANGE / EMAIL_VERIFICATION / TOTP_RECOVERY]; `channel` enum [SMS / EMAIL]; `code_hash` string; `expires_at` datetime; `attempts` int; `consumed_at` datetime, nullable; `created_at` datetime
 - `OtpChallenge:required`: NOT NULL: `target`, `purpose`, `channel`, `code_hash`, `expires_at`, `attempts`, `created_at`
@@ -73,6 +74,9 @@ None: no protected resource or action.
 | enums and fk | integration | AC-3, OtpChallenge.purpose:enum, OtpChallenge.channel:enum, OtpChallenge:fk | bad enum values and unknown person → rejected |
 
 Command: `npx vitest run tests/integration/auth/otp-table.test.ts`
+
+## Tests to update
+- `tests/integration/person/person-table.test.ts`, test "old tables accounts, otp_challenges, email_verification_requests, refresh_tokens do not exist": remove `otp_challenges` from the list of absent tables (this story creates it again) and rename the test to match. Change nothing else in that file.
 
 ## Out of scope
 - Issuing and verifying codes (AUTH-002, AUTH-003).
