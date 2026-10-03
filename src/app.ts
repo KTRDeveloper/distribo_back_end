@@ -82,6 +82,7 @@ app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 // Routes
 import { healthRoutes } from './modules/health/health.routes.js';
 import { userRoutes } from './modules/user/user.routes.js';
+import { notificationRoutes } from './modules/notification/notification.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import { personRoutes } from './modules/person/person.routes.js';
 import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js';
@@ -94,6 +95,7 @@ import './modules/health/health.openapi.js';
 import './modules/user/user.openapi.js';
 import './modules/tasks/tasks.openapi.js';
 import './modules/person/person.openapi.js';
+import './modules/notification/notification.openapi.js';
 import './modules/remote-config/remote-config.openapi.js';
 
 const v1Router = express.Router();
@@ -109,6 +111,7 @@ v1Router.use('/health', healthRoutes);
 v1Router.use('/users', userRoutes);
 v1Router.use('/tasks', tasksRoutes);
 v1Router.use('/people', personRoutes);
+v1Router.use('/notifications', notificationRoutes);
 v1Router.use('/remote-config', remoteConfigRoutes);
 
 // Interactive API docs — never reachable in production (FR-008)

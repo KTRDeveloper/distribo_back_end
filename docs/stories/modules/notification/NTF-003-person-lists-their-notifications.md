@@ -8,7 +8,16 @@ amends: []
 size: S
 risk: medium
 depends_on: [NTF-002, FND-009]
-read_first: [docs/stories/modules/notification/contracts.md, src/modules/tasks/tasks.routes.ts]
+read_first:
+  - docs/stories/modules/notification/contracts.md
+  - src/shared/pagination.ts
+  - src/middleware/auth.ts
+  - src/types/express.d.ts
+  - src/modules/tasks/tasks.controller.ts
+  - src/modules/tasks/tasks.routes.ts
+  - src/modules/tasks/tasks.openapi.ts
+  - tests/helpers/request.ts
+  - tests/integration/notification/notify.test.ts
 design_refs: [notifications/notification]
 constraints: []
 asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
@@ -21,6 +30,7 @@ As a customer, I want to list my notifications, newest first, so that I see what
 
 ## Context
 - Exists: `notify` (NTF-002); `paginationQuerySchema` and cursors (FND-009); `authMiddleware`.
+- The authenticated recipient identity is `req.user.id`.
 - Adds: `GET /api/v1/notifications?limit&cursor&unread=true`. Response `{ items: [{ id, organization_id, content, source_event, related_entity_type, related_entity_id, read_status, created_at }], next_cursor }`. Rows with `deleted_at` are excluded.
 
 ## Acceptance criteria
