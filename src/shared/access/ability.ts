@@ -223,6 +223,48 @@ export const RULES: AccessRule[] = [
     action: 'cancel',
     subject: 'Handover',
   },
+  {
+    who: 'OWNER',
+    where: 'NETWORK',
+    action: 'manage',
+    subject: 'Collaboration',
+  },
+  {
+    who: 'OWNER',
+    where: 'NETWORK',
+    action: 'manage',
+    subject: 'Subscription',
+  },
+  {
+    who: 'OWNER',
+    where: 'NETWORK',
+    action: 'transfer_ownership',
+    subject: 'Organization',
+  },
+  {
+    who: 'OWNER',
+    where: 'NETWORK',
+    action: 'close',
+    subject: 'Organization',
+  },
+  {
+    who: 'OWNER',
+    where: 'NETWORK',
+    action: 'reopen',
+    subject: 'Organization',
+  },
+  {
+    who: 'MANAGER',
+    where: 'NETWORK',
+    action: 'order_from_supplier',
+    subject: 'CustomerRelationship',
+  },
+  {
+    who: 'MANAGER',
+    where: 'NETWORK',
+    action: 'invite_supplier',
+    subject: 'CustomerRelationship',
+  },
 ];
 
 function isAvailable(where: Where, role: string, context: AccessContext): boolean {

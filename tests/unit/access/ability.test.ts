@@ -327,3 +327,69 @@ describe('money rules', () => {
     }
   });
 });
+
+describe('team, subscription and organization rules', () => {
+  const offline = { daysSinceSync: 0, online: false, onServer: false };
+  const online = { daysSinceSync: 30, online: true, onServer: false };
+  const serverOffline = { daysSinceSync: 30, online: false, onServer: true };
+  const serverOnline = { daysSinceSync: 30, online: true, onServer: true };
+
+  it.each([
+    ['OWNER', online, 'manage', 'Collaboration', true],
+    ['OWNER', offline, 'manage', 'Collaboration', false],
+    ['MANAGER', online, 'manage', 'Collaboration', false],
+    ['OWNER', offline, 'close', 'Organization', false],
+    ['OWNER', online, 'close', 'Organization', true],
+    ['MANAGER', online, 'invite_supplier', 'CustomerRelationship', true],
+    ['MANAGER', offline, 'order_from_supplier', 'CustomerRelationship', false],
+    ['SELLER', online, 'invite_supplier', 'CustomerRelationship', false],
+  ] as const)(
+    'answers the network-only example for %s %s on %s',
+    (role, context, action, resource, expected) => {
+      expect(abilityFor(role, context).can(action, resource)).toBe(expected);
+    },
+  );
+
+  it('implements every new rule across every role and context and denies unlisted actions', () => {
+    const roles = ['DRIVER', 'SELLER', 'MANAGER', 'OWNER'] as const;
+    const contexts = [offline, online, serverOffline, serverOnline];
+    const teamRules = RULES.filter((rule) =>
+      [
+        'manage:Collaboration',
+        'manage:Subscription',
+        'transfer_ownership:Organization',
+        'close:Organization',
+        'reopen:Organization',
+        'order_from_supplier:CustomerRelationship',
+        'invite_supplier:CustomerRelationship',
+      ].includes(`${rule.action}:${rule.subject}`),
+    );
+
+    expect(teamRules).toHaveLength(7);
+    for (const role of roles) {
+      for (const context of contexts) {
+        const ability = abilityFor(role, context);
+        for (const rule of teamRules) {
+          expect(ability.can(rule.action, rule.subject)).toBe(
+            atLeast(role, rule.who) && context.online,
+          );
+        }
+
+        expect(ability.can('delete', 'Organization')).toBe(false);
+        expect(ability.can('disconnect_supplier', 'CustomerRelationship')).toBe(false);
+      }
+    }
+  });
+
+  it('prevents a manager from changing rights in every context', () => {
+    for (const context of [offline, online, serverOffline, serverOnline]) {
+      const ability = abilityFor('MANAGER', context);
+
+      expect(ability.can('manage', 'Collaboration')).toBe(false);
+      expect(ability.can('manage', 'Subscription')).toBe(false);
+      expect(ability.can('close', 'Organization')).toBe(false);
+      expect(ability.can('reopen', 'Organization')).toBe(false);
+      expect(ability.can('transfer_ownership', 'Organization')).toBe(false);
+    }
+  });
+});
