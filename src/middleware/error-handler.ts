@@ -2,6 +2,14 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../lib/logger.js';
 import { ZodError } from 'zod';
 
+/** Sanitized validation issue: field path and rule code only (ASVS 16.5.1). */
+export type ValidationDetail = { path: (string | number)[]; code: string };
+
+/** Builds details explicitly from path and code so no input value or key name leaks (ASVS 15.3.1). */
+function toValidationDetails(err: ZodError): ValidationDetail[] {
+  return err.issues.map((i) => ({ path: [...i.path], code: i.code }));
+}
+
 /**
  * Standard error response interface
  */
@@ -9,7 +17,7 @@ export interface ErrorResponse {
   error: {
     message: string;
     code?: string;
-    details?: unknown;
+    details?: ValidationDetail[];
     requestId?: string;
   };
 }
@@ -28,12 +36,13 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
 
   // Handle Zod validation errors
   if (err instanceof ZodError) {
-    logger.warn({ requestId, errors: err.errors }, 'Validation error');
+    const details = toValidationDetails(err);
+    logger.warn({ requestId, details }, 'Validation error');
     return res.status(400).json({
       error: {
         message: 'Validation failed',
         code: 'VALIDATION_ERROR',
-        details: err.errors,
+        details,
         requestId,
       },
     } satisfies ErrorResponse);
