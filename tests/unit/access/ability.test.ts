@@ -209,3 +209,121 @@ describe('order and delivery rules', () => {
     );
   });
 });
+
+describe('money rules', () => {
+  const phoneThirtyDays = { daysSinceSync: 30, online: false, onServer: false };
+  const phoneNow = { daysSinceSync: 0, online: false, onServer: false };
+  const online = { daysSinceSync: 30, online: true, onServer: false };
+
+  it.each([
+    ['DRIVER', phoneThirtyDays, 'create', 'PAYMENT', true],
+    ['DRIVER', phoneThirtyDays, 'create', 'REFUND', false],
+    ['DRIVER', phoneThirtyDays, 'create', 'CREDIT_NOTE', false],
+    ['SELLER', phoneThirtyDays, 'create', 'PAYMENT', true],
+    ['SELLER', phoneThirtyDays, 'create', 'REFUND', false],
+    ['MANAGER', online, 'create', 'REFUND', true],
+    ['MANAGER', phoneNow, 'create', 'REFUND', false],
+    ['MANAGER', online, 'create', 'OPENING_BALANCE', true],
+    ['OWNER', phoneThirtyDays, 'reverse', 'SALE', true],
+    ['SELLER', online, 'reverse', 'PAYMENT', false],
+  ] as const)(
+    'answers the ledger example for %s %s on %s',
+    (role, context, action, kind, expected) => {
+      expect(abilityFor(role, context).can(action, subject('LedgerEntry', { kind }))).toBe(expected);
+    },
+  );
+
+  it.each(['Expense', 'Handover'] as const)(
+    'allows managers online and owners to create and cancel %s',
+    (resource) => {
+      for (const action of ['create', 'cancel']) {
+        expect(abilityFor('MANAGER', online).can(action, resource)).toBe(true);
+        expect(abilityFor('MANAGER', phoneNow).can(action, resource)).toBe(false);
+        expect(abilityFor('OWNER', phoneNow).can(action, resource)).toBe(true);
+        expect(abilityFor('SELLER', online).can(action, resource)).toBe(false);
+        expect(abilityFor('DRIVER', online).can(action, resource)).toBe(false);
+      }
+    },
+  );
+
+  it('implements every money rule across all roles and contexts', () => {
+    const roles = ['DRIVER', 'SELLER', 'MANAGER', 'OWNER'] as const;
+    const contexts = [phoneNow, phoneThirtyDays, online, { ...phoneThirtyDays, onServer: true }];
+    const moneyRules = RULES.filter((rule) =>
+      ['LedgerEntry', 'Expense', 'Handover'].includes(rule.subject),
+    );
+
+    for (const role of roles) {
+      for (const context of contexts) {
+        const ability = abilityFor(role, context);
+        for (const rule of moneyRules) {
+          const kindCondition = rule.conditions?.kind;
+          const kind =
+            typeof kindCondition === 'object' && kindCondition !== null && '$in' in kindCondition
+              ? (kindCondition.$in as string[])[0]
+              : kindCondition;
+          const target =
+            rule.subject === 'LedgerEntry' ? subject('LedgerEntry', { kind }) : rule.subject;
+          const expected = moneyRules.some((candidate) => {
+            const candidateAvailable =
+              candidate.where === 'ALWAYS' ||
+              (candidate.where === 'ONLINE' && (role === 'OWNER' || context.online));
+            const candidateKind = candidate.conditions?.kind;
+            const kindMatches =
+              candidate.subject !== 'LedgerEntry' ||
+              candidateKind === kind ||
+              (typeof candidateKind === 'object' &&
+                candidateKind !== null &&
+                '$in' in candidateKind &&
+                (candidateKind.$in as unknown[]).includes(kind));
+            return (
+              candidate.action === rule.action &&
+              candidate.subject === rule.subject &&
+              atLeast(role, candidate.who) &&
+              candidateAvailable &&
+              kindMatches
+            );
+          });
+
+          expect(ability.can(rule.action, target)).toBe(expected);
+        }
+
+        expect(ability.can('delete', 'LedgerEntry')).toBe(false);
+        expect(ability.can('update', 'Expense')).toBe(false);
+        expect(ability.can('read', 'Handover')).toBe(false);
+      }
+    }
+  });
+
+  it('requires a permitted kind for every ledger creation', () => {
+    const ledgerCreateRules = RULES.filter(
+      (rule) => rule.action === 'create' && rule.subject === 'LedgerEntry',
+    );
+
+    expect(ledgerCreateRules).not.toHaveLength(0);
+    expect(ledgerCreateRules.every((rule) => rule.conditions?.kind !== undefined)).toBe(true);
+    for (const [role, context] of [
+      ['DRIVER', phoneNow],
+      ['SELLER', online],
+      ['MANAGER', online],
+      ['OWNER', phoneNow],
+    ] as const) {
+      expect(
+        abilityFor(role, context).can('create', subject('LedgerEntry', { kind: 'UNKNOWN' })),
+      ).toBe(false);
+    }
+  });
+
+  it.each(['DRIVER', 'SELLER'] as const)('denies forbidden money gestures to %s', (role) => {
+    const ability = abilityFor(role, online);
+
+    expect(ability.can('reverse', subject('LedgerEntry', { kind: 'PAYMENT' }))).toBe(false);
+    for (const kind of ['REFUND', 'CREDIT_NOTE']) {
+      expect(ability.can('create', subject('LedgerEntry', { kind }))).toBe(false);
+    }
+    for (const resource of ['Expense', 'Handover']) {
+      expect(ability.can('create', resource)).toBe(false);
+      expect(ability.can('cancel', resource)).toBe(false);
+    }
+  });
+});

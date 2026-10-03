@@ -169,6 +169,60 @@ export const RULES: AccessRule[] = [
     action: 'assign',
     subject: 'Delivery',
   },
+  {
+    who: 'DRIVER',
+    where: 'ALWAYS',
+    action: 'create',
+    subject: 'LedgerEntry',
+    conditions: { kind: { $in: ['SALE', 'PAYMENT'] } },
+  },
+  {
+    who: 'SELLER',
+    where: 'ALWAYS',
+    action: 'create',
+    subject: 'LedgerEntry',
+    conditions: { kind: 'PAYMENT' },
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'create',
+    subject: 'LedgerEntry',
+    conditions: { kind: { $in: ['CREDIT_NOTE', 'REFUND', 'OPENING_BALANCE'] } },
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'reverse',
+    subject: 'LedgerEntry',
+    conditions: {
+      kind: { $in: ['SALE', 'PAYMENT', 'CREDIT_NOTE', 'REFUND', 'OPENING_BALANCE'] },
+    },
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'create',
+    subject: 'Expense',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'cancel',
+    subject: 'Expense',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'create',
+    subject: 'Handover',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE',
+    action: 'cancel',
+    subject: 'Handover',
+  },
 ];
 
 function isAvailable(where: Where, role: string, context: AccessContext): boolean {
