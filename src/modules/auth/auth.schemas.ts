@@ -87,3 +87,8 @@ export const refreshResponseSchema = z
     token_type: z.literal('Bearer'),
   })
   .strict();
+
+/** Body of POST /auth/password-reset/request; the number is validated in the service. */
+export const passwordResetRequestSchema = z
+  .object({ phone_number: z.string().min(1).max(32), use_email: z.boolean().optional() })
+  .strict();

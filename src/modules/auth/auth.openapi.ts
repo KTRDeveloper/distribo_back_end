@@ -3,6 +3,7 @@ import {
   loginResponseSchema,
   loginSchema,
   loginVerifySchema,
+  passwordResetRequestSchema,
   phoneChangeRequestSchema,
   refreshResponseSchema,
   refreshSchema,
@@ -196,6 +197,28 @@ openApiRegistry.registerPath({
     204: { description: 'Device session ended' },
     401: {
       description: 'UNAUTHORIZED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/password-reset/request',
+  tags: ['auth'],
+  summary: 'Ask for a password reset code',
+  request: { body: { content: { 'application/json': { schema: passwordResetRequestSchema } } } },
+  responses: {
+    202: {
+      description: 'Same answer for every number',
+      content: { 'application/json': { schema: registerRequestResponseSchema } },
+    },
+    400: {
+      description: 'Invalid request',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    429: {
+      description: 'OTP_RATE_LIMITED',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

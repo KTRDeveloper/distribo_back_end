@@ -3,6 +3,7 @@ import { httpError } from '../../lib/http-error.js';
 import {
   loginSchema,
   loginVerifySchema,
+  passwordResetRequestSchema,
   phoneChangeRequestSchema,
   refreshSchema,
   registerRequestSchema,
@@ -15,6 +16,7 @@ import {
   register,
   requestEmailVerification,
   requestLogin,
+  requestPasswordReset,
   requestPhoneChange,
   requestRegistrationCode,
 } from './auth.service.js';
@@ -105,5 +107,14 @@ authRoutes.post('/logout', authMiddleware, (req, res, next) => {
     if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
     if (req.user.deviceId) await revokeDevice(req.user.id, req.user.deviceId, 'LOGOUT');
     res.status(204).end();
+  })().catch(next);
+});
+
+// Public route: always 202 with the same keys, whatever the number.
+authRoutes.post('/password-reset/request', (req, res, next) => {
+  void (async () => {
+    const body = passwordResetRequestSchema.safeParse(req.body);
+    if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    res.status(202).json(await requestPasswordReset(body.data, { ip: req.ip }));
   })().catch(next);
 });

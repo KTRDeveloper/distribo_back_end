@@ -67,6 +67,38 @@ export async function requestRegistrationCode(
   };
 }
 
+/**
+ * Send a PASSWORD_RESET code to a registered holder's own channel (C-33, CM-07,
+ * v5.0.0-6.4.3): SMS, or the verified email when `use_email`. Every other case
+ * (invalid, foreign, unknown, guest, unverified email) sends nothing and answers
+ * identically (v5.0.0-6.3.8); only `masked_name` differs, as the design requires.
+ *
+ * @throws 429 OTP_RATE_LIMITED
+ */
+export async function requestPasswordReset(
+  input: { phone_number: string; use_email?: boolean },
+  clientKeys: ClientKeys = {}
+): Promise<{ sent: true; expires_in: number; existing_account: { masked_name: string } | null }> {
+  const nothing = { sent: true as const, expires_in: EXPIRES_IN_SECONDS, existing_account: null };
+  const phone = normalizeE164(input.phone_number);
+  if (phone === null) return nothing;
+  const holder = await findByActivePhone(phone);
+  if (!holder?.registeredAt || !holder.fullName) return nothing;
+  const viaEmail = input.use_email === true;
+  if (viaEmail && (!holder.email || !holder.emailVerifiedAt)) return nothing;
+  await issueCode(
+    {
+      personId: holder.id,
+      target: viaEmail ? (holder.email ?? '') : phone,
+      purpose: 'PASSWORD_RESET',
+      channel: viaEmail ? 'EMAIL' : 'SMS',
+    },
+    clientKeys
+  );
+  logger.info({ event: 'password_reset_code_sent', personId: holder.id }, 'Reset code sent');
+  return { ...nothing, existing_account: { masked_name: maskName(holder.fullName) } };
+}
+
 export type RegisterInput = {
   phone_number: string;
   code: string;
