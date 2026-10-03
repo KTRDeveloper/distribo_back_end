@@ -108,3 +108,20 @@ export const emailConfirmSchema = z.object({ code: z.string().regex(/^\d{6}$/) }
 export const phoneChangeConfirmSchema = z
   .object({ new_phone_number: z.string().min(1).max(32), code: z.string().regex(/^\d{6}$/) })
   .strict();
+
+/** Path parameter of DELETE /auth/devices/{id}. */
+export const deviceIdParamSchema = z.object({ id: z.string().uuid() }).strict();
+
+export const deviceListResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().uuid(),
+      platform: z.string(),
+      model: z.string().nullable(),
+      app_version: z.string(),
+      created_at: z.string(),
+      last_synced_at: z.string().nullable(),
+      current: z.boolean(),
+    })
+  ),
+});

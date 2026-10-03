@@ -21,6 +21,7 @@ import {
 import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
 import { newId } from '../../shared/ids.js';
 import { issueSession, type DeviceInfo } from './session.service.js';
+import { sessionRepository } from './session.repository.js';
 
 const EXPIRES_IN_SECONDS = 600;
 
@@ -499,4 +500,31 @@ export async function completeLogin(input: LoginVerifyInput): Promise<SessionRes
     token_type: 'Bearer',
     person: { id: holder.id, full_name: holder.fullName },
   };
+}
+
+export type DeviceView = {
+  id: string;
+  platform: string;
+  model: string | null;
+  app_version: string;
+  created_at: string;
+  last_synced_at: string | null;
+  current: boolean;
+};
+
+/** Live devices of the person with an explicit field list (v5.0.0-15.3.1); no push token or verdict. */
+export async function listDevices(
+  personId: string,
+  currentDeviceId: string
+): Promise<DeviceView[]> {
+  const rows = await sessionRepository.listLive(personId);
+  return rows.map((d) => ({
+    id: d.id,
+    platform: d.platform,
+    model: d.model,
+    app_version: d.appVersion,
+    created_at: d.createdAt.toISOString(),
+    last_synced_at: d.lastSyncedAt ? d.lastSyncedAt.toISOString() : null,
+    current: d.id === currentDeviceId,
+  }));
 }

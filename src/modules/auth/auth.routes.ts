@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { httpError } from '../../lib/http-error.js';
 import {
+  deviceIdParamSchema,
   emailConfirmSchema,
   loginSchema,
   loginVerifySchema,
@@ -11,12 +12,13 @@ import {
   registerRequestSchema,
   registerSchema,
 } from './auth.schemas.js';
-import { refreshSession, revokeDevice } from './session.service.js';
+import { refreshSession, revokeDevice, revokeSessions } from './session.service.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import {
   completeLogin,
   confirmPhoneChange,
   confirmEmail,
+  listDevices,
   register,
   requestEmailVerification,
   requestLogin,
@@ -132,6 +134,35 @@ authRoutes.post('/logout', authMiddleware, (req, res, next) => {
   void (async () => {
     if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
     if (req.user.deviceId) await revokeDevice(req.user.id, req.user.deviceId, 'LOGOUT');
+    res.status(204).end();
+  })().catch(next);
+});
+
+// Authenticated route: only the session person's live devices.
+authRoutes.get('/devices', authMiddleware, (req, res, next) => {
+  void (async () => {
+    if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
+    res.status(200).json({ items: await listDevices(req.user.id, req.user.deviceId ?? '') });
+  })().catch(next);
+});
+
+// Authenticated route: person and device filtered together; foreign ids answer 404.
+authRoutes.delete('/devices/:id', authMiddleware, (req, res, next) => {
+  void (async () => {
+    if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
+    const params = deviceIdParamSchema.safeParse(req.params);
+    if (!params.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    const ok = await revokeDevice(req.user.id, params.data.id, 'DEVICE_REMOVED');
+    if (!ok) throw httpError(404, 'NOT_FOUND', 'Device not found');
+    res.status(204).end();
+  })().catch(next);
+});
+
+// Authenticated route: ends every device of the person, this one included.
+authRoutes.post('/logout-all', authMiddleware, (req, res, next) => {
+  void (async () => {
+    if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
+    await revokeSessions(req.user.id, 'LOGOUT_ALL');
     res.status(204).end();
   })().catch(next);
 });

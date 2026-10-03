@@ -47,11 +47,14 @@ describe('PER-001: Retire the old sign-in module', () => {
 
       const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
       expect(authPaths.sort()).toEqual([
+        '/api/v1/auth/devices',
+        '/api/v1/auth/devices/{id}',
         '/api/v1/auth/email/verify/confirm',
         '/api/v1/auth/email/verify/request',
         '/api/v1/auth/login',
         '/api/v1/auth/login/verify',
         '/api/v1/auth/logout',
+        '/api/v1/auth/logout-all',
         '/api/v1/auth/password-reset/request',
         '/api/v1/auth/phone/change/confirm',
         '/api/v1/auth/phone/change/request',

@@ -1,5 +1,7 @@
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
+  deviceIdParamSchema,
+  deviceListResponseSchema,
   emailConfirmSchema,
   loginResponseSchema,
   loginSchema,
@@ -278,4 +280,54 @@ openApiRegistry.registerPath({
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },
+});
+
+const unauthorized = {
+  description: 'UNAUTHORIZED',
+  content: { 'application/json': { schema: errorResponseSchema } },
+};
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/auth/devices',
+  tags: ['auth'],
+  summary: 'List my signed-in phones',
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description: 'Live devices',
+      content: { 'application/json': { schema: deviceListResponseSchema } },
+    },
+    401: unauthorized,
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/auth/devices/{id}',
+  tags: ['auth'],
+  summary: 'Sign one of my phones out',
+  security: [{ bearerAuth: [] }],
+  request: { params: deviceIdParamSchema },
+  responses: {
+    204: { description: 'Device removed' },
+    400: {
+      description: 'VALIDATION_ERROR',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: unauthorized,
+    404: {
+      description: 'NOT_FOUND',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/logout-all',
+  tags: ['auth'],
+  summary: 'Sign out of every phone',
+  security: [{ bearerAuth: [] }],
+  responses: { 204: { description: 'All sessions ended' }, 401: unauthorized },
 });

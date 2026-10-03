@@ -112,4 +112,20 @@ export const sessionRepository = {
       return true;
     });
   },
+
+  /** Live devices of one person, newest first (person filter, v5.0.0-8.2.2). */
+  listLive(personId: string) {
+    return prisma.device.findMany({
+      where: { personId, revokedAt: null },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true,
+        platform: true,
+        model: true,
+        appVersion: true,
+        createdAt: true,
+        lastSyncedAt: true,
+      },
+    });
+  },
 };
