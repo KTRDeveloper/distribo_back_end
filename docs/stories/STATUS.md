@@ -31,7 +31,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ACC-006 | done | | ready for review |
 | ACC-007 | done | | ready for review |
 | NTF-001 | done | | Story tests: 7 passed; full suite: 401 passed; typecheck and lint pass |
-| NTF-002 | todo | | |
+| NTF-002 | todo | | Clarified registration predicate, bounded input validation and extensible source-event grammar |
 | NTF-003 | todo | | |
 | NTF-004 | todo | | |
 | AUTH-001 | todo | | |
