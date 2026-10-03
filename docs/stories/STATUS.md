@@ -22,7 +22,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | PER-005 | done | | Story tests: 6 passed; full suite: 271 passed; typecheck and lint pass |
 | PER-006 | done | | Story tests: 10 passed; full suite: 281 passed; typecheck and lint pass |
 | PER-007 | done | | Story tests: 16 passed; full suite: 292 passed; typecheck, lint and format check pass |
-| PER-008 | todo | | |
+| PER-008 | in_progress | | ready for review |
 | ACC-001 | todo | | |
 | ACC-002 | todo | | |
 | ACC-003 | todo | | |
