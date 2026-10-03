@@ -10,3 +10,9 @@ export const listNotificationsQuerySchema = paginationQuerySchema
       .optional(),
   })
   .strict();
+
+/** Read routes take no body fields. */
+export const emptyBodySchema = z.object({}).strict();
+
+/** Path parameter of the mark-one route. */
+export const notificationIdParamsSchema = z.object({ id: z.string().uuid() }).strict();

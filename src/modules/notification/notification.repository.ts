@@ -91,4 +91,21 @@ export const notificationRepository = {
           : null,
     };
   },
+
+  /** Marks one of the person's own notifications READ; returns false when none matches. */
+  async markRead(personId: string, id: string): Promise<boolean> {
+    const result = await prisma.notification.updateMany({
+      where: { id, recipientId: personId, deletedAt: null },
+      data: { readStatus: 'READ' },
+    });
+    return result.count > 0;
+  },
+
+  /** Marks every unread notification of the person READ. */
+  async markAllRead(personId: string): Promise<void> {
+    await prisma.notification.updateMany({
+      where: { recipientId: personId, deletedAt: null, readStatus: 'UNREAD' },
+      data: { readStatus: 'READ' },
+    });
+  },
 };

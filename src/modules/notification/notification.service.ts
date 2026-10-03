@@ -92,3 +92,18 @@ export async function recipientLanguage(
   if (!recipient || recipient.registeredAt === null) throw validationError();
   return recipient.preferredLanguage ?? 'FR';
 }
+
+/**
+ * Marks one of the person's own notifications as read (idempotent).
+ *
+ * @throws HTTP 404 `NOT_FOUND` when the id is absent or belongs to someone else.
+ */
+export async function markRead(personId: string, id: string): Promise<void> {
+  const found = await notificationRepository.markRead(personId, id);
+  if (!found) throw httpError(404, 'NOT_FOUND', 'Notification not found');
+}
+
+/** Marks every unread notification of the person as read. */
+export async function markAllRead(personId: string): Promise<void> {
+  await notificationRepository.markAllRead(personId);
+}

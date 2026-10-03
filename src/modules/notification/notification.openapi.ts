@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { openApiRegistry, errorResponseSchema } from '../../lib/openapi/registry.js';
-import { listNotificationsQuerySchema } from './notification.schemas.js';
+import { listNotificationsQuerySchema, notificationIdParamsSchema } from './notification.schemas.js';
 
 const notificationViewSchema = z.object({
   id: z.string().uuid(),
@@ -41,4 +41,41 @@ openApiRegistry.registerPath({
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },
+});
+
+const readErrors = {
+  400: {
+    description: 'Invalid id or body',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+  401: {
+    description: 'Missing or invalid token',
+    content: { 'application/json': { schema: errorResponseSchema } },
+  },
+};
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/notifications/{id}/read',
+  tags: ['notification'],
+  summary: 'Mark one of the signed-in person\'s notifications as read',
+  security: [{ bearerAuth: [] }],
+  request: { params: notificationIdParamsSchema },
+  responses: {
+    204: { description: 'Marked read' },
+    ...readErrors,
+    404: {
+      description: 'Not found',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/notifications/read-all',
+  tags: ['notification'],
+  summary: "Mark all of the signed-in person's notifications as read",
+  security: [{ bearerAuth: [] }],
+  responses: { 204: { description: 'All marked read' }, ...readErrors },
 });
