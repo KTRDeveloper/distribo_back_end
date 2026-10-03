@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 
-// Load environment variables from .env file
-dotenv.config();
+// Load environment variables from .env file (quiet: no dotenv banner in logs)
+dotenv.config({ quiet: true });
 
 // Zod schema for environment variable validation
 const envSchema = z.object({

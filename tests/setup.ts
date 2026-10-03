@@ -23,7 +23,6 @@ process.env.RATE_LIMIT_MAX = process.env.RATE_LIMIT_MAX || '100000';
 import { beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { execSync } from 'child_process';
 
 const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
 
@@ -103,22 +102,7 @@ beforeAll(() => {
   // Prisma 7 requires an explicit driver adapter (no implicit datasource.url connection)
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   prisma = new PrismaClient({ adapter });
-
-  // Apply any pending migrations to the test database. `migrate deploy` is
-  // safe/idempotent (applies only pending migrations, never resets or force-
-  // pushes schema state), unlike `db push --accept-data-loss` which Prisma's
-  // own AI-agent safety gate refuses to run non-interactively without fresh
-  // per-invocation consent. Now that this project has real migrations under
-  // prisma/migrations/, `migrate deploy` is also the more correct choice.
-  try {
-    execSync('npx prisma migrate deploy', {
-      env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL },
-      stdio: 'inherit',
-    });
-  } catch (error) {
-    console.error('Failed to apply migrations:', error);
-    throw error;
-  }
+  // Pending migrations are applied once per run by tests/global-setup.ts.
 });
 
 async function clearDatabase() {
