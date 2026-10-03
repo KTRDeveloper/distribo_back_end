@@ -149,8 +149,22 @@ model Person {
 
   tasks                 Task[]
   phoneNumberChangeLogs PhoneNumberChangeLog[]
+  idempotencyKeys       IdempotencyKey[]
 
   @@map("people")
+}
+
+model IdempotencyKey {
+  personId    String   @map("person_id") @db.Uuid
+  key         String   @db.Uuid
+  statusCode  Int?     @map("status_code")
+  responseBody Json?   @map("response_body")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([personId, key])
+  @@map("idempotency_keys")
 }
 
 model PhoneNumberChangeLog {
