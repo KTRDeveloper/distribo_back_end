@@ -8,6 +8,7 @@ import { redis } from './redis.js';
 export interface RateLimitClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, mode: 'EX', ttlSeconds: number): Promise<unknown>;
+  del?(key: string): Promise<unknown>;
 }
 
 export interface RateLimitResult {
@@ -37,4 +38,19 @@ export async function checkAndConsume(
   await client.set(key, String(next), 'EX', windowSeconds);
 
   return { allowed: true, remaining: limit - next };
+}
+
+/** Current count for `key`; a missing key counts 0. */
+export async function getCount(key: string, client: RateLimitClient = redis): Promise<number> {
+  const current = await client.get(key);
+  return current ? parseInt(current, 10) : 0;
+}
+
+/** Clear the counter for `key` (e.g. after a successful login). */
+export async function resetKey(key: string, client: RateLimitClient = redis): Promise<void> {
+  if (client.del) {
+    await client.del(key);
+    return;
+  }
+  await client.set(key, '0', 'EX', 1);
 }

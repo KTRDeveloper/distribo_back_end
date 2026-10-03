@@ -31,6 +31,11 @@ export const config = {
     refreshTokenExpiresInDays: env.REFRESH_TOKEN_EXPIRES_IN_DAYS,
   },
 
+  // Auth
+  auth: {
+    loginLockMinutes: env.LOGIN_LOCK_MINUTES,
+  },
+
   // CORS
   cors: {
     origins: env.CORS_ORIGINS,
