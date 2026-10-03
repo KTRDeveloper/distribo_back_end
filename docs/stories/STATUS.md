@@ -36,7 +36,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | NTF-004 | done | | Story tests: 5 passed; full suite: 455 passed, 1 pre-existing failure (quality-gates Haiku alias) unrelated; typecheck and lint pass |
 | AUTH-001 | done | | |
 | AUTH-002 | done | ready for review | |
-| AUTH-003 | in_progress | ready for review | |
+| AUTH-003 | done | | |
 | AUTH-004 | todo | | |
 | AUTH-005 | todo | | |
 | AUTH-006 | todo | | |
