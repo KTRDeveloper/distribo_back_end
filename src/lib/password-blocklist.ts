@@ -7,7 +7,15 @@ function load(): Promise<Set<string>> {
   cache ??= readFile(
     fileURLToPath(new URL('../../data/common-passwords.txt', import.meta.url)),
     'utf8'
-  ).then((t) => new Set(t.split('\n').map((l) => l.trim()).filter(Boolean)));
+  ).then(
+    (t) =>
+      new Set(
+        t
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean)
+      )
+  );
   return cache;
 }
 

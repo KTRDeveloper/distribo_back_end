@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { openApiRegistry, errorResponseSchema } from '../../lib/openapi/registry.js';
-import { listNotificationsQuerySchema, notificationIdParamsSchema } from './notification.schemas.js';
+import {
+  listNotificationsQuerySchema,
+  notificationIdParamsSchema,
+} from './notification.schemas.js';
 
 const notificationViewSchema = z.object({
   id: z.string().uuid(),
@@ -58,7 +61,7 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/api/v1/notifications/{id}/read',
   tags: ['notification'],
-  summary: 'Mark one of the signed-in person\'s notifications as read',
+  summary: "Mark one of the signed-in person's notifications as read",
   security: [{ bearerAuth: [] }],
   request: { params: notificationIdParamsSchema },
   responses: {

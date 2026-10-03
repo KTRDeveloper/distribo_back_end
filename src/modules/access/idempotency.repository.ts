@@ -35,7 +35,12 @@ export const idempotencyRepository = {
   },
 
   /** Persists the exact successful HTTP status and JSON body used for future replays. */
-  async complete(personId: string, key: string, statusCode: number, responseBody: unknown): Promise<void> {
+  async complete(
+    personId: string,
+    key: string,
+    statusCode: number,
+    responseBody: unknown
+  ): Promise<void> {
     await prisma.idempotencyKey.update({
       where: { personId_key: { personId, key } },
       data: {

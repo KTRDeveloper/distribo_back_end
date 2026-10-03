@@ -32,14 +32,22 @@ export function idempotent(): RequestHandler {
     const personId = req.user?.id;
     if (!personId) {
       return res.status(401).json({
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required', requestId: req.requestId },
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+          requestId: req.requestId,
+        },
       });
     }
     const key = parsed.data.id;
     const reserved = await idempotencyRepository.reserve(personId, key);
     if (!reserved) {
       const prior = await idempotencyRepository.find(personId, key);
-      if (prior?.statusCode !== null && prior?.statusCode !== undefined && prior.responseBody !== null) {
+      if (
+        prior?.statusCode !== null &&
+        prior?.statusCode !== undefined &&
+        prior.responseBody !== null
+      ) {
         res.setHeader('Idempotent-Replay', 'true');
         return res.status(prior.statusCode).json(prior.responseBody);
       }

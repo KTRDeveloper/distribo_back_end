@@ -23,7 +23,7 @@ const SERVER_CONTEXT = {
 export function requireAbility(
   action: string,
   subjectType: string,
-  conditionsFrom?: (req: Request) => Record<string, unknown>,
+  conditionsFrom?: (req: Request) => Record<string, unknown>
 ): RequestHandler {
   return (req, _res, next) => {
     const actor = req.actor;
@@ -31,7 +31,7 @@ export function requireAbility(
       actor !== undefined &&
       abilityFor(actor.role, SERVER_CONTEXT).can(
         action,
-        conditionsFrom ? subject(subjectType, conditionsFrom(req)) : subjectType,
+        conditionsFrom ? subject(subjectType, conditionsFrom(req)) : subjectType
       );
 
     if (permitted) {
@@ -46,7 +46,7 @@ export function requireAbility(
         action,
         subjectType,
       },
-      'Permission refused',
+      'Permission refused'
     );
     next(httpError(403, 'FORBIDDEN', 'Permission denied'));
   };

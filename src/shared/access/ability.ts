@@ -291,7 +291,7 @@ function isAvailable(where: Where, role: string, context: AccessContext): boolea
  */
 export function abilityFor(role: string, context: AccessContext): MongoAbility {
   const rules: RawRuleOf<MongoAbility>[] = RULES.filter(
-    ({ who, where }) => atLeast(role, who) && isAvailable(where, role, context),
+    ({ who, where }) => atLeast(role, who) && isAvailable(where, role, context)
   ).map(({ who: _who, where: _where, ...rule }) => rule);
 
   return createMongoAbility(rules);
