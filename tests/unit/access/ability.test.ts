@@ -106,16 +106,25 @@ describe('relationship, catalog and price rules', () => {
 
         for (const rule of RULES) {
           const field = rule.fields?.[0];
-          const attributes = rule.conditions ?? { counter: false };
-          const target = subject(rule.subject, { ...attributes });
+          const attributes = Object.fromEntries(
+            Object.entries(rule.conditions ?? { counter: false }).map(([key, value]) => [
+              key,
+              typeof value === 'object' && value !== null && '$in' in value
+                ? (value.$in as unknown[])[0]
+                : value,
+            ]),
+          );
+          const target = subject(rule.subject, attributes);
           const expected = RULES.some(
             (candidate) =>
               candidate.action === rule.action &&
               candidate.subject === rule.subject &&
               (!field || !candidate.fields || candidate.fields.includes(field)) &&
               (!candidate.conditions ||
-                Object.entries(candidate.conditions).every(
-                  ([key, value]) => attributes[key] === value,
+                Object.entries(candidate.conditions).every(([key, value]) =>
+                  typeof value === 'object' && value !== null && '$in' in value
+                    ? (value.$in as unknown[]).includes(attributes[key])
+                    : attributes[key] === value,
                 )) &&
               expectedRule(candidate),
           );
@@ -142,5 +151,61 @@ describe('relationship, catalog and price rules', () => {
     expect(ability.can('update', 'CustomerRelationship', 'credit_limit')).toBe(false);
     expect(ability.can('create', 'Product')).toBe(false);
     expect(ability.can('reassign', 'CustomerRelationship')).toBe(false);
+  });
+});
+
+describe('order and delivery rules', () => {
+  const phoneTwoDays = { daysSinceSync: 2, online: false, onServer: false };
+  const phoneFourDays = { daysSinceSync: 4, online: false, onServer: false };
+  const phoneNow = { daysSinceSync: 0, online: false, onServer: false };
+  const online = { daysSinceSync: 30, online: true, onServer: false };
+
+  it.each([
+    ['DRIVER', phoneTwoDays, 'depart', 'CONFIRMED', true],
+    ['DRIVER', phoneFourDays, 'depart', 'CONFIRMED', false],
+    ['DRIVER', phoneFourDays, 'deliver', 'IN_DELIVERY', true],
+    ['DRIVER', phoneFourDays, 'fail_delivery', 'IN_DELIVERY', true],
+    ['DRIVER', phoneNow, 'deliver', 'CONFIRMED', false],
+    ['DRIVER', phoneNow, 'cancel', 'CONFIRMED', false],
+    ['SELLER', phoneTwoDays, 'cancel', 'CONFIRMED', true],
+    ['SELLER', phoneTwoDays, 'cancel', 'DELIVERED', false],
+    ['SELLER', phoneTwoDays, 'deliver', 'CONFIRMED', true],
+    ['SELLER', phoneTwoDays, 'accept', 'PENDING', true],
+    ['SELLER', phoneTwoDays, 'accept', 'CONFIRMED', false],
+  ] as const)(
+    'answers the order-step example for %s %s in %s',
+    (role, context, action, status, expected) => {
+      expect(abilityFor(role, context).can(action, subject('Order', { status }))).toBe(expected);
+    },
+  );
+
+  it('allows only an online manager to assign a delivery', () => {
+    expect(abilityFor('MANAGER', online).can('assign', 'Delivery')).toBe(true);
+    expect(abilityFor('SELLER', online).can('assign', 'Delivery')).toBe(false);
+    expect(abilityFor('MANAGER', phoneNow).can('assign', 'Delivery')).toBe(false);
+  });
+
+  it('enforces writable fields and frozen terminal orders', () => {
+    const seller = abilityFor('SELLER', phoneTwoDays);
+
+    expect(seller.can('update', subject('Order', { status: 'DELIVERED' }), 'supplier_note')).toBe(true);
+    expect(seller.can('update', subject('Order', { status: 'DELIVERED' }), 'status')).toBe(false);
+    expect(seller.can('update', 'OrderLine', 'unit_price_applied')).toBe(true);
+    expect(seller.can('update', 'OrderLine', 'quantity')).toBe(false);
+  });
+
+  it.each(['accept', 'refuse', 'cancel', 'create'])(
+    'prevents a driver from performing %s on orders',
+    (action) => {
+      expect(
+        abilityFor('DRIVER', phoneNow).can(action, subject('Order', { status: 'PENDING' })),
+      ).toBe(false);
+    },
+  );
+
+  it('prevents a driver from updating order lines', () => {
+    expect(abilityFor('DRIVER', phoneNow).can('update', 'OrderLine', 'unit_price_applied')).toBe(
+      false,
+    );
   });
 });
