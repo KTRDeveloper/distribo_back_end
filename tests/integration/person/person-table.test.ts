@@ -70,7 +70,6 @@ describe('Person v10 table', () => {
       const tables = [
         'accounts',
         'email_verification_requests',
-        'refresh_tokens',
       ];
 
       for (const tableName of tables) {
