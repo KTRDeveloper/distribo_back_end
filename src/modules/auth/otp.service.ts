@@ -1,6 +1,6 @@
 import { checkAndConsume } from '../../lib/rate-limit.js';
 import { enqueueOtpDelivery } from '../../lib/otp-delivery-queue.js';
-import { generateOtp, hashOtp } from '../../lib/otp.js';
+import { generateOtp, hashOtp, verifyOtp } from '../../lib/otp.js';
 import { httpError } from '../../lib/http-error.js';
 import { isCameroonMobile } from '../../shared/phone.js';
 import { recipientLanguage } from '../notification/notification.service.js';
@@ -69,4 +69,31 @@ export async function issueCode(
     ...(input.channel === 'EMAIL' ? { subject: 'Distribo' } : {}),
   });
   return { challengeId, expiresAt };
+}
+
+const MAX_ATTEMPTS = 5;
+
+/**
+ * Check a code against the newest challenge for (target, purpose) (CM-06, C-33).
+ * An attempt is reserved with a guarded UPDATE before the hash is checked, and
+ * consumption is a guarded UPDATE, so parallel calls cannot exceed 5 tries or
+ * use a code twice (v5.0.0-6.5.3, v5.0.0-6.6.3, v5.0.0-2.3.4).
+ *
+ * @throws 400 OTP_INVALID, 400 OTP_EXPIRED, 429 OTP_LOCKED
+ */
+export async function verifyCode(input: {
+  target: string;
+  purpose: OtpPurpose;
+  code: string;
+}): Promise<{ challengeId: string; personId: string | null }> {
+  const invalid = () => httpError(400, 'OTP_INVALID', 'Invalid code');
+  const row = await otpRepository.findLatest(input.target, input.purpose);
+  if (!row || row.consumedAt) throw invalid();
+  if (row.expiresAt.getTime() <= Date.now()) throw httpError(400, 'OTP_EXPIRED', 'Code expired');
+  if (!(await otpRepository.reserveAttempt(row.id, MAX_ATTEMPTS))) {
+    throw httpError(429, 'OTP_LOCKED', 'Too many attempts');
+  }
+  if (!(await verifyOtp(input.code, row.codeHash))) throw invalid();
+  if (!(await otpRepository.consume(row.id))) throw invalid();
+  return { challengeId: row.id, personId: row.personId };
 }
