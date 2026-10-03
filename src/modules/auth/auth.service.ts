@@ -12,6 +12,8 @@ import {
   completeRegistration,
   findEmailState,
   inTransaction,
+  isEmailVerifiedByOther,
+  markEmailVerified,
   listLiveDeviceIds,
   releaseRegisteredHolder,
 } from './auth.repository.js';
@@ -285,6 +287,31 @@ export async function requestEmailVerification(
   );
   logger.info({ event: 'email_verification_code_sent', personId }, 'Email code sent');
   return { sent: true, expires_in: EXPIRES_IN_SECONDS };
+}
+
+/**
+ * Confirm an EMAIL_VERIFICATION code against the saved email (C-33, v5.0.0-6.5.1).
+ * The target is read from the database, so a code sent to an older address or to
+ * another person never matches. EMAIL_TAKEN is checked before the code is spent.
+ *
+ * @throws 400 OTP_INVALID, OTP_EXPIRED; 409 EMAIL_TAKEN; 429 OTP_LOCKED
+ */
+export async function confirmEmail(personId: string, code: string): Promise<void> {
+  const state = await findEmailState(personId);
+  if (!state?.email) throw httpError(400, 'OTP_INVALID', 'Invalid code');
+  const taken = () => httpError(409, 'EMAIL_TAKEN', 'Email already in use');
+  if (await isEmailVerifiedByOther(state.email, personId)) throw taken();
+  const r = await verifyCode({ target: state.email, purpose: 'EMAIL_VERIFICATION', code });
+  if (r.personId !== personId) throw httpError(400, 'OTP_INVALID', 'Invalid code');
+  let ok: boolean;
+  try {
+    ok = await markEmailVerified(personId, state.email);
+  } catch (e) {
+    if ((e as { code?: string }).code === 'P2002') throw taken();
+    throw e;
+  }
+  if (!ok) throw httpError(400, 'OTP_INVALID', 'Invalid code');
+  logger.info({ event: 'email_verified', personId }, 'Email verified');
 }
 
 /**

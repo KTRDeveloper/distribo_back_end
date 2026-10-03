@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { httpError } from '../../lib/http-error.js';
 import {
+  emailConfirmSchema,
   loginSchema,
   loginVerifySchema,
   passwordResetRequestSchema,
@@ -13,6 +14,7 @@ import { refreshSession, revokeDevice } from './session.service.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import {
   completeLogin,
+  confirmEmail,
   register,
   requestEmailVerification,
   requestLogin,
@@ -88,6 +90,17 @@ authRoutes.post('/email/verify/request', authMiddleware, (req, res, next) => {
       return;
     }
     res.status(202).json(result);
+  })().catch(next);
+});
+
+// Authenticated route: the code is checked against the saved email of the session's person.
+authRoutes.post('/email/verify/confirm', authMiddleware, (req, res, next) => {
+  void (async () => {
+    if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
+    const body = emailConfirmSchema.safeParse(req.body);
+    if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    await confirmEmail(req.user.id, body.data.code);
+    res.status(204).end();
   })().catch(next);
 });
 

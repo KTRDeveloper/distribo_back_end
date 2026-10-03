@@ -1,5 +1,6 @@
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
+  emailConfirmSchema,
   loginResponseSchema,
   loginSchema,
   loginVerifySchema,
@@ -128,6 +129,36 @@ openApiRegistry.registerPath({
     },
     429: {
       description: 'Code limits reached',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/email/verify/confirm',
+  tags: ['auth'],
+  summary: 'Confirm the email verification code',
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: emailConfirmSchema },
+      },
+    },
+  },
+  responses: {
+    204: { description: 'Email verified' },
+    400: {
+      description: 'OTP_INVALID, OTP_EXPIRED or VALIDATION_ERROR',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'UNAUTHORIZED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'EMAIL_TAKEN',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

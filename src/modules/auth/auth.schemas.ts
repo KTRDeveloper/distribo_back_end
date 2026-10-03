@@ -92,3 +92,6 @@ export const refreshResponseSchema = z
 export const passwordResetRequestSchema = z
   .object({ phone_number: z.string().min(1).max(32), use_email: z.boolean().optional() })
   .strict();
+
+/** Body of POST /auth/email/verify/confirm. */
+export const emailConfirmSchema = z.object({ code: z.string().regex(/^\d{6}$/) }).strict();

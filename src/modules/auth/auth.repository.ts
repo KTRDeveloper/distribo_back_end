@@ -86,3 +86,25 @@ export async function listLiveDeviceIds(
   });
   return rows.map((r) => r.id);
 }
+
+/** True when another person already holds this verified email (PER-003). */
+export async function isEmailVerifiedByOther(email: string, personId: string): Promise<boolean> {
+  const n = await prisma.person.count({
+    where: { email, emailVerifiedAt: { not: null }, id: { not: personId } },
+  });
+  return n > 0;
+}
+
+/**
+ * Marks the saved email verified only if it still equals `email`.
+ *
+ * @returns false when the address changed meanwhile; throws P2002 if the unique index is hit.
+ */
+export async function markEmailVerified(personId: string, email: string): Promise<boolean> {
+  const now = new Date();
+  const r = await prisma.person.updateMany({
+    where: { id: personId, email },
+    data: { emailVerifiedAt: now, serverUpdatedAt: now },
+  });
+  return r.count === 1;
+}
