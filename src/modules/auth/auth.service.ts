@@ -253,3 +253,32 @@ export async function requestEmailVerification(
   logger.info({ event: 'email_verification_code_sent', personId }, 'Email code sent');
   return { sent: true, expires_in: EXPIRES_IN_SECONDS };
 }
+
+/**
+ * Send a PHONE_CHANGE code to a new +237 mobile (C-33, C-02, CM-07). The person
+ * comes from the session; the code goes to the new number only (v5.0.0-6.6.1).
+ * The 409 never reveals who holds the number (Q-031); caps apply as for any code.
+ *
+ * @throws 400 VALIDATION_ERROR, 400 UNSUPPORTED_NUMBER, 400 SAME_NUMBER,
+ *   409 PHONE_TAKEN, 429 OTP_RATE_LIMITED
+ */
+export async function requestPhoneChange(
+  personId: string,
+  input: { new_phone_number: string },
+  clientKeys: ClientKeys = {}
+): Promise<{ sent: true; expires_in: number }> {
+  const phone = normalizeE164(input.new_phone_number);
+  if (phone === null) {
+    const parsed = parsePhoneNumberFromString(input.new_phone_number, 'CM');
+    if (parsed?.isValid() && parsed.country !== 'CM') {
+      throw httpError(400, 'UNSUPPORTED_NUMBER', 'This number is not supported');
+    }
+    throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  }
+  const holder = await findByActivePhone(phone);
+  if (holder?.id === personId) throw httpError(400, 'SAME_NUMBER', 'This is already your number');
+  if (holder) throw httpError(409, 'PHONE_TAKEN', 'This number is not available');
+  await issueCode({ personId, target: phone, purpose: 'PHONE_CHANGE', channel: 'SMS' }, clientKeys);
+  logger.info({ event: 'phone_change_code_sent', personId }, 'Phone change code sent');
+  return { sent: true, expires_in: EXPIRES_IN_SECONDS };
+}

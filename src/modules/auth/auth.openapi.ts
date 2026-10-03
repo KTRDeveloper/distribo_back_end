@@ -2,6 +2,7 @@ import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry
 import {
   loginResponseSchema,
   loginSchema,
+  phoneChangeRequestSchema,
   refreshResponseSchema,
   refreshSchema,
   registerRequestResponseSchema,
@@ -121,6 +122,34 @@ openApiRegistry.registerPath({
     },
     401: {
       description: 'UNAUTHORIZED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    429: {
+      description: 'Code limits reached',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/phone/change/request',
+  tags: ['auth'],
+  summary: 'Ask for a code to move the account to a new phone number',
+  security: [{ bearerAuth: [] }],
+  request: { body: { content: { 'application/json': { schema: phoneChangeRequestSchema } } } },
+  responses: {
+    202: { description: 'Code queued to the new number' },
+    400: {
+      description: 'VALIDATION_ERROR, UNSUPPORTED_NUMBER or SAME_NUMBER',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'UNAUTHORIZED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'PHONE_TAKEN',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     429: {

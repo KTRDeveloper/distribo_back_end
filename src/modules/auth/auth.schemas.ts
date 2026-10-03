@@ -61,6 +61,11 @@ export const loginResponseSchema = z
   })
   .strict();
 
+/** Body of POST /auth/phone/change/request; the number is validated in the service. */
+export const phoneChangeRequestSchema = z
+  .object({ new_phone_number: z.string().min(1).max(32) })
+  .strict();
+
 /** Body of POST /auth/refresh. */
 export const refreshSchema = z.object({ refresh_token: z.string().min(1).max(512) }).strict();
 

@@ -36,6 +36,7 @@ describe('GET /docs/openapi.json', () => {
     expect(authPaths.sort()).toEqual([
       '/api/v1/auth/email/verify/request',
       '/api/v1/auth/login',
+      '/api/v1/auth/phone/change/request',
       '/api/v1/auth/refresh',
       '/api/v1/auth/register',
       '/api/v1/auth/register/request',

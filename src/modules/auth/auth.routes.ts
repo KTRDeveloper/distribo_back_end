@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { httpError } from '../../lib/http-error.js';
 import {
   loginSchema,
+  phoneChangeRequestSchema,
   refreshSchema,
   registerRequestSchema,
   registerSchema,
@@ -12,6 +13,7 @@ import {
   register,
   requestEmailVerification,
   requestLogin,
+  requestPhoneChange,
   requestRegistrationCode,
 } from './auth.service.js';
 
@@ -73,5 +75,15 @@ authRoutes.post('/email/verify/request', authMiddleware, (req, res, next) => {
       return;
     }
     res.status(202).json(result);
+  })().catch(next);
+});
+
+// Authenticated route: the person comes from the session; the code goes to the new number only.
+authRoutes.post('/phone/change/request', authMiddleware, (req, res, next) => {
+  void (async () => {
+    if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
+    const body = phoneChangeRequestSchema.safeParse(req.body);
+    if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    res.status(202).json(await requestPhoneChange(req.user.id, body.data, { ip: req.ip }));
   })().catch(next);
 });
