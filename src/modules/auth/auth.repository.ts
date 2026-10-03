@@ -108,3 +108,43 @@ export async function markEmailVerified(personId: string, email: string): Promis
   });
   return r.count === 1;
 }
+
+/**
+ * Moves a person to a new verified number and journals the change (C-02, CM-04, C-32).
+ * Call inside one transaction so the journal row and the update stand or fall together.
+ * The person row is locked first; a unique violation (P2002) means another person won the number.
+ *
+ * @returns false when the person does not exist or has no current or released number.
+ */
+export async function movePhoneNumber(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  newPhone: string,
+  logId: string
+): Promise<boolean> {
+  await tx.$queryRaw`SELECT id FROM people WHERE id = ${personId}::uuid FOR UPDATE`;
+  const person = await tx.person.findUnique({ where: { id: personId } });
+  const old = person?.phoneNumber ?? person?.releasedPhoneNumber;
+  if (!person || !old) return false;
+  const now = new Date();
+  await tx.person.update({
+    where: { id: personId },
+    data: {
+      phoneNumber: newPhone,
+      releasedPhoneNumber: null,
+      phoneVerifiedAt: now,
+      serverUpdatedAt: now,
+    },
+  });
+  await tx.phoneNumberChangeLog.create({
+    data: {
+      id: logId,
+      personId,
+      oldPhoneNumber: old,
+      newPhoneNumber: newPhone,
+      verifiedAt: now,
+      changedAt: now,
+    },
+  });
+  return true;
+}

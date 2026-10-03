@@ -95,3 +95,8 @@ export const passwordResetRequestSchema = z
 
 /** Body of POST /auth/email/verify/confirm. */
 export const emailConfirmSchema = z.object({ code: z.string().regex(/^\d{6}$/) }).strict();
+
+/** Body of POST /auth/phone/change/confirm; the number is validated in the service. */
+export const phoneChangeConfirmSchema = z
+  .object({ new_phone_number: z.string().min(1).max(32), code: z.string().regex(/^\d{6}$/) })
+  .strict();

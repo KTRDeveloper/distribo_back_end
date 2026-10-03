@@ -14,10 +14,12 @@ import {
   inTransaction,
   isEmailVerifiedByOther,
   markEmailVerified,
+  movePhoneNumber,
   listLiveDeviceIds,
   releaseRegisteredHolder,
 } from './auth.repository.js';
 import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
+import { newId } from '../../shared/ids.js';
 import { issueSession, type DeviceInfo } from './session.service.js';
 
 const EXPIRES_IN_SECONDS = 600;
@@ -341,6 +343,37 @@ export async function requestPhoneChange(
   await issueCode({ personId, target: phone, purpose: 'PHONE_CHANGE', channel: 'SMS' }, clientKeys);
   logger.info({ event: 'phone_change_code_sent', personId }, 'Phone change code sent');
   return { sent: true, expires_in: EXPIRES_IN_SECONDS };
+}
+
+/**
+ * Move the account to a new number with a PHONE_CHANGE code bound to that number
+ * and purpose (v5.0.0-6.5.1). Number update and journal row share one transaction
+ * (v5.0.0-2.3.3); the loser of a race for the number gets PHONE_TAKEN. Logs ids only.
+ *
+ * @throws 400 VALIDATION_ERROR, OTP_INVALID, OTP_EXPIRED; 409 PHONE_TAKEN; 429 OTP_LOCKED
+ */
+export async function confirmPhoneChange(
+  personId: string,
+  input: { new_phone_number: string; code: string }
+): Promise<void> {
+  const phone = normalizeE164(input.new_phone_number);
+  if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  const taken = () => httpError(409, 'PHONE_TAKEN', 'This number is not available');
+  const holder = await findByActivePhone(phone);
+  if (holder && holder.id !== personId) throw taken();
+  const r = await verifyCode({ target: phone, purpose: 'PHONE_CHANGE', code: input.code });
+  if (r.personId !== personId || holder?.id === personId) {
+    throw httpError(400, 'OTP_INVALID', 'Invalid code');
+  }
+  let ok: boolean;
+  try {
+    ok = await inTransaction((tx) => movePhoneNumber(tx, personId, phone, newId()));
+  } catch (e) {
+    if ((e as { code?: string }).code === 'P2002') throw taken();
+    throw e;
+  }
+  if (!ok) throw httpError(400, 'OTP_INVALID', 'Invalid code');
+  logger.info({ event: 'phone_changed', personId }, 'Phone number changed');
 }
 
 export type LoginVerifyInput = {

@@ -5,6 +5,7 @@ import {
   loginSchema,
   loginVerifySchema,
   passwordResetRequestSchema,
+  phoneChangeConfirmSchema,
   phoneChangeRequestSchema,
   refreshResponseSchema,
   refreshSchema,
@@ -187,6 +188,30 @@ openApiRegistry.registerPath({
     },
     429: {
       description: 'Code limits reached',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/phone/change/confirm',
+  tags: ['auth'],
+  summary: 'Move the account to the new phone number with the code',
+  security: [{ bearerAuth: [] }],
+  request: { body: { content: { 'application/json': { schema: phoneChangeConfirmSchema } } } },
+  responses: {
+    204: { description: 'Number changed' },
+    400: {
+      description: 'OTP_INVALID, OTP_EXPIRED or VALIDATION_ERROR',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'UNAUTHORIZED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'PHONE_TAKEN',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

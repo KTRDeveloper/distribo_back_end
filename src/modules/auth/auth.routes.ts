@@ -5,6 +5,7 @@ import {
   loginSchema,
   loginVerifySchema,
   passwordResetRequestSchema,
+  phoneChangeConfirmSchema,
   phoneChangeRequestSchema,
   refreshSchema,
   registerRequestSchema,
@@ -14,6 +15,7 @@ import { refreshSession, revokeDevice } from './session.service.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import {
   completeLogin,
+  confirmPhoneChange,
   confirmEmail,
   register,
   requestEmailVerification,
@@ -111,6 +113,17 @@ authRoutes.post('/phone/change/request', authMiddleware, (req, res, next) => {
     const body = phoneChangeRequestSchema.safeParse(req.body);
     if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
     res.status(202).json(await requestPhoneChange(req.user.id, body.data, { ip: req.ip }));
+  })().catch(next);
+});
+
+// Authenticated route: the code must have been sent to the new number for this person.
+authRoutes.post('/phone/change/confirm', authMiddleware, (req, res, next) => {
+  void (async () => {
+    if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
+    const body = phoneChangeConfirmSchema.safeParse(req.body);
+    if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    await confirmPhoneChange(req.user.id, body.data);
+    res.status(204).end();
   })().catch(next);
 });
 
