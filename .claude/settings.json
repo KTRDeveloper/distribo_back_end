@@ -5,6 +5,10 @@
     "NO_COLOR": "1"
   },
   "permissions": {
+    "allow": [
+      "Bash(node .claude/skills/implement-stories/scripts/select.mjs *)",
+      "Bash(node .claude/skills/implement-stories/scripts/set-status.mjs *)"
+    ],
     "deny": [
       "Edit(./data-model/**)",
       "Read(./.env)",
