@@ -70,7 +70,7 @@ describe('notifications table', () => {
   it('stores required fields with synchronized defaults and correct column types', async () => {
     await prisma.$executeRaw`
       INSERT INTO notifications (id, recipient_id, content, source_event)
-      VALUES (${NOTIFICATION_ID}::uuid, ${REGISTERED_ID}::uuid, 'Order created', 'ORDER_CREATED')
+      VALUES (${NOTIFICATION_ID}::uuid, ${REGISTERED_ID}::uuid, 'Order created', 'order.created')
     `;
 
     const [row] = await prisma.$queryRaw<
@@ -112,7 +112,7 @@ describe('notifications table', () => {
     const code = await captureSqlCode(
       prisma.$executeRaw`
         INSERT INTO notifications (id, recipient_id, content, source_event)
-        VALUES (${NOTIFICATION_ID}::uuid, ${GUEST_ID}::uuid, 'Guest event', 'GUEST_EVENT')
+        VALUES (${NOTIFICATION_ID}::uuid, ${GUEST_ID}::uuid, 'Guest event', 'guest.event')
       `
     );
     expect(code).toBe('23514');
@@ -128,7 +128,7 @@ describe('notifications table', () => {
       INSERT INTO notifications (
         id, recipient_id, content, source_event, related_entity_type, related_entity_id
       ) VALUES (
-        ${NOTIFICATION_ID}::uuid, ${REGISTERED_ID}::uuid, 'Related event', 'RELATED_EVENT',
+        ${NOTIFICATION_ID}::uuid, ${REGISTERED_ID}::uuid, 'Related event', 'related.event',
         ${type}, ${id}::uuid
       )
     `;
@@ -145,7 +145,7 @@ describe('notifications table', () => {
       prisma.$executeRaw`
         INSERT INTO notifications (id, recipient_id, content, source_event, read_status)
         VALUES (
-          ${NOTIFICATION_ID}::uuid, ${REGISTERED_ID}::uuid, 'Seen event', 'SEEN_EVENT',
+          ${NOTIFICATION_ID}::uuid, ${REGISTERED_ID}::uuid, 'Seen event', 'seen.event',
           'SEEN'::text::public."NotificationReadStatus"
         )
       `
@@ -155,7 +155,7 @@ describe('notifications table', () => {
     const unknownRecipient = await captureSqlCode(
       prisma.$executeRaw`
         INSERT INTO notifications (id, recipient_id, content, source_event)
-        VALUES (${NOTIFICATION_ID}::uuid, ${UNKNOWN_ID}::uuid, 'Unknown event', 'UNKNOWN_EVENT')
+        VALUES (${NOTIFICATION_ID}::uuid, ${UNKNOWN_ID}::uuid, 'Unknown event', 'unknown.event')
       `
     );
     expect(unknownRecipient).toBe('23503');
