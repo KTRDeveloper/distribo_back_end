@@ -17,10 +17,11 @@ import {
   movePhoneNumber,
   listLiveDeviceIds,
   releaseRegisteredHolder,
+  updatePasswordHash,
 } from './auth.repository.js';
 import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
 import { newId } from '../../shared/ids.js';
-import { issueSession, type DeviceInfo } from './session.service.js';
+import { issueSession, revokeSessions, type DeviceInfo } from './session.service.js';
 import { sessionRepository } from './session.repository.js';
 
 const EXPIRES_IN_SECONDS = 600;
@@ -527,4 +528,41 @@ export async function listDevices(
     last_synced_at: d.lastSyncedAt ? d.lastSyncedAt.toISOString() : null,
     current: d.id === currentDeviceId,
   }));
+}
+
+export type PasswordResetConfirmInput = {
+  phone_number: string;
+  code: string;
+  new_password: string;
+  use_email?: boolean;
+};
+
+/**
+ * Set a new password with a PASSWORD_RESET code bound to the number (or verified
+ * email), then end every session of the person (CM-05, v5.0.0-6.4.3, v5.0.0-7.4.3).
+ * Password rules are checked before the code is spent, so a weak password keeps it.
+ * Unknown or unregistered numbers answer OTP_INVALID. Never logs password or code.
+ *
+ * @throws 400 VALIDATION_ERROR, WEAK_PASSWORD, OTP_INVALID, OTP_EXPIRED; 429 OTP_LOCKED
+ */
+export async function confirmPasswordReset(input: PasswordResetConfirmInput): Promise<void> {
+  const invalid = () => httpError(400, 'OTP_INVALID', 'Invalid code');
+  const phone = normalizeE164(input.phone_number);
+  if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  if ((await validatePasswordRules(input.new_password)).length > 0) {
+    throw httpError(400, 'WEAK_PASSWORD', 'Password is too weak');
+  }
+  const holder = await findByActivePhone(phone);
+  if (!holder?.registeredAt || !holder.fullName) throw invalid();
+  const viaEmail = input.use_email === true;
+  const target = viaEmail ? holder.email : phone;
+  if (!target || (viaEmail && !holder.emailVerifiedAt)) throw invalid();
+  const r = await verifyCode({ target, purpose: 'PASSWORD_RESET', code: input.code });
+  if (r.personId !== holder.id) throw invalid();
+  if (!(await updatePasswordHash(holder.id, await hashPassword(input.new_password)))) {
+    throw invalid();
+  }
+  await revokeSessions(holder.id, 'PASSWORD_RESET');
+  await resetKey(`login:fail:${phone}`);
+  logger.info({ event: 'password_reset', personId: holder.id }, 'Password reset');
 }

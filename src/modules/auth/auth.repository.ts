@@ -148,3 +148,13 @@ export async function movePhoneNumber(
   });
   return true;
 }
+
+/** Stores a new password hash for a registered person (C-03); false when none matched. */
+export async function updatePasswordHash(personId: string, passwordHash: string): Promise<boolean> {
+  const now = new Date();
+  const r = await prisma.person.updateMany({
+    where: { id: personId, registeredAt: { not: null } },
+    data: { passwordHash, serverUpdatedAt: now },
+  });
+  return r.count === 1;
+}

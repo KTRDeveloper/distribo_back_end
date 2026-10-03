@@ -6,6 +6,7 @@ import {
   loginResponseSchema,
   loginSchema,
   loginVerifySchema,
+  passwordResetConfirmSchema,
   passwordResetRequestSchema,
   phoneChangeConfirmSchema,
   phoneChangeRequestSchema,
@@ -277,6 +278,25 @@ openApiRegistry.registerPath({
     },
     429: {
       description: 'OTP_RATE_LIMITED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/password-reset/confirm',
+  tags: ['auth'],
+  summary: 'Choose a new password with the code',
+  request: { body: { content: { 'application/json': { schema: passwordResetConfirmSchema } } } },
+  responses: {
+    204: { description: 'Password changed, every device signed out' },
+    400: {
+      description: 'VALIDATION_ERROR, WEAK_PASSWORD, OTP_INVALID, OTP_EXPIRED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    429: {
+      description: 'OTP_LOCKED',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

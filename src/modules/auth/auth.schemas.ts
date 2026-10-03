@@ -125,3 +125,13 @@ export const deviceListResponseSchema = z.object({
     })
   ),
 });
+
+/** Body of POST /auth/password-reset/confirm; the number is validated in the service. */
+export const passwordResetConfirmSchema = z
+  .object({
+    phone_number: z.string().min(1).max(32),
+    code: z.string().regex(/^\d{6}$/),
+    new_password: z.string().min(1).max(256),
+    use_email: z.boolean().optional(),
+  })
+  .strict();

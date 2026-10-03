@@ -5,6 +5,7 @@ import {
   emailConfirmSchema,
   loginSchema,
   loginVerifySchema,
+  passwordResetConfirmSchema,
   passwordResetRequestSchema,
   phoneChangeConfirmSchema,
   phoneChangeRequestSchema,
@@ -16,6 +17,7 @@ import { refreshSession, revokeDevice, revokeSessions } from './session.service.
 import { authMiddleware } from '../../middleware/auth.js';
 import {
   completeLogin,
+  confirmPasswordReset,
   confirmPhoneChange,
   confirmEmail,
   listDevices,
@@ -173,5 +175,15 @@ authRoutes.post('/password-reset/request', (req, res, next) => {
     const body = passwordResetRequestSchema.safeParse(req.body);
     if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
     res.status(202).json(await requestPasswordReset(body.data, { ip: req.ip }));
+  })().catch(next);
+});
+
+// Public route: the code proves the SIM or the verified email.
+authRoutes.post('/password-reset/confirm', (req, res, next) => {
+  void (async () => {
+    const body = passwordResetConfirmSchema.safeParse(req.body);
+    if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    await confirmPasswordReset(body.data);
+    res.status(204).end();
   })().catch(next);
 });
