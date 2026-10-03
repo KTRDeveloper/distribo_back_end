@@ -212,3 +212,4 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | PER-009 | done | | Targeted tests: 18 passed; full suite: 247 passed; typecheck, lint and format check pass |
 | FND-010 | done | | Formatting, typecheck, lint, and full suite pass; test person fixtures now generate the required UUIDv7 id |
 | FND-011 | done | | |
+| FND-012 | todo | | |

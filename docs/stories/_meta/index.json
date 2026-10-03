@@ -2859,7 +2859,7 @@
     },
     "AUTH-001": {
       "path": "modules/auth/AUTH-001-one-time-code-table.md",
-      "sha256": "95c91930b0ee57906d15b50fed545edb7b1219143ebf6e8d211537e800bacbe1"
+      "sha256": "14cd7ffe386a30120e8787e509e8cd746a1a348c7f227eeee598579de5ac2d26"
     },
     "AUTH-002": {
       "path": "modules/auth/AUTH-002-issue-a-one-time-code.md",
@@ -3179,7 +3179,11 @@
     },
     "FND-011": {
       "path": "modules/foundation/FND-011-remediate-the-per-003-review-findings.md",
-      "sha256": "175b7d709cc3b37f937a9fe82bfb2f543793a3a67c56dc0a3a5f0e2800f07fe1"
+      "sha256": "ac35091794bf6d8c436fc7c01d1ba862f59eba8b2670badd331b4f3a0b7f4c22"
+    },
+    "FND-012": {
+      "path": "modules/foundation/FND-012-validation-errors-without-input-values.md",
+      "sha256": "ea331ae7973f94897058ec774b65d42c1151f615e50071b07873c1c315cad49e"
     },
     "NTF-001": {
       "path": "modules/notification/NTF-001-notifications-table.md",
@@ -3187,11 +3191,11 @@
     },
     "NTF-002": {
       "path": "modules/notification/NTF-002-notify-service.md",
-      "sha256": "df31442a584f921f4c9ebd8574d67181a4609396544edbaef92117f97ea00838"
+      "sha256": "04710af908f94fa25fcf117f640ac1839a418ff1ee51585152f25ad50b6b417d"
     },
     "NTF-003": {
       "path": "modules/notification/NTF-003-person-lists-their-notifications.md",
-      "sha256": "5bc001ed44597245e7af9032e704d2c44b78669b071e811b9cf4f896e82a5ecb"
+      "sha256": "b6cdcf46b606a6e6196dfbae27ea5d789a7fab52bd4dc24d9ba245bf298ea0be"
     },
     "NTF-004": {
       "path": "modules/notification/NTF-004-person-marks-notifications-as-read.md",
@@ -3598,5 +3602,5 @@
       "sha256": "d763150362a926b6c90de723ece6a04c65e77df4554b9b73e347fa07c031b6bb"
     }
   },
-  "template_version": "1.2.0"
+  "template_version": "1.3.0"
 }

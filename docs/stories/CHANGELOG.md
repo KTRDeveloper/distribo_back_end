@@ -21,3 +21,7 @@ One entry per skill run that changed the backlog. Newest last.
 ## 2026-10-02: update
 - Design: `data-model/modele-donnees-livraisons-v10.md` (sha256 2dcaae02b638d95d)
 - Stories added (1): FND-011
+
+## 2026-10-03: update
+- Design: `data-model/modele-donnees-livraisons-v10.md` (sha256 2dcaae02b638d95d)
+- Stories added (1): FND-012
