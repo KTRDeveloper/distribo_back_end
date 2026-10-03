@@ -81,15 +81,16 @@ export async function issueSession(
 
 /**
  * End the person's live sessions in one transaction (v5.0.0-7.4.2), optionally
- * sparing one device. Only the named person's rows are touched.
+ * sparing one device; pass `tx` to join a caller's transaction. Only the named
+ * person's rows are touched.
  * @returns number of devices ended
  */
 export function revokeSessions(
   personId: string,
   reason: RevokedReason,
-  options: { exceptDeviceId?: string } = {}
+  options: { exceptDeviceId?: string; tx?: Prisma.TransactionClient } = {}
 ): Promise<number> {
-  return sessionRepository.revokeLive(personId, reason, options.exceptDeviceId);
+  return sessionRepository.revokeLive(personId, reason, options.exceptDeviceId, options.tx);
 }
 
 /**

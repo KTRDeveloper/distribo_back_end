@@ -149,10 +149,17 @@ export async function movePhoneNumber(
   return true;
 }
 
-/** Stores a new password hash for a registered person (C-03); false when none matched. */
-export async function updatePasswordHash(personId: string, passwordHash: string): Promise<boolean> {
+/**
+ * Stores a new password hash for a registered person (C-03); false when none matched.
+ * Pass `tx` to write in the caller's transaction.
+ */
+export async function updatePasswordHash(
+  personId: string,
+  passwordHash: string,
+  client: Prisma.TransactionClient = prisma
+): Promise<boolean> {
   const now = new Date();
-  const r = await prisma.person.updateMany({
+  const r = await client.person.updateMany({
     where: { id: personId, registeredAt: { not: null } },
     data: { passwordHash, serverUpdatedAt: now },
   });

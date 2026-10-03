@@ -32,6 +32,7 @@ const dev = { platform: 'ANDROID' as const, app_version: '1.0.0' };
 let personId = '';
 
 async function clean() {
+  await prisma.$executeRaw`DROP TRIGGER IF EXISTS fail_revoke ON refresh_tokens`;
   await prisma.$executeRaw`DELETE FROM refresh_tokens WHERE person_id IN (SELECT id FROM people WHERE phone_number = ${PHONE})`;
   await prisma.$executeRaw`DELETE FROM devices WHERE person_id IN (SELECT id FROM people WHERE phone_number = ${PHONE})`;
   await prisma.$executeRaw`DELETE FROM people WHERE phone_number = ${PHONE}`;
@@ -74,17 +75,45 @@ describe('password change', () => {
     const a = await issueSession(personId, dev);
     const b = await issueSession(personId, dev);
     const c = await issueSession(personId, dev);
-    await post(b.accessToken, { current_password: OLD, new_password: NEW });
+    const r = await post(b.accessToken, { current_password: OLD, new_password: NEW });
+    expect(r.status).toBe(204);
     const rows = await prisma.refreshToken.findMany({ where: { personId } });
+    expect(rows.map((t) => t.deviceId).sort()).toEqual([a.deviceId, b.deviceId, c.deviceId].sort());
     for (const t of rows) {
-      if (t.deviceId === b.deviceId) expect(t.revokedAt).toBeNull();
-      else expect(t.revokedReason).toBe('PASSWORD_RESET');
+      if (t.deviceId === b.deviceId) {
+        expect(t.revokedAt).toBeNull();
+      } else {
+        expect(t.revokedAt).not.toBeNull();
+        expect(t.revokedReason).toBe('PASSWORD_RESET');
+      }
     }
-    expect([a, c].length).toBe(2);
+    const live = await prisma.device.findMany({ where: { personId, revokedAt: null } });
+    expect(live.map((d) => d.id)).toEqual([b.deviceId]);
+  });
+
+  it('atomic', async () => {
+    const a = await issueSession(personId, dev);
+    const b = await issueSession(personId, dev);
+    await prisma.$executeRawUnsafe(
+      `CREATE OR REPLACE FUNCTION fail_revoke_fn() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'boom'; END $$ LANGUAGE plpgsql`
+    );
+    await prisma.$executeRawUnsafe(
+      `CREATE TRIGGER fail_revoke BEFORE UPDATE ON refresh_tokens FOR EACH ROW EXECUTE FUNCTION fail_revoke_fn()`
+    );
+    const r = await post(b.accessToken, { current_password: OLD, new_password: NEW });
+    expect(r.status).toBe(500);
+    expect(await verifyPassword(await stored(), OLD)).toBe(true);
+    const live = await prisma.device.findMany({ where: { personId, revokedAt: null } });
+    expect(live.map((d) => d.id).sort()).toEqual([a.deviceId, b.deviceId].sort());
   });
 
   it.each([
-    ['wrong', { current_password: 'nope-nope-nope', new_password: NEW }, 401, 'INVALID_CREDENTIALS'],
+    [
+      'wrong',
+      { current_password: 'nope-nope-nope', new_password: NEW },
+      401,
+      'INVALID_CREDENTIALS',
+    ],
     ['short', { current_password: OLD, new_password: '1234567' }, 400, 'WEAK_PASSWORD'],
     ['same', { current_password: OLD, new_password: OLD }, 400, 'VALIDATION_ERROR'],
     ['long', { current_password: OLD, new_password: 'a'.repeat(65) }, 400, 'WEAK_PASSWORD'],
@@ -108,8 +137,15 @@ describe('password change', () => {
 
   it('stolen session', async () => {
     const s = await issueSession(personId, dev);
-    await post(s.accessToken, { current_password: 'wrong-wrong-wrong', new_password: NEW });
+    const other = await issueSession(personId, dev);
+    const r = await post(s.accessToken, {
+      current_password: 'wrong-wrong-wrong',
+      new_password: NEW,
+    });
+    expect(r.status).toBe(401);
     expect(await verifyPassword(await stored(), OLD)).toBe(true);
+    const live = await prisma.device.findMany({ where: { personId, revokedAt: null } });
+    expect(live.map((d) => d.id).sort()).toEqual([s.deviceId, other.deviceId].sort());
   });
 
   it('no token', async () => {

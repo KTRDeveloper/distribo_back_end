@@ -21,26 +21,31 @@ export const sessionRepository = {
     return client.refreshToken.create({ data });
   },
 
-  /** Ends the person's live devices and tokens in one transaction; returns devices ended. */
+  /**
+   * Ends the person's live devices and tokens in one transaction (the caller's `tx`
+   * when given); returns devices ended.
+   */
   async revokeLive(
     personId: string,
     reason: RevokedReason,
-    exceptDeviceId?: string
+    exceptDeviceId?: string,
+    tx?: Client
   ): Promise<number> {
-    return prisma.$transaction(async (tx) => {
+    const run = async (client: Client) => {
       const now = new Date();
       const except = exceptDeviceId ? { id: { not: exceptDeviceId } } : {};
       const exceptTok = exceptDeviceId ? { deviceId: { not: exceptDeviceId } } : {};
-      await tx.refreshToken.updateMany({
+      await client.refreshToken.updateMany({
         where: { personId, revokedAt: null, ...exceptTok },
         data: { revokedAt: now, revokedReason: reason },
       });
-      const res = await tx.device.updateMany({
+      const res = await client.device.updateMany({
         where: { personId, revokedAt: null, ...except },
         data: { revokedAt: now },
       });
       return res.count;
-    });
+    };
+    return tx ? run(tx) : prisma.$transaction(run);
   },
 
   /**

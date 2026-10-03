@@ -599,9 +599,13 @@ export async function changePassword(
   if (input.new_password === input.current_password) {
     throw httpError(400, 'VALIDATION_ERROR', 'New password must differ');
   }
-  if (!(await updatePasswordHash(personId, await hashPassword(input.new_password)))) {
-    throw httpError(401, 'INVALID_CREDENTIALS', 'Invalid credentials');
-  }
-  await revokeSessions(personId, 'PASSWORD_RESET', { exceptDeviceId: deviceId });
+  const newHash = await hashPassword(input.new_password);
+  // One transaction: a failed revocation must not leave the new password with other sessions live.
+  await inTransaction(async (tx) => {
+    if (!(await updatePasswordHash(personId, newHash, tx))) {
+      throw httpError(401, 'INVALID_CREDENTIALS', 'Invalid credentials');
+    }
+    await revokeSessions(personId, 'PASSWORD_RESET', { exceptDeviceId: deviceId, tx });
+  });
   logger.info({ event: 'password_changed', personId }, 'Password changed');
 }
