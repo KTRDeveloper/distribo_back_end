@@ -148,6 +148,37 @@ class RenderTest(unittest.TestCase):
         self.assertNotIn("Argon2id", text)
         self.assertIn("parameterized", text)
 
+    def test_replace_swaps_a_tagged_line(self):
+        project = load("project.yaml")
+        project["replace"] = {"status-codes": "400 malformed request or failed validation · 401 not authenticated"}
+        code, out = self.render(project)
+        self.assertEqual(code, 0, out)
+        text = (self.p.out / "CONVENTIONS.md").read_text()
+        self.assertIn("\n- 400 malformed request or failed validation · 401 not authenticated\n", text)
+        self.assertNotIn("422 validation failed", text)
+        self.assertIn("- Never swallow an exception.", text)
+        self.assertIsNone(re.search(r"^- \[[a-z-]+\] ", text, re.M), "tags never reach CONVENTIONS.md")
+
+    def test_replace_errors(self):
+        project = load("project.yaml")
+        project["baseline_omit"] = ["passwords"]
+        project["replace"] = {"nope": "x", "passwords": "y", "status-codes": "two\nlines"}
+        code, out = self.render(project)
+        self.assertEqual(code, 1, out)
+        for needle in ("unknown tag `nope`", "also in baseline_omit: keep one", "must be one non-empty line"):
+            self.assertIn(needle, out)
+
+    def test_new_story_pattern_over_budget_is_rejected(self):
+        pattern = self.p.root / "src" / "modules" / "health" / "health.routes.ts"
+        pattern.parent.mkdir(parents=True, exist_ok=True)
+        pattern.write_text("// line\n" * 151)
+        code, out = self.render(*self.base(), "catalog.yaml")
+        self.assertEqual(code, 1, out)
+        self.assertIn("pattern `src/modules/health/health.routes.ts` has 151 lines (max 150)", out)
+        pattern.write_text("// line\n" * 150)
+        code, out = self.render(*self.base(), "catalog.yaml")
+        self.assertEqual(code, 0, out)
+
     def test_model_md_splits_per_entity_past_the_budget(self):
         doc = load("catalog.yaml")
         doc["model"] = "\n".join(f"- extra note {i}" for i in range(125))

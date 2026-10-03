@@ -3,7 +3,7 @@ name: design-to-user-stories
 description: Turns one Markdown design file that holds the data model (design.md, conception, functional spec) into small, self-contained, secure and testable user stories that a weaker coding agent can implement without guessing, with CONVENTIONS.md, a walking skeleton (FND-000), OWASP ASVS 5.0 requirements, abuse cases, tests for every constraint and a dependency-ordered backlog, all checked by scripts, and keeps them in sync when the design changes later. Use it whenever someone wants to turn a design, a data model or a spec into user stories, a backlog, tickets or implementation tasks for an AI coding agent, for example "generate user stories from design.md", "split this design into stories for Claude Code", "génère les user stories à partir de ce fichier de conception", "découpe cette conception en stories", "crée le backlog à partir du modèle de données", "the design changed, update the stories", "resynchronise les stories avec la conception", even when the word story is not used.
 compatibility: Python 3 with PyYAML; git optional.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # Design to user stories
@@ -62,11 +62,11 @@ Read the `mode:` line printed by check_input.py.
 Two budgets matter: what this skill spends, and what the implementing agent spends reading.
 
 - This file is a router. Open a reference file only when its step or condition applies.
-- Read the design once. Afterwards, open only line ranges from the index outline, and work from `_meta/constraints.md`.
+- Never open the design whole: open only line ranges from the index outline, and work from `_meta/constraints.md`.
 - Write stories as YAML through render_stories.py, never as Markdown by hand. Output tokens cost several times more than input, and rendering removes format errors along with their fix loops.
 - Never paste file contents in the chat. Never reread what you just wrote. Fix with targeted edits.
-- With subagents: keep decomposition, risk analysis and high-risk stories on the main model; delegate the other modules' YAML to subagents on a cheaper model.
-- For large designs, do a few modules per session and resume from the files on disk.
+- One module, one fresh context, in INIT and SYNC: each module's YAML is written by its own subagent (the main model for high-risk modules, a cheaper one otherwise), while the main session keeps decomposition and risk analysis. Without subagents, one module per session, resumed from the files on disk.
+- The implementing agent reads every pattern file whole: pick small ones that later stories do not grow (story-rules.md §6).
 - CONVENTIONS.md is rendered from the project YAML, so it stays byte-identical across sessions and the target agent reads it from the prompt cache.
 
 ## References

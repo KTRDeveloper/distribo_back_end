@@ -35,7 +35,7 @@ Contents: 1 Invariants · 2 Workflow · 3 Triage · 4 Status rules · 5 Data-mod
    - the next migration number and the existing test files: `grep -rhoE "(prisma/migrations/[0-9]+_[a-z_]+|tests/[a-z/._-]+)" $OUT/modules | sort -u`; a new story's `read_first` and dependencies come from these greps and contracts.md, and a wrong `depends_on` is reported by validate.py, so a guess costs one fix and opening a sibling story costs more;
    - the stories of the same module: `grep -h "^title:\|^id:" $OUT/modules/<module>/*.md`, or the module's `_meta/src/<module>.yaml` header.
 5. Pending changes is a journal. As soon as an item is applied, check it off and append what you did: `- [x] P-1a2b3c4d · … → SHOP-002 rev 2; SHOP-006 created`. An interrupted run then resumes at the first unchecked item. On resume, rerun diff_design.py first (it keeps the checked items); never redo a checked item.
-6. Apply each item: triage (§3), then the status rules (§4). Update the module files to the new design (§7). Close the open questions the design now answers (Answers section of OPEN_QUESTIONS.md) and add new gaps as new questions.
+6. Apply each item: triage (§3), then the status rules (§4). Update the module files to the new design (§7). Close the open questions the design now answers (Answers section of OPEN_QUESTIONS.md) and add new gaps as new questions. When the items span several modules, apply them one module at a time, each in a fresh subagent (the brief of init.md §8 plus that module's items), or one module per session: the journal says where to resume.
 7. Finish (§8).
 
 ## 3. Triage

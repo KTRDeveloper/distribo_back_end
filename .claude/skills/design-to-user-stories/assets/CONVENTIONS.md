@@ -14,34 +14,34 @@ Every story assumes this file; stories never restate it. If a story contradicts 
 {{layout}}
 
 ## Errors (fail closed)
-- One error shape: `{"error": {"code": "UPPER_SNAKE_CASE", "message": "safe text"}}`; validation errors add `details` with field paths and rule names, never input values.
-- 400 malformed request · 401 not authenticated · 403 not allowed · 404 absent or outside the caller's scope · 409 conflict · 422 validation failed · 429 rate limited · 500 unexpected.
-- Outside the caller's scope, answer 404, not 403: never confirm that an ID exists.
-- Never swallow an exception. Catch only to map it to a coded error or add context, then rethrow; the global handler logs the rest and returns a generic 500.
-- Fail closed: a failed check, a missing permission or an unexpected state aborts the operation. Writes that belong together run in one transaction.
+- [error-shape] One error shape: `{"error": {"code": "UPPER_SNAKE_CASE", "message": "safe text"}}`; validation errors add `details` with field paths and rule names, never input values.
+- [status-codes] 400 malformed request · 401 not authenticated · 403 not allowed · 404 absent or outside the caller's scope · 409 conflict · 422 validation failed · 429 rate limited · 500 unexpected.
+- [not-found-scope] Outside the caller's scope, answer 404, not 403: never confirm that an ID exists.
+- [exceptions] Never swallow an exception. Catch only to map it to a coded error or add context, then rethrow; the global handler logs the rest and returns a generic 500.
+- [fail-closed] Fail closed: a failed check, a missing permission or an unexpected state aborts the operation. Writes that belong together run in one transaction.
 {{errors}}
 
 ## Logging
-- Structured JSON through the shared logger only; no console output in production code.
-- Each entry carries the actor ID, the event, the route or job and a request ID; timestamps in UTC.
+- [structured-logs] Structured JSON through the shared logger only; no console output in production code.
+- [log-fields] Each entry carries the actor ID, the event, the route or job and a request ID; timestamps in UTC.
 {{logging}}
 
 ## Validation and output encoding
-- Validate every input at the boundary (body, params, query, headers read) with a strict schema: unknown fields are rejected.
-- Lengths, ranges, formats and enum values come from the module's `model.md`; the database enforces the same constraints.
-- Build responses from an explicit list of fields; never serialize a whole database row.
+- [strict-input] Validate every input at the boundary (body, params, query, headers read) with a strict schema: unknown fields are rejected.
+- [model-limits] Lengths, ranges, formats and enum values come from the module's `model.md`; the database enforces the same constraints.
+- [explicit-output] Build responses from an explicit list of fields; never serialize a whole database row.
 {{validation}}
 
 ## Secrets
-- Secrets come only from environment variables, validated once at startup by the config module; a missing one stops the app.
-- Never hard-code, commit or log a secret. `.env` is git-ignored; `.env.example` lists every variable with a placeholder.
-- Tests set fake values. Third-party services sit behind a port with a fake adapter, so no story needs real credentials or sandbox access.
+- [env-secrets] Secrets come only from environment variables, validated once at startup by the config module; a missing one stops the app.
+- [no-hardcoded-secrets] Never hard-code, commit or log a secret. `.env` is git-ignored; `.env.example` lists every variable with a placeholder.
+- [fake-adapters] Tests set fake values. Third-party services sit behind a port with a fake adapter, so no story needs real credentials or sandbox access.
 {{secrets}}
 
 ## Migrations
-- One migration per schema change, created with the migration command; a merged migration is never edited.
-- Renames, type changes and tightening (new NOT NULL, UNIQUE, CHECK, FK) follow expand / migrate / contract, with a backfill before enforcement.
-- Constraints the ORM cannot express (CHECK, partial unique indexes, generated columns, grants) go in a raw SQL migration next to the schema.
+- [one-migration] One migration per schema change, created with the migration command; a merged migration is never edited.
+- [expand-contract] Renames, type changes and tightening (new NOT NULL, UNIQUE, CHECK, FK) follow expand / migrate / contract, with a backfill before enforcement.
+- [raw-sql] Constraints the ORM cannot express (CHECK, partial unique indexes, generated columns, grants) go in a raw SQL migration next to the schema.
 {{migrations}}
 
 ## Dependencies and URLs

@@ -2,6 +2,7 @@
 import json
 import re
 import unittest
+from unittest import mock
 
 from helpers import Project, needs_git, run
 
@@ -77,6 +78,23 @@ class ValidateTest(unittest.TestCase):
         code, out = self.validate()
         self.assertEqual(code, 0, out)
         self.assertEqual(out.strip(), "validate: OK (3 stories, 3 modules, 7 constraints covered)")
+
+    def test_long_pattern_of_todo_stories_warns(self):
+        pattern = self.p.root / "src" / "modules" / "health" / "health.routes.ts"
+        pattern.parent.mkdir(parents=True, exist_ok=True)
+        pattern.write_text("// line\n" * 151)
+        code, out = self.validate()
+        self.assertEqual(code, 0, out)
+        self.assertIn("warning: src/modules/health/health.routes.ts: pattern of 2 todo stories has 151 lines", out)
+
+    def test_pattern_not_created_yet_that_todo_stories_grow_warns(self):
+        self.mutate("CAT-001", "- Modify: `prisma/schema.prisma`, `src/app.ts`",
+                    "- Modify: `prisma/schema.prisma`, `src/app.ts`, `src/modules/health/health.routes.ts`")
+        with mock.patch.object(validate, "PATTERN_MAX_MODIFIERS", 0):
+            code, out = self.validate()
+        self.assertEqual(code, 0, out)
+        self.assertIn("warning: src/modules/health/health.routes.ts: pattern of 2 todo stories does not exist yet "
+                      "and 1 todo stories modify it", out)
 
     def mutate(self, sid, old, new):
         path = self.p.story(sid)

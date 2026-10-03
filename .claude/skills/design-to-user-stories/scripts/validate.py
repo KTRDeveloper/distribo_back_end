@@ -18,7 +18,9 @@ place have a higher rev; manual blocks kept; entity ownership and the module lis
 changed only with an accepted ADR. Always: `amends` targets exist and change or
 removal stories have one; a change to a done story lists its tests to update; a
 todo story's read_first never points to a done story. Module health (size,
-cycles, ASVS levels above the module's) prints warnings, which never fail.
+cycles, ASVS levels above the module's) and the pattern files of todo stories
+(too long, or growing because many todo stories modify them) print warnings,
+which never fail.
 Exit 1 when anything fails.
 """
 from __future__ import annotations
@@ -33,7 +35,8 @@ import yaml
 
 from common import (ASSETS, ASVS_CSV, CONVENTIONS_MAX_LINES, CONVENTIONS_MAX_TOKENS, FROZEN_STATUSES, KINDS,
                     MAX_ACCEPTANCE, MAX_PRODUCTION_FILES, MAX_READ_FIRST, MODULE_FILE_MAX_LINES,
-                    MODULE_FILE_MAX_TOKENS, README_MAX_LINES, README_MAX_TOKENS, RISKS, SIZES, STATUSES,
+                    MODULE_FILE_MAX_TOKENS, PATTERN_MAX_LINES, PATTERN_MAX_MODIFIERS, README_MAX_LINES,
+                    README_MAX_TOKENS, RISKS, SIZES, STATUSES,
                     STORY_ID_RE, STORY_MAX_LINES, STORY_MAX_TOKENS, SYNC_FILE, TEST_LEVELS, DtusError,
                     estimate_tokens, find_secrets, load_json, load_template, manual_blocks, out_paths,
                     parse_status, pending_items, read_text, sha256_file, split_front_matter,
@@ -632,6 +635,25 @@ def main(argv=None) -> int:
             rep.fail("STATUS.md", f"{sid}: status `{row['status']}` is not one of {', '.join(STATUSES)}")
         if sid not in stories:
             rep.fail("STATUS.md", f"{sid} has no story file (IDs are never deleted)")
+
+    # patterns: every todo story that cites one reads it whole
+    citers, modifiers = {}, {}
+    for sid, s in stories.items():
+        if status.get(sid, {}).get("status", "todo") == "todo":
+            for f in s["impl"]["pattern"]:
+                citers.setdefault(str(f), set()).add(sid)
+            for f in s["impl"]["modify"]:
+                modifiers.setdefault(str(f), set()).add(sid)
+    for f, ids in sorted(citers.items()):
+        path = root / f
+        safe = not f.startswith("/") and ".." not in Path(f).parts
+        exists = safe and path.is_file()
+        lines = len(read_text(path).splitlines()) if exists else 0
+        growing = len(modifiers.get(f, ()))
+        if lines > PATTERN_MAX_LINES or growing > PATTERN_MAX_MODIFIERS:
+            size = f"has {lines} lines" if exists else "does not exist yet"
+            rep.warn(f, f"pattern of {len(ids)} todo stories {size} and {growing} todo stories modify it "
+                        f"(max {PATTERN_MAX_LINES} / {PATTERN_MAX_MODIFIERS}): prefer a small file no story grows")
 
     # cycles
     state = {}

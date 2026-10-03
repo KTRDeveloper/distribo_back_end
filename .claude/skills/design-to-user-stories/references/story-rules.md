@@ -64,7 +64,7 @@ Never write a spike (open-ended research): an unknown goes to OPEN_QUESTIONS.md,
 ## 6. Structure rules
 
 - depends_on: only real prerequisites (a table, a contract, a pattern file). Upstream modules are rendered first.
-- Pattern file: the closest existing file to imitate, or a file created by a dependency. FND-000's health endpoint and its test are the first patterns.
+- Pattern file: the smallest file that shows what to imitate, existing or created by a dependency, and one that later stories do not grow: every story that cites it reads it whole. Prefer a small module's routes file or one focused test over a growing routes or service file or a whole test suite. FND-000's health endpoint and its test are the first patterns. render_stories.py rejects an existing pattern over 150 lines; validate.py warns when a todo story's pattern is over 150 lines or modified by more than 2 todo stories.
 - read_first: typically the contracts.md the story consumes, and the pattern file. Agents read whole files, so never point to an #anchor.
 - Every path is relative to the project root: `docs/stories/modules/auth/contracts.md`, `src/...`. validate.py checks that each file read, modified or used as pattern exists or is created by a dependency, and that no file is created by two stories.
 - Third-party integrations go through a port (interface) and an adapter, with a fake adapter in tests. No story needs real credentials or sandbox access.
@@ -119,6 +119,7 @@ secrets: []
 migrations: []
 baseline: ["v5.0.0-9.2.1: access tokens expire after 15 minutes, refresh tokens after 30 days"]
 baseline_omit: []                   # queries, authorization, passwords, tokens, rate-limit, input-size, security-logging
+replace: {}                         # tag: line, for a generic CONVENTIONS line the project states differently (security.md §4)
 rules: []                           # design-wide requirements (NFRs) every story obeys, e.g. pagination limits
 agent: Claude Sonnet 5.5 (`claude-sonnet-5-5`, medium effort)   # optional; defaults.yaml otherwise
 ```

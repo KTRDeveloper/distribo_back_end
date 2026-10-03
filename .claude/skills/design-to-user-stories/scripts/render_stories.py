@@ -11,9 +11,10 @@ Document kinds (the schema is in references/story-rules.md):
                    prefix comes from _meta/index.json
 Every story is checked before anything is written: schema, ID and prefix,
 labels AC-n / AB-n, tests covering every AC, AB and constraint of the story,
-known constraint / ASVS / design anchor / dependency IDs, and budgets. A
-document with any error writes nothing. Story files are written once and never
-overwritten, so a story whose file exists is skipped, unchecked (SYNC appends
+known constraint / ASVS / design anchor / dependency IDs, budgets, and the
+size of an existing pattern file. A document with any error writes nothing.
+Story files are written once and never overwritten, so a story whose file
+exists is skipped, unchecked (SYNC appends
 new stories to an existing module YAML). Module and project files are created
 when absent; when present and different, they are replaced only with --update.
 --check writes nothing. Change, migration and removal stories may cite design
@@ -33,7 +34,7 @@ import yaml
 import asvs_lookup
 from common import (ASSETS, CONVENTIONS_MAX_LINES, CONVENTIONS_MAX_TOKENS, KINDS, MAX_ACCEPTANCE,
                     MAX_CONTEXT_LINES, MAX_PRODUCTION_FILES, MAX_READ_FIRST, MODULE_FILE_MAX_LINES,
-                    MODULE_FILE_MAX_TOKENS, README_MAX_LINES, README_MAX_TOKENS, RISKS, SIZES,
+                    MODULE_FILE_MAX_TOKENS, PATTERN_MAX_LINES, README_MAX_LINES, README_MAX_TOKENS, RISKS, SIZES,
                     STORY_ID_RE, STORY_MAX_LINES, STORY_MAX_TOKENS, TEST_LEVELS, DtusError, dump_json,
                     estimate_tokens, fill_template, load_json, load_template, load_yaml_documents,
                     out_paths, read_text, slugify, write_text, yaml_inline)
@@ -52,11 +53,12 @@ CONFIG_FILE_RE = re.compile(r"(^|/)\.[^/]+$|(^|/)\.github/|\.(json|jsonc|ya?ml|t
 FRENCH_RE = re.compile(r"[àâäçéèêëîïôöùûüœ]|\b(le|la|les|des|du|une|est|sont|pour|avec|sans|chaque|dont|dans|aucune?|renseign\w*)\b", re.I)
 EXACT_VERSION_RE = re.compile(r"^v?\d[\w.+-]*$")
 BASELINE_TAGS = ("queries", "authorization", "passwords", "tokens", "rate-limit", "input-size", "security-logging")
+TAGGED_LINE_RE = re.compile(r"^- \[([a-z-]+)\] (.*)$")
 
 PROJECT_REQUIRED = ("kind", "name", "design", "out", "asvs_level", "stack", "commands", "layout",
                     "dependencies", "urls", "roles", "glossary")
 PROJECT_OPTIONAL = ("agent", "errors", "logging", "validation", "secrets", "migrations", "baseline", "baseline_omit",
-                    "rules")
+                    "replace", "rules")
 MODULE_REQUIRED = ("kind", "module", "prefix", "title", "responsibility", "entities", "asvs_level",
                    "asvs_rationale", "stories")
 MODULE_OPTIONAL = ("depends_on", "classification", "threats", "constraints", "contracts", "pointers", "model")
@@ -233,6 +235,19 @@ class Renderer:
         for t in omit:
             if t not in BASELINE_TAGS:
                 p.add("baseline_omit", f"unknown tag `{t}` (known: {', '.join(BASELINE_TAGS)})")
+        template = load_template("CONVENTIONS.md")
+        tags = [m.group(1) for m in map(TAGGED_LINE_RE.match, template.split("\n")) if m]
+        replace = doc.get("replace") or {}
+        if not isinstance(replace, dict):
+            p.add("replace", "must map tag: replacement line")
+            replace = {}
+        for t, text in replace.items():
+            if t not in tags:
+                p.add("replace", f"unknown tag `{t}` (known: {', '.join(tags)})")
+            elif t in omit:
+                p.add(f"replace.{t}", "also in baseline_omit: keep one")
+            elif not isinstance(text, str) or not text.strip() or "\n" in text.strip():
+                p.add(f"replace.{t}", "must be one non-empty line")
         glossary = []
         for k, row in enumerate(_as_list(doc["glossary"])):
             cells = _cells(row, 3)
@@ -242,13 +257,12 @@ class Renderer:
             glossary.append(cells)
         glossary.sort(key=lambda c: c[0].lower())
 
-        template = load_template("CONVENTIONS.md")
         kept = []
         for line in template.split("\n"):
-            m = re.match(r"^- \[([a-z-]+)\] (.*)$", line)
+            m = TAGGED_LINE_RE.match(line)
             if m:
                 if m.group(1) not in omit:
-                    kept.append("- " + m.group(2))
+                    kept.append("- " + str(replace.get(m.group(1), m.group(2))).strip())
             else:
                 kept.append(line)
         conventions = fill_template("\n".join(kept), {
@@ -466,6 +480,14 @@ class Renderer:
         for path in creates + modifies + [str(x) for x in _as_list(impl.get("read"))] + read_first + _as_list(impl.get("pattern")):
             if str(path).startswith("/") or ".." in Path(str(path)).parts:
                 p.add(f"{sid}.implementation", f"`{path}` must be relative to the project root")
+        for path in [str(x) for x in _as_list(impl.get("pattern"))]:
+            file = self.root / path
+            if path.startswith("/") or ".." in Path(path).parts or not file.is_file():
+                continue
+            lines = len(read_text(file).splitlines())
+            if lines > PATTERN_MAX_LINES:
+                p.add(f"{sid}.implementation", f"pattern `{path}` has {lines} lines (max {PATTERN_MAX_LINES}): "
+                      "the agent reads it whole; point to a smaller file that shows the same pattern")
         production = [f for f in creates + modifies if is_production_file(f)]
         if len(production) > MAX_PRODUCTION_FILES:
             p.add(f"{sid}.implementation", f"{len(production)} production files; max {MAX_PRODUCTION_FILES}: split the story")

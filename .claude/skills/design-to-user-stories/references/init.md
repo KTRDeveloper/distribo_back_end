@@ -7,7 +7,7 @@ Contents: 0 Plan mode · 1 Index and digest · 2 Gaps · 3 Scope · 4 Modules an
 
 ## 0. Plan mode (`--plan`)
 
-Write nothing: no lock, no `_meta`, no file. Run `index_design.py $DESIGN --out $OUT --print` and `extract_model.py $DESIGN --out $OUT --print`, read the design once, do steps 2 to 5 without writing, then print:
+Write nothing: no lock, no `_meta`, no file. Run `index_design.py $DESIGN --out $OUT --print` and `extract_model.py $DESIGN --out $OUT --print`, read the design section by section (step 1.4), do steps 2 to 5 without writing, then print:
 - modules: prefix, owned entities, depends on, ASVS level, and the stories you would write (count, plus one-line titles when there are few);
 - open questions, blocking first, and security notices.
 Stop there.
@@ -19,10 +19,10 @@ Stop there.
 3. `extract_model.py $DESIGN --out $OUT`, which writes `_meta/constraints.md` and `_meta/model.json`.
    - Exit 2 (format not recognized): write `_meta/constraints.md` yourself with the same layout (a `## Extracted` table, then a `## Manual` table), one row per constraint, `| ID | Entity.field(s) | rule |`. IDs: `Entity:required`, `Entity.field:unique`, `Entity.field:enum`, `Entity.field:check`, `Entity:fk`, and `C-nn` for composite or cross-entity rules. Then give each module a `model:` block.
    - Its warnings are data-model gaps for step 2.
-4. Read the design once, whole, with the outline at hand. Note: the features and flows per entity, the roles, sensitive data, non-functional requirements, stack statements, contradictions, and rules stated only in prose (the prose hints point at candidates).
+4. Never open the design whole: every token read stays in the context and is sent again with each later turn. With the outline at hand, open one section at a time by its line range, and skip the data-model tables that `_meta/constraints.md` already digests. Note: the features and flows per entity, the roles, sensitive data, non-functional requirements, stack statements, contradictions, and rules stated only in prose (the prose hints point at candidates).
 5. Add each rule stated only in prose to the Manual table of `_meta/constraints.md`: `| CM-01 | Entity.field(s) | rule in English (design line N) |`. Only rules about data: a value, a combination, a transition, immutability, uniqueness. Composite and cross-entity constraints are allowed.
 
-From here on, open only line ranges of the design (from the outline), and work from `_meta/constraints.md`.
+From here on, work from your notes and `_meta/constraints.md`; reopen a line range only for its exact wording.
 
 ## 2. Gaps: OPEN_QUESTIONS.md
 
@@ -67,7 +67,7 @@ Why: a wrong split caught here costs nothing; caught later, it costs every story
 
 ## 7. Foundation
 
-1. Write `$OUT/_meta/src/project.yaml` (story-rules.md §8) and run `render_stories.py $OUT/_meta/src/project.yaml --out $OUT`, which writes CONVENTIONS.md, README.md and GLOSSARY.md. Fill `commands`, `layout` and `dependencies` from the stack; every package any story will use must be in `dependencies`, at an exact version.
+1. Write `$OUT/_meta/src/project.yaml` (story-rules.md §8) and run `render_stories.py $OUT/_meta/src/project.yaml --out $OUT`, which writes CONVENTIONS.md, README.md and GLOSSARY.md. Fill `commands`, `layout` and `dependencies` from the stack; every package any story will use must be in `dependencies`, at an exact version. When the project states a generic line differently (a status code, the logger), use `replace` (security.md §4), never a second line that contradicts it.
 2. Write `$OUT/_meta/src/foundation.yaml` with FND-000 and render it. FND-000 is the walking skeleton:
    - layout, package manifest with the allowlist's exact versions, validated config module, logger, global error handler, and a health endpoint with its test (the first pattern file for routes and tests);
    - lint and typecheck, test runner, and CI running lint, typecheck, tests, SAST, secret scanning and the dependency audit (the tools listed in `defaults.yaml` `security_tooling` when the design names none);
@@ -84,9 +84,9 @@ Open `$SKILL/references/story-rules.md`, and once, the golden example in `$SKILL
 
 Coverage: every row of constraints.md ends up in the `constraints` of at least one story that tests it. Put it on the story that first enforces it: usually the table-creation story for the database side, plus the feature story that validates the input.
 
-With subagents: after the foundation, give each low- or medium-risk module to a subagent on a cheaper model. Hand it the module's row of ADR-001, its contracts and those it consumes, its constraint IDs, its design line ranges, the paths of story-rules.md and the examples, and the YAML path. It writes and renders the YAML and returns only the render summary. Keep modules with high-risk stories (authentication, access control, payment, file upload) on the main model.
+One module, one fresh context. After the foundation, write each module in its own subagent, given this brief rather than a copy of the conversation: the module's row of ADR-001, its contracts and those it consumes, its constraint IDs, its design line ranges, the paths of story-rules.md and the examples, and the YAML path. It writes and renders the YAML and returns only the render summary. Modules with high-risk stories (authentication, access control, payment, file upload) run on the main model, the others on a cheaper one. Why: a session that writes every module carries all of them in its context; one reached 857K tokens on a 200 KB design.
 
-For a large design, do a few modules per session. Everything is on disk (`_meta/src/*.yaml`, rendered stories); the next session resumes with the first module not yet rendered.
+Without subagents, do one module per session. Everything is on disk (`_meta/src/*.yaml`, rendered stories); the next session resumes with the first module not yet rendered.
 
 ## 9. Backlog and validation
 

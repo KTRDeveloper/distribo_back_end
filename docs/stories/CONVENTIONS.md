@@ -30,11 +30,11 @@ Every story assumes this file; stories never restate it. If a story contradicts 
 
 ## Errors (fail closed)
 - One error shape: `{"error": {"code": "UPPER_SNAKE_CASE", "message": "safe text"}}`; validation errors add `details` with field paths and rule names, never input values.
-- 400 malformed request · 401 not authenticated · 403 not allowed · 404 absent or outside the caller's scope · 409 conflict · 422 validation failed · 429 rate limited · 500 unexpected.
+- 400 malformed request or failed schema validation · 401 not authenticated · 403 not allowed · 404 absent or outside the caller's scope · 409 conflict · 429 rate limited · 500 unexpected.
 - Outside the caller's scope, answer 404, not 403: never confirm that an ID exists.
 - Never swallow an exception. Catch only to map it to a coded error or add context, then rethrow; the global handler logs the rest and returns a generic 500.
 - Fail closed: a failed check, a missing permission or an unexpected state aborts the operation. Writes that belong together run in one transaction.
-- Raise errors with `httpError(status, code, message)` (FND-006); the global handler adds `requestId`. Codes: 400 `VALIDATION_ERROR` for a failed schema validation (here 400, not 422), 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`.
+- Raise errors with `httpError(status, code, message)` (FND-006); the global handler adds `requestId`. Codes: 400 `VALIDATION_ERROR` for a failed schema validation, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`.
 
 ## Logging
 - Structured JSON through the shared logger only; no console output in production code.

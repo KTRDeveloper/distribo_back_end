@@ -41,6 +41,8 @@ MAX_ACCEPTANCE = 7
 MAX_PRODUCTION_FILES = 5
 MAX_READ_FIRST = 2
 MAX_CONTEXT_LINES = 15
+PATTERN_MAX_LINES = 150      # a pattern file is read whole by every story that cites it
+PATTERN_MAX_MODIFIERS = 2    # beyond this many todo stories modifying it, a pattern keeps growing
 
 
 class DtusError(Exception):

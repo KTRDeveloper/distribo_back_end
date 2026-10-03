@@ -66,7 +66,8 @@ Third-party payment webhooks have no dedicated ASVS requirement: cite 13.2.1 (au
 
 CONVENTIONS.md already carries the security baseline, each line tagged in `assets/CONVENTIONS.md`: `queries`, `authorization`, `passwords`, `tokens`, `rate-limit`, `input-size`, `security-logging`. In the project YAML:
 - `baseline_omit`: tags that do not apply (for example `passwords` when the design has no password);
-- `baseline`: stack- or design-specific lines, each with its ASVS ID (for example the token lifetimes the design states, the password hashing library from the allowlist, CORS origins, cookie flags when the design uses cookies).
+- `baseline`: stack- or design-specific lines, each with its ASVS ID (for example the token lifetimes the design states, the password hashing library from the allowlist, CORS origins, cookie flags when the design uses cookies);
+- `replace`: `tag: line` for a generic line the project states differently, for example `status-codes` when a failed validation answers 400, not 422. Every generic line of `assets/CONVENTIONS.md` has a tag, except the Definition of Done and the agent rules, which no project changes. Never append a line that contradicts a generic one: the agent would read both.
 Never contradict the design: when it states a mechanism (bcrypt, sessions, OTP), the baseline follows it, and a weaker choice becomes an open question, not a silent change.
 
 ## 5. Abuse-case patterns
