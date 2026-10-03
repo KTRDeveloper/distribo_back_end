@@ -6,7 +6,7 @@ import { randomBytes, createHash } from 'crypto';
  * Unlike OTP codes and passwords (low-entropy secrets hashed with Argon2id,
  * see src/lib/otp.ts), a refresh token is a 256-bit random value with no
  * meaningful brute-force risk — a fast cryptographic hash is the correct,
- * standard choice for storage (see specs/005-refresh-tokens/research.md §2).
+ * standard choice for storage (see docs/stories/decisions/ADR-003).
  */
 
 const REFRESH_TOKEN_BYTES = 32;

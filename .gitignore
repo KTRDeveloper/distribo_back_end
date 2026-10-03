@@ -41,7 +41,6 @@ temp/
 
 # Prisma
 .migrate/
-specs/
 
 # Claude Code: ignore everything under .claude/ by default (local/personal
 # state, e.g. settings.local.json), but track shared project config.

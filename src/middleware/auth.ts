@@ -8,7 +8,7 @@ import { logger } from '../lib/logger.js';
  * Verifies the access token by signature alone — no database lookup. This
  * is safe because access tokens are short-lived (see config.jwt.accessTokenExpiresIn)
  * and revocation lives at the refresh-token layer instead (see
- * specs/005-refresh-tokens/research.md §1); a revoked/locked account simply
+ * docs/stories/decisions/ADR-003); a revoked/locked account simply
  * cannot obtain further access tokens once its refresh tokens are revoked.
  */
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {

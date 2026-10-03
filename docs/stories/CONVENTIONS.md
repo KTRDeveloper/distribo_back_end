@@ -25,7 +25,7 @@ Every story assumes this file; stories never restate it. If a story contradicts 
 - `src/modules/<module>/`: `<module>.routes.ts` (router and handlers: parse with the Zod schema, call the service, send JSON), `.service.ts`, `.repository.ts` (the only file that calls `prisma`), `.schemas.ts`, `.openapi.ts` (imported in `src/app.ts`). Existing modules keep their `.controller.ts`.
 - A module imports another only through the functions in its `contracts.md`. Shared code without Node-only imports: `src/shared/`; helpers: `src/lib/`; middleware: `src/middleware/`.
 - Tests: `tests/unit/<area>/<name>.test.ts`, `tests/integration/<module>/<name>.test.ts`, helpers in `tests/helpers/`; integration tests import `prisma` from `tests/setup.ts` (real PostgreSQL).
-- `prisma/schema.prisma`, `prisma/migrations/`; a CHECK, partial unique index, generated column or GRANT goes in the same migration's SQL.
+- `prisma/schema.prisma`, `prisma/migrations/`.
 - Files kebab-case; columns in snake_case through `@map`. Money: integer XAF `bigint`. Quantities: `numeric(12,3)`, integer thousandths in code. IDs: UUIDv7. Timestamps: `timestamptz`.
 
 ## Errors (fail closed)
@@ -34,30 +34,29 @@ Every story assumes this file; stories never restate it. If a story contradicts 
 - Outside the caller's scope, answer 404, not 403: never confirm that an ID exists.
 - Never swallow an exception. Catch only to map it to a coded error or add context, then rethrow; the global handler logs the rest and returns a generic 500.
 - Fail closed: a failed check, a missing permission or an unexpected state aborts the operation. Writes that belong together run in one transaction.
-- Raise errors with `httpError(status, code, message)` (FND-006), UPPER_SNAKE_CASE codes; the global handler answers `{ error: { message, code, requestId } }`: Zod 400 `VALIDATION_ERROR`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`.
+- Raise errors with `httpError(status, code, message)` (FND-006); the global handler adds `requestId`. Codes: 400 `VALIDATION_ERROR` for a failed schema validation (here 400, not 422), 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`.
 
 ## Logging
 - Structured JSON through the shared logger only; no console output in production code.
 - Each entry carries the actor ID, the event, the route or job and a request ID; timestamps in UTC.
-- Log with the Pino `logger`, object first. Never log phones, emails, names, passwords, codes, tokens or amounts: ids only. Security events are `warn` with a fixed `event` name and the person id.
+- Log with the Pino `logger`, object first; ids only, never phones, emails, names or amounts. Security events: `warn`, a fixed `event` name and the person id.
 
 ## Validation and output encoding
 - Validate every input at the boundary (body, params, query, headers read) with a strict schema: unknown fields are rejected.
 - Lengths, ranges, formats and enum values come from the module's `model.md`; the database enforces the same constraints.
 - Build responses from an explicit list of fields; never serialize a whole database row.
-- Every body, query and path parameter goes through a strict Zod schema before any database call; phones through `normalizeE164` (FND-004). Person, organization and role come from the session, never from the request.
+- Schemas are Zod, applied before any database call; phones go through `normalizeE164` (FND-004). Person, organization and role come from the session.
 
 ## Secrets
 - Secrets come only from environment variables, validated once at startup by the config module; a missing one stops the app.
 - Never hard-code, commit or log a secret. `.env` is git-ignored; `.env.example` lists every variable with a placeholder.
 - Tests set fake values. Third-party services sit behind a port with a fake adapter, so no story needs real credentials or sandbox access.
-- Secrets come from validated environment variables (`src/config/env.ts`); never in code, fixtures or logs.
 
 ## Migrations
 - One migration per schema change, created with the migration command; a merged migration is never edited.
 - Renames, type changes and tightening (new NOT NULL, UNIQUE, CHECK, FK) follow expand / migrate / contract, with a backfill before enforcement.
 - Constraints the ORM cannot express (CHECK, partial unique indexes, generated columns, grants) go in a raw SQL migration next to the schema.
-- One Prisma migration per schema-changing story, named after its ID; never edit an earlier one.
+- One Prisma migration per schema-changing story, named after its ID; its CHECK, partial unique index, generated column or GRANT goes in that migration's SQL.
 
 ## Dependencies and URLs
 Only these packages, at exactly these versions; any other package is forbidden: stop and ask (models invent package names, and attackers register them). Install with exact versions and commit the lockfile.
@@ -76,8 +75,8 @@ Allowed URLs; code and stories reference no other:
 - Login, code and reset endpoints are rate limited per account and per IP (v5.0.0-6.3.1, v5.0.0-2.4.1).
 - Request bodies, strings, arrays and files have explicit maximums (v5.0.0-2.2.1, v5.0.0-5.2.1).
 - Security events are logged (authentication success and failure, access denied, rate-limit hits, token revocation) without secrets, tokens, codes, passwords or personal data: log IDs instead (v5.0.0-16.3.1, v5.0.0-16.3.2, v5.0.0-16.2.5).
-- v5.0.0-9.2.1: access token (JWT, HS256) lives 15 minutes; refresh token lives 90 days, is replaced at every use and stored only as a hash.
-- v5.0.0-11.4.2: passwords use Argon2id (`argon2`); one-time codes and refresh tokens are stored only as hashes.
+- v5.0.0-9.2.1: access token: JWT HS256, 15 minutes; refresh token: 90 days, replaced at every use.
+- v5.0.0-11.4.2: Argon2id through `argon2`; one-time codes are stored only as hashes.
 - v5.0.0-8.3.1: the server decides access with the rules table (ACC) and the visibility predicate (REL); a phone's own checks only hide buttons.
 
 ## Project rules
@@ -85,6 +84,7 @@ Allowed URLs; code and stories reference no other:
 - Every online gesture that changes data carries a client-generated UUIDv7 `id`; a repeat with the same id changes nothing and returns the first response (ACC).
 - Immutable tables (LedgerEntry, SyncArchive, PhoneNumberChangeLog, CustomerRelationshipReassignment, CreditLimitChange, AdminAction) are never updated or deleted by the application account.
 - Every route is under `/api/v1` and registered in its module's `.openapi.ts`.
+- A story that adds a route also adds its own paths to the route lists in `tests/integration/api-docs/catalog.test.ts` and `tests/integration/per-001.test.ts`: these additions count as listed under "Tests to update". Never remove an entry.
 
 ## Definition of Done
 - The story's tests and the full suite pass.

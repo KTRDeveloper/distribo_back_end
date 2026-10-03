@@ -257,7 +257,7 @@ describe('ExampleService', () => {
 
 ### Tests Fail with "Database connection error"
 
-- Check that `tests/setup.ts` is properly initializing pg-mem
+- Check that the test database is up (`npm run test:db:up`: PostgreSQL on port 5434); `tests/global-setup.ts` applies the migrations once per run
 - Ensure `beforeEach` hook is clearing database state
 
 ### Tests Are Slow
@@ -299,4 +299,3 @@ Builds fail if:
 
 - [Vitest Documentation](https://vitest.dev)
 - [Supertest Documentation](https://github.com/ladjs/supertest)
-- [pg-mem Documentation](https://github.com/oguimbal/pg-mem)

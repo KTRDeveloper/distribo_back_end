@@ -1,43 +1,27 @@
-# node-ts-express-prisma-boilerplate Development Guidelines
+<!--
+Maintainers: this file loads into every session and every subagent, so keep it
+short (official guidance: under 200 lines). HTML comments are stripped before
+loading. CONVENTIONS.md is rendered from docs/stories/_meta/src/project.yaml by
+the design-to-user-stories skill (render_stories.py --update): edit the YAML,
+not the Markdown. tests/unit/tooling/quality-gates.test.ts requires exactly one
+import line of CONVENTIONS.md below.
+-->
+# Distribo back end
 
-Auto-generated from all feature plans. Last updated: 2025-11-15
-
-## Active Technologies
-- TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Vitest 4.0 (test runner), Supertest 7.1 (HTTP testing), pg-mem 3.0 (in-memory PostgreSQL), @vitest/coverage-v8 4.0 (coverage reporting) (002-extensive-tests)
-- In-memory PostgreSQL (pg-mem) for integration tests, no external database dependencies required (002-extensive-tests)
-- TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 6.19, Zod 3.23, Pino 10.1 (logging), Node.js crypto module (encryption) (003-remote-config)
-- PostgreSQL (via Prisma ORM) with two new tables: SystemConfig and ConfigHistory (003-remote-config)
-
-- TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 6.19, Redis (ioredis 5.8), BullMQ 5.63, bcrypt 6.0, jsonwebtoken 9.0, Pino 10.1, Helmet 8.1, Zod 3.23 (001-node-ts-template)
-- TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 7.0, Zod 3.23, Pino 10.1, bcrypt 6.0, jsonwebtoken 9.0, ioredis 5.8, BullMQ 5.63, Helmet 8.1, @textbee/sdk (SMS), nodemailer (SMTP email) (002-sms-otp-auth)
-- PostgreSQL via Prisma with new OtpChallenge and EmailVerificationRequest tables; PasswordResetToken removed (002-sms-otp-auth)
-
-- TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 7.0, Zod 3.23, jsonwebtoken 9.0.2 (access token signing), Node.js crypto module (refresh token generation/hashing), bcrypt 6.0 (password/OTP hashing only), Pino 10.1 (005-refresh-tokens)
-- PostgreSQL via Prisma — new RefreshToken table; Account.tokenVersion column retired (005-refresh-tokens)
-
-## Project Structure
-
-```text
-src/
-tests/
-```
-
-## Commands
-
-npm test && npm run lint
-
-## Code Style
-
-TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0: Follow standard conventions
-
-## Recent Changes
-- 005-refresh-tokens: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 7.0, Zod 3.23, jsonwebtoken 9.0.2 (access token signing), Node.js crypto module (refresh token generation/hashing), bcrypt 6.0 (password/OTP hashing only), Pino 10.1
-- 002-sms-otp-auth: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 7.0, Zod 3.23, Pino 10.1, bcrypt 6.0, jsonwebtoken 9.0, ioredis 5.8, BullMQ 5.63, Helmet 8.1, @textbee/sdk (SMS), nodemailer (SMTP email)
-- 003-remote-config: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 6.19, Zod 3.23, Pino 10.1 (logging), Node.js crypto module (encryption)
-- 002-extensive-tests: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Vitest 4.0 (test runner), Supertest 7.1 (HTTP testing), pg-mem 3.0 (in-memory PostgreSQL), @vitest/coverage-v8 4.0 (coverage reporting)
-
-- 001-node-ts-template: Added TypeScript 5.9+ with ES2022 module support, Node.js ≥22.0.0, npm ≥10.0.0 + Express 5.1, Prisma 6.19, Redis (ioredis 5.8), BullMQ 5.63, bcrypt 6.0, jsonwebtoken 9.0, Pino 10.1, Helmet 8.1, Zod 3.23
-
-<!-- MANUAL ADDITIONS START -->
 @docs/stories/CONVENTIONS.md
-<!-- MANUAL ADDITIONS END -->
+
+## Where things are
+- Stories: `docs/stories/`; implement them with `/implement-stories`. Generating or syncing stories: the `design-to-user-stories` skill.
+- Design, the source of truth (read-only, about 200 KB): `data-model/modele-donnees-livraisons-v10.md`. Never read it whole: `grep -n` the heading you need, then read only that line range.
+- Decisions: `docs/stories/decisions/`.
+
+## Never load these files whole
+- `docs/stories/STATUS.md` and `docs/stories/_meta/order.md`: run `node .claude/skills/implement-stories/scripts/select.mjs <selection>` or `.../set-status.mjs <ID> <status> [note]`, or `grep` the one line you need.
+- Generated files: `openapi/openapi.json` (`npm run openapi:generate`), `package-lock.json` (`npm ls <package>`), `docs/stories/_meta/*.json`.
+
+## Commands for agents
+- While iterating: `npx vitest run <test-file>` and `npm run lint -- --quiet` (errors only).
+- Once at the end: `npm run typecheck`, `npm run lint`, `npm test` (one dot per test under Claude Code; failures in full).
+
+## Compact instructions
+When compacting, keep the story ID in progress, the failing tests with their errors, the files changed and the decisions taken; drop passing test output, file listings and file contents already applied.

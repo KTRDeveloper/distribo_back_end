@@ -38,9 +38,5 @@ temp/
 *.md
 docs/
 
-# Specifications
-specs/
-.specify/
-
 # macOS
 .DS_Store
