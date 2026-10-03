@@ -2819,7 +2819,7 @@
     },
     "ADM-006": {
       "path": "modules/admin/ADM-006-administrator-signs-in-with-password-and.md",
-      "sha256": "be4e7d29da7d0977139b49a59b2229b4a418c308e5fa2e827f7408feafb3644f"
+      "sha256": "296082bc13afcceb236762b3177bd60bdd761061a8debaffb8ae1d0a32bafe3d"
     },
     "ADM-007": {
       "path": "modules/admin/ADM-007-administrator-registers-a-recovery-email.md",
@@ -2907,11 +2907,11 @@
     },
     "AUTH-013": {
       "path": "modules/auth/AUTH-013-person-signs-in-with-number-and-password.md",
-      "sha256": "100f0be38324efb6248f0bbd603a3ff6921e170dc43c6ff31595ffda3b4608aa"
+      "sha256": "f2de607b33efeae68c31c87b0e4a375ec1b0e2b8ca747ded528ba3158d6dd955"
     },
     "AUTH-014": {
       "path": "modules/auth/AUTH-014-person-completes-sign-in-with-the-code.md",
-      "sha256": "57c333805eb7e5978e0681704eae0a4f08ba2f8392d3d57299c36e0f6f29343c"
+      "sha256": "089126a8d9f98be50ba18dc6f5d1cdcd490ea623ccaccd0d3b82595c2fc8327f"
     },
     "AUTH-015": {
       "path": "modules/auth/AUTH-015-person-whose-number-was-taken-signs-in-with-the.md",
@@ -2919,43 +2919,43 @@
     },
     "AUTH-016": {
       "path": "modules/auth/AUTH-016-refresh-a-session-with-rotation.md",
-      "sha256": "6c4164f04917662627f3041c30dde1ac5e0900af81be4321b8204b06fbe40af6"
+      "sha256": "dcee2711286f2c014fd9c163570253fff7eb8c2f5499c5f4fc9fc34ad62e1254"
     },
     "AUTH-017": {
       "path": "modules/auth/AUTH-017-person-signs-out-of-this-phone.md",
-      "sha256": "443487e3b4e44869eb37e8e12846c1fdadb50f2ab4db56be2935b207ad0542ae"
+      "sha256": "6a2bae542b5db3f931bf4c8a3b185070e19b08b8c722e22d63e446c7bd237ef0"
     },
     "AUTH-018": {
       "path": "modules/auth/AUTH-018-person-manages-their-phones.md",
-      "sha256": "d1f84b63b0ea6588c07cb4a771c20c25f110d57f7d22e439cc5936e6c81ecd99"
+      "sha256": "06d31234b049b0b5984cd8ae0c9d6f1e0b6a50e17aa5dbdc0c3219585d4d9ea5"
     },
     "AUTH-019": {
       "path": "modules/auth/AUTH-019-person-asks-for-a-password-reset-code.md",
-      "sha256": "1301c590dff846c29b13e30907454026a1419d18bc26887e3c3598e2d6572d84"
+      "sha256": "4c27a4eeba7e417cde843d25820c4cbae4436a886cdbe5c1cbbe51e408789da4"
     },
     "AUTH-020": {
       "path": "modules/auth/AUTH-020-person-chooses-a-new-password-with-the-code.md",
-      "sha256": "0d02df4ce7746938a528f103af1ea5303d544ffb1c7166341f2db3d7389fb428"
+      "sha256": "4439908f3e5245cb1698f91ff03c6476d2a6bd391ecc306a6aa6ba4ae0bf0ffe"
     },
     "AUTH-021": {
       "path": "modules/auth/AUTH-021-person-changes-their-password.md",
-      "sha256": "4851adabc8abf1bcb1bcb1f5c8aeeb206ba0d54064d18a93e9fba2f2373dfcd5"
+      "sha256": "90851668251836232e30e897f7a6877ae988007088c8825e3c6c6cdaf594ee92"
     },
     "AUTH-022": {
       "path": "modules/auth/AUTH-022-person-asks-for-an-email-verification-code.md",
-      "sha256": "32c9eb993c0c0d590a327616e5f5f091ed3d04e3b9ee29821be6617f0a950d00"
+      "sha256": "f1c6fbd972d3776e59b7addcffb499ddcb6dd1c1db2061b94e490d1963270b9d"
     },
     "AUTH-023": {
       "path": "modules/auth/AUTH-023-person-confirms-their-email.md",
-      "sha256": "06f118257ba1ab226ab2f817926e5ffa8cd2f0893a9e2f80c4cfb06d45155084"
+      "sha256": "ac8ce41213179ff507bd230c5dd1afa25bdf20cf8ab6dae596a347819111f5f4"
     },
     "AUTH-024": {
       "path": "modules/auth/AUTH-024-person-asks-to-change-their-phone-number.md",
-      "sha256": "139484de931ff0d287ff4cb9c75c216b883c6c6dab581405593b1c394b76079a"
+      "sha256": "b15d670868ef2f22098f842bf45beccfbba7c4101f18db533d50c48b119e725c"
     },
     "AUTH-025": {
       "path": "modules/auth/AUTH-025-person-moves-their-account-to-the-new-number.md",
-      "sha256": "7a3911ef07d550349ddce3af48610e7eb114a3f54f8652045eefec592c2a60fa"
+      "sha256": "60c037a8697e9d2cf90ed4b0d754615235f942d51a10e9fbdc596207d25d9ccc"
     },
     "AUTH-026": {
       "path": "modules/auth/AUTH-026-drop-the-bcrypt-dependency.md",
@@ -3135,15 +3135,15 @@
     },
     "FND-000": {
       "path": "modules/foundation/FND-000-add-the-missing-quality-gates-and-load-the.md",
-      "sha256": "3ee6f77a667cb96ab6fe4b48e38f2cc6d28f4e3a027d82dd6a6d96801b22caad"
+      "sha256": "66fdb0142d4d580ff105e12e0559c8ea12bbd636aa64392652e9d153ac6919e3"
     },
     "FND-001": {
       "path": "modules/foundation/FND-001-reset-the-database-schema-and-the-migration.md",
-      "sha256": "b99277c75058ef2d6b77b64036500020f7e41ecb132df46a3d64a72ef9b65659"
+      "sha256": "fe16af45c26a48ff98029f9e865f0e48d9d844f7fe424da71a75460f5e61ffdc"
     },
     "FND-002": {
       "path": "modules/foundation/FND-002-create-the-application-database-role-and-the.md",
-      "sha256": "3ada12177da921c29632c2a77b54d6c0b606657b231d96b63b57bbf21fb93326"
+      "sha256": "838268bd88f9602ef08c62d5d8c9a2021dba3974945a2a111a9ea2ceacca6301"
     },
     "FND-003": {
       "path": "modules/foundation/FND-003-shared-money-and-quantity-arithmetic.md",
@@ -3287,7 +3287,7 @@
     },
     "ORG-002": {
       "path": "modules/organization/ORG-002-notifications-point-to-organizations.md",
-      "sha256": "01ad592d5fd63a8fc2e172bb791ed5de02cd2d604233b9edd4bffaa7d9da0f94"
+      "sha256": "e3c6a1ae58131e14e7cb25203eab4bd4db435e83968dd72a2b8691eb20c7c242"
     },
     "ORG-003": {
       "path": "modules/organization/ORG-003-collaborations-table.md",
@@ -3363,7 +3363,7 @@
     },
     "PER-002": {
       "path": "modules/person/PER-002-replace-the-legacy-person-and-account-with-the.md",
-      "sha256": "fe3454988a9b35b0cad77bae4dffa116ea253305ab9963740140771a256344f5"
+      "sha256": "c532c23eca71d0c3954e7f55019a80f592f8a58d2232ef7e81cc4b73bcd53b13"
     },
     "PER-003": {
       "path": "modules/person/PER-003-person-integrity-checks-in-the-database.md",

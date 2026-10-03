@@ -8,8 +8,19 @@ import { seedAccount } from '../../helpers/database';
 import { prisma } from '../../setup';
 
 const validPhone = '+237677123456';
-const migrationSql = readFileSync(
+const personChecksMigrationSql = readFileSync(
   resolve(process.cwd(), 'prisma/migrations/20261002060000_per_003_person_checks/migration.sql'),
+  'utf8'
+);
+const uuidMigrationSql = readFileSync(
+  resolve(process.cwd(), 'prisma/migrations/20261003060000_fnd_011_person_uuid/migration.sql'),
+  'utf8'
+);
+const unicodeWhitespaceMigrationSql = readFileSync(
+  resolve(
+    process.cwd(),
+    'prisma/migrations/20261003061000_fnd_011_person_unicode_whitespace/migration.sql'
+  ),
   'utf8'
 );
 
@@ -107,7 +118,12 @@ async function withMigrationSandbox(
   }
 }
 
-async function expectMigrationFailure(client: Client, id: string): Promise<void> {
+async function expectMigrationFailure(
+  client: Client,
+  migrationSql: string,
+  id: string,
+  privateValues: string[]
+): Promise<void> {
   try {
     await client.query(migrationSql);
     throw new Error('expected migration preflight failure');
@@ -116,11 +132,93 @@ async function expectMigrationFailure(client: Client, id: string): Promise<void>
       throw error;
     expect(error).toMatchObject({ code: '23514' });
     expect((error as Error).message).toContain(id);
-    expect((error as Error).message).not.toContain(validPhone);
+    for (const value of privateValues) expect((error as Error).message).not.toContain(value);
+  }
+}
+
+async function withUuidMigrationSandbox(run: (client: Client) => Promise<void>): Promise<void> {
+  const schema = `fnd_011_uuid_${randomUUID().replaceAll('-', '')}`;
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(`CREATE SCHEMA "${schema}"`);
+    await client.query(`SET search_path TO "${schema}"`);
+    await client.query(`
+      CREATE TABLE people (id text PRIMARY KEY);
+      CREATE TABLE tasks (
+        id text PRIMARY KEY,
+        "accountId" text NOT NULL,
+        CONSTRAINT "tasks_accountId_fkey" FOREIGN KEY ("accountId")
+          REFERENCES people(id) ON DELETE CASCADE ON UPDATE CASCADE
+      );
+      CREATE TABLE phone_number_change_logs (
+        id uuid PRIMARY KEY,
+        person_id text NOT NULL,
+        CONSTRAINT phone_number_change_logs_person_id_fkey FOREIGN KEY (person_id)
+          REFERENCES people(id) ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+    `);
+    await run(client);
+  } finally {
+    await client.query('ROLLBACK');
+    await client.query('RESET search_path');
+    await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+    await client.end();
   }
 }
 
 describe('Person integrity checks', () => {
+  it('preflights non-UUID Person ids and rolls back reference conversion', async () => {
+    await withUuidMigrationSandbox(async (client) => {
+      const invalidId = 'legacy-person-id';
+      await client.query('INSERT INTO people (id) VALUES ($1)', [invalidId]);
+      await client.query('INSERT INTO tasks (id, "accountId") VALUES ($1, $2)', [
+        'legacy-task-id',
+        invalidId,
+      ]);
+      await client.query('INSERT INTO phone_number_change_logs (id, person_id) VALUES ($1, $2)', [
+        randomUUID(),
+        invalidId,
+      ]);
+
+      await expectMigrationFailure(client, uuidMigrationSql, invalidId, ['legacy-task-id']);
+      await client.query('ROLLBACK');
+
+      const columns = await client.query<{
+        table_name: string;
+        column_name: string;
+        data_type: string;
+      }>(
+        `SELECT table_name, column_name, data_type
+         FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND (table_name, column_name) IN (
+             ('people', 'id'),
+             ('tasks', 'accountId'),
+             ('phone_number_change_logs', 'person_id')
+           )
+         ORDER BY table_name, column_name`
+      );
+      expect(columns.rows).toEqual([
+        { table_name: 'people', column_name: 'id', data_type: 'text' },
+        { table_name: 'phone_number_change_logs', column_name: 'person_id', data_type: 'text' },
+        { table_name: 'tasks', column_name: 'accountId', data_type: 'text' },
+      ]);
+
+      const foreignKeys = await client.query<{ constraint_name: string }>(
+        `SELECT constraint_name
+         FROM information_schema.table_constraints
+         WHERE constraint_schema = current_schema()
+           AND constraint_type = 'FOREIGN KEY'
+         ORDER BY constraint_name`
+      );
+      expect(foreignKeys.rows).toEqual([
+        { constraint_name: 'phone_number_change_logs_person_id_fkey' },
+        { constraint_name: 'tasks_accountId_fkey' },
+      ]);
+    });
+  });
+
   it('enforces E.164 and exactly one current or released phone number', async () => {
     await expect(insertPerson({ phoneNumber: validPhone })).resolves.toBeUndefined();
     await expect(insertPerson({ releasedPhoneNumber: validPhone })).resolves.toBeUndefined();
@@ -209,11 +307,12 @@ describe('Person integrity checks', () => {
     });
   });
 
-  it.each([' \t\n', '  '])(
+  it.each([' \t\n', '  ', ' '])(
     'rejects required and verified text containing only whitespace: %j',
     async (whitespace) => {
       await withMigrationSandbox(async (client) => {
-        await client.query(migrationSql);
+        await client.query(personChecksMigrationSql);
+        await client.query(unicodeWhitespaceMigrationSql);
         await expect(
           client.query(
             `INSERT INTO people
@@ -301,7 +400,10 @@ describe('Person integrity checks', () => {
         `INSERT INTO people (id, phone_number, full_name) VALUES ($1, 'invalid phone', 'Private Person')`,
         [id]
       );
-      await expectMigrationFailure(client, id);
+      await expectMigrationFailure(client, personChecksMigrationSql, id, [
+        'invalid phone',
+        'Private Person',
+      ]);
       await client.query('ROLLBACK');
 
       const constraint = await client.query<{ count: string }>(
@@ -317,6 +419,74 @@ describe('Person integrity checks', () => {
     });
   });
 
+  it.each([
+    {
+      category: 'completeness',
+      insert: `INSERT INTO people
+        (id, phone_number, full_name, phone_verified_at, registered_at)
+        VALUES ($1, $2, 'Private Person', NOW(), NOW())`,
+      values: ['Private Person'],
+    },
+    {
+      category: 'verification',
+      insert: `INSERT INTO people (id, released_phone_number, phone_verified_at)
+        VALUES ($1, $2, NOW())`,
+      values: [],
+    },
+    {
+      category: 'nonblank text',
+      insert: `INSERT INTO people
+        (id, phone_number, full_name, password_hash, phone_verified_at, registered_at)
+        VALUES ($1, $2, '   ', 'private-hash', NOW(), NOW())`,
+      values: ['private-hash'],
+    },
+  ])('preflights $category violations and rolls back every schema change', async (testCase) => {
+    await withMigrationSandbox(async (client) => {
+      const id = randomUUID();
+      await client.query(testCase.insert, [id, validPhone]);
+      await expectMigrationFailure(client, personChecksMigrationSql, id, testCase.values);
+      await client.query('ROLLBACK');
+
+      const state = await client.query<{ row_count: string; constraint_count: string }>(
+        `SELECT
+           (SELECT count(*)::text FROM people WHERE id = $1) AS row_count,
+           (SELECT count(*)::text FROM pg_constraint
+              WHERE conrelid = 'people'::regclass
+                AND conname LIKE 'people_%_check') AS constraint_count`,
+        [id]
+      );
+      expect(state.rows[0]).toEqual({ row_count: '1', constraint_count: '0' });
+    });
+  });
+
+  it('preflights Unicode whitespace and preserves the previous checks', async () => {
+    await withMigrationSandbox(async (client) => {
+      await client.query(personChecksMigrationSql);
+      const id = randomUUID();
+      await client.query(
+        `INSERT INTO people
+           (id, phone_number, full_name, password_hash, phone_verified_at, registered_at)
+         VALUES ($1, $2, $3, 'private-hash', NOW(), NOW())`,
+        [id, validPhone, ' ']
+      );
+      await expectMigrationFailure(client, unicodeWhitespaceMigrationSql, id, ['private-hash']);
+      await client.query('ROLLBACK');
+
+      const state = await client.query<{ row_count: string; constraint_count: string }>(
+        `SELECT
+           (SELECT count(*)::text FROM people WHERE id = $1) AS row_count,
+           (SELECT count(*)::text FROM pg_constraint
+              WHERE conrelid = 'people'::regclass
+                AND conname IN (
+                  'people_registered_completeness_check',
+                  'people_email_verification_check'
+                )) AS constraint_count`,
+        [id]
+      );
+      expect(state.rows[0]).toEqual({ row_count: '1', constraint_count: '2' });
+    });
+  });
+
   it('rolls back the email rule when verified lower-case emails collide', async () => {
     await withMigrationSandbox(async (client) => {
       const firstId = randomUUID();
@@ -328,7 +498,9 @@ describe('Person integrity checks', () => {
                 ($3, $4, 'COLLISION@example.test', NOW())`,
         [firstId, validPhone, secondId, '+237677123457']
       );
-      await expectMigrationFailure(client, firstId);
+      await expectMigrationFailure(client, personChecksMigrationSql, firstId, [
+        'collision@example.test',
+      ]);
       await client.query('ROLLBACK');
 
       const oldConstraint = await client.query<{ count: string }>(
@@ -341,7 +513,7 @@ describe('Person integrity checks', () => {
 
   it('atomically installs partial case-insensitive uniqueness for clean data', async () => {
     await withMigrationSandbox(async (client) => {
-      await client.query(migrationSql);
+      await client.query(personChecksMigrationSql);
       const index = await client.query<{ predicate: string }>(
         `SELECT pg_get_expr(indpred, indrelid) AS predicate
          FROM pg_index

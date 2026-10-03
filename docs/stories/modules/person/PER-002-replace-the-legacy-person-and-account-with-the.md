@@ -63,7 +63,7 @@ Scenario: AB-1 Two identities for one number (spoofing)
 ## Implementation
 - Create: `prisma/migrations/<timestamp>_per_002_person_v10/migration.sql`, `tests/integration/person/person-table.test.ts`
 - Modify: `prisma/schema.prisma`, `src/modules/user/user.repository.ts`, `tests/helpers/database.ts`
-- Pattern: `prisma/migrations/20260914130000_add_refresh_tokens/migration.sql`
+- Pattern: `prisma/migrations/20260930210000_baseline/migration.sql`
 - Dependencies: `prisma`, `@prisma/client`
 
 ## Security

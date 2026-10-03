@@ -61,7 +61,7 @@ Scenario: AB-1 Application account rewrites a journal (elevation)
 ## Implementation
 - Create: `prisma/migrations/<timestamp>_app_role_and_server_time/migration.sql`, `tests/helpers/app-role.ts`, `tests/integration/foundation/database-roles.test.ts`
 - Modify: `prisma.config.ts`
-- Pattern: `prisma/migrations/20260914130000_add_refresh_tokens/migration.sql`
+- Pattern: `prisma/migrations/20260930210000_baseline/migration.sql`
 - Signatures:
   - `getAppRolePrisma(): PrismaClient — connects with the test database URL plus option `-c role=distribo_app``
 - Dependencies: `prisma`, `@prisma/client`, `@prisma/adapter-pg`, `pg`

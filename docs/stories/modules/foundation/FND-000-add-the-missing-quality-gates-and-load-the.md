@@ -53,7 +53,7 @@ Scenario: AB-1 A vulnerable or unlisted dependency reaches main
 
 ## Implementation
 - Create: `.github/workflows/ci.yml`, `tests/unit/tooling/quality-gates.test.ts`, `tests/fixtures/lint/unsafe-eval.ts`, `tests/fixtures/lint/safe.ts`
-- Modify: `.eslintrc.json`, `package.json`, `CLAUDE.md`, `.eslintignore`
+- Modify: `eslint.config.js`, `package.json`, `CLAUDE.md`
 - Pattern: `tests/integration/health.test.ts`
 - Dependencies: `eslint-plugin-security`, `eslint`, `vitest`
 

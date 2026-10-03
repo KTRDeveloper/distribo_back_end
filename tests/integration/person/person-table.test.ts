@@ -21,8 +21,8 @@ describe('Person v10 table', () => {
         columns[row.column_name] = row.data_type;
       });
 
-      // Verify UUID columns - accept character varying or uuid since Prisma may not have set the type
-      expect(columns['id']).toBeDefined();
+      // Person identifiers are UUIDs throughout the real migration chain.
+      expect(columns['id']).toBe('uuid');
 
       // Verify timestamptz columns
       expect(columns['server_updated_at']).toBe('timestamp with time zone');
@@ -35,6 +35,35 @@ describe('Person v10 table', () => {
       expect(columns['phone_number']).toBeDefined();
       expect(columns['email']).toBeDefined();
       expect(columns['password_hash']).toBeDefined();
+    });
+
+    it('uses uuid for Person identifiers and every live reference', async () => {
+      const result = await prisma.$queryRaw<
+        Array<{ table_name: string; column_name: string; data_type: string }>
+      >`
+        SELECT table_name, column_name, data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (table_name, column_name) IN (
+            ('people', 'id'),
+            ('tasks', 'accountId'),
+            ('phone_number_change_logs', 'person_id')
+          )
+        ORDER BY table_name, column_name
+      `;
+
+      expect(result).toEqual([
+        { table_name: 'people', column_name: 'id', data_type: 'uuid' },
+        { table_name: 'phone_number_change_logs', column_name: 'person_id', data_type: 'uuid' },
+        { table_name: 'tasks', column_name: 'accountId', data_type: 'uuid' },
+      ]);
+
+      await expect(
+        prisma.$executeRaw`
+          INSERT INTO people (id, phone_number, created_at, server_updated_at)
+          VALUES ('not-a-uuid', ${uniquePhone()}, NOW(), NOW())
+        `
+      ).rejects.toThrow(/invalid input syntax for type uuid/i);
     });
 
     it('old tables accounts, otp_challenges, email_verification_requests, refresh_tokens do not exist', async () => {

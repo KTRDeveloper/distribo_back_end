@@ -17,7 +17,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FND-009 | done | | |
 | PER-001 | done | | |
 | PER-002 | done | | Story tests pass: 10 passed; user tests pass: 5 passed |
-| PER-003 | in_progress | | ready for review |
+| PER-003 | done | | |
 | PER-004 | done | | Story tests: 7 passed; full suite: 265 passed; typecheck and lint pass |
 | PER-005 | done | | Story tests: 6 passed; full suite: 271 passed; typecheck and lint pass |
 | PER-006 | done | | Story tests: 10 passed; full suite: 281 passed; typecheck and lint pass |
@@ -211,4 +211,4 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | PRIV-003 | todo | | |
 | PER-009 | done | | Targeted tests: 18 passed; full suite: 247 passed; typecheck, lint and format check pass |
 | FND-010 | done | | Formatting, typecheck, lint, and full suite pass; test person fixtures now generate the required UUIDv7 id |
-| FND-011 | in_progress | | ready for review |
+| FND-011 | done | | |

@@ -43,7 +43,7 @@ None: no protected resource or action.
 ## Implementation
 - Create: `prisma/migrations/<timestamp>_org_002_notification_org_fk/migration.sql`
 - Modify: `prisma/schema.prisma`
-- Pattern: `prisma/migrations/20260914130000_add_refresh_tokens/migration.sql`
+- Pattern: `prisma/migrations/20260930210000_baseline/migration.sql`
 - Dependencies: `prisma`
 
 ## Security

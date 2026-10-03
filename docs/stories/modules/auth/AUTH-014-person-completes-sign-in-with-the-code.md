@@ -7,7 +7,7 @@ rev: 1
 amends: []
 size: M
 risk: high
-depends_on: [AUTH-013, AUTH-008, NTF-002]
+depends_on: [AUTH-013, AUTH-008, NTF-002, AUTH-009, AUTH-010]
 read_first: [src/modules/auth/auth.service.ts, src/modules/auth/session.service.ts]
 design_refs: [identite-et-organisation/person, acces-et-securite/device]
 constraints: [C-33, CM-08]

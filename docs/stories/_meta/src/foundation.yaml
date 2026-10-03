@@ -96,7 +96,7 @@ stories:
         Then the audit job fails and blocks the merge
     implementation:
       create: [.github/workflows/ci.yml, tests/unit/tooling/quality-gates.test.ts, tests/fixtures/lint/unsafe-eval.ts, tests/fixtures/lint/safe.ts]
-      modify: [.eslintrc.json, package.json, CLAUDE.md, .eslintignore]
+      modify: [eslint.config.js, package.json, CLAUDE.md]
       pattern: tests/integration/health.test.ts
       signatures: []
       types: []
@@ -151,7 +151,7 @@ stories:
     implementation:
       create: [prisma/migrations/<timestamp>_baseline/migration.sql]
       modify: [prisma/schema.prisma, tests/setup.ts, tests/helpers/database.ts]
-      pattern: prisma/migrations/20260914130000_add_refresh_tokens/migration.sql
+      pattern: prisma/migrations/20260930210000_baseline/migration.sql
       signatures: []
       types: []
       errors: []
@@ -211,7 +211,7 @@ stories:
     implementation:
       create: [prisma/migrations/<timestamp>_app_role_and_server_time/migration.sql, tests/helpers/app-role.ts, tests/integration/foundation/database-roles.test.ts]
       modify: [prisma.config.ts]
-      pattern: prisma/migrations/20260914130000_add_refresh_tokens/migration.sql
+      pattern: prisma/migrations/20260930210000_baseline/migration.sql
       signatures:
         - "getAppRolePrisma(): PrismaClient — connects with the test database URL plus option `-c role=distribo_app`"
       types: []

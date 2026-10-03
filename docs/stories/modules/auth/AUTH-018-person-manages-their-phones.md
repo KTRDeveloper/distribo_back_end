@@ -7,7 +7,7 @@ rev: 1
 amends: []
 size: M
 risk: medium
-depends_on: [AUTH-017]
+depends_on: [AUTH-017, AUTH-009, AUTH-010]
 read_first: [src/modules/auth/session.service.ts, src/modules/auth/auth.routes.ts]
 design_refs: [acces-et-securite/device, acces-et-securite/connexion-verrouillage-et-telephone]
 constraints: []

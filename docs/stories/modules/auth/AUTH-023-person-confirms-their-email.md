@@ -7,7 +7,7 @@ rev: 1
 amends: []
 size: S
 risk: medium
-depends_on: [AUTH-022]
+depends_on: [AUTH-022, AUTH-009, AUTH-010]
 read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
 design_refs: [identite-et-organisation/person]
 constraints: [C-03, C-33]

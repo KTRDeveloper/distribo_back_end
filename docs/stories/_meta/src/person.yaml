@@ -148,7 +148,7 @@ stories:
     implementation:
       create: [prisma/migrations/<timestamp>_per_002_person_v10/migration.sql, tests/integration/person/person-table.test.ts]
       modify: [prisma/schema.prisma, src/modules/user/user.repository.ts, tests/helpers/database.ts]
-      pattern: prisma/migrations/20260914130000_add_refresh_tokens/migration.sql
+      pattern: prisma/migrations/20260930210000_baseline/migration.sql
       signatures: []
       types: []
       errors: []

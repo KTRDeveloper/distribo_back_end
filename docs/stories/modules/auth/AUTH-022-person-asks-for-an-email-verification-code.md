@@ -7,7 +7,7 @@ rev: 1
 amends: []
 size: S
 risk: medium
-depends_on: [AUTH-004, PER-007]
+depends_on: [AUTH-004, PER-007, AUTH-009, AUTH-010]
 read_first: [src/modules/auth/auth.service.ts, src/modules/auth/otp.service.ts]
 design_refs: [identite-et-organisation/person, acces-et-securite/otpchallenge]
 constraints: [C-33, CM-07]

@@ -52,7 +52,7 @@ Scenario: AB-1 Cleanup pointed at a real database (tampering)
 ## Implementation
 - Create: `prisma/migrations/<timestamp>_baseline/migration.sql`
 - Modify: `prisma/schema.prisma`, `tests/setup.ts`, `tests/helpers/database.ts`
-- Pattern: `prisma/migrations/20260914130000_add_refresh_tokens/migration.sql`
+- Pattern: `prisma/migrations/20260930210000_baseline/migration.sql`
 - Dependencies: `prisma`
 
 ## Security

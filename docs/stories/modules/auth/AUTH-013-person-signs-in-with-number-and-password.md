@@ -7,7 +7,7 @@ rev: 1
 amends: []
 size: M
 risk: high
-depends_on: [AUTH-012, AUTH-004, PER-005]
+depends_on: [AUTH-012, AUTH-004, PER-005, AUTH-009, AUTH-010]
 read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
 design_refs: [identite-et-organisation/person, acces-et-securite/connexion-verrouillage-et-telephone]
 constraints: [CM-05, C-33]

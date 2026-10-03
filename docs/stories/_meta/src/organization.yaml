@@ -131,7 +131,7 @@ stories:
     implementation:
       create: [prisma/migrations/<timestamp>_org_002_notification_org_fk/migration.sql]
       modify: [prisma/schema.prisma]
-      pattern: prisma/migrations/20260914130000_add_refresh_tokens/migration.sql
+      pattern: prisma/migrations/20260930210000_baseline/migration.sql
       signatures: []
       types: []
       errors: []

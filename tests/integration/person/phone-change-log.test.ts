@@ -59,8 +59,8 @@ async function expectSqlState(statement: Promise<unknown>, expected: string): Pr
 
 afterEach(async () => {
   await prisma.$executeRaw`DELETE FROM phone_number_change_logs
-    WHERE person_id = ANY(${[...PERSON_IDS]}::text[])`;
-  await prisma.$executeRaw`DELETE FROM people WHERE id = ANY(${[...PERSON_IDS]}::text[])`;
+    WHERE person_id = ANY(${[...PERSON_IDS]}::uuid[])`;
+  await prisma.$executeRaw`DELETE FROM people WHERE id = ANY(${[...PERSON_IDS]}::uuid[])`;
 });
 
 afterAll(async () => {

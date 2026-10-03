@@ -7,7 +7,7 @@ rev: 1
 amends: []
 size: M
 risk: high
-depends_on: [AUTH-024, PER-004]
+depends_on: [AUTH-024, PER-004, AUTH-009, AUTH-010]
 read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
 design_refs: [identite-et-organisation/person, identite-et-organisation/phonenumberchangelog]
 constraints: [C-02, C-03, CM-04, C-32]

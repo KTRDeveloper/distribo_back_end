@@ -7,7 +7,7 @@ rev: 1
 amends: []
 size: M
 risk: high
-depends_on: [ADM-004, ADM-002, AUTH-012, ORG-004]
+depends_on: [ADM-004, ADM-002, AUTH-012, AUTH-009, ORG-004]
 read_first: [src/modules/auth/auth.service.ts, src/lib/jwt.ts]
 design_refs: [gouvernance-de-la-plateforme/administrator, acces-et-securite/connexion-verrouillage-et-telephone]
 constraints: [C-29]

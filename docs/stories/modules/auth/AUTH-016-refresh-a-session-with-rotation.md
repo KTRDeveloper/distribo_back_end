@@ -7,7 +7,7 @@ rev: 1
 amends: []
 size: M
 risk: high
-depends_on: [AUTH-008]
+depends_on: [AUTH-008, AUTH-009, AUTH-010]
 read_first: [src/modules/auth/session.service.ts, src/modules/auth/session.repository.ts]
 design_refs: [acces-et-securite/refreshtoken]
 constraints: [CM-08, C-34]

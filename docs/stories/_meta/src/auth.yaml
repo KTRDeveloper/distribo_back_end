@@ -818,7 +818,7 @@ stories:
     kind: feature
     size: M
     risk: high
-    depends_on: [AUTH-012, AUTH-004, PER-005]
+    depends_on: [AUTH-012, AUTH-004, PER-005, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
     design_refs: [identite-et-organisation/person, acces-et-securite/connexion-verrouillage-et-telephone]
     constraints: [CM-05, C-33]
@@ -897,7 +897,7 @@ stories:
     kind: feature
     size: M
     risk: high
-    depends_on: [AUTH-013, AUTH-008, NTF-002]
+    depends_on: [AUTH-013, AUTH-008, NTF-002, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/auth.service.ts, src/modules/auth/session.service.ts]
     design_refs: [identite-et-organisation/person, acces-et-securite/device]
     constraints: [C-33, CM-08]
@@ -1029,7 +1029,7 @@ stories:
     kind: feature
     size: M
     risk: high
-    depends_on: [AUTH-008]
+    depends_on: [AUTH-008, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/session.service.ts, src/modules/auth/session.repository.ts]
     design_refs: [acces-et-securite/refreshtoken]
     constraints: [CM-08, C-34]
@@ -1099,7 +1099,7 @@ stories:
     kind: feature
     size: S
     risk: medium
-    depends_on: [AUTH-016]
+    depends_on: [AUTH-016, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/session.service.ts, src/modules/auth/auth.routes.ts]
     design_refs: [acces-et-securite/refreshtoken, acces-et-securite/connexion-verrouillage-et-telephone]
     constraints: []
@@ -1155,7 +1155,7 @@ stories:
     kind: feature
     size: M
     risk: medium
-    depends_on: [AUTH-017]
+    depends_on: [AUTH-017, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/session.service.ts, src/modules/auth/auth.routes.ts]
     design_refs: [acces-et-securite/device, acces-et-securite/connexion-verrouillage-et-telephone]
     constraints: []
@@ -1215,7 +1215,7 @@ stories:
     kind: feature
     size: S
     risk: high
-    depends_on: [AUTH-013]
+    depends_on: [AUTH-013, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/auth.service.ts, src/modules/auth/otp.service.ts]
     design_refs: [identite-et-organisation/person]
     constraints: [C-33, CM-07]
@@ -1278,7 +1278,7 @@ stories:
     kind: feature
     size: S
     risk: high
-    depends_on: [AUTH-019, AUTH-008]
+    depends_on: [AUTH-019, AUTH-008, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/auth.service.ts, src/modules/auth/session.service.ts]
     design_refs: [identite-et-organisation/person]
     constraints: [CM-05, C-03]
@@ -1350,7 +1350,7 @@ stories:
     kind: feature
     size: S
     risk: high
-    depends_on: [AUTH-020]
+    depends_on: [AUTH-020, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/auth.service.ts, src/modules/auth/session.service.ts]
     design_refs: [identite-et-organisation/person]
     constraints: [CM-05]
@@ -1414,7 +1414,7 @@ stories:
     kind: feature
     size: S
     risk: medium
-    depends_on: [AUTH-004, PER-007]
+    depends_on: [AUTH-004, PER-007, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/auth.service.ts, src/modules/auth/otp.service.ts]
     design_refs: [identite-et-organisation/person, acces-et-securite/otpchallenge]
     constraints: [C-33, CM-07]
@@ -1471,7 +1471,7 @@ stories:
     kind: feature
     size: S
     risk: medium
-    depends_on: [AUTH-022]
+    depends_on: [AUTH-022, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
     design_refs: [identite-et-organisation/person]
     constraints: [C-03, C-33]
@@ -1529,7 +1529,7 @@ stories:
     kind: feature
     size: S
     risk: high
-    depends_on: [AUTH-004, PER-005]
+    depends_on: [AUTH-004, PER-005, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/auth.service.ts, src/modules/person/person.repository.ts]
     design_refs: [identite-et-organisation/person]
     constraints: [C-33, C-02, CM-07]
@@ -1589,7 +1589,7 @@ stories:
     kind: feature
     size: M
     risk: high
-    depends_on: [AUTH-024, PER-004]
+    depends_on: [AUTH-024, PER-004, AUTH-009, AUTH-010]
     read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
     design_refs: [identite-et-organisation/person, identite-et-organisation/phonenumberchangelog]
     constraints: [C-02, C-03, CM-04, C-32]

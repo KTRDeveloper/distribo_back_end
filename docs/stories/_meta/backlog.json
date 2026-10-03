@@ -168,14 +168,14 @@
         "FND-010"
       ],
       "id": "FND-011",
-      "implementable": true,
+      "implementable": false,
       "kind": "change",
       "module": "foundation",
       "order": 12,
       "path": "modules/foundation/FND-011-remediate-the-per-003-review-findings.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "blocked",
       "title": "Remediate the PER-003 review findings"
     },
     {
@@ -223,7 +223,7 @@
       "path": "modules/person/PER-003-person-integrity-checks-in-the-database.md",
       "risk": "high",
       "size": "S",
-      "status": "in_progress",
+      "status": "blocked",
       "title": "Person integrity checks in the database"
     },
     {
@@ -231,14 +231,14 @@
         "PER-002"
       ],
       "id": "PER-004",
-      "implementable": true,
+      "implementable": false,
       "kind": "technical",
       "module": "person",
       "order": 16,
       "path": "modules/person/PER-004-phone-number-change-journal.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Phone number change journal"
     },
     {
@@ -248,14 +248,14 @@
         "FND-005"
       ],
       "id": "PER-005",
-      "implementable": true,
+      "implementable": false,
       "kind": "technical",
       "module": "person",
       "order": 17,
       "path": "modules/person/PER-005-person-repository-contract-and-public-view.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Person repository contract and public view"
     },
     {
@@ -271,7 +271,7 @@
       "path": "modules/person/PER-006-look-up-a-person-by-phone-number.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Look up a person by phone number"
     },
     {
@@ -286,7 +286,7 @@
       "path": "modules/person/PER-007-person-reads-and-edits-their-own-profile.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Person reads and edits their own profile"
     },
     {
@@ -690,7 +690,9 @@
       "depends_on": [
         "AUTH-012",
         "AUTH-004",
-        "PER-005"
+        "PER-005",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-013",
       "implementable": false,
@@ -707,7 +709,9 @@
       "depends_on": [
         "AUTH-013",
         "AUTH-008",
-        "NTF-002"
+        "NTF-002",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-014",
       "implementable": false,
@@ -738,7 +742,9 @@
     },
     {
       "depends_on": [
-        "AUTH-008"
+        "AUTH-008",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-016",
       "implementable": false,
@@ -753,7 +759,9 @@
     },
     {
       "depends_on": [
-        "AUTH-016"
+        "AUTH-016",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-017",
       "implementable": false,
@@ -768,7 +776,9 @@
     },
     {
       "depends_on": [
-        "AUTH-017"
+        "AUTH-017",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-018",
       "implementable": false,
@@ -783,7 +793,9 @@
     },
     {
       "depends_on": [
-        "AUTH-013"
+        "AUTH-013",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-019",
       "implementable": false,
@@ -799,7 +811,9 @@
     {
       "depends_on": [
         "AUTH-019",
-        "AUTH-008"
+        "AUTH-008",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-020",
       "implementable": false,
@@ -814,7 +828,9 @@
     },
     {
       "depends_on": [
-        "AUTH-020"
+        "AUTH-020",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-021",
       "implementable": false,
@@ -830,7 +846,9 @@
     {
       "depends_on": [
         "AUTH-004",
-        "PER-007"
+        "PER-007",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-022",
       "implementable": false,
@@ -845,7 +863,9 @@
     },
     {
       "depends_on": [
-        "AUTH-022"
+        "AUTH-022",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-023",
       "implementable": false,
@@ -861,7 +881,9 @@
     {
       "depends_on": [
         "AUTH-004",
-        "PER-005"
+        "PER-005",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-024",
       "implementable": false,
@@ -877,7 +899,9 @@
     {
       "depends_on": [
         "AUTH-024",
-        "PER-004"
+        "PER-004",
+        "AUTH-009",
+        "AUTH-010"
       ],
       "id": "AUTH-025",
       "implementable": false,
@@ -1748,6 +1772,7 @@
         "ADM-004",
         "ADM-002",
         "AUTH-012",
+        "AUTH-009",
         "ORG-004"
       ],
       "id": "ADM-006",

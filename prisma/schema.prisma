@@ -20,7 +20,7 @@ enum TaskStatus {
 model Task {
   id           String     @id @default(uuid())
   type         String
-  accountId    String   @db.Uuid @map("account_id")
+  accountId    String     @db.Uuid @map("account_id")
   parameters   Json
   status       TaskStatus @default(QUEUED)
   priority     Int        @default(0)
@@ -155,7 +155,7 @@ model Person {
 
 model PhoneNumberChangeLog {
   id                String   @id @db.Uuid
-  personId          String   @map("person_id")
+  personId          String   @map("person_id") @db.Uuid
   oldPhoneNumber    String   @map("old_phone_number")
   newPhoneNumber    String   @map("new_phone_number")
   verifiedAt        DateTime @map("verified_at") @db.Timestamptz
