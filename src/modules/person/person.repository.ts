@@ -23,6 +23,17 @@ export async function findByActivePhone(e164: string): Promise<Person | null> {
 }
 
 /**
+ * Finds a person by verified email, case-insensitively (AUTH-015).
+ *
+ * @param email - The email as typed; unverified emails never match.
+ */
+export async function findByVerifiedEmail(email: string): Promise<Person | null> {
+  return prisma.person.findFirst({
+    where: { email: { equals: email.trim(), mode: 'insensitive' }, emailVerifiedAt: { not: null } },
+  });
+}
+
+/**
  * Returns the active owner of a number, creating an unregistered guest if needed.
  * The conflict-safe insert keeps concurrent callers from creating duplicate identities.
  *

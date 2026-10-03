@@ -1,7 +1,7 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { httpError } from '../../lib/http-error.js';
 import { normalizeE164 } from '../../shared/phone.js';
-import { findByActivePhone } from '../person/person.repository.js';
+import { findByActivePhone, findByVerifiedEmail } from '../person/person.repository.js';
 import { hashPassword, validatePasswordRules, verifyPassword } from '../../lib/password.js';
 import { checkAndConsume, getCount, resetKey } from '../../lib/rate-limit.js';
 import { config } from '../../config/index.js';
@@ -203,7 +203,12 @@ async function registerInternal(input: RegisterInput, release: boolean): Promise
   };
 }
 
-export type LoginInput = { phone_number: string; password: string; use_email?: boolean };
+export type LoginInput = {
+  phone_number?: string | undefined;
+  email?: string | undefined;
+  password: string;
+  use_email?: boolean | undefined;
+};
 
 const MAX_LOGIN_FAILURES = 5;
 let dummyHash: Promise<string> | undefined;
@@ -226,7 +231,9 @@ export async function requestLogin(
   input: LoginInput,
   clientKeys: ClientKeys = {}
 ): Promise<{ sent: true; channel: 'SMS' | 'EMAIL'; expires_in: number }> {
-  const phone = normalizeE164(input.phone_number);
+  if (input.email !== undefined)
+    return requestLoginByEmail(input.email, input.password, clientKeys);
+  const phone = normalizeE164(input.phone_number ?? '');
   if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
   const key = `login:fail:${phone}`;
   if ((await getCount(key)) >= MAX_LOGIN_FAILURES) {
@@ -266,6 +273,50 @@ export async function requestLogin(
   );
   logger.info({ event: 'login_code_sent', personId: holder.id, channel }, 'Login code sent');
   return { sent: true, channel, expires_in: EXPIRES_IN_SECONDS };
+}
+
+/**
+ * Email variant of the first login step (AUTH-015, v5.0.0-6.4.3): only a person with
+ * no active number may use it, so it never bypasses the SIM. Every failing case gives
+ * the same 401 as the number route and sends nothing (v5.0.0-6.3.8).
+ */
+async function requestLoginByEmail(
+  rawEmail: string,
+  password: string,
+  clientKeys: ClientKeys
+): Promise<{ sent: true; channel: 'EMAIL'; expires_in: number }> {
+  const email = rawEmail.trim().toLowerCase();
+  const key = `login:fail:email:${email}`;
+  if ((await getCount(key)) >= MAX_LOGIN_FAILURES) {
+    logger.warn({ event: 'login_locked' }, 'Login locked');
+    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
+  }
+  const found = await findByVerifiedEmail(email);
+  const holder = found && found.phoneNumber === null ? found : null;
+  const hash = holder?.registeredAt && holder.passwordHash ? holder.passwordHash : null;
+  const ok = await verifyPassword(hash ?? (await getDummyHash()), password);
+  if (!ok || hash === null || !holder) {
+    await checkAndConsume(key, Number.MAX_SAFE_INTEGER, config.auth.loginLockMinutes * 60);
+    logger.warn(
+      { event: 'login_failed', ...(found ? { personId: found.id } : {}) },
+      'Login failed'
+    );
+    throw httpError(401, 'INVALID_CREDENTIALS', 'Invalid credentials');
+  }
+  await resetKey(key);
+  if (holder.status === 'SUSPENDED') {
+    logger.warn({ event: 'login_refused_suspended', personId: holder.id }, 'Login refused');
+    throw httpError(403, 'ACCOUNT_SUSPENDED', 'Account suspended');
+  }
+  await issueCode(
+    { personId: holder.id, target: holder.email ?? email, purpose: 'LOGIN', channel: 'EMAIL' },
+    clientKeys
+  );
+  logger.info(
+    { event: 'login_code_sent', personId: holder.id, channel: 'EMAIL' },
+    'Login code sent'
+  );
+  return { sent: true, channel: 'EMAIL', expires_in: EXPIRES_IN_SECONDS };
 }
 
 /**
@@ -377,7 +428,8 @@ export async function confirmPhoneChange(
 }
 
 export type LoginVerifyInput = {
-  phone_number: string;
+  phone_number?: string | undefined;
+  email?: string | undefined;
   code: string;
   device: DeviceInfo;
   use_email?: boolean;
@@ -393,15 +445,20 @@ export type LoginVerifyInput = {
  * @throws 400 VALIDATION_ERROR, OTP_INVALID, OTP_EXPIRED; 403 ACCOUNT_SUSPENDED; 429 OTP_LOCKED
  */
 export async function completeLogin(input: LoginVerifyInput): Promise<SessionResponse> {
-  const phone = normalizeE164(input.phone_number);
-  if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
-  const holder = await findByActivePhone(phone);
+  const byEmail = input.email !== undefined;
+  const phone = byEmail ? null : normalizeE164(input.phone_number ?? '');
+  if (!byEmail && phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  const found = byEmail
+    ? await findByVerifiedEmail((input.email ?? '').trim())
+    : await findByActivePhone(phone ?? '');
+  // The email route is only for people with no active number (v5.0.0-6.4.3).
+  const holder = byEmail && found?.phoneNumber != null ? null : found;
   if (!holder?.registeredAt) throw httpError(400, 'OTP_INVALID', 'Invalid code');
   if (holder.status === 'SUSPENDED') {
     logger.warn({ event: 'login_refused_suspended', personId: holder.id }, 'Login refused');
     throw httpError(403, 'ACCOUNT_SUSPENDED', 'Account suspended');
   }
-  const viaEmail = input.use_email === true;
+  const viaEmail = byEmail || input.use_email === true;
   const target = viaEmail ? holder.email : phone;
   if (!target || (viaEmail && !holder.emailVerifiedAt)) {
     throw httpError(400, 'OTP_INVALID', 'Invalid code');

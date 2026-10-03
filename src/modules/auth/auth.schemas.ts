@@ -47,21 +47,29 @@ export const sessionResponseSchema = z
 /** Body of POST /auth/login; the number is normalized in the service. */
 export const loginSchema = z
   .object({
-    phone_number: z.string().min(1).max(32),
+    phone_number: z.string().min(1).max(32).optional(),
+    email: z.string().min(3).max(254).optional(),
     password: z.string().min(1).max(256),
     use_email: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine((b) => (b.phone_number === undefined) !== (b.email === undefined), {
+    message: 'Exactly one of phone_number and email',
+  });
 
-/** Body of POST /auth/login/verify. */
+/** Body of POST /auth/login/verify; exactly one of `phone_number` and `email`. */
 export const loginVerifySchema = z
   .object({
-    phone_number: z.string().min(1).max(32),
+    phone_number: z.string().min(1).max(32).optional(),
+    email: z.string().min(3).max(254).optional(),
     code: z.string().min(1).max(16),
     device: deviceSchema,
     use_email: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine((b) => (b.phone_number === undefined) !== (b.email === undefined), {
+    message: 'Exactly one of phone_number and email',
+  });
 
 export const loginResponseSchema = z
   .object({

@@ -1142,6 +1142,11 @@
                     "minLength": 1,
                     "maxLength": 32
                   },
+                  "email": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254
+                  },
                   "password": {
                     "type": "string",
                     "minLength": 1,
@@ -1152,7 +1157,6 @@
                   }
                 },
                 "required": [
-                  "phone_number",
                   "password"
                 ],
                 "additionalProperties": false
@@ -1608,6 +1612,11 @@
                     "minLength": 1,
                     "maxLength": 32
                   },
+                  "email": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254
+                  },
                   "code": {
                     "type": "string",
                     "minLength": 1,
@@ -1655,7 +1664,6 @@
                   }
                 },
                 "required": [
-                  "phone_number",
                   "code",
                   "device"
                 ],
