@@ -135,3 +135,11 @@ export const passwordResetConfirmSchema = z
     use_email: z.boolean().optional(),
   })
   .strict();
+
+/** Body of POST /auth/password/change. */
+export const passwordChangeSchema = z
+  .object({
+    current_password: z.string().min(1).max(256),
+    new_password: z.string().min(1).max(256),
+  })
+  .strict();

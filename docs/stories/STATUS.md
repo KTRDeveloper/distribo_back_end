@@ -54,7 +54,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-018 | done | | devices list, remove, logout-all |
 | AUTH-019 | done | | ready for review; 62 files, 607 tests pass, lint 0 errors, typecheck clean; per-001 and api-docs catalog path lists updated with user approval |
 | AUTH-020 | done | | ready for review |
-| AUTH-021 | todo | | |
+| AUTH-021 | in_progress | | ready for review |
 | AUTH-022 | done | | 2 path lists (per-001, catalog) updated with user approval |
 | AUTH-023 | done | | 614 tests pass, typecheck clean, lint 0 errors; per-001 and api-docs catalog path lists updated with user approval |
 | AUTH-024 | done | | ready for review; 2 path lists (per-001, catalog) updated with user approval |

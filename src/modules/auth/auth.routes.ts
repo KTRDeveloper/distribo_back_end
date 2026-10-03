@@ -5,6 +5,7 @@ import {
   emailConfirmSchema,
   loginSchema,
   loginVerifySchema,
+  passwordChangeSchema,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
   phoneChangeConfirmSchema,
@@ -16,6 +17,7 @@ import {
 import { refreshSession, revokeDevice, revokeSessions } from './session.service.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import {
+  changePassword,
   completeLogin,
   confirmPasswordReset,
   confirmPhoneChange,
@@ -184,6 +186,17 @@ authRoutes.post('/password-reset/confirm', (req, res, next) => {
     const body = passwordResetConfirmSchema.safeParse(req.body);
     if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
     await confirmPasswordReset(body.data);
+    res.status(204).end();
+  })().catch(next);
+});
+
+// Authenticated route: the current password is required (v5.0.0-6.2.3).
+authRoutes.post('/password/change', authMiddleware, (req, res, next) => {
+  void (async () => {
+    if (!req.user?.deviceId) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
+    const body = passwordChangeSchema.safeParse(req.body);
+    if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    await changePassword(req.user.id, req.user.deviceId, body.data);
     res.status(204).end();
   })().catch(next);
 });

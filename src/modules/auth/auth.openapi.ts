@@ -6,6 +6,7 @@ import {
   loginResponseSchema,
   loginSchema,
   loginVerifySchema,
+  passwordChangeSchema,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
   phoneChangeConfirmSchema,
@@ -350,4 +351,25 @@ openApiRegistry.registerPath({
   summary: 'Sign out of every phone',
   security: [{ bearerAuth: [] }],
   responses: { 204: { description: 'All sessions ended' }, 401: unauthorized },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/password/change',
+  tags: ['auth'],
+  summary: 'Change my password',
+  security: [{ bearerAuth: [] }],
+  request: { body: { content: { 'application/json': { schema: passwordChangeSchema } } } },
+  responses: {
+    204: { description: 'Password changed, other phones signed out' },
+    400: {
+      description: 'VALIDATION_ERROR, WEAK_PASSWORD',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: unauthorized,
+    429: {
+      description: 'LOGIN_LOCKED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
 });

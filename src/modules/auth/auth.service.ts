@@ -18,6 +18,7 @@ import {
   listLiveDeviceIds,
   releaseRegisteredHolder,
   updatePasswordHash,
+  findPasswordHash,
 } from './auth.repository.js';
 import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
 import { newId } from '../../shared/ids.js';
@@ -565,4 +566,42 @@ export async function confirmPasswordReset(input: PasswordResetConfirmInput): Pr
   await revokeSessions(holder.id, 'PASSWORD_RESET');
   await resetKey(`login:fail:${phone}`);
   logger.info({ event: 'password_reset', personId: holder.id }, 'Password reset');
+}
+
+/**
+ * Change the password of the signed-in person (CM-05, v5.0.0-6.2.2, v5.0.0-6.2.3,
+ * v5.0.0-7.4.3). The current password is checked first; five failures lock the
+ * attempts for `loginLockMinutes`. Other devices are revoked, this one stays live.
+ *
+ * @throws 400 WEAK_PASSWORD, VALIDATION_ERROR; 401 INVALID_CREDENTIALS; 429 LOGIN_LOCKED
+ */
+export async function changePassword(
+  personId: string,
+  deviceId: string,
+  input: { current_password: string; new_password: string }
+): Promise<void> {
+  const key = `pwchange:${personId}`;
+  if ((await getCount(key)) >= MAX_LOGIN_FAILURES) {
+    logger.warn({ event: 'password_change_locked', personId }, 'Password change locked');
+    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
+  }
+  const hash = await findPasswordHash(personId);
+  const ok = await verifyPassword(hash ?? (await getDummyHash()), input.current_password);
+  if (!ok || hash === null) {
+    await checkAndConsume(key, Number.MAX_SAFE_INTEGER, config.auth.loginLockMinutes * 60);
+    logger.warn({ event: 'password_change_failed', personId }, 'Password change failed');
+    throw httpError(401, 'INVALID_CREDENTIALS', 'Invalid credentials');
+  }
+  await resetKey(key);
+  if ((await validatePasswordRules(input.new_password)).length > 0) {
+    throw httpError(400, 'WEAK_PASSWORD', 'Password is too weak');
+  }
+  if (input.new_password === input.current_password) {
+    throw httpError(400, 'VALIDATION_ERROR', 'New password must differ');
+  }
+  if (!(await updatePasswordHash(personId, await hashPassword(input.new_password)))) {
+    throw httpError(401, 'INVALID_CREDENTIALS', 'Invalid credentials');
+  }
+  await revokeSessions(personId, 'PASSWORD_RESET', { exceptDeviceId: deviceId });
+  logger.info({ event: 'password_changed', personId }, 'Password changed');
 }

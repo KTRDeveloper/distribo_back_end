@@ -158,3 +158,12 @@ export async function updatePasswordHash(personId: string, passwordHash: string)
   });
   return r.count === 1;
 }
+
+/** Current password hash of a registered person, or null. */
+export async function findPasswordHash(personId: string): Promise<string | null> {
+  const p = await prisma.person.findUnique({
+    where: { id: personId },
+    select: { passwordHash: true, registeredAt: true },
+  });
+  return p?.registeredAt ? p.passwordHash : null;
+}
