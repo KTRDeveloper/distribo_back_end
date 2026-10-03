@@ -7,11 +7,12 @@ import { checkAndConsume, getCount, resetKey } from '../../lib/rate-limit.js';
 import { config } from '../../config/index.js';
 import { logger } from '../../lib/logger.js';
 import { enqueueOtpDelivery } from '../../lib/otp-delivery-queue.js';
-import { notify } from '../notification/notification.service.js';
+import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   completeRegistration,
   findEmailState,
   inTransaction,
+  listLiveDeviceIds,
   releaseRegisteredHolder,
 } from './auth.repository.js';
 import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
@@ -281,4 +282,72 @@ export async function requestPhoneChange(
   await issueCode({ personId, target: phone, purpose: 'PHONE_CHANGE', channel: 'SMS' }, clientKeys);
   logger.info({ event: 'phone_change_code_sent', personId }, 'Phone change code sent');
   return { sent: true, expires_in: EXPIRES_IN_SECONDS };
+}
+
+export type LoginVerifyInput = {
+  phone_number: string;
+  code: string;
+  device: DeviceInfo;
+  use_email?: boolean;
+};
+
+/**
+ * Second login step (CM-08, C-33): check the LOGIN code bound to the number (or the
+ * verified email) and open a new device session (v5.0.0-6.5.1, v5.0.0-7.2.4). A suspended
+ * person is refused before the code is spent. Every other live device gets one
+ * `device.new_login` notification in the same transaction. Unknown numbers and
+ * missing emails answer OTP_INVALID like a wrong code. Logs ids only.
+ *
+ * @throws 400 VALIDATION_ERROR, OTP_INVALID, OTP_EXPIRED; 403 ACCOUNT_SUSPENDED; 429 OTP_LOCKED
+ */
+export async function completeLogin(input: LoginVerifyInput): Promise<SessionResponse> {
+  const phone = normalizeE164(input.phone_number);
+  if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  const holder = await findByActivePhone(phone);
+  if (!holder?.registeredAt) throw httpError(400, 'OTP_INVALID', 'Invalid code');
+  if (holder.status === 'SUSPENDED') {
+    logger.warn({ event: 'login_refused_suspended', personId: holder.id }, 'Login refused');
+    throw httpError(403, 'ACCOUNT_SUSPENDED', 'Account suspended');
+  }
+  const viaEmail = input.use_email === true;
+  const target = viaEmail ? holder.email : phone;
+  if (!target || (viaEmail && !holder.emailVerifiedAt)) {
+    throw httpError(400, 'OTP_INVALID', 'Invalid code');
+  }
+  const { personId } = await verifyCode({ target, purpose: 'LOGIN', code: input.code });
+  if (personId !== holder.id) throw httpError(400, 'OTP_INVALID', 'Invalid code');
+
+  const language = await recipientLanguage(holder.id);
+  const model = input.device.model;
+  const content =
+    language === 'EN'
+      ? `New sign-in on ${model ?? 'a new device'}. Wasn't you? Sign it out.`
+      : `Nouvelle connexion sur ${model ?? 'un nouvel appareil'}. Ce n'était pas vous ? Déconnectez-le.`;
+  const session = await inTransaction(async (tx) => {
+    const others = await listLiveDeviceIds(tx, holder.id);
+    const opened = await issueSession(holder.id, input.device, tx);
+    for (const deviceId of others) {
+      await notify(
+        {
+          recipientId: holder.id,
+          sourceEvent: 'device.new_login',
+          content,
+          related: { type: 'device', id: deviceId },
+        },
+        tx
+      );
+    }
+    return opened;
+  });
+  logger.info(
+    { event: 'login_succeeded', personId: holder.id, deviceId: session.deviceId },
+    'Login succeeded'
+  );
+  return {
+    access_token: session.accessToken,
+    refresh_token: session.refreshToken,
+    expires_in: session.expiresIn,
+    token_type: 'Bearer',
+    person: { id: holder.id, full_name: holder.fullName },
+  };
 }

@@ -2,6 +2,7 @@ import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry
 import {
   loginResponseSchema,
   loginSchema,
+  loginVerifySchema,
   phoneChangeRequestSchema,
   refreshResponseSchema,
   refreshSchema,
@@ -154,6 +155,32 @@ openApiRegistry.registerPath({
     },
     429: {
       description: 'Code limits reached',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/login/verify',
+  tags: ['auth'],
+  summary: 'Complete sign-in with the code',
+  request: { body: { content: { 'application/json': { schema: loginVerifySchema } } } },
+  responses: {
+    200: {
+      description: 'Session opened',
+      content: { 'application/json': { schema: sessionResponseSchema } },
+    },
+    400: {
+      description: 'VALIDATION_ERROR, OTP_INVALID or OTP_EXPIRED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'ACCOUNT_SUSPENDED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    429: {
+      description: 'OTP_LOCKED',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

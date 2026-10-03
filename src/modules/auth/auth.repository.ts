@@ -74,3 +74,15 @@ export function findEmailState(
     select: { email: true, emailVerifiedAt: true },
   });
 }
+
+/** Lists the ids of a person's live (not revoked) devices. */
+export async function listLiveDeviceIds(
+  tx: Prisma.TransactionClient,
+  personId: string
+): Promise<string[]> {
+  const rows = await tx.device.findMany({
+    where: { personId, revokedAt: null },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { httpError } from '../../lib/http-error.js';
 import {
   loginSchema,
+  loginVerifySchema,
   phoneChangeRequestSchema,
   refreshSchema,
   registerRequestSchema,
@@ -10,6 +11,7 @@ import {
 import { refreshSession } from './session.service.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import {
+  completeLogin,
   register,
   requestEmailVerification,
   requestLogin,
@@ -44,6 +46,15 @@ authRoutes.post('/login', (req, res, next) => {
     const body = loginSchema.safeParse(req.body);
     if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
     res.status(202).json(await requestLogin(body.data, { ip: req.ip }));
+  })().catch(next);
+});
+
+// Public route: the LOGIN code proves the second factor and opens the session.
+authRoutes.post('/login/verify', (req, res, next) => {
+  void (async () => {
+    const body = loginVerifySchema.safeParse(req.body);
+    if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    res.status(200).json(await completeLogin(body.data));
   })().catch(next);
 });
 

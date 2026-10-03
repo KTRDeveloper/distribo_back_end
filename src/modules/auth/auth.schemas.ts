@@ -53,6 +53,16 @@ export const loginSchema = z
   })
   .strict();
 
+/** Body of POST /auth/login/verify. */
+export const loginVerifySchema = z
+  .object({
+    phone_number: z.string().min(1).max(32),
+    code: z.string().min(1).max(16),
+    device: deviceSchema,
+    use_email: z.boolean().optional(),
+  })
+  .strict();
+
 export const loginResponseSchema = z
   .object({
     sent: z.literal(true),
