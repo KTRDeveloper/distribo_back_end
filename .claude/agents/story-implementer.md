@@ -2,7 +2,7 @@
 name: story-implementer
 description: Implements exactly one user story file from the stories folder, following CONVENTIONS.md. Use only when given the path of a story file.
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: haiku
+model: sonnet
 effort: low
 ---
 You implement exactly one user story: the file whose path you were given.
