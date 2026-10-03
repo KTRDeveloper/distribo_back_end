@@ -6,10 +6,17 @@ type App = Parameters<typeof request>[0];
 /**
  * Create authenticated request with JWT token
  */
-export function createAuthenticatedRequest(app: App, accountId: string) {
-  const token = sign({ accountId, tokenVersion: 0 }, process.env.JWT_SECRET || 'test-secret-key', {
-    expiresIn: '1h',
-  });
+export const TEST_DEVICE_ID = '018f0000-0000-7000-8000-000000000001';
+
+export function createAuthenticatedRequest(
+  app: App,
+  accountId: string,
+  deviceId: string = TEST_DEVICE_ID,
+) {
+  const token = sign(
+    { sub: accountId, did: deviceId, typ: 'access' }, process.env.JWT_SECRET || 'test-secret-key',
+    { expiresIn: '1h' },
+  );
 
   return {
     get: (url: string) => request(app).get(url).set('Authorization', `Bearer ${token}`),
@@ -36,10 +43,12 @@ export function createRequestWithHeaders(app: App, headers: Record<string, strin
 /**
  * Create expired JWT token for testing authentication failures
  */
-export function createExpiredToken(accountId: string): string {
-  return sign({ accountId, tokenVersion: 0 }, process.env.JWT_SECRET || 'test-secret-key', {
-    expiresIn: '-1h', // Already expired
-  });
+export function createExpiredToken(accountId: string, deviceId: string = TEST_DEVICE_ID): string {
+  return sign(
+    { sub: accountId, did: deviceId, typ: 'access' },
+    process.env.JWT_SECRET || 'test-secret-key',
+    { expiresIn: '-1h' }, // Already expired
+  );
 }
 
 /**

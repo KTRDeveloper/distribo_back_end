@@ -1,22 +1,33 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
 
-/**
- * JWT payload interface
- */
-export interface JwtPayload {
-  accountId: string;
-  phoneNumber: string;
+/** Identity carried by an access token: the person and the device session. */
+export interface AccessTokenIdentity {
+  personId: string;
+  deviceId: string;
 }
 
 /**
- * Sign an access token JWT. Short-lived and purely stateless — verification
- * never hits the database (see specs/005-refresh-tokens/research.md §1);
- * revocation instead happens at the refresh-token layer.
+ * Sign an access token (HS256): `{ sub, did, typ: 'access' }`, no personal data.
+ * Short-lived and stateless; revocation happens at the refresh-token layer.
  */
-export function signToken(payload: JwtPayload): string {
-  return jwt.sign(payload, config.jwt.secret, {
+export function signAccessToken(payload: AccessTokenIdentity): string {
+  return jwt.sign({ did: payload.deviceId, typ: 'access' }, config.jwt.secret, {
+    algorithm: 'HS256',
+    subject: payload.personId,
     expiresIn: config.jwt.accessTokenExpiresIn as jwt.SignOptions['expiresIn'],
+  });
+}
+
+/**
+ * Transitional shim for callers still using the old signature; the phone number
+ * is dropped and a fixed device id is used. Remove once callers move to signAccessToken.
+ * @deprecated use signAccessToken
+ */
+export function signToken(payload: { accountId: string; phoneNumber?: string }): string {
+  return signAccessToken({
+    personId: payload.accountId,
+    deviceId: '00000000-0000-7000-8000-000000000000',
   });
 }
 
@@ -43,24 +54,37 @@ export function getAccessTokenExpiresInSeconds(): number {
 }
 
 /**
- * Verify and decode a JWT token
+ * Verify an access token (v5.0.0-9.1.1, 9.1.2, 9.2.2): signature first, HS256 only,
+ * then `sub`, `did` must be strings and `typ` must be `access`.
+ * @throws Error when the token is invalid, expired or of the wrong type
  */
-export function verifyToken(token: string): JwtPayload {
+export function verifyAccessToken(token: string): AccessTokenIdentity {
+  let decoded: string | jwt.JwtPayload;
   try {
-    const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
-    return decoded;
+    decoded = jwt.verify(token, config.jwt.secret, { algorithms: ['HS256'] });
   } catch {
     throw new Error('Invalid or expired token');
   }
+  if (
+    typeof decoded === 'string' ||
+    decoded.typ !== 'access' ||
+    typeof decoded.sub !== 'string' ||
+    !decoded.sub ||
+    typeof decoded.did !== 'string' ||
+    !decoded.did
+  ) {
+    throw new Error('Invalid or expired token');
+  }
+  return { personId: decoded.sub, deviceId: decoded.did };
 }
 
 /**
  * Decode a JWT token without verification
  * Useful for inspecting expired tokens
  */
-export function decodeToken(token: string): JwtPayload | null {
+export function decodeToken(token: string): jwt.JwtPayload | null {
   try {
-    const decoded = jwt.decode(token) as JwtPayload;
+    const decoded = jwt.decode(token) as jwt.JwtPayload | null;
     return decoded;
   } catch {
     return null;

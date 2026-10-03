@@ -12,7 +12,7 @@ declare global {
       requestId: string;
       user?: {
         id: string;
-        phoneNumber: string;
+        deviceId: string;
       };
       actor?: Actor;
     }

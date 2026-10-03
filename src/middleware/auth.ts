@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../lib/jwt.js';
+import { verifyAccessToken } from '../lib/jwt.js';
 import { logger } from '../lib/logger.js';
 
 /**
@@ -29,15 +29,15 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     // Verify token
-    const payload = verifyToken(token);
+    const payload = verifyAccessToken(token);
 
     // Attach user information to request
     req.user = {
-      id: payload.accountId,
-      phoneNumber: payload.phoneNumber,
+      id: payload.personId,
+      deviceId: payload.deviceId,
     };
 
-    logger.debug({ requestId: req.requestId, accountId: payload.accountId }, 'User authenticated');
+    logger.debug({ requestId: req.requestId, personId: payload.personId }, 'User authenticated');
 
     return next();
   } catch (error) {
