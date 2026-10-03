@@ -185,3 +185,18 @@ openApiRegistry.registerPath({
     },
   },
 });
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/logout',
+  tags: ['auth'],
+  summary: 'Sign out of this phone',
+  security: [{ bearerAuth: [] }],
+  responses: {
+    204: { description: 'Device session ended' },
+    401: {
+      description: 'UNAUTHORIZED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});

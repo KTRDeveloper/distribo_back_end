@@ -128,3 +128,16 @@ export async function refreshSession(
       throw httpError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
   }
 }
+
+/**
+ * End one device of the person and close its refresh path (v5.0.0-7.4.1). The
+ * update filters on person and device together (v5.0.0-8.2.2).
+ * @returns true when a live device was ended, false otherwise
+ */
+export function revokeDevice(
+  personId: string,
+  deviceId: string,
+  reason: RevokedReason
+): Promise<boolean> {
+  return sessionRepository.revokeOwnDevice(personId, deviceId, reason);
+}

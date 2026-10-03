@@ -91,4 +91,25 @@ export const sessionRepository = {
       });
     });
   },
+
+  /** Ends one device of one person (id and owner filtered together); false when nothing matched. */
+  async revokeOwnDevice(
+    personId: string,
+    deviceId: string,
+    reason: RevokedReason
+  ): Promise<boolean> {
+    return prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const res = await tx.device.updateMany({
+        where: { id: deviceId, personId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      if (res.count === 0) return false;
+      await tx.refreshToken.updateMany({
+        where: { deviceId, personId, revokedAt: null },
+        data: { revokedAt: now, revokedReason: reason },
+      });
+      return true;
+    });
+  },
 };

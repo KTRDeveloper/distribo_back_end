@@ -8,7 +8,7 @@ import {
   registerRequestSchema,
   registerSchema,
 } from './auth.schemas.js';
-import { refreshSession } from './session.service.js';
+import { refreshSession, revokeDevice } from './session.service.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import {
   completeLogin,
@@ -96,5 +96,14 @@ authRoutes.post('/phone/change/request', authMiddleware, (req, res, next) => {
     const body = phoneChangeRequestSchema.safeParse(req.body);
     if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
     res.status(202).json(await requestPhoneChange(req.user.id, body.data, { ip: req.ip }));
+  })().catch(next);
+});
+
+// Authenticated route: ends the device named in the token; repeats and foreign devices are no-ops.
+authRoutes.post('/logout', authMiddleware, (req, res, next) => {
+  void (async () => {
+    if (!req.user) throw httpError(401, 'UNAUTHORIZED', 'Not authenticated');
+    if (req.user.deviceId) await revokeDevice(req.user.id, req.user.deviceId, 'LOGOUT');
+    res.status(204).end();
   })().catch(next);
 });
