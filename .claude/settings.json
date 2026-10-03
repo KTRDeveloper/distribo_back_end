@@ -1,6 +1,7 @@
 {
   "autoCompactWindow": 200000,
   "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "300000",
     "CLAUDE_CODE_GLOB_NO_IGNORE": "false",
     "NO_COLOR": "1"
   },
@@ -29,7 +30,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Edit|Write|Bash",
         "hooks": [
           {
             "type": "command",
