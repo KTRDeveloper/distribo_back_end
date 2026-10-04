@@ -94,6 +94,38 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - The SET NULL default would also be wrong for other immutable tables' optional FKs; not checked here.
 <!-- end FIN-001 -->
 
+<!-- begin FIN-002 -->
+## FIN-002 — Ledger sale and reversal rules in the database
+
+- Filed: 2026-10-04 20:33 UTC
+- Status: **blocked**: Rules break 9 FIN-001 tests in ledger-table.test.ts (SALE without order_id, PAYMENT reversing a SALE); story lists no Tests to update: allow updating them?
+- Risk: high · story: [FIN-002-ledger-sale-and-reversal-rules-in-the-database.md](../modules/finance/FIN-002-ledger-sale-and-reversal-rules-in-the-database.md)
+- Agent: 42,929 tokens, 11 tool uses, 1 min 54 s
+
+### Agent report
+
+**Summary:** Blocked: the migration and its 16 tests are done, but the new rules inevitably break 9 existing FIN-001 tests and the story lists no "Tests to update".
+
+**Decisions:**
+- Sale uniqueness race: the SALE trigger takes `pg_advisory_xact_lock` per order, so two concurrent sales cannot both pass (C-24, v5.0.0-2.3.3).
+- Unknown order or reversal target: the triggers let the row through so the FK answers 23503 (same pattern as DLV-002).
+- Partial unique index on `reverses_entry_id` is raw SQL only, with a comment in schema.prisma (precedent: deliveries_one_in_progress_per_order_key).
+- Test orders use `delivery_cost = total_amount` with no lines to satisfy the ORD-006 deferred total check.
+
+**Tests added beyond the story:**
+- `ledger-rules.test.ts` › lets only one of two concurrent SALEs through: race on sale uniqueness (C-24)
+- `ledger-rules.test.ts` › keeps one live SALE per order, leaves other kinds free, reversal rules for every kind, new SALE blocked again after re-sale (C-24, C-25); passed at once
+
+**Other additions:**
+- Migration `20261004330000_fin_002_ledger_rules` and comment block on `LedgerEntry` in `schema.prisma` (required by CLAUDE.md).
+
+**Evidence:** story tests 16/16; `tests/integration/finance` 96/105, failing: 9 in `ledger-table.test.ts`; full suite, typecheck and lint not run (blocked).
+
+**Follow-ups:**
+- Question: the 9 failing FIN-001 tests insert a SALE without `order_id` (rejected by AC-1) or a PAYMENT reversing a SALE (rejected by AC-2). May they be updated (give the SALE an order of matching total, reverse an entry of the same kind)? Failures: SALE original effect; the 4 "flips the sign" cases; "lets the application account insert and read"; "stores order, reversal..."; "rejects unknown relationship/order/reversed entry (23503)"; "rejects a missing required column (23502)".
+- The work is left in the tree (migration, test, schema comment) for the orchestrator to keep or stash.
+<!-- end FIN-002 -->
+
 <!-- begin FIN-011 -->
 ## FIN-011 — Expenses table
 

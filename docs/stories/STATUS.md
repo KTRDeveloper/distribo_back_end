@@ -152,7 +152,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-020 | done | | GET order by id, supplier view, 403/404/400 covered |
 | ORD-021 | done | | 4 customer GET routes, customer projection; suite 2465/2465 |
 | FIN-001 | done | | ledger_entries table, generated balance_effect, append-only grants |
-| FIN-002 | todo | | |
+| FIN-002 | blocked | | Rules break 9 FIN-001 tests in ledger-table.test.ts (SALE without order_id, PAYMENT reversing a SALE); story lists no Tests to update: allow updating them? |
 | FIN-003 | todo | | |
 | FIN-004 | todo | | |
 | FIN-005 | todo | | |
