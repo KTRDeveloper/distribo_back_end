@@ -21,11 +21,13 @@ export type CreatedOrganization = {
  *
  * @param personId - Owner, taken from the token.
  * @param input - Validated body.
+ * @param inSameTransaction - Extra writes that must commit or roll back with the organization.
  * @returns The stored organization fields.
  */
 export async function insertOrganizationWithOwner(
   personId: string,
-  input: CreateOrganizationInput
+  input: CreateOrganizationInput,
+  inSameTransaction?: (tx: Prisma.TransactionClient, org: CreatedOrganization) => Promise<void>
 ): Promise<CreatedOrganization> {
   return prisma.$transaction(async (tx) => {
     const org = await tx.organization.create({
@@ -56,6 +58,8 @@ export async function insertOrganizationWithOwner(
         acceptedAt: new Date(),
       },
     });
+
+    await inSameTransaction?.(tx, org);
 
     await bumpScopeVersion(personId, tx);
     return org;

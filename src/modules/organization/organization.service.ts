@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js';
 import { checkAndConsume } from '../../lib/rate-limit.js';
 import { atLeast } from '../../shared/access/roles.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
+import { createCounter } from '../relationship/relationship.repository.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   bumpScopeVersion,
@@ -56,10 +57,14 @@ import type {
   TransferOwnershipView,
 } from './organization.schemas.js';
 
+/** Label of the counter every organization gets at creation, for anonymous sales. */
+const DEFAULT_COUNTER_LABEL = 'Client de passage';
+
 /**
  * Creates an organization owned by the caller.
  *
  * The owner is always the authenticated person, never a body field (ASVS v5.0.0-8.2.1).
+ * The default counter "Client de passage" is created in the same transaction (REL-006).
  *
  * @param personId - Authenticated person who becomes the OWNER.
  * @param input - Validated body.
@@ -69,7 +74,13 @@ export async function createOrganization(
   personId: string,
   input: CreateOrganizationInput
 ): Promise<OrganizationView> {
-  const org = await insertOrganizationWithOwner(personId, input);
+  const org = await insertOrganizationWithOwner(personId, input, async (tx, created) => {
+    await createCounter(tx, {
+      supplierOrganizationId: created.id,
+      label: DEFAULT_COUNTER_LABEL,
+      createdById: personId,
+    });
+  });
   return {
     id: org.id,
     name: org.name,

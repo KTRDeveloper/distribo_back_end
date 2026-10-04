@@ -285,6 +285,32 @@ Also in this run: admin, catalog, order, finance, delivery.
 - relationship `contracts.md` should list these four exports when REL maintainers update it (stories folder not editable by me).
 <!-- end REL-005 -->
 
+<!-- begin REL-006 -->
+## REL-006 — Every new organization gets its first counter
+
+- Filed: 2026-10-04 13:37 UTC
+- Status: **done**: Counter created in the org transaction; 1519 tests pass
+- Risk: medium · story: [REL-006-every-new-organization-gets-its-first-counter.md](../modules/relationship/REL-006-every-new-organization-gets-its-first-counter.md)
+- Agent: 32,364 tokens, 14 tool uses, 2 min 45 s
+
+### Agent report
+
+**Summary:** createOrganization now creates the "Client de passage" counter in the same transaction as the organization and owner.
+
+**Decisions:**
+- Sharing the transaction: added an optional `inSameTransaction(tx, org)` callback to `insertOrganizationWithOwner`, since the transaction lives in the repository; the service passes the `createCounter` call.
+- Credit-limit author/date: left empty at creation (limit 0 from the default); creation is not a change, so no journal row (schema comment on CustomerRelationship).
+- AC-2 forced failure: `vi.mock` of relationship.repository with `createCounter` rejecting on a flag.
+
+**Other additions:**
+- Organization service imports `relationship.repository.js` directly; `createCounter` is not listed in relationship contracts.md (story dictates it). Contract entry may need adding.
+
+**Evidence:** story tests 24/24 (default-counter 4 + create 20); full suite 1519/1519, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing)
+
+**Follow-ups:**
+- Add `createCounter` to relationship contracts.md (I cannot edit the stories folder).
+<!-- end REL-006 -->
+
 <!-- begin REL-014 -->
 ## REL-014 — Reassignment journal table
 
