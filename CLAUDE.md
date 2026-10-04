@@ -19,6 +19,10 @@ import line of CONVENTIONS.md below.
 - `docs/stories/STATUS.md` and `docs/stories/_meta/order.md`: run `node .claude/skills/implement-stories/scripts/select.mjs <selection>` or `.../set-status.mjs <ID> <status> [note]`, or `grep` the one line you need.
 - Generated files: `openapi/openapi.json` (`npm run openapi:generate`), `package-lock.json` (`npm ls <package>`), `docs/stories/_meta/*.json`.
 
+## Database rules outside the Prisma schema
+- Every constraint or workaround a migration enforces that `prisma/schema.prisma` cannot express (CHECK, partial unique index, trigger, generated column, GRANT, a constraint deliberately left out of `@@unique`/`@@index`) gets a `//` comment above its model in `schema.prisma`: what it enforces, why it is not in the schema, and the migration that holds it.
+- Changing or removing such a constraint updates that comment in the same change. Read the comments above a model before touching it; never rely on reading the migrations to find these rules.
+
 ## Commands for agents
 - While iterating: `npx vitest run <test-file>` and `npm run lint -- --quiet` (errors only).
 - Once at the end: `npm run typecheck`, `npm run lint`, `npm test` (one dot per test under Claude Code; failures in full).
