@@ -42,6 +42,40 @@
         "required": [
           "error"
         ]
+      },
+      "DeletionCheck": {
+        "type": "object",
+        "properties": {
+          "can_delete": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "POSITIVE_BALANCE",
+                    "OWNS_ORGANIZATION"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label"
+              ]
+            }
+          }
+        },
+        "required": [
+          "can_delete",
+          "blockers"
+        ]
       }
     },
     "parameters": {}
@@ -15603,6 +15637,41 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/deletion-check": {
+      "get": {
+        "tags": [
+          "privacy"
+        ],
+        "summary": "List what blocks the deletion of the caller account",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether the account can be deleted, with the blockers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionCheck"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
             "content": {
               "application/json": {
                 "schema": {

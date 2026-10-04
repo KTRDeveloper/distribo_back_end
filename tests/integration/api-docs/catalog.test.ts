@@ -23,6 +23,7 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/health/live');
 
     expect(paths).toContain('/api/v1/users/me');
+    expect(paths).toContain('/api/v1/users/me/deletion-check');
 
     expect(paths).toContain('/api/v1/tasks');
     expect(paths).toContain('/api/v1/tasks/{id}');

@@ -84,6 +84,7 @@ import { healthRoutes } from './modules/health/health.routes.js';
 import { userRoutes } from './modules/user/user.routes.js';
 import { notificationRoutes } from './modules/notification/notification.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
+import { privacyRoutes } from './modules/privacy/privacy.routes.js';
 import { personRoutes } from './modules/person/person.routes.js';
 import { syncRoutes } from './modules/sync/sync.routes.js';
 import {
@@ -114,6 +115,7 @@ import './modules/auth/auth.openapi.js';
 import './modules/admin/admin.openapi.js';
 import './modules/notification/notification.openapi.js';
 import './modules/remote-config/remote-config.openapi.js';
+import './modules/privacy/privacy.openapi.js';
 
 const v1Router = express.Router();
 
@@ -125,6 +127,7 @@ v1Router.get('/metrics', async (_req, res) => {
 });
 
 v1Router.use('/health', healthRoutes);
+v1Router.use('/users/me/deletion-check', privacyRoutes);
 v1Router.use('/users', userRoutes);
 v1Router.use('/tasks', tasksRoutes);
 v1Router.use('/people/me/attachments', attachmentsRoutes);
