@@ -4,6 +4,7 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import {
   addCustomerSchema,
   customerParamsSchema,
+  editCustomerSchema,
   listCustomersQuerySchema,
 } from './relationship.schemas.js';
 
@@ -109,6 +110,31 @@ openApiRegistry.registerPath({
     400: { description: 'Malformed relationship id', content: errorContent },
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'A DRIVER cannot open customers', content: errorContent },
+    404: {
+      description: 'Not found, deleted, of another business, or not a member',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}',
+  tags: ['relationship'],
+  summary: 'Edit the label, address and notes of a customer (SELLER and above)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema.merge(customerParamsSchema),
+    body: { content: { 'application/json': { schema: editCustomerSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The updated supplier-side relationship view',
+      content: { 'application/json': { schema: supplierRelationshipViewSchema } },
+    },
+    400: { description: 'Invalid body or relationship id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role cannot update a field sent', content: errorContent },
     404: {
       description: 'Not found, deleted, of another business, or not a member',
       content: errorContent,

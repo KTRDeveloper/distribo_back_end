@@ -199,3 +199,47 @@ export function findSupplierRelationship(
     include: { customerPerson: true, customerOrganization: true },
   });
 }
+
+/**
+ * Updates the supplier-side fields of one relationship of the organization as supplier.
+ *
+ * The lookup and the update run in one transaction, and the lookup goes through the visibility
+ * predicate (v5.0.0-8.2.2), so another business's row, a deleted or a merged one answers null
+ * exactly like an absent id. Only the keys present in `data` are written.
+ *
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param id - Relationship id from the path.
+ * @param data - Validated fields to write (`undefined` keys are left untouched).
+ * @returns The updated row with the customer parties loaded, or null when not visible.
+ */
+export function updateSupplierFields(
+  viewer: { personId: string; organizationId: string },
+  id: string,
+  data: {
+    customerLabel?: string;
+    deliveryAddress?: string | null;
+    supplierNotes?: string | null;
+  }
+) {
+  return prisma.$transaction(async (tx) => {
+    const found = await tx.customerRelationship.findFirst({
+      where: {
+        AND: [
+          visibleRelationsWhere({
+            personId: viewer.personId,
+            organizationIds: [viewer.organizationId],
+          }),
+          { supplierOrganizationId: viewer.organizationId },
+          { id },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!found) return null;
+    return tx.customerRelationship.update({
+      where: { id: found.id },
+      data,
+      include: { customerPerson: true, customerOrganization: true },
+    });
+  });
+}

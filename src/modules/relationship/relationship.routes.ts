@@ -6,9 +6,10 @@ import { requireAbility } from '../../middleware/require-ability.js';
 import {
   addCustomerSchema,
   customerParamsSchema,
+  editCustomerSchema,
   listCustomersQuerySchema,
 } from './relationship.schemas.js';
-import { addCustomer, getCustomer, listCustomers } from './relationship.service.js';
+import { addCustomer, editCustomer, getCustomer, listCustomers } from './relationship.service.js';
 import './relationship.openapi.js';
 
 /** Relationship routes of one organization, mounted at `/organizations/:organizationId`. */
@@ -54,6 +55,27 @@ relationshipRoutes.get(
   (req, res, next) => {
     Promise.resolve()
       .then(() => getCustomer(req.actor!, customerParamsSchema.parse(req.params).relationshipId))
+      .then((customer) => res.json(customer))
+      .catch(next);
+  }
+);
+
+// PATCH /api/v1/organizations/:organizationId/customers/:relationshipId - SELLER and above edit the
+// label, address and notes; the service checks each field against the rules table (403) and the
+// organization scope (404)
+relationshipRoutes.patch(
+  '/customers/:relationshipId',
+  authMiddleware,
+  loadActor,
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        editCustomer(
+          req.actor!,
+          customerParamsSchema.parse(req.params).relationshipId,
+          editCustomerSchema.parse(req.body)
+        )
+      )
       .then((customer) => res.json(customer))
       .catch(next);
   }

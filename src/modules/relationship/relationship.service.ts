@@ -6,12 +6,18 @@ import { findOrCreateByPhone } from '../person/person.repository.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { atLeast } from '../../shared/access/roles.js';
-import type { AddCustomerInput, ListCustomersQuery } from './relationship.schemas.js';
+import { abilityFor } from '../../shared/access/ability.js';
+import type {
+  AddCustomerInput,
+  EditCustomerInput,
+  ListCustomersQuery,
+} from './relationship.schemas.js';
 import {
   ensureCustomerRelationship,
   findSupplierRelationship,
   findWithParties,
   listSupplierRelationships,
+  updateSupplierFields,
 } from './relationship.repository.js';
 import { projectForSupplier, type SupplierRelationshipView } from './relationship.visibility.js';
 
@@ -125,6 +131,51 @@ export async function getCustomer(
   assertSellerOrAbove(actor, 'read');
 
   const row = await findSupplierRelationship(actor, relationshipId);
+  if (!row) throw httpError(404, 'NOT_FOUND', 'Customer not found');
+  return projectForSupplier(row);
+}
+
+const EDIT_CONTEXT = { onServer: false, online: true, daysSinceSync: 0 } as const;
+
+/**
+ * A SELLER or above edits the supplier-side fields of one customer of the actor's organization.
+ *
+ * Every field sent is checked against the rules table (ASVS v5.0.0-8.2.3): one refused field
+ * answers 403 and nothing is written. The row is then selected by id and the visibility
+ * predicate together (404 outside the organization, v5.0.0-8.2.2). Only `customer_label`,
+ * `delivery_address` and `supplier_notes` can reach the update (CM-19, CWE-915); the response is
+ * the supplier projection.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param input - Validated body with at least one field.
+ * @throws 403 `FORBIDDEN` when the role may not update a field sent; 404 `NOT_FOUND`.
+ */
+export async function editCustomer(
+  actor: Actor,
+  relationshipId: string,
+  input: EditCustomerInput
+): Promise<SupplierRelationshipView> {
+  const ability = abilityFor(actor.role, EDIT_CONTEXT);
+  const fields = Object.keys(input);
+  if (!fields.every((field) => ability.can('update', 'CustomerRelationship', field))) {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'update',
+        subjectType: 'CustomerRelationship',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+
+  const row = await updateSupplierFields(actor, relationshipId, {
+    customerLabel: input.customer_label,
+    deliveryAddress: input.delivery_address,
+    supplierNotes: input.supplier_notes,
+  });
   if (!row) throw httpError(404, 'NOT_FOUND', 'Customer not found');
   return projectForSupplier(row);
 }

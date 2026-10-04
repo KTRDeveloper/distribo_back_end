@@ -417,6 +417,31 @@ Also in this run: admin, catalog, order, finance, delivery.
 **Evidence:** story tests 8/8; full suite 1569/1569, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing)
 <!-- end REL-009 -->
 
+<!-- begin REL-010 -->
+## REL-010 — Seller edits the supplier-side fields
+
+- Filed: 2026-10-04 14:09 UTC
+- Status: **done**: PATCH customers/:id; per-field ability check, 21 tests
+- Risk: medium · story: [REL-010-seller-edits-the-supplier-side-fields.md](../modules/relationship/REL-010-seller-edits-the-supplier-side-fields.md)
+- Agent: 43,278 tokens, 11 tool uses, 2 min 55 s
+
+### Agent report
+
+**Summary:** Added PATCH /organizations/{id}/customers/{relationshipId} editing label, address and notes; done.
+
+**Decisions:**
+- AC-3 counter label: handled by the schema (`customer_label` is never null, min 1), so the service has no counter-specific branch.
+- Order of checks: path and body validation (400) run before the per-field ability check (403) and the scope lookup (404), as in the GET routes.
+- Lookup and update share one transaction in the repository, through the visibility predicate; not-visible gives null, then 404.
+- No gesture `id` in the body: the story's strict three-field schema excludes it, and a PATCH of fixed values is naturally repeatable.
+- Catalog and per-001 route lists need no new entry: the PATCH reuses an existing path.
+
+**Tests added beyond the story:**
+- `edit-customer.test.ts` › edits the address only, clears with null, OWNER can edit, delivery_address 2001 chars, customer_label null, counter label edit, organization-as-customer 404, deleted 404 and malformed id 400: boundaries and scope (AC-2, AC-3, AB-2, C-06); all passed at once as regression guards after the implementation.
+
+**Evidence:** story tests 21/21; full suite 1590/1590, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+<!-- end REL-010 -->
+
 <!-- begin REL-014 -->
 ## REL-014 — Reassignment journal table
 
