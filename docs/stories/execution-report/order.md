@@ -249,3 +249,30 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - Question: those fixtures insert lines with order total 0, or orders with a total and no lines (autoc-commit), which the specified rule now rejects at commit. Permit updating those 6 test files (fixtures only), or define a different rule? Files left uncommitted: migration prisma/migrations/20261004320000_ord_006_total_check and the new test.
 - Schema comment above Order/OrderLine in schema.prisma (CLAUDE.md rule) not yet written; also still says "other rules on creation (ORD-006)" to update.
 <!-- end ORD-006 -->
+
+<!-- begin ORD-007 -->
+## ORD-007 — Order calculations and party views
+
+- Filed: 2026-10-04 16:42 UTC
+- Status: **done**: Pure order calculations and supplier/customer views; 14 unit tests, full suite 2103 pass
+- Risk: medium · story: [ORD-007-order-calculations-and-party-views.md](../modules/order/ORD-007-order-calculations-and-party-views.md)
+- Agent: 28,895 tokens, 10 tool uses, 3 min 9 s
+
+### Agent report
+
+**Summary:** Added order.calculations.ts and order.views.ts (pure, no DB) with unit tests; all green.
+
+**Decisions:**
+- OrderWithLines: defined as Prisma `Order & { lines: OrderLine[] }` in order.views.ts (story left it open).
+- View shape: snake_case keys, money as JSON numbers (like catalog), quantities as decimal strings, dates as ISO strings (date-only for desired_delivery_date), so views are JSON-serializable.
+- Price author: only OWNER/MANAGER get price_set_by_id/price_set_at; any other or unknown role gets neither (fail closed).
+- Notes (customer_note, supplier_note) and parent_order_id stay in the customer view (MODULE.md: notes visible to both parties).
+
+**Tests added beyond the story:**
+- `tests/unit/order/calculations-and-views.test.ts` › DRIVER and unknown role: price author hidden like SELLER (v5.0.0-8.2.3, fail closed); passed at once
+- same file › delivered quantity 0 is used, not the ordered one (CM-14 "when set"); passed at once
+- same file › customer view exact key list (v5.0.0-15.3.1 explicit fields); passed at once
+- same file › views JSON-serializable (no bigint leak); passed at once
+
+**Evidence:** story tests 14/14; full suite 2103/2103, failing: none; typecheck clean; lint 0 errors, 59 warnings (pre-existing)
+<!-- end ORD-007 -->

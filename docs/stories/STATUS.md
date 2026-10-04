@@ -136,7 +136,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-004 | done | | order_lines table with CHECKs and triggers; 25 tests pass |
 | ORD-005 | done | | line product, minimum quantity and customer-price trigger (migration 20261004310000) |
 | ORD-006 | blocked | | Migration and 14 story tests pass, but the new totals trigger breaks 48 existing tests in 6 files (ledger-table, line-rules, order-line-table, order-table, status-rules, contest) that build orders with arbitrary totals or lines without matching total; story has no Tests to update: may they be updated? |
-| ORD-007 | todo | | |
+| ORD-007 | done | | Pure order calculations and supplier/customer views; 14 unit tests, full suite 2103 pass |
 | ORD-008 | todo | | |
 | ORD-009 | todo | | |
 | ORD-010 | todo | | |
