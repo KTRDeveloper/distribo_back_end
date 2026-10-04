@@ -97,33 +97,31 @@ Also in this run: relationship, admin, catalog, order, delivery.
 <!-- begin FIN-002 -->
 ## FIN-002 — Ledger sale and reversal rules in the database
 
-- Filed: 2026-10-04 20:33 UTC
-- Status: **blocked**: Rules break 9 FIN-001 tests in ledger-table.test.ts (SALE without order_id, PAYMENT reversing a SALE); story lists no Tests to update: allow updating them?
+- Filed: 2026-10-04 21:00 UTC
+- Status: **done**: migration 20261004330000 adds sale and reversal triggers plus partial unique index; ledger-table fixtures updated
 - Risk: high · story: [FIN-002-ledger-sale-and-reversal-rules-in-the-database.md](../modules/finance/FIN-002-ledger-sale-and-reversal-rules-in-the-database.md)
-- Agent: 42,929 tokens, 11 tool uses, 1 min 54 s
+- Agent: 41,793 tokens, 13 tool uses, 4 min 29 s
 
 ### Agent report
 
-**Summary:** Blocked: the migration and its 16 tests are done, but the new rules inevitably break 9 existing FIN-001 tests and the story lists no "Tests to update".
+**Summary:** Migration with two BEFORE INSERT triggers and a partial unique index; ledger-table.test.ts fixtures updated per the new "Tests to update".
 
 **Decisions:**
-- Sale uniqueness race: the SALE trigger takes `pg_advisory_xact_lock` per order, so two concurrent sales cannot both pass (C-24, v5.0.0-2.3.3).
-- Unknown order or reversal target: the triggers let the row through so the FK answers 23503 (same pattern as DLV-002).
-- Partial unique index on `reverses_entry_id` is raw SQL only, with a comment in schema.prisma (precedent: deliveries_one_in_progress_per_order_key).
-- Test orders use `delivery_cost = total_amount` with no lines to satisfy the ORD-006 deferred total check.
+- Unknown order or unknown reversal target: the triggers return without error so the foreign key raises 23503, as the updated ledger-table test expects.
+- Self-reversal (reverses_entry_id = id): refused with 23514, since the entry would itself be a reversal (C-25); otherwise it passed the FK.
+- Concurrent sales: a transaction-scoped advisory lock per order, because the app role cannot lock the orders row.
 
 **Tests added beyond the story:**
-- `ledger-rules.test.ts` › lets only one of two concurrent SALEs through: race on sale uniqueness (C-24)
-- `ledger-rules.test.ts` › keeps one live SALE per order, leaves other kinds free, reversal rules for every kind, new SALE blocked again after re-sale (C-24, C-25); passed at once
+- `tests/integration/finance/ledger-rules.test.ts` › lets only one of two concurrent SALEs commit: race on the one-live-sale rule (C-24); written before the migration, failed then passed
+- same file › keeps the live-SALE rule per order, does not require an order for other kinds, reversal of a reversal, self-reversal 23514 (C-24, C-25)
 
 **Other additions:**
-- Migration `20261004330000_fin_002_ledger_rules` and comment block on `LedgerEntry` in `schema.prisma` (required by CLAUDE.md).
+- schema.prisma comment above LedgerEntry for the new rules and the partial unique index (CLAUDE.md rule).
 
-**Evidence:** story tests 16/16; `tests/integration/finance` 96/105, failing: 9 in `ledger-table.test.ts`; full suite, typecheck and lint not run (blocked).
+**Evidence:** story tests 16/16; full suite 2520/2520, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
 
 **Follow-ups:**
-- Question: the 9 failing FIN-001 tests insert a SALE without `order_id` (rejected by AC-1) or a PAYMENT reversing a SALE (rejected by AC-2). May they be updated (give the SALE an order of matching total, reverse an entry of the same kind)? Failures: SALE original effect; the 4 "flips the sign" cases; "lets the application account insert and read"; "stores order, reversal..."; "rejects unknown relationship/order/reversed entry (23503)"; "rejects a missing required column (23502)".
-- The work is left in the tree (migration, test, schema comment) for the orchestrator to keep or stash.
+- The concurrency test was not run without the lock to confirm it would fail without it.
 <!-- end FIN-002 -->
 
 <!-- begin FIN-011 -->

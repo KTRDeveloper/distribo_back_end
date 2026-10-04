@@ -76,5 +76,16 @@ Scenario: AB-1 A sale that does not match its order (tampering)
 
 Command: `npx vitest run tests/integration/finance/ledger-rules.test.ts`
 
+### Tests to update
+| existing test | reason | new expectation |
+|---|---|---|
+| tests/integration/finance/ledger-table.test.ts › `beforeEach` and `insertEntry` (fixtures) | the fixture order has `total_amount` 0 and `insertEntry` writes a SALE of 10000 without `order_id`, which C-24 refuses with 23514 | the fixture order has `total_amount` 10000 and `delivery_cost` 10000 (no lines, so the ORD-006 total check holds); `insertEntry` uses `ORDER_ID` for a SALE that reverses nothing when no `orderId` is given; other kinds keep `order_id` null |
+| ledger-table.test.ts › "gives SALE an original effect of 10000" | SALE without `order_id` (C-24) | passes through the `insertEntry` change; effect still 10000 |
+| ledger-table.test.ts › "flips the sign of a reversing %s" (4 cases) | each reverses a SALE with an entry of another kind (or a SALE without order), which C-25 and C-24 refuse | the target is an entry of the same kind, mode and amount (`insertEntry({ id: FIRST_ID, kind, mode })`), the reversal mirrors it; expected effects unchanged |
+| ledger-table.test.ts › "lets the application account insert and read" | default SALE without `order_id` (C-24) | passes through the `insertEntry` change; still 1 row read back |
+| ledger-table.test.ts › "stores order, reversal, reference, note and server time" | a PAYMENT of 500 reverses a SALE of 10000 (C-25) | the first entry is a PAYMENT of 500, mode MOBILE_MONEY, with `order_id` ORDER_ID; the second still reverses it; same assertions |
+| ledger-table.test.ts › "rejects an unknown relationship, order or reversed entry with 23503" | default SALE without `order_id` (C-24) | passes through the `insertEntry` change; all three still 23503 |
+| ledger-table.test.ts › "rejects a missing required column with 23502" | the SALE without `order_id` is refused by the sale trigger (23514) before the NOT NULL check | both inserts use kind OPENING_BALANCE; both still 23502 |
+
 ## Out of scope
 - Counter sales paid in full (C-26 in DLV-011).

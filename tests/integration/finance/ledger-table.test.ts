@@ -64,13 +64,16 @@ type EntryRow = {
 
 /** Inserts a ledger entry as the application account; defaults describe a SALE by the owner. */
 function insertEntry(row: EntryRow = {}): Promise<number> {
+  const kind = row.kind ?? 'SALE';
+  // A SALE that reverses nothing must carry its order (C-24); other kinds keep order_id null.
+  const orderId = row.orderId ?? (kind === 'SALE' && !row.reverses ? ORDER_ID : null);
   return appPrisma.$executeRaw`
     INSERT INTO ledger_entries (
       id, customer_relationship_id, order_id, kind, amount, mode,
       reverses_entry_id, recorded_by_id, occurred_at
     ) VALUES (
       ${row.id ?? FIRST_ID}::uuid, ${row.relationshipId ?? REL_ID}::uuid,
-      ${row.orderId ?? null}::uuid, ${row.kind ?? 'SALE'}::text::public."LedgerEntryKind",
+      ${orderId}::uuid, ${kind}::text::public."LedgerEntryKind",
       ${row.amount ?? 10000}::bigint, ${row.mode ?? null}::text::public."LedgerEntryMode",
       ${row.reverses ?? null}::uuid, ${row.by ?? OWNER_ID}::uuid, now()
     )
@@ -112,8 +115,10 @@ beforeEach(async () => {
     ) VALUES (${REL_ID}::uuid, ${ORG_ID}::uuid, ${CUSTOMER_ID}::uuid, ${OWNER_ID}::uuid)
   `;
   await prisma.$executeRaw`
-    INSERT INTO orders (id, customer_relationship_id, placed_by_party, entered_by_id, total_amount)
-    VALUES (${ORDER_ID}::uuid, ${REL_ID}::uuid, 'SUPPLIER', ${OWNER_ID}::uuid, 0)
+    INSERT INTO orders (
+      id, customer_relationship_id, placed_by_party, entered_by_id, total_amount, delivery_cost
+    )
+    VALUES (${ORDER_ID}::uuid, ${REL_ID}::uuid, 'SUPPLIER', ${OWNER_ID}::uuid, 10000, 10000)
   `;
 });
 
@@ -139,7 +144,7 @@ describe('ledger_entries balance effect (AC-1, C-23)', () => {
     ['CREDIT_NOTE', null, 10000n],
     ['REFUND', 'MOBILE_MONEY', -10000n],
   ])('flips the sign of a reversing %s', async (kind, mode, effect) => {
-    await insertEntry({ id: FIRST_ID, kind: 'SALE' });
+    await insertEntry({ id: FIRST_ID, kind, mode });
     await insertEntry({ id: SECOND_ID, kind, mode, reverses: FIRST_ID });
     expect(await balanceEffect(SECOND_ID)).toBe(effect);
   });
@@ -225,7 +230,13 @@ describe('ledger_entries immutability (AC-4, AB-1, C-39)', () => {
 
 describe('ledger_entries keys, author and columns (AC-5, C-04)', () => {
   it('stores order, reversal, reference, note and server time', async () => {
-    await insertEntry({ id: FIRST_ID, orderId: ORDER_ID });
+    await insertEntry({
+      id: FIRST_ID,
+      kind: 'PAYMENT',
+      mode: 'MOBILE_MONEY',
+      amount: 500,
+      orderId: ORDER_ID,
+    });
     await appPrisma.$executeRaw`
       INSERT INTO ledger_entries (
         id, customer_relationship_id, kind, amount, mode, transaction_reference,
@@ -282,13 +293,13 @@ describe('ledger_entries keys, author and columns (AC-5, C-04)', () => {
     expect(
       await captureSqlCode(appPrisma.$executeRaw`
         INSERT INTO ledger_entries (id, customer_relationship_id, kind, amount, occurred_at)
-        VALUES (${FIRST_ID}::uuid, ${REL_ID}::uuid, 'SALE'::public."LedgerEntryKind", 10, now())
+        VALUES (${FIRST_ID}::uuid, ${REL_ID}::uuid, 'OPENING_BALANCE'::public."LedgerEntryKind", 10, now())
       `)
     ).toBe('23502');
     expect(
       await captureSqlCode(appPrisma.$executeRaw`
         INSERT INTO ledger_entries (id, customer_relationship_id, kind, amount, recorded_by_id)
-        VALUES (${FIRST_ID}::uuid, ${REL_ID}::uuid, 'SALE'::public."LedgerEntryKind", 10,
+        VALUES (${FIRST_ID}::uuid, ${REL_ID}::uuid, 'OPENING_BALANCE'::public."LedgerEntryKind", 10,
                 ${OWNER_ID}::uuid)
       `)
     ).toBe('23502');

@@ -1056,8 +1056,18 @@ model OrderLine {
 //   guest. This is checked when the transaction is saved, not row by row.
 // - server_updated_at is set by the database on every change. There is no
 //   deleted_at: entries are never removed.
-// The rules on who may record which entry, reversals and sales are added by
-// later stories (FIN-002), not here.
+// Sale and reversal rules come from migration 20261004330000_fin_002_ledger_rules.
+// - A SALE that is not a reversal must name its order, its amount must equal
+//   the order's total, and an order can have only one SALE that nobody has
+//   reversed. After a SALE is reversed, the order can be sold again. Two sales
+//   saved at the same moment for one order cannot both succeed.
+// - An entry that reverses another must be in the same relationship, of the
+//   same kind and the same amount as its target, and the target cannot itself
+//   be a reversal. An entry is reversed at most once, and never reverses
+//   itself. The "reversed at most once" part is a partial unique index on
+//   reverses_entry_id (only rows where it is set), which Prisma cannot express,
+//   so it is not declared as @@unique here.
+// The rules on who may record which entry are added by later stories, not here.
 model LedgerEntry {
   id                     String           @id @db.Uuid
   customerRelationshipId String           @map("customer_relationship_id") @db.Uuid
