@@ -11,7 +11,12 @@ import {
   findSupplierRelationshipLocked,
   managesOrganization,
 } from '../relationship/relationship.repository.js';
-import type { CreditNoteInput, OpeningBalanceInput, PaymentInput } from './finance.schemas.js';
+import type {
+  CreditNoteInput,
+  OpeningBalanceInput,
+  PaymentInput,
+  ReturnInput,
+} from './finance.schemas.js';
 import { appendLedgerEntry } from './ledger.service.js';
 
 /** A ledger entry as the recorder sees it: an explicit field list, money in whole XAF. */
@@ -96,13 +101,15 @@ export function recordPayment(
  * organization (404 outside it, ASVS v5.0.0-8.2.2); a counter, the caller's own record and a
  * PENDING relationship are refused. Own-record gestures return to the owner: only a customer
  * person equal to the caller binds an owner; a manager is also bound by a customer organization
- * they manage.
+ * they manage. A returned-and-refunded gesture (FIN-008) sets `allowCounter`: a counter may be
+ * refunded.
  */
 async function lockCustomerForOutflow(
   tx: Prisma.TransactionClient,
   actor: Actor,
   relationshipId: string,
-  route: string
+  route: string,
+  allowCounter = false
 ) {
   const status = await findOrganizationStatus(actor.organizationId, tx);
   if (status === null) throw httpError(404, 'NOT_FOUND', 'Not found');
@@ -116,7 +123,11 @@ async function lockCustomerForOutflow(
     relationshipId
   );
   if (!relationship) throw httpError(404, 'NOT_FOUND', 'Customer not found.');
-  if (relationship.customerPersonId === null && relationship.customerOrganizationId === null) {
+  if (
+    !allowCounter &&
+    relationship.customerPersonId === null &&
+    relationship.customerOrganizationId === null
+  ) {
     throw httpError(409, 'COUNTER_ONLY_RETURNS', 'A counter only takes returns.');
   }
   const ownPerson = relationship.customerPersonId === actor.personId;
@@ -314,6 +325,71 @@ export function recordOpeningBalance(
       mode: entry.mode,
       occurred_at: entry.occurredAt,
       balance: Number(relationship.balance + entry.balanceEffect),
+    };
+  });
+}
+
+/**
+ * A MANAGER online or the OWNER records a returned and refunded article (FIN-008, CM-21): a
+ * CREDIT_NOTE and a REFUND of the same amount in one transaction (ASVS v5.0.0-2.3.3), so the
+ * customer's balance does not move and the recorder's held money falls by the amount. The route
+ * checked the rules table for both kinds (v5.0.0-8.2.1). Same guards as a refund, except that a
+ * counter is accepted, so an anonymous customer can be refunded. The credit note is written
+ * first; if the refund fails, the whole transaction rolls back and neither entry exists.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked the role.
+ * @param relationshipId - Customer relationship from the path.
+ * @param input - Validated body: `id` is the credit note's id, `refund_entry_id` the refund's.
+ * @returns Both stored entries; `balance` is the customer's balance after each.
+ * @throws 403 `OWN_RECORD`; 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE`,
+ * `RELATIONSHIP_NOT_ACTIVE`.
+ */
+export function recordReturn(
+  actor: Actor,
+  relationshipId: string,
+  input: ReturnInput
+): Promise<{ credit_note: LedgerEntryView; refund: LedgerEntryView }> {
+  return runInTransaction(async (tx) => {
+    const relationship = await lockCustomerForOutflow(
+      tx,
+      actor,
+      relationshipId,
+      'record_return',
+      true
+    );
+    const common = {
+      relationshipId: relationship.id,
+      amount: BigInt(input.amount),
+      note: input.note,
+      recordedById: actor.personId,
+      organizationId: actor.organizationId,
+      occurredAt: new Date(),
+    };
+
+    const creditNote = await appendLedgerEntry(tx, {
+      ...common,
+      id: input.id,
+      kind: 'CREDIT_NOTE',
+    });
+    const refund = await appendLedgerEntry(tx, {
+      ...common,
+      id: input.refund_entry_id,
+      kind: 'REFUND',
+      mode: input.mode,
+    });
+
+    // The row is locked since the lookup, so the balance read before plus the effects is exact.
+    const view = (entry: typeof creditNote, balance: bigint): LedgerEntryView => ({
+      id: entry.id,
+      kind: entry.kind,
+      amount: Number(entry.amount),
+      mode: entry.mode,
+      occurred_at: entry.occurredAt,
+      balance: Number(balance),
+    });
+    return {
+      credit_note: view(creditNote, relationship.balance + creditNote.balanceEffect),
+      refund: view(refund, relationship.balance + creditNote.balanceEffect + refund.balanceEffect),
     };
   });
 }

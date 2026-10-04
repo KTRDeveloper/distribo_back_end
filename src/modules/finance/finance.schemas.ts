@@ -48,3 +48,25 @@ export type CreditNoteInput = z.infer<typeof creditNoteSchema>;
 export const openingBalanceSchema = creditNoteSchema;
 
 export type OpeningBalanceInput = z.infer<typeof openingBalanceSchema>;
+
+/**
+ * Strict body of the refunded-return gesture (FIN-008): `id` becomes the credit note's id and
+ * `refund_entry_id` the refund's, so a replay is recognised and the two entries never share an
+ * id. One amount and one required note serve both entries; the mode is the refund's. No kind,
+ * recorder or time (ASVS v5.0.0-15.3.3, CWE-915).
+ */
+export const returnSchema = z
+  .object({
+    id: uuidV7Schema,
+    refund_entry_id: uuidV7Schema,
+    amount: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+    mode: z.enum(['CASH', 'MOBILE_MONEY']),
+    note: z.string().trim().min(1).max(TEXT_MAX),
+  })
+  .strict()
+  .refine((body) => body.id !== body.refund_entry_id, {
+    message: 'entry_ids_must_differ',
+    path: ['refund_entry_id'],
+  });
+
+export type ReturnInput = z.infer<typeof returnSchema>;

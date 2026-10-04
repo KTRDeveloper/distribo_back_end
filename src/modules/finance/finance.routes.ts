@@ -11,12 +11,14 @@ import {
   openingBalanceSchema,
   paymentParamSchema,
   recordPaymentSchema,
+  returnSchema,
 } from './finance.schemas.js';
 import {
   recordCreditNote,
   recordOpeningBalance,
   recordPayment,
   recordRefund,
+  recordReturn,
 } from './finance.service.js';
 
 /** Finance routes of one organization, mounted at `/organizations/:organizationId`. */
@@ -145,6 +147,37 @@ financeRoutes.post(
       req.actor!,
       paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
       openingBalanceSchema.parse(req.body)
+    )
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/customers/:relationshipId/returns - a MANAGER online
+// or the OWNER records a returned and refunded article: a CREDIT_NOTE and a REFUND in one
+// transaction. Both kinds must be allowed by the rules table; there is no route for a lone
+// refund-with-credit split, and the organization and the recorder are the caller's.
+financeRoutes.post(
+  '/customers/:relationshipId/returns',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'LedgerEntry', () => ({ kind: 'CREDIT_NOTE' })),
+  requireAbility('create', 'LedgerEntry', () => ({ kind: 'REFUND' })),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = paymentParamSchema.safeParse({ relationshipId: req.params.relationshipId });
+    if (!params.success) return next(params.error);
+    const parsed = returnSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    recordReturn(
+      req.actor!,
+      paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
+      returnSchema.parse(req.body)
     )
       .then((view) => res.status(201).json(view))
       .catch(next);

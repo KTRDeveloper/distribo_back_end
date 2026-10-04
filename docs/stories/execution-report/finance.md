@@ -300,6 +300,36 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - Finance routes (FIN-004..007) are not registered in an `.openapi.ts` although CONVENTIONS requires it; worth a dedicated story.
 <!-- end FIN-007 -->
 
+<!-- begin FIN-008 -->
+## FIN-008 — Manager records a refunded return
+
+- Filed: 2026-10-04 21:41 UTC
+- Status: **done**: POST returns: credit note + refund in one transaction; counter allowed
+- Risk: high · story: [FIN-008-manager-records-a-refunded-return.md](../modules/finance/FIN-008-manager-records-a-refunded-return.md)
+- Agent: 50,154 tokens, 17 tool uses, 7 min 58 s
+
+### Agent report
+
+**Summary:** Added POST /customers/:relationshipId/returns writing a CREDIT_NOTE and a REFUND in one transaction.
+
+**Decisions:**
+- Counter allowed: `lockCustomerForOutflow` got an `allowCounter` flag (default false), so FIN-005/006/007 keep refusing counters.
+- Route checks both `create LedgerEntry` CREDIT_NOTE and REFUND in the rules table, since the gesture writes both kinds.
+- `id` and `refund_entry_id` must differ (400 VALIDATION_ERROR): they are both ledger primary keys.
+- Refund `balance` in the response is the balance after the credit note plus the refund (unchanged overall).
+- AC-3 forced by a pre-existing entry owning the refund id; the PK collision surfaces as a generic 500 (same as other gestures).
+
+**Tests added beyond the story:**
+- `tests/integration/finance/return.test.ts` › PENDING relationship; CLOSED/SUSPENDED organization: refusals from the Context section; passed at once
+- same file › retried id: one pair of entries, held lowered once (idempotent repeat rule); passed at once
+- same file › other business's customer: 404, nothing stored (ASVS 8.2.2); passed at once
+
+**Evidence:** story tests 11/11; full suite 2595/2595 after fixing a lint error in my test (first run failed only on quality-gates lint); typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- No finance `.openapi.ts` exists and earlier finance routes are not in catalog/per-001 lists; I followed that, so the route is undocumented in OpenAPI.
+<!-- end FIN-008 -->
+
 <!-- begin FIN-011 -->
 ## FIN-011 — Expenses table
 
