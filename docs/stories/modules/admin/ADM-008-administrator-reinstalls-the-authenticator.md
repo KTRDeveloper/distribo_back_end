@@ -3,7 +3,7 @@ id: ADM-008
 title: Administrator reinstalls the authenticator through the recovery email
 module: admin
 kind: feature
-rev: 1
+rev: 2
 amends: []
 size: M
 risk: high
@@ -22,7 +22,7 @@ As a moderator, I want to install a new authenticator key with a code sent to my
 ## Context
 - Exists: recovery email (ADM-007), `createTotpSecret`, `issueCode`/`verifyCode` with purpose TOTP_RECOVERY, `recordAdminAction`, `notify`.
 - Adds: `POST /api/v1/admin/auth/totp-recovery/request` with `{ phone_number, password }` and `POST /api/v1/admin/auth/totp-recovery/confirm` with `{ phone_number, password, code }`; both public (no token). Request: password checked (same counter and generic errors as ADM-006), a TOTP_RECOVERY code goes by EMAIL to the verified `recovery_email` of a live administrator; the answer is always 202. Confirm: with the right password and code, a new secret replaces the old one (encrypted) and the response is 200 `{ otpauth_uri }`; nothing else is changed and no session is issued.
-- Each use writes `RECOVER_2FA` (reason "totp recovery", target the administrator's person), notifies the administrator's other devices `admin.2fa_recovered` and every other live SUPER_ADMIN, with the text "Ce n'était pas vous ? Bloquer".
+- Each use writes `RECOVER_2FA` (reason "totp recovery", target the administrator's person), notifies the administrator's other devices `admin.totp_recovered` and every other live SUPER_ADMIN, with the text "Ce n'était pas vous ? Bloquer".
 - `CM-34`: A TOTP_RECOVERY code sent to the recovery email only allows installing a new TOTP key; each use is logged as RECOVER_2FA and notified to the administrator's phones and to the other super administrators.
 - `C-33`: `OtpChallenge` allows 5 attempts at most; a consumed or expired code is never accepted; SMS goes only to +237 mobile numbers; an EMAIL code goes to the person's verified email, or to the administrator's recovery address, except for EMAIL_VERIFICATION.
 
