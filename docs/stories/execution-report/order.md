@@ -6,6 +6,30 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 10:55 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORD-001 Orders table | done | bcc80d2 | orders table, enums, FKs, indexes, triggers; 16 tests |
+| ORD-002 Order status, cancellation and delivery rules in the database | blocked | 305910b | Story tests pass (35/35) but 2 ORD-001 tests in order-table.test.ts contradict C-16/C-17: 'accepts every documented status' (DELIVERED/CANCELLED/PENDING inserted without their columns) and 'accepts delivered_by_id and cancelled_by_id of a registered person' (set on CONFIRMED). Not under Tests to update: list them, or say how to proceed |
+
+Not run: ORD-003..ORD-021.
+Also in this run: relationship, admin, catalog, finance, delivery.
+
+- Run completed: every PLAN line was run or skipped; 24 done, 3 blocked (REL-004, ADM-008, ORD-002), 73 skipped, never three not-done in a row.
+- Skipped, dependency not done (stay todo): REL-006..REL-013, REL-015..REL-025 (behind REL-004); CAT-003..CAT-011 (behind REL-006); ORD-003..ORD-021, FIN-002..FIN-010, FIN-012, FIN-013, FIN-015..FIN-020, DLV-002..DLV-010 (behind ORD-002 or REL stories).
+- Stashes: "REL-004 blocked: partial changes", "ADM-008 blocked: partial changes", "ORD-002 blocked: partial changes".
+- REL-004 and ORD-002 are blocked the same way: extra tests the previous table story added (REL-001, ORD-001) contradict the new rules and are not under "Tests to update".
+- ADM-008 needs a human decision: event name admin.2fa_recovered breaks the NTF-002 grammar (e.g. admin.totp_recovered).
+- ADM-005's agent stopped with background work running and notified a second time later, with no new tool use; its work likely overlapped a full-suite run of ADM-007 (ADM-007 discarded one contaminated run).
+- ADM-007's evidence said the full suite was not rerun after its last fix; the orchestrator ran npm test before the commit: 1161/1161.
+- REL-014 left a checksum drift for its migration in the test DB (migration edited after it was applied); set-aside since then reset test_db.
+- ADM-006 route POST /admin/auth/login is not in OpenAPI or the catalog test (story defers to ADM-015); not verified after ADM-015 (grep on openapi.json refused, a generated file).
+- npm audit --audit-level=high fails (84 vulnerabilities) through @opentelemetry/auto-instrumentations-node, a direct dependency not in the CONVENTIONS allowlist; pre-existing.
+- Lint warnings grew from 44 to 57 during the run (agents call them pre-existing).
+- To confirm: REL-005 money as number in views and driver view showing customer_label; ADM-014 suspend of a CLOSED organization answers 409; FIN-011 expenses not revoked for DELETE/TRUNCATE.
+- Next: list the two REL-001 tests under REL-004 "Tests to update", the two ORD-001 tests under ORD-002, pick the ADM-008 event name; then /implement-stories REL-004,ORD-002,ADM-008 and /implement-stories next:100.
+
 ### Run 2026-10-04 04:48 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |

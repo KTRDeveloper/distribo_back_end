@@ -6,6 +6,42 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 10:55 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ADM-001 Administrators table | done | b46cce9 | administrators table, 14 tests, full suite 1075 pass |
+| ADM-002 Administration journal table | done | c76cd64 | admin_actions table, immutability, REPLAY_SYNC trigger, recordAdminAction |
+| ADM-003 Reports table | done | 5fc5449 | reports table, enums, FK admin_actions.report_id; 1109 tests pass |
+| ADM-004 Two-factor codes for administrators | done | aabee30 | TOTP create/encrypt/verify with atomic replay guard; 13 tests green |
+| ADM-005 Create the first super administrator from the command line | done | 417b90e | createFirstSuperAdmin script + admin:create-super; 9 tests; full suite 1131 pass |
+| ADM-006 Administrator signs in with password and authenticator code | done | 4900d7d | Admin login, admin JWT and adminAuthMiddleware; 19 tests; OpenAPI left to ADM-015 |
+| ADM-007 Administrator registers a recovery email | done | ee45218 | recovery email request and confirm; all tests pass |
+| ADM-008 Administrator reinstalls the authenticator through the recovery email | blocked | 8e246f1 | Source event admin.2fa_recovered breaks the NTF-002 grammar (segment must start with a letter, DB CHECK too): which name should be used, e.g. admin.totp_recovered? |
+| ADM-009 Super administrator appoints an administrator | done | cd05ea1 | Appointment route, service, repository and tests; full suite green |
+| ADM-010 Super administrator removes an administrator | done | 00f6c7b | DELETE /admin/administrators/{id}; 17 story tests, full suite 1196 green |
+| ADM-011 Person reports another person or a business | done | 1d19669 | POST /reports with idempotency, per-person daily limit; 25 tests |
+| ADM-012 Administrator lists and opens reports | done | 3becac4 | GET /admin/reports list and open; 13 tests, full suite 1234 green |
+| ADM-013 Administrator resolves a report | done | 27b1853 | resolve report: dismiss/suspend person or org, atomic, 16 tests |
+| ADM-014 Administrator suspends or reactivates without a report | done | 331b9fc | 4 moderator routes, journal, sessions, notices; 26 story tests, suite 1276 green |
+| ADM-015 Administrators read the action journal | done | 31e2cba | GET /admin/actions with filters and paging; 1287 tests pass |
+
+Also in this run: relationship, catalog, order, finance, delivery.
+
+- Run completed: every PLAN line was run or skipped; 24 done, 3 blocked (REL-004, ADM-008, ORD-002), 73 skipped, never three not-done in a row.
+- Skipped, dependency not done (stay todo): REL-006..REL-013, REL-015..REL-025 (behind REL-004); CAT-003..CAT-011 (behind REL-006); ORD-003..ORD-021, FIN-002..FIN-010, FIN-012, FIN-013, FIN-015..FIN-020, DLV-002..DLV-010 (behind ORD-002 or REL stories).
+- Stashes: "REL-004 blocked: partial changes", "ADM-008 blocked: partial changes", "ORD-002 blocked: partial changes".
+- REL-004 and ORD-002 are blocked the same way: extra tests the previous table story added (REL-001, ORD-001) contradict the new rules and are not under "Tests to update".
+- ADM-008 needs a human decision: event name admin.2fa_recovered breaks the NTF-002 grammar (e.g. admin.totp_recovered).
+- ADM-005's agent stopped with background work running and notified a second time later, with no new tool use; its work likely overlapped a full-suite run of ADM-007 (ADM-007 discarded one contaminated run).
+- ADM-007's evidence said the full suite was not rerun after its last fix; the orchestrator ran npm test before the commit: 1161/1161.
+- REL-014 left a checksum drift for its migration in the test DB (migration edited after it was applied); set-aside since then reset test_db.
+- ADM-006 route POST /admin/auth/login is not in OpenAPI or the catalog test (story defers to ADM-015); not verified after ADM-015 (grep on openapi.json refused, a generated file).
+- npm audit --audit-level=high fails (84 vulnerabilities) through @opentelemetry/auto-instrumentations-node, a direct dependency not in the CONVENTIONS allowlist; pre-existing.
+- Lint warnings grew from 44 to 57 during the run (agents call them pre-existing).
+- To confirm: REL-005 money as number in views and driver view showing customer_label; ADM-014 suspend of a CLOSED organization answers 409; FIN-011 expenses not revoked for DELETE/TRUNCATE.
+- Next: list the two REL-001 tests under REL-004 "Tests to update", the two ORD-001 tests under ORD-002, pick the ADM-008 event name; then /implement-stories REL-004,ORD-002,ADM-008 and /implement-stories next:100.
+
 ### Run 2026-10-04 04:48 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
