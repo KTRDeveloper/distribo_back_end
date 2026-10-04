@@ -30,6 +30,7 @@ import {
   declineSupplierInvitation,
   editCustomer,
   endRelationship,
+  getAttachments,
   getCustomer,
   inviteSupplier,
   listCreditLimitChanges,
@@ -423,3 +424,14 @@ supplierInvitationRoutes.post(
       .catch(next);
   }
 );
+
+/** Route of the signed-in person's attachments, mounted at `/people/me/attachments`. */
+export const attachmentsRoutes = Router();
+
+// GET /api/v1/people/me/attachments - what is attached to the caller's number: customer
+// relationships, team invitations and supplier invitations; the person comes from the session
+attachmentsRoutes.get('/', authMiddleware, (req, res, next) => {
+  getAttachments(req.user!.id)
+    .then((attachments) => res.json(attachments))
+    .catch(next);
+});

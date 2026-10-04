@@ -231,6 +231,28 @@ export function listCustomerRelationships(
 }
 
 /**
+ * Lists what is attached to the person as customer: the ACTIVE and ENDED relationships, newest
+ * first, at most `limit` rows. The query starts from the visibility predicate for the person and
+ * narrows it to the rows where the person is the customer person (v5.0.0-8.2.2); PENDING
+ * invitations the person sent, deleted and merged rows never match.
+ *
+ * @param personId - Caller's person id from the session, never from the client.
+ * @param limit - Maximum number of rows.
+ * @returns Rows with the supplier parties loaded.
+ */
+export async function listAttachedRelationships(personId: string, limit: number) {
+  return (
+    await pageOfSuppliers(
+      [
+        visibleRelationsWhere({ personId, organizationIds: [] }),
+        { customerPersonId: personId, status: { in: ['ACTIVE', 'ENDED'] } },
+      ],
+      { limit }
+    )
+  ).rows;
+}
+
+/**
  * Lists the relationships where the organization is the customer organization, newest first,
  * keyset-paged. The query starts from the visibility predicate for the organization
  * (v5.0.0-8.2.2) and narrows it to the rows whose customer organization is that organization;

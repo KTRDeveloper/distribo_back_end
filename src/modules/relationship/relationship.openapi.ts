@@ -621,3 +621,35 @@ openApiRegistry.registerPath({
     409: { description: 'Conflicting gesture id', content: errorContent },
   },
 });
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/people/me/attachments',
+  tags: ['relationship'],
+  summary: 'Everything attached to the caller number: relationships and invitations',
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description:
+        'The ACTIVE and ENDED relationships as customer, the team invitations and the supplier invitations, each capped at 100',
+      content: {
+        'application/json': {
+          schema: z.object({
+            relationships: z.array(customerRelationshipViewSchema),
+            team_invitations: z.array(
+              z.object({
+                id: z.string().uuid(),
+                organization_id: z.string().uuid(),
+                organization_name: z.string(),
+                role: z.string(),
+                invited_at: z.string().datetime(),
+              })
+            ),
+            supplier_invitations: z.array(supplierInvitationViewSchema),
+          }),
+        },
+      },
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+  },
+});

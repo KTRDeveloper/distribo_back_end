@@ -8,6 +8,8 @@ import {
   runInTransaction,
 } from '../organization/organization.repository.js';
 import { checkAndConsume } from '../../lib/rate-limit.js';
+import { listMyInvitations } from '../organization/organization.service.js';
+import type { InvitationItem as TeamInvitationView } from '../organization/organization.schemas.js';
 import { findOrCreateByPhone } from '../person/person.repository.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
@@ -41,6 +43,7 @@ import {
   findWithParties,
   findWithSupplier,
   insertInvitation,
+  listAttachedRelationships,
   listInvitationRows,
   listCreditLimitChangeRows,
   listCustomerRelationships,
@@ -1067,4 +1070,33 @@ export function declineSupplierInvitation(personId: string, invitationId: string
     const name = (await findPersonName(tx, personId)) ?? '';
     await notifyInvitationAnswer(tx, invitation, 'supplier.declined', name);
   });
+}
+
+/** Largest number of items returned in each list of the attachments view. */
+const ATTACHMENTS_LIMIT = 100;
+
+/**
+ * A newly registered person sees everything attached to their number: their ACTIVE and ENDED
+ * relationships as customer, their pending team invitations and the supplier invitations
+ * addressed to them. Every query filters on the person id from the session (v5.0.0-8.2.2) and each
+ * list is capped at 100. Relationships go through `projectForCustomer`, so `customer_label` and
+ * `supplier_notes` are never sent (CM-19, v5.0.0-15.3.1).
+ *
+ * @param personId - Caller's person id from the session, never from the client.
+ */
+export async function getAttachments(personId: string): Promise<{
+  relationships: CustomerRelationshipView[];
+  team_invitations: TeamInvitationView[];
+  supplier_invitations: SupplierInvitationView[];
+}> {
+  const [relationships, team, supplier] = await Promise.all([
+    listAttachedRelationships(personId, ATTACHMENTS_LIMIT),
+    listMyInvitations(personId, { limit: ATTACHMENTS_LIMIT }),
+    listSupplierInvitations(personId, { limit: ATTACHMENTS_LIMIT }),
+  ]);
+  return {
+    relationships: relationships.map(projectForCustomer),
+    team_invitations: team.items,
+    supplier_invitations: supplier.items,
+  };
 }

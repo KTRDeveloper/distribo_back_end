@@ -90,6 +90,7 @@ import {
   organizationRoutes,
 } from './modules/organization/organization.routes.js';
 import {
+  attachmentsRoutes,
   relationshipRoutes,
   supplierInvitationRoutes,
   supplierRoutes,
@@ -124,6 +125,7 @@ v1Router.get('/metrics', async (_req, res) => {
 v1Router.use('/health', healthRoutes);
 v1Router.use('/users', userRoutes);
 v1Router.use('/tasks', tasksRoutes);
+v1Router.use('/people/me/attachments', attachmentsRoutes);
 v1Router.use('/people', personRoutes);
 v1Router.use('/organizations', organizationRoutes);
 v1Router.use('/organizations/:organizationId', relationshipRoutes);

@@ -790,3 +790,29 @@ Also in this run: admin, catalog, order, finance, delivery.
 - If the invitation's customer organization is the same organization chosen on accept, the DB check (distinct organizations) aborts the transaction as a 500; no rule in the story gives a coded 409. Needs a decision.
 - A concurrent insert of the same pair by another gesture (addCustomer) could still hit the unique index and 500 (fails closed).
 <!-- end REL-021 -->
+
+<!-- begin REL-022 -->
+## REL-022 — Newly registered person sees what is attached to their number
+
+- Filed: 2026-10-04 14:58 UTC
+- Status: **done**: GET /people/me/attachments; 7 tests, full suite 1783 green
+- Risk: medium · story: [REL-022-newly-registered-person-sees-what-is-attached.md](../modules/relationship/REL-022-newly-registered-person-sees-what-is-attached.md)
+- Agent: 53,569 tokens, 22 tool uses, 3 min 35 s
+
+### Agent report
+
+**Summary:** Added `GET /api/v1/people/me/attachments` (relationships, team invitations, supplier invitations, each capped at 100).
+
+**Decisions:**
+- Team invitations: reused `listMyInvitations` (organization service) and its `InvitationItem` as `TeamInvitationView`: the story's type does not exist, and "as in their own lists" asks for the same view.
+- Relationships: new repository `listAttachedRelationships` (ACTIVE and ENDED only, customer person, visibility predicate); PENDING invitations the person sent are excluded.
+- Router `attachmentsRoutes` mounted at `/people/me/attachments` in app.ts before `/people`, to keep it in the relationship module.
+
+**Tests added beyond the story:**
+- `attachments.test.ts` › keeps PENDING invitations the person sent out of relationships: story says ACTIVE and ENDED only (Context); passed after implementation like the others
+
+**Other additions:**
+- `app.ts` mount and `catalog.test.ts` path entry (convention).
+
+**Evidence:** story tests 7/7; full suite 1783/1783, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing kind)
+<!-- end REL-022 -->

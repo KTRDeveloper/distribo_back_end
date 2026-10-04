@@ -11863,6 +11863,307 @@
         }
       }
     },
+    "/api/v1/people/me/attachments": {
+      "get": {
+        "tags": [
+          "relationship"
+        ],
+        "summary": "Everything attached to the caller number: relationships and invitations",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ACTIVE and ENDED relationships as customer, the team invitations and the supplier invitations, each capped at 100",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "relationships": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "ACTIVE",
+                              "ENDED"
+                            ]
+                          },
+                          "supplier": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "PERSON"
+                                    ]
+                                  },
+                                  "person": {
+                                    "type": "object",
+                                    "properties": {
+                                      "public_name": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "phone_number": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "registered": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "public_name",
+                                      "phone_number",
+                                      "registered"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "person"
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ORGANIZATION"
+                                    ]
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "name",
+                                  "description"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "supplier_label": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "delivery_address": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "credit_limit": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "balance": {
+                            "type": "integer"
+                          },
+                          "ended_by_party": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "SUPPLIER",
+                              "CUSTOMER"
+                            ]
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "status",
+                          "supplier",
+                          "supplier_label",
+                          "delivery_address",
+                          "credit_limit",
+                          "balance",
+                          "ended_by_party",
+                          "created_at"
+                        ]
+                      }
+                    },
+                    "team_invitations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "organization_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "organization_name": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "invited_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "organization_id",
+                          "organization_name",
+                          "role",
+                          "invited_at"
+                        ]
+                      }
+                    },
+                    "supplier_invitations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "supplier_label": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "customer": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "PERSON"
+                                    ]
+                                  },
+                                  "person": {
+                                    "type": "object",
+                                    "properties": {
+                                      "public_name": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "phone_number": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "registered": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "public_name",
+                                      "phone_number",
+                                      "registered"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "person"
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ORGANIZATION"
+                                    ]
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "name"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "supplier_label",
+                          "customer"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "relationships",
+                    "team_invitations",
+                    "supplier_invitations"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/remote-config": {
       "post": {
         "tags": [
