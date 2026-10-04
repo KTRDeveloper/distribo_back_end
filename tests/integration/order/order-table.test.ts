@@ -57,6 +57,9 @@ type Row = {
   deliveredById?: string | null;
   cancelledById?: string | null;
   parentOrderId?: string | null;
+  deliveredAt?: Date | null;
+  cancelledAt?: Date | null;
+  cancellationReason?: string | null;
 };
 
 /** Inserts an order; omitted status and cancelled_by_party use the column defaults or null. */
@@ -67,7 +70,8 @@ function insertOrder(row: Row = {}): Promise<number> {
   return prisma.$executeRaw`
     INSERT INTO orders (
       id, customer_relationship_id, placed_by_party, entered_by_id, total_amount,
-      status, cancelled_by_party, delivered_by_id, cancelled_by_id, parent_order_id
+      status, cancelled_by_party, delivered_by_id, cancelled_by_id, parent_order_id,
+      delivered_at, cancelled_at, cancellation_reason
     )
     VALUES (
       ${row.id ?? ORDER_ID}::uuid, ${row.customerRelationshipId ?? REL_ID}::uuid,
@@ -75,7 +79,9 @@ function insertOrder(row: Row = {}): Promise<number> {
       COALESCE(${row.status ?? null}::text, 'CONFIRMED')::public."OrderStatus",
       ${row.cancelledByParty ?? null}::text::public."OrderParty",
       ${row.deliveredById ?? null}::uuid, ${row.cancelledById ?? null}::uuid,
-      ${row.parentOrderId ?? null}::uuid
+      ${row.parentOrderId ?? null}::uuid,
+      ${row.deliveredAt ?? null}::timestamptz, ${row.cancelledAt ?? null}::timestamptz,
+      ${row.cancellationReason ?? null}::text
     )
   `;
 }
@@ -196,15 +202,17 @@ describe('orders enums and keys (AC-2)', () => {
   });
 
   it('accepts every documented status', async () => {
-    for (const [index, status] of [
-      'PENDING',
-      'CONFIRMED',
-      'IN_DELIVERY',
-      'DELIVERED',
-      'CANCELLED',
-    ].entries()) {
+    const at = new Date('2026-01-02T00:00:00.000Z');
+    const rows: Array<[string, Row]> = [
+      ['PENDING', { placedByParty: 'CUSTOMER' }],
+      ['CONFIRMED', {}],
+      ['IN_DELIVERY', {}],
+      ['DELIVERED', { deliveredAt: at, deliveredById: OWNER_ID }],
+      ['CANCELLED', { cancelledByParty: 'CUSTOMER', cancelledById: CUSTOMER_ID, cancelledAt: at }],
+    ];
+    for (const [index, [status, extra]] of rows.entries()) {
       await expect(
-        insertOrder({ id: `0199c005-0000-7000-8000-00000000010${index}`, status })
+        insertOrder({ id: `0199c005-0000-7000-8000-00000000010${index}`, status, ...extra })
       ).resolves.toBe(1);
     }
   });
@@ -226,13 +234,37 @@ describe('orders enums and keys (AC-2)', () => {
   });
 
   it('rejects delivered_by_id and cancelled_by_id of a guest with 23514', async () => {
-    expect(await captureSqlCode(insertOrder({ deliveredById: GUEST_ID }))).toBe('23514');
-    expect(await captureSqlCode(insertOrder({ cancelledById: GUEST_ID }))).toBe('23514');
+    const at = new Date('2026-01-02T00:00:00.000Z');
+    expect(
+      await captureSqlCode(
+        insertOrder({ status: 'DELIVERED', deliveredAt: at, deliveredById: GUEST_ID })
+      )
+    ).toBe('23514');
+    expect(
+      await captureSqlCode(
+        insertOrder({
+          status: 'CANCELLED',
+          cancelledByParty: 'CUSTOMER',
+          cancelledAt: at,
+          cancelledById: GUEST_ID,
+        })
+      )
+    ).toBe('23514');
   });
 
   it('accepts delivered_by_id and cancelled_by_id of a registered person', async () => {
+    const at = new Date('2026-01-02T00:00:00.000Z');
     await expect(
-      insertOrder({ deliveredById: OWNER_ID, cancelledById: CUSTOMER_ID })
+      insertOrder({ status: 'DELIVERED', deliveredAt: at, deliveredById: OWNER_ID })
+    ).resolves.toBe(1);
+    await expect(
+      insertOrder({
+        id: OTHER_ORDER_ID,
+        status: 'CANCELLED',
+        cancelledByParty: 'CUSTOMER',
+        cancelledAt: at,
+        cancelledById: CUSTOMER_ID,
+      })
     ).resolves.toBe(1);
   });
 

@@ -92,32 +92,35 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 <!-- begin ORD-002 -->
 ## ORD-002 — Order status, cancellation and delivery rules in the database
 
-- Filed: 2026-10-04 09:58 UTC
-- Status: **blocked**: Story tests pass (35/35) but 2 ORD-001 tests in order-table.test.ts contradict C-16/C-17: 'accepts every documented status' (DELIVERED/CANCELLED/PENDING inserted without their columns) and 'accepts delivered_by_id and cancelled_by_id of a registered person' (set on CONFIRMED). Not under Tests to update: list them, or say how to proceed
+- Filed: 2026-10-04 12:26 UTC
+- Status: **done**: CHECKs and status trigger on orders; 1510 tests pass
 - Risk: high · story: [ORD-002-order-status-cancellation-and-delivery-rules-in.md](../modules/order/ORD-002-order-status-cancellation-and-delivery-rules-in.md)
-- Agent: 48,629 tokens, 13 tool uses, 2 min 38 s
+- Agent: 53,549 tokens, 17 tool uses, 16 min 7 s
 
 ### Agent report
 
-**Summary:** Blocked: migration, trigger and tests are done and green, but two ORD-001 tests contradict C-16/C-17/C-19 and the story lists no "Tests to update".
+**Summary:** Added migration 20261004280000_ord_002_status_rules (6 CHECKs + BEFORE UPDATE status trigger), status-rules tests, updated the 3 listed order-table tests and the Order comment in schema.prisma.
 
 **Decisions:**
-- CANCELLED to DELIVERED: `sync_issue` counts as set when it is non-null and not blank in the new row (not only when this update changes it); the trigger also clears the four cancellation columns, so the update need not.
-- Reason rule: "not null when SUPPLIER" implemented literally (an empty string is accepted), as the story says.
-- Frozen check compares `to_jsonb(NEW)` and `to_jsonb(OLD)` minus supplier_note, sync_issue, server_updated_at, so new columns are frozen by default.
-- Trigger only on UPDATE (the story says BEFORE UPDATE); inserts are covered by the CHECKs.
+- "sync_issue set in the same update": trigger requires NEW.sync_issue IS NOT NULL (not that it differs from OLD); the story does not say more.
+- CANCELLED to DELIVERED: the trigger clears the four cancellation columns itself, so a caller cannot leave half a cancellation behind; the CHECKs still guard it.
+- "Reason empty" is read as NULL (no blank-string rule invented).
+- Frozen check compares to_jsonb(NEW) and to_jsonb(OLD) minus supplier_note, sync_issue, server_updated_at, so deleted_at and every other column are frozen too (as the story says: "otherwise only").
+- DELIVERED to any other status is refused (only DELIVERED to CANCELLED is named, but the step list is exhaustive).
 
 **Tests added beyond the story:**
-- `tests/integration/order/status-rules.test.ts` › clears the cancellation columns when delivery wins: the trigger clears them (story context); passed only after the trigger
-- same file › CANCELLED can change supplier_note and sync_issue only (C-18); PENDING to IN_DELIVERY, CONFIRMED to PENDING, DELIVERED to CONFIRMED, blank sync_issue refused (CM-12); non-frozen order may still change other columns
+- `status-rules.test.ts` › cancellation columns: person empty, party empty, cancelled_by_id / cancelled_at on CONFIRMED (C-16 "all set iff CANCELLED"); passed with the migration
+- `status-rules.test.ts` › moving a supplier-placed order to PENDING (C-17 on UPDATE)
+- `status-rules.test.ts` › steps: PENDING to IN_DELIVERY, CONFIRMED to PENDING, IN_DELIVERY to PENDING, DELIVERED to CONFIRMED, CANCELLED to PENDING refused (CM-12 permitted steps only)
+- `status-rules.test.ts` › CANCELLED to DELIVERED clears the cancellation columns; non-frozen order stays editable
+- `status-rules.test.ts` › crafted updates: revive with cleared columns, edit total/delivered_at/deleted_at of DELIVERED, cancel DELIVERED with cancellation columns filled (AB-1)
 
 **Other additions:**
-- `prisma/schema.prisma`: plain-language comment above `Order` for the new rules (CLAUDE.md rule).
+- schema.prisma: plain-language comment above `Order` for the new rules (CLAUDE.md rule).
 
-**Evidence:** story tests 35/35; full suite not run (blocked); typecheck clean; lint 0 errors, 56 warnings (+1 object-injection warning in the new test, same pattern as the existing tests)
+**Evidence:** story tests 42/42 (order-table 16/16); full suite 1510/1510, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
 
 **Follow-ups:**
-- Failing ORD-001 tests in `tests/integration/order/order-table.test.ts`: 'orders enums and keys (AC-2)' › 'accepts every documented status' (inserts DELIVERED, CANCELLED, and PENDING placed by SUPPLIER without the required columns) and › 'accepts delivered_by_id and cancelled_by_id of a registered person' (sets both on a CONFIRMED order).
-- Add both to ORD-002 "Tests to update", expected: each status inserted with consistent columns, PENDING placed by CUSTOMER; the registered-person test on a DELIVERED or CANCELLED row (or one column per row). Then rerun the full suite.
-- Work is uncommitted in the tree: migration `20261004230000_ord_002_status_rules`, schema.prisma comment, the new test.
+- FK `cancelled_by_id`/`delivered_by_id` use ON DELETE SET NULL; deleting a person would now violate the pair CHECKs (people are not deleted today).
+- Running two integration files in one vitest command once gave a deadlock on shared fixture IDs; single files and the full suite are fine.
 <!-- end ORD-002 -->

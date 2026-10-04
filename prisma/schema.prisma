@@ -896,8 +896,26 @@ model CustomerPrice {
 // - server_updated_at is set by the database on every change.
 // - An order can point to a parent order (parent_order_id), for example a
 //   follow-up order; the parent must exist.
-// The rules on status changes, cancellation, delivery and creation are added
-// by later stories (ORD-002, ORD-003, ORD-006), not here.
+// Status, cancellation and delivery rules come from migration
+// 20261004280000_ord_002_status_rules:
+// - The cancelling party, the cancelling person and the cancellation time are
+//   all filled when the order is CANCELLED and all empty otherwise. A reason is
+//   only allowed on a cancelled order, and is required when the supplier
+//   cancelled it.
+// - A PENDING order must have been placed by the customer.
+// - The delivery time and the delivering person are both filled when the order
+//   is DELIVERED and both empty otherwise.
+// - Status can only follow the permitted steps: PENDING to CONFIRMED or
+//   CANCELLED; CONFIRMED to IN_DELIVERY, DELIVERED or CANCELLED; IN_DELIVERY to
+//   DELIVERED or CONFIRMED (failed attempt). A CANCELLED order can become
+//   DELIVERED only if sync_issue is set in the same update (the delivery wins);
+//   the database then clears the cancellation columns itself. A DELIVERED order
+//   can never be cancelled.
+// - A DELIVERED or CANCELLED order is frozen: only supplier_note, sync_issue and
+//   server_updated_at may change. Any other change fails with a check error
+//   (SQLSTATE 23514), so code must not try to edit a finished order.
+// These are CHECK constraints and a trigger, which Prisma cannot express.
+// The rules on creation (ORD-003, ORD-006) are added by later stories.
 model Order {
   id                     String      @id @db.Uuid
   customerRelationshipId String      @map("customer_relationship_id") @db.Uuid

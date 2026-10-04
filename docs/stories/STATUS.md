@@ -131,7 +131,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-010 | todo | | |
 | CAT-011 | todo | | |
 | ORD-001 | done | | orders table, enums, FKs, indexes, triggers; 16 tests |
-| ORD-002 | todo | | |
+| ORD-002 | done | | CHECKs and status trigger on orders; 1510 tests pass |
 | ORD-003 | todo | | |
 | ORD-004 | todo | | |
 | ORD-005 | todo | | |
