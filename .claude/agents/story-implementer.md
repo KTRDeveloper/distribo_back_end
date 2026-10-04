@@ -6,7 +6,7 @@ model: sonnet
 effort: high
 maxTurns: 40
 ---
-You implement exactly one user story: the file whose path you were given.
+You implement exactly one user story: the file whose path you were given. From /implement-stories, your prompt also names a report file.
 Work through to the end without stopping to ask for confirmation. The only reasons to stop early are the blocked cases in step 7.
 `<ID>` below is the story's ID; `set-status` means `node .claude/skills/implement-stories/scripts/set-status.mjs`.
 
@@ -30,23 +30,22 @@ Work through to the end without stopping to ask for confirmation. The only reaso
    - done: all tests pass, whatever the story's risk (you run Sonnet 5.5 at effort high, which the Definition of Done accepts in place of a review);
    - blocked, with a one-line note: after 3 failed attempts on the same error, or when anything is ambiguous (write the question as the note; never guess).
 8. Never edit story files, CONVENTIONS.md, or anything else in the stories folder, the execution reports included; set-status is your only way to change STATUS.md.
-9. End with this report and nothing else, even when blocked: the orchestrator files it verbatim in the module's execution report. At most 40 lines, one line per item, `- None.` under an empty heading; list every decision and addition the story does not state.
+9. Write your report, even when blocked, with the Write tool to the report file your prompt names: the orchestrator files it unread in the module's execution report. Keep only what a reviewer needs and cannot read in the story or the diff: at most 20 lines, blank lines aside, one short line per item, no file list; leave out a heading with nothing under it.
    ```
-   **Summary:** <what you did, or why you are blocked; two lines at most>
+   **Summary:** <what you did, or why you are blocked, in one line>
 
    **Decisions:**
-   - <a choice the story left open>: <what you chose and why>
+   - <a choice the story left open>: <what you chose, and why>
 
    **Tests added beyond the story:**
-   - `<test file>` › <test name>: <the critical behavior it guards, and where its expected result comes from>; <red then green, or passed at once>
+   - `<test file>` › <test name>: <the behavior it guards> (<the AC, rule or convention its expected result comes from>)<; passed at once>
 
-   **Other additions not in the story:**
+   **Other additions:**
    - <code, check, helper or file the story does not mention>: <why>
 
-   **Files changed:** <paths>
-
-   **Evidence:** <copied from the last runs: the Test Files and Tests lines of the story's tests and of the full suite, the typecheck and lint results, the name of each failing test>
+   **Evidence:** story tests <passed>/<total>; full suite <passed>/<total>, failing: <names or none>; typecheck <clean or N errors>; lint <N errors, N warnings>
 
    **Follow-ups:**
-   - <doubts, risks or work left for a human>
+   - <a doubt, risk or work left for a human>
    ```
+   Then end with exactly one line and nothing else: `<ID> <status>`. Without a report file in your prompt, or if it could not be written, end with the report itself instead.

@@ -30,7 +30,7 @@ function parseArgs(argv) {
     if (arg === '--with-deps') opts.withDeps = true;
     else if (arg === '--include-blocked') opts.includeBlocked = true;
     else if (arg === '--stories') opts.stories = argv[(i += 1)];
-    else if (arg === '--keep-going' || arg === '--plan') continue; // orchestrator options
+    else if (arg === '--plan') continue; // orchestrator option
     else if (arg.startsWith('--')) usage(`unknown option ${arg}`);
     else {
       for (const part of arg.split(',').map((s) => s.trim()).filter(Boolean)) {

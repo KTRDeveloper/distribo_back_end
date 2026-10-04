@@ -1,15 +1,25 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { Client } from 'pg';
 
 // The /implement-stories scripts run as CLIs against a small fixture stories
 // folder; set-status runs with --dry-run so the fixture never changes, and
-// report.mjs writes in a temporary copy of it.
+// report.mjs and set-aside.mjs work in a temporary copy of it.
 const SELECT = '.claude/skills/implement-stories/scripts/select.mjs';
 const SET_STATUS = '.claude/skills/implement-stories/scripts/set-status.mjs';
 const REPORT = '.claude/skills/implement-stories/scripts/report.mjs';
+const SET_ASIDE = '.claude/skills/implement-stories/scripts/set-aside.mjs';
 const STORIES = 'tests/fixtures/implement-stories';
 
 function run(script: string, args: string[]): { code: number | null; lines: string[] } {
@@ -17,6 +27,16 @@ function run(script: string, args: string[]): { code: number | null; lines: stri
     encoding: 'utf8',
   });
   return { code: result.status, lines: result.stdout.trim().split('\n') };
+}
+
+// Writes a file, creating its folder.
+function write(path: string, text: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, text);
+}
+
+function replaceIn(path: string, from: string, to: string): void {
+  write(path, readFileSync(path, 'utf8').replace(from, to));
 }
 
 const planned = (lines: string[]): string[] =>
@@ -204,23 +224,39 @@ describe('report.mjs', () => {
     expect(text).toContain('_The agent returned no report._');
   });
 
-  it("puts each run's report at the top of each module file of the plan, newest first", () => {
+  it("puts each run's report at the top of each module file where a story ran, newest first", () => {
     git(['init', '-q']);
     git(['commit', '-q', '--allow-empty', '-m', 'FX-002: Second']);
+    replaceIn(join(stories, 'STATUS.md'), '| FX-002 | todo |', '| FX-002 | done |');
     report(['story', 'FX-002'], 'report of two');
     report(['run', 'FX-002', '--selection', 'FX-002'], 'first run notes');
-    report(['run', 'FX-002', 'FX-004', 'GX-001', '--selection', 'next:3'], 'second run notes');
+    report(
+      ['run', 'FX-002', 'FX-003', 'FX-004', 'GX-001', '--selection', 'next:4'],
+      'second run notes'
+    );
 
     const fx = reportOf('fx');
-    expect(fx).toMatch(/### Run \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC: `\/implement-stories next:3`/);
-    expect(fx).toMatch(/\| FX-002 Second \| todo \| [0-9a-f]{7,} \| {2}\|/);
+    expect(fx).toMatch(/### Run \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC: `\/implement-stories next:4`/);
+    expect(fx).toMatch(/\| FX-002 Second \| done \| [0-9a-f]{7,} \| {2}\|/);
     expect(fx).toContain('| FX-004 Fourth | blocked | - | waiting for an answer |');
-    expect(fx).toContain('Also in this run: gx.');
+    expect(fx).not.toContain('| FX-003 Third |');
+    expect(fx).toContain('\nNot run: FX-003.\nAlso in this run: gx.\n\nsecond run notes\n');
     expect(fx.indexOf('second run notes')).toBeLessThan(fx.indexOf('first run notes'));
     expect(fx.indexOf('first run notes')).toBeLessThan(fx.indexOf('## FX-002 '));
-    const gx = reportOf('gx');
-    expect(gx).toContain('| GX-001 Other first | todo | - |');
-    expect(gx).not.toContain('FX-002 Second');
+    expect(() => reportOf('gx')).toThrow(/ENOENT/);
+  });
+
+  it('lists the stories not run as ranges, in the first module when none ran', () => {
+    replaceIn(join(stories, 'STATUS.md'), '| FX-005 | in_progress |', '| FX-005 | todo |');
+
+    expect(
+      report(['run', 'FX-002', 'FX-003', 'FX-005', 'GX-001', '--selection', 'all'], 'notes')
+    ).toBe(0);
+
+    const fx = reportOf('fx');
+    expect(fx).toContain('\nNot run: FX-002..FX-003, FX-005.\nAlso in this run: gx.\n\nnotes\n');
+    expect(fx).not.toContain('| story |');
+    expect(() => reportOf('gx')).toThrow(/ENOENT/);
   });
 
   it('refuses an unknown story or a run without its selection, and writes nothing', () => {
@@ -236,5 +272,107 @@ describe('report.mjs', () => {
 
     expect(report(['story', 'FX-003'], 'report of three')).toBe(2);
     expect(reportOf('fx')).toBe(broken);
+  });
+});
+
+describe('set-aside.mjs', () => {
+  // A temporary repository holds a copy of the fixture under docs/stories, and
+  // a scratch database on the test server stands in for the test database.
+  const SERVER = 'postgresql://postgres:postgres@localhost:5434';
+  const SCRATCH = 'implement_stories_test_scratch';
+  const DATABASE = ['--database-url', `${SERVER}/${SCRATCH}`];
+  let root = '';
+
+  async function sql(database: string, text: string): Promise<Record<string, unknown>[]> {
+    const client = new Client({ connectionString: `${SERVER}/${database}` });
+    await client.connect();
+    try {
+      return (await client.query<Record<string, unknown>>(text)).rows;
+    } finally {
+      await client.end();
+    }
+  }
+
+  const git = (args: string[]): string =>
+    spawnSync('git', args, { cwd: root, encoding: 'utf8' }).stdout;
+  const marker = async (): Promise<unknown[]> =>
+    sql(SCRATCH, "SELECT to_regclass('public.marker')::text AS marker");
+
+  function setAside(args: string[]): { code: number | null; lines: string[] } {
+    const stories = join(root, 'docs', 'stories');
+    const result = spawnSync(process.execPath, [SET_ASIDE, ...args, '--stories', stories], {
+      encoding: 'utf8',
+    });
+    return { code: result.status, lines: result.stdout.trim().split('\n') };
+  }
+
+  beforeEach(async () => {
+    root = mkdtempSync(join(tmpdir(), 'set-aside-'));
+    cpSync(STORIES, join(root, 'docs', 'stories'), { recursive: true });
+    write(join(root, 'src', 'app.ts'), 'one\n');
+    git(['init', '-q']);
+    git(['config', 'user.name', 'Fixture']);
+    git(['config', 'user.email', 'fixture@example.invalid']);
+    git(['config', 'commit.gpgsign', 'false']);
+    git(['add', '-A']);
+    git(['commit', '-q', '-m', 'Fixture']);
+    await sql('postgres', `DROP DATABASE IF EXISTS ${SCRATCH} WITH (FORCE)`);
+    await sql('postgres', `CREATE DATABASE ${SCRATCH}`);
+    await sql(SCRATCH, 'CREATE TABLE marker (id integer)');
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  afterAll(async () => {
+    await sql('postgres', `DROP DATABASE IF EXISTS ${SCRATCH} WITH (FORCE)`);
+  });
+
+  it('empties the test database and stashes the partial changes, keeping STATUS.md and the reports', async () => {
+    const stories = join(root, 'docs', 'stories');
+    replaceIn(join(stories, 'STATUS.md'), '| FX-002 | todo | | |', '| FX-002 | blocked | | why? |');
+    write(join(stories, 'execution-report', 'fx.md'), 'report\n');
+    write(join(root, 'src', 'app.ts'), 'two\n');
+    write(join(root, 'prisma', 'migrations', 'fx_002', 'migration.sql'), 'SELECT 1;\n');
+
+    const { code, lines } = setAside(['FX-002', ...DATABASE]);
+
+    expect(code).toBe(0);
+    expect(lines).toEqual([`RESET ${SCRATCH}`, 'STASHED FX-002 blocked: partial changes']);
+    expect(git(['status', '--porcelain', '--untracked-files=all']).trimEnd().split('\n')).toEqual([
+      ' M docs/stories/STATUS.md',
+      '?? docs/stories/execution-report/fx.md',
+    ]);
+    expect(git(['stash', 'list'])).toContain('FX-002 blocked: partial changes');
+    const stashed = git(['stash', 'show', '--include-untracked', '--name-only', 'stash@{0}']);
+    expect(stashed.trim().split('\n')).toEqual([
+      'prisma/migrations/fx_002/migration.sql',
+      'src/app.ts',
+    ]);
+    expect(await marker()).toEqual([{ marker: null }]);
+  });
+
+  it('only empties the test database when there is nothing to stash', async () => {
+    expect(setAside(['FX-004', ...DATABASE])).toEqual({
+      code: 0,
+      lines: [`RESET ${SCRATCH}`, 'NO CHANGES FX-004'],
+    });
+    expect(await marker()).toEqual([{ marker: null }]);
+  });
+
+  it('refuses a done or unknown story and a database that is not a local test one, changing nothing', async () => {
+    write(join(root, 'src', 'app.ts'), 'two\n');
+    const refused = { code: 2, lines: [expect.stringMatching(/^REFUSED /)] };
+
+    expect(setAside(['FX-001', ...DATABASE])).toEqual(refused);
+    expect(setAside(['FX-999', ...DATABASE])).toEqual(refused);
+    const remote = 'postgresql://postgres:postgres@db.example.invalid:5434/test_db';
+    expect(setAside(['FX-002', '--database-url', remote])).toEqual(refused);
+    expect(setAside(['FX-002', '--database-url', `${SERVER}/distribo_scratch`])).toEqual(refused);
+
+    expect(git(['stash', 'list'])).toBe('');
+    expect(git(['status', '--porcelain'])).toBe(' M src/app.ts\n');
+    expect(await marker()).toEqual([{ marker: 'marker' }]);
   });
 });

@@ -12,9 +12,10 @@
 // for the little verbatim() changes.
 // story: the agent's report under the story's heading, with its status and
 //   note from STATUS.md, its risk, the date and the usage.
-// run: a run entry at the top of the file of each module of the IDs: the
-//   selection, a table of that module's stories (status, commit, note), then
-//   the orchestrator's report.
+// run: a run entry at the top of the file of each module where one of the IDs
+//   ran (its status is no longer todo), or else of the first ID's module: the
+//   selection, a table of that module's stories that ran (status, commit,
+//   note), the others on a `Not run:` line, then the orchestrator's report.
 // Output: WROTE <path> <ID or run>, one line per file written.
 // Exit codes: 0 written; 1 usage error; 2 unknown ID or a report file it cannot
 // parse (nothing is written then).
@@ -297,19 +298,51 @@ function storySection(folder, file, story, statusRow, opts, text) {
   ];
 }
 
+// A story of the plan ran in the run when its status is no longer todo.
+const ranIn = (status, story) => status.get(story.id)?.status !== 'todo';
+
+// IDs in plan order, each run of consecutive numbers of one prefix shown as
+// `FIRST..LAST`: `FX-002..FX-004, GX-001`.
+function ranges(ids) {
+  const groups = [];
+  for (const id of ids) {
+    const [prefix, digits] = id.split('-');
+    const last = groups.at(-1);
+    if (last && last.prefix === prefix && last.number + 1 === Number(digits)) {
+      last.to = id;
+      last.number += 1;
+    } else {
+      groups.push({ prefix, number: Number(digits), from: id, to: id });
+    }
+  }
+  return groups.map((group) =>
+    group.from === group.to ? group.from : `${group.from}..${group.to}`
+  );
+}
+
 function runEntry(folder, stories, others, status, opts, text) {
   const report = verbatim(text);
+  const ran = stories.filter((story) => ranIn(status, story));
+  const notRun = stories.filter((story) => !ranIn(status, story)).map((story) => story.id);
+  const lines = [
+    ...(notRun.length > 0 ? [`Not run: ${ranges(notRun).join(', ')}.`] : []),
+    ...(others.length > 0 ? [`Also in this run: ${others.join(', ')}.`] : []),
+  ];
   return [
     `### Run ${now()}: \`/implement-stories ${opts.selection}\``,
     '',
-    '| story | status | commit | note |',
-    '|---|---|---|---|',
-    ...stories.map((story) => {
-      const row = status.get(story.id);
-      return `| ${cell(`${story.id} ${story.title}`)} | ${cell(row?.status ?? 'unknown')} | ${commitOf(folder, story.id)} | ${cell(row?.note)} |`;
-    }),
-    ...(others.length > 0 ? ['', `Also in this run: ${others.join(', ')}.`] : []),
-    '',
+    ...(ran.length > 0
+      ? [
+          '| story | status | commit | note |',
+          '|---|---|---|---|',
+          ...ran.map((story) => {
+            const row = status.get(story.id);
+            return `| ${cell(`${story.id} ${story.title}`)} | ${cell(row?.status ?? 'unknown')} | ${commitOf(folder, story.id)} | ${cell(row?.note)} |`;
+          }),
+          '',
+        ]
+      : []),
+    ...(lines.length > 0 ? [...lines, ''] : []),
     ...(report.length > 0 ? report : ['_The orchestrator gave no report._']),
   ];
 }
@@ -328,10 +361,17 @@ const status = readStatus(folder);
 const stories = opts.ids.map((id) => byId.get(id));
 const modules = [...new Set(stories.map((story) => story.module))];
 const reports = join(folder, 'execution-report');
+// A run is filed only where one of its stories ran, so the files of modules it
+// never reached stay as they were; if none ran, in the first story's module.
+const ranModules = modules.filter((module) =>
+  stories.some((story) => story.module === module && ranIn(status, story))
+);
+const targets =
+  opts.command === 'story' || ranModules.length === 0 ? modules.slice(0, 1) : ranModules;
 
 // Parse every file first, so a file that cannot be parsed stops the whole
 // command before anything is written.
-const files = modules.map((module) => {
+const files = targets.map((module) => {
   const path = join(reports, `${module}.md`);
   return {
     module,

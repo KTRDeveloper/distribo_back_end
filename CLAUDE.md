@@ -31,4 +31,4 @@ import line of CONVENTIONS.md below.
 - Once at the end: `npm run typecheck`, `npm run lint`, `npm test` (one dot per test under Claude Code; failures in full).
 
 ## Compact instructions
-When compacting, keep the story ID in progress, the failing tests with their errors, the files changed and the decisions taken; drop passing test output, file listings and file contents already applied.
+When compacting, keep the story ID in progress, the failing tests with their errors, the files changed and the decisions taken; drop passing test output, file listings and file contents already applied. In an /implement-stories run, keep the PLAN lines not yet run and each finished story's status with its commit or stash.
