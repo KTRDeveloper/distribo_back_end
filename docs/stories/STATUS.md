@@ -85,7 +85,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-004 | done | | TOTP create/encrypt/verify with atomic replay guard; 13 tests green |
 | ADM-005 | done | | createFirstSuperAdmin script + admin:create-super; 9 tests; full suite 1131 pass |
 | ADM-006 | done | | Admin login, admin JWT and adminAuthMiddleware; 19 tests; OpenAPI left to ADM-015 |
-| ADM-007 | todo | | |
+| ADM-007 | done | | recovery email request and confirm; all tests pass |
 | ADM-008 | todo | | |
 | ADM-009 | todo | | |
 | ADM-010 | todo | | |

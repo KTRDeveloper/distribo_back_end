@@ -224,3 +224,38 @@ Also in this run: relationship, catalog, order, finance, delivery.
 - Implementation was written before I watched the tests fail (one initial run had only a test-comparison bug).
 - A suspended person's admin token still works until expiry (the middleware re-checks only the administrator, as specified).
 <!-- end ADM-006 -->
+
+<!-- begin ADM-007 -->
+## ADM-007 — Administrator registers a recovery email
+
+- Filed: 2026-10-04 08:08 UTC
+- Status: **done**: recovery email request and confirm; all tests pass
+- Risk: high · story: [ADM-007-administrator-registers-a-recovery-email.md](../modules/admin/ADM-007-administrator-registers-a-recovery-email.md)
+- Agent: 63,701 tokens, 37 tool uses, 21 min 17 s
+
+### Agent report
+
+**Summary:** Added POST /admin/recovery-email/request and /confirm (204, admin token only); the address is stored only after a code received at it.
+
+**Decisions:**
+- Expired code: verifyCode throws OTP_EXPIRED, but AC-2 says "wrong or expired" gives OTP_INVALID, so the service maps expired to OTP_INVALID.
+- Email is trimmed and lower-cased by the schema; the own-email check compares lower-case and runs on both request and confirm (no code sent or spent).
+- The challenge's personId must equal the admin's person, so another admin's code for the same address is refused.
+- Code format: 6 digits (as the auth module); anything else is a 400 VALIDATION_ERROR.
+- No client IP/device keys passed to issueCode (signature fixed by the story); per-target cooldown and hourly limits still apply.
+
+**Tests added beyond the story:**
+- `recovery-email.test.ts` › another administrator's code: a code requested by admin B cannot register the address for admin A (C-33, v5.0.0-6.5.1)
+- `recovery-email.test.ts` › a code works once only: replayed code refused after use (C-33 consumed code never accepted)
+- `recovery-email.test.ts` › no token 401 and own email in upper case: edge forms of AC-2; all passed at once with the implementation
+
+**Other additions:**
+- `src/modules/admin/admin.openapi.ts` (+ import in `src/app.ts` and `scripts/generate-openapi.ts`, regenerated `openapi/openapi.json`): convention says every route is registered; the generate-script test needs the script import.
+- Two `toContain` lines for the admin paths in `catalog.test.ts` (the per-001 list only covers /auth, so unchanged).
+
+**Evidence:** story tests 11/11; full suite 1161/1161 after fixing the openapi script import (first run had 1 failure, the stale generator; a first parallel run was contaminated and discarded); typecheck clean; lint 0 errors, 46 warnings (existing).
+
+**Follow-ups:**
+- `POST /admin/auth/login` (ADM-006) is still not registered in OpenAPI.
+- `scripts/` is outside the eslint project config (pre-existing).
+<!-- end ADM-007 -->

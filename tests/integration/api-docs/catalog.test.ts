@@ -47,6 +47,10 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/collaborations/{id}/accept');
     expect(paths).toContain('/api/v1/collaborations/{id}/decline');
 
+    // ADM-007: the recovery email routes
+    expect(paths).toContain('/api/v1/admin/recovery-email/request');
+    expect(paths).toContain('/api/v1/admin/recovery-email/confirm');
+
     // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
     expect(authPaths.sort()).toEqual([

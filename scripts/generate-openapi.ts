@@ -10,6 +10,7 @@ import '../src/modules/user/user.openapi.js';
 import '../src/modules/tasks/tasks.openapi.js';
 import '../src/modules/person/person.openapi.js';
 import '../src/modules/auth/auth.openapi.js';
+import '../src/modules/admin/admin.openapi.js';
 import '../src/modules/notification/notification.openapi.js';
 import '../src/modules/organization/organization.openapi.js';
 import '../src/modules/remote-config/remote-config.openapi.js';

@@ -135,3 +135,25 @@ export async function findLiveAdministrator(
     select: { id: true, personId: true, role: true, totpSecret: true },
   });
 }
+
+/** The person's own email, or null when none is saved. */
+export async function findPersonEmail(personId: string): Promise<string | null> {
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    select: { email: true },
+  });
+  return person?.email ?? null;
+}
+
+/**
+ * Stores the recovery email on the administrator's live row.
+ *
+ * @returns false when the row is gone or removed (nothing stored).
+ */
+export async function setRecoveryEmail(administratorId: string, email: string): Promise<boolean> {
+  const result = await prisma.administrator.updateMany({
+    where: { id: administratorId, removedAt: null },
+    data: { recoveryEmail: email },
+  });
+  return result.count === 1;
+}

@@ -102,6 +102,7 @@ import './modules/user/user.openapi.js';
 import './modules/tasks/tasks.openapi.js';
 import './modules/person/person.openapi.js';
 import './modules/auth/auth.openapi.js';
+import './modules/admin/admin.openapi.js';
 import './modules/notification/notification.openapi.js';
 import './modules/remote-config/remote-config.openapi.js';
 

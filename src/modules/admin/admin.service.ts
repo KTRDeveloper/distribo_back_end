@@ -6,8 +6,13 @@ import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { checkAndConsume, resetKey } from '../../lib/rate-limit.js';
 import { decryptSecret, verifyTotp } from '../../lib/totp.js';
 import { normalizeE164 } from '../../shared/phone.js';
+import { issueCode, verifyCode } from '../auth/otp.service.js';
 import { findByActivePhone } from '../person/person.repository.js';
-import { findLiveAdministratorByPerson } from './admin.repository.js';
+import {
+  findLiveAdministratorByPerson,
+  findPersonEmail,
+  setRecoveryEmail,
+} from './admin.repository.js';
 import type { AdminLoginInput } from './admin.schemas.js';
 
 const MAX_LOGIN_FAILURES = 5;
@@ -85,4 +90,70 @@ export async function adminLogin(
     expires_in: ADMIN_TOKEN_EXPIRES_IN_SECONDS,
     role: administrator.role,
   };
+}
+
+/** The signed-in administrator, as set by `adminAuthMiddleware`. */
+export interface AdminContext {
+  personId: string;
+  administratorId: string;
+  role: 'MODERATOR' | 'SUPER_ADMIN';
+}
+
+/** Refuses the person's own email, whatever the case (C-29); the database repeats the rule. */
+async function assertNotOwnEmail(admin: AdminContext, email: string): Promise<void> {
+  const own = await findPersonEmail(admin.personId);
+  if (own !== null && own.trim().toLowerCase() === email) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Recovery email must differ from your own email');
+  }
+}
+
+/**
+ * Sends a verification code to a candidate recovery email (C-29, C-33). Nothing is saved yet
+ * (v5.0.0-6.4.3). The code is tied to the administrator's person, the address and the
+ * EMAIL_VERIFICATION purpose, so it cannot be used for another address or person
+ * (v5.0.0-6.5.1). `email` must already be trimmed and lower-case (the schema does this).
+ *
+ * @throws 400 VALIDATION_ERROR for the person's own email; 429 OTP_RATE_LIMITED
+ */
+export async function requestRecoveryEmail(admin: AdminContext, email: string): Promise<void> {
+  await assertNotOwnEmail(admin, email);
+  await issueCode({
+    personId: admin.personId,
+    target: email,
+    purpose: 'EMAIL_VERIFICATION',
+    channel: 'EMAIL',
+  });
+  logger.info(
+    { event: 'admin_recovery_email_code_sent', personId: admin.personId },
+    'Recovery email code sent'
+  );
+}
+
+/**
+ * Stores the recovery email once the code received at that address is right (v5.0.0-6.4.3).
+ * A wrong, expired, consumed or foreign code all give the same 400 OTP_INVALID: the story
+ * does not distinguish expiry. The challenge must belong to this administrator's person.
+ *
+ * @throws 400 VALIDATION_ERROR (own email), 400 OTP_INVALID; 429 OTP_LOCKED
+ */
+export async function confirmRecoveryEmail(
+  admin: AdminContext,
+  email: string,
+  code: string
+): Promise<void> {
+  const invalid = () => httpError(400, 'OTP_INVALID', 'Invalid code');
+  await assertNotOwnEmail(admin, email);
+  let result: Awaited<ReturnType<typeof verifyCode>>;
+  try {
+    result = await verifyCode({ target: email, purpose: 'EMAIL_VERIFICATION', code });
+  } catch (e) {
+    if ((e as { code?: string }).code === 'OTP_EXPIRED') throw invalid();
+    throw e;
+  }
+  if (result.personId !== admin.personId) throw invalid();
+  if (!(await setRecoveryEmail(admin.administratorId, email))) throw invalid();
+  logger.info(
+    { event: 'admin_recovery_email_set', personId: admin.personId },
+    'Recovery email set'
+  );
 }

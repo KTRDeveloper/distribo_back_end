@@ -10,3 +10,16 @@ export const adminLoginSchema = z
   .strict();
 
 export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
+
+const recoveryEmail = z.string().trim().toLowerCase().min(3).max(254).email();
+
+/** Body of POST /admin/recovery-email/request: the address to verify; unknown fields are refused. */
+export const recoveryEmailRequestSchema = z.object({ email: recoveryEmail }).strict();
+
+/** Body of POST /admin/recovery-email/confirm: the same address and the 6-digit code received at it. */
+export const recoveryEmailConfirmSchema = z
+  .object({ email: recoveryEmail, code: z.string().regex(/^\d{6}$/) })
+  .strict();
+
+export type RecoveryEmailRequestInput = z.infer<typeof recoveryEmailRequestSchema>;
+export type RecoveryEmailConfirmInput = z.infer<typeof recoveryEmailConfirmSchema>;
