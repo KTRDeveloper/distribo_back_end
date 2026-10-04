@@ -460,3 +460,28 @@ export async function updateRole(
   });
   return updated[0] ?? null;
 }
+
+/**
+ * Turns a non-OWNER, non-REVOKED collaboration of the organization into REVOKED and clears its
+ * public-contact flag. `amount_held` is not written: the money stays visible (CM-09). The filter
+ * repeats the service checks, so a concurrent revocation or ownership change is never overwritten.
+ *
+ * @returns The updated row, or null when nothing matched.
+ */
+export async function revokeCollaboration(
+  tx: Prisma.TransactionClient,
+  collaborationId: string,
+  organizationId: string
+): Promise<Collaboration | null> {
+  const updated = await tx.collaboration.updateManyAndReturn({
+    where: {
+      id: collaborationId,
+      organizationId,
+      deletedAt: null,
+      status: { in: ['ACTIVE', 'INVITED'] },
+      role: { not: 'OWNER' },
+    },
+    data: { status: 'REVOKED', isPublicContact: false },
+  });
+  return updated[0] ?? null;
+}

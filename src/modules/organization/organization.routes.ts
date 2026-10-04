@@ -21,6 +21,7 @@ import {
   inviteCollaborator,
   listMyInvitations,
   listMyOrganizations,
+  revokeCollaborator,
 } from './organization.service.js';
 import './organization.openapi.js';
 
@@ -96,6 +97,23 @@ organizationRoutes.patch(
         return changeRole(req.actor!, collaborationId, role);
       })
       .then((view) => res.json(view))
+      .catch(next);
+  }
+);
+
+// DELETE /api/v1/organizations/:organizationId/collaborators/:collaborationId - the owner revokes a
+// collaborator; the body is never read
+organizationRoutes.delete(
+  '/:organizationId/collaborators/:collaborationId',
+  loadActor,
+  requireAbility('manage', 'Collaboration'),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() => {
+        const { collaborationId } = collaboratorParamsSchema.parse(req.params);
+        return revokeCollaborator(req.actor!, collaborationId);
+      })
+      .then(() => res.status(204).end())
       .catch(next);
   }
 );

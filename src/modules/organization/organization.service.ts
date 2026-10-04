@@ -20,6 +20,7 @@ import {
   listActiveOrganizations,
   listInvitations,
   reinviteRevoked,
+  revokeCollaboration,
   revokeInvitation,
   runInTransaction,
   updateRole,
@@ -317,5 +318,52 @@ export async function changeRole(
       status: updated.status === 'ACTIVE' ? 'ACTIVE' : 'INVITED',
       invited_at: updated.invitedAt.toISOString(),
     };
+  });
+}
+
+const REVOKED_CONTENT = {
+  FR: (organizationName: string) => `Votre acces a l'equipe de ${organizationName} a ete retire.`,
+  EN: (organizationName: string) => `Your access to the team of ${organizationName} was removed.`,
+};
+
+/**
+ * The owner revokes a collaborator: the row becomes REVOKED and stops being the public contact,
+ * `amount_held` is kept. The target is looked up inside the actor's organization, so another
+ * business's row looks absent (ASVS v5.0.0-8.2.1). The OWNER row is protected (CM-09). An ACTIVE
+ * target gets a scope version bump (CM-03) and a notification in the same transaction; an INVITED
+ * target has no rights yet. Access ends on the next request because the actor is loaded from the
+ * database (ASVS v5.0.0-7.4.2).
+ *
+ * @param actor - Owner loaded from the path and checked for `manage Collaboration`.
+ * @param collaborationId - Collaboration from the path.
+ * @throws 404 `NOT_FOUND` for an unknown, foreign or REVOKED row; 409 `OWNER_PROTECTED`.
+ */
+export async function revokeCollaborator(actor: Actor, collaborationId: string): Promise<void> {
+  await runInTransaction(async (tx) => {
+    const target = await findCollaborationWithPerson(tx, collaborationId, actor.organizationId);
+    if (!target || target.status === 'REVOKED') throw httpError(404, 'NOT_FOUND', 'Not found');
+    if (target.role === 'OWNER') {
+      throw httpError(409, 'OWNER_PROTECTED', 'The owner cannot be revoked');
+    }
+
+    const revoked = await revokeCollaboration(tx, collaborationId, actor.organizationId);
+    if (!revoked) throw httpError(404, 'NOT_FOUND', 'Not found');
+
+    if (target.status === 'ACTIVE') {
+      await bumpScopeVersion(target.personId, tx);
+      const org = await findOrganization(actor.organizationId);
+      if (!org) throw httpError(404, 'NOT_FOUND', 'Not found');
+      const language = await recipientLanguage(target.personId, tx);
+      await notify(
+        {
+          recipientId: target.personId,
+          organizationId: actor.organizationId,
+          sourceEvent: 'collaboration.revoked',
+          content: language === 'EN' ? REVOKED_CONTENT.EN(org.name) : REVOKED_CONTENT.FR(org.name),
+          related: { type: 'collaboration', id: revoked.id },
+        },
+        tx
+      );
+    }
   });
 }

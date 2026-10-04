@@ -174,6 +174,23 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/organizations/{organizationId}/collaborators/{collaborationId}',
+  tags: ['organization'],
+  summary: 'The owner revokes a collaborator',
+  security: [{ bearerAuth: [] }],
+  request: { params: collaboratorParamsSchema },
+  responses: {
+    204: { description: 'Revoked; no body' },
+    400: { description: 'Malformed id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: { description: 'Not found, already REVOKED or not a member', content: errorContent },
+    409: { description: 'OWNER_PROTECTED', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/collaborations',
   tags: ['organization'],
