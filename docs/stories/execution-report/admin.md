@@ -33,3 +33,32 @@ Also in this run: relationship, catalog, order, finance, delivery.
 - Nothing unexpected: the agent report and the notification figures both came in.
 - REL-002's migration, test file and schema.prisma comment are left uncommitted in the working tree, waiting for the human decision.
 - Next: decide whether that REL-001 test may be updated (amend REL-002's "Tests to update"), then `/implement-stories REL-002` and `/implement-stories next:100`.
+
+<!-- begin ADM-001 -->
+## ADM-001 — Administrators table
+
+- Filed: 2026-10-04 06:29 UTC
+- Status: **done**: administrators table, 14 tests, full suite 1075 pass
+- Risk: high · story: [ADM-001-administrators-table.md](../modules/admin/ADM-001-administrators-table.md)
+- Agent: 39,224 tokens, 15 tool uses, 6 min 46 s
+
+### Agent report
+
+**Summary:** Added the administrators table (enum, partial unique index, deferred registered-person trigger, recovery-email trigger) and the Prisma model.
+
+**Decisions:**
+- Blank totp_secret: added CHECK btrim(totp_secret) <> '' (23514); NOT NULL alone does not refuse an empty string, and AB-1 requires refusal.
+- Registered-person trigger is a deferred constraint trigger (as in REL-003/014), so an unknown person id fails with 23503 first (AC-2).
+- Recovery-email trigger is BEFORE INSERT OR UPDATE on administrators only; it does not fire when the person's email changes later (noted in schema comment).
+- Added index on person_id in the Prisma model (relation lookup); the live-row uniqueness is the partial index in SQL only.
+
+**Tests added beyond the story:**
+- `tests/integration/admin/administrator-table.test.ts` › blank secret ('' and spaces): AB-1 refusal with 23514 (AB-1); failed first, then passed with the CHECK
+- same file › update of recovery_email to the person's email: rule applies on UPDATE too (C-29); passed once trigger existed
+- same file › SUPER_ADMIN accepted, appointed_at/removed_at defaults (Context)
+
+**Evidence:** story tests 14/14; full suite 1075/1075, failing: none; typecheck clean; lint 0 errors, 44 warnings (pre-existing)
+
+**Follow-ups:**
+- Guest test runs as an auto-committed statement: the driver does not expose the SQLSTATE of a deferred-trigger failure raised at interactive-transaction commit.
+<!-- end ADM-001 -->

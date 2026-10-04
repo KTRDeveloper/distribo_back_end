@@ -148,6 +148,11 @@ enum RelationshipParty {
   SUPPLIER
 }
 
+enum AdministratorRole {
+  SUPER_ADMIN
+  MODERATOR
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -256,6 +261,8 @@ model Person {
   reassignmentsFrom CustomerRelationshipReassignment[] @relation("ReassignmentPreviousPerson")
   reassignmentsTo   CustomerRelationshipReassignment[] @relation("ReassignmentNewPerson")
   reassignmentsMade CustomerRelationshipReassignment[] @relation("ReassignmentAuthor")
+
+  administrators Administrator[]
 
   @@map("people")
 }
@@ -604,4 +611,32 @@ model RefreshToken {
   @@index([deviceId])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+// Rules the database enforces on administrators, beyond what this model
+// declares. All come from migration 20261004170000_adm_001_administrators.
+// - The two-factor secret is required and cannot be empty or only spaces. The
+//   database cannot tell whether it is properly encrypted; the code does that.
+// - The person must be a registered person, never a guest. This is checked
+//   when the transaction is saved, not row by row.
+// - A person has at most one live row (removed_at empty). Once removed, the
+//   person can be appointed again with a new row. This is a partial unique
+//   index that Prisma cannot express, so code must not rely on a Prisma unique
+//   lookup; catch the unique violation (23505) instead.
+// - The recovery email, when given, must differ from the person's own email,
+//   whatever the upper or lower case. It is checked on every insert or update
+//   of the administrator row, not when the person's email changes later.
+model Administrator {
+  id            String            @id @db.Uuid
+  personId      String            @map("person_id") @db.Uuid
+  role          AdministratorRole
+  totpSecret    String            @map("totp_secret") @db.Text
+  recoveryEmail String?           @map("recovery_email")
+  appointedAt   DateTime          @default(now()) @map("appointed_at") @db.Timestamptz
+  removedAt     DateTime?         @map("removed_at") @db.Timestamptz
+
+  person Person @relation(fields: [personId], references: [id])
+
+  @@index([personId])
+  @@map("administrators")
 }

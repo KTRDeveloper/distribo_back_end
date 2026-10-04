@@ -79,7 +79,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-017 | done | | POST reopen: CLOSED to ACTIVE only; 931 tests pass |
 | ORG-018 | done | | GET /organizations/lookup, shared lookup limit, 15 tests |
 | ORG-019 | done | | GET collaborators team list: OWNER/MANAGER only, amount_held restricted, keyset paging on invited_at |
-| ADM-001 | todo | | |
+| ADM-001 | done | | administrators table, 14 tests, full suite 1075 pass |
 | ADM-002 | todo | | |
 | ADM-003 | todo | | |
 | ADM-004 | todo | | |
