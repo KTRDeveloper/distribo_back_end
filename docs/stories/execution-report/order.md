@@ -139,3 +139,29 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - FK `cancelled_by_id`/`delivered_by_id` use ON DELETE SET NULL; deleting a person would now violate the pair CHECKs (people are not deleted today).
 - Running two integration files in one vitest command once gave a deadlock on shared fixture IDs; single files and the full suite are fine.
 <!-- end ORD-002 -->
+
+<!-- begin ORD-003 -->
+## ORD-003 — Orders only on live relationships of active organizations
+
+- Filed: 2026-10-04 16:24 UTC
+- Status: **done**: BEFORE INSERT trigger orders_creation_guard; 2048/2048 pass
+- Risk: high · story: [ORD-003-orders-only-on-live-relationships-of-active.md](../modules/order/ORD-003-orders-only-on-live-relationships-of-active.md)
+- Agent: 38,446 tokens, 17 tool uses, 11 min 48 s
+
+### Agent report
+
+**Summary:** Added BEFORE INSERT trigger on orders refusing non-ACTIVE/deleted relationships and non-ACTIVE supplier orgs (23514); done.
+
+**Decisions:**
+- Unknown relationship id: the trigger lets it through so the foreign key still answers 23503 (existing order-table test expects it); still fails closed.
+- No row lock on the relationship/organization in the trigger: a concurrent suspension could race an insert; ORD-018 covers closing a business.
+- "Supplier organization not null": a person-supplier relationship is always PENDING (existing CHECK), so it is refused by the status test; no separate ACTIVE-with-person case is reachable.
+
+**Other additions:**
+- Rule comment added above model Order in `prisma/schema.prisma` (CLAUDE.md rule for rules outside the schema).
+
+**Evidence:** story tests 9/9; full suite 2048/2048, failing: none; typecheck clean; lint 0 errors, 59 warnings (pre-existing)
+
+**Follow-ups:**
+- I edited the migration after a first run, so I dropped the trigger and re-applied the migration on the test DB by hand (docker exec); other local DBs that applied the first version need the same.
+<!-- end ORD-003 -->

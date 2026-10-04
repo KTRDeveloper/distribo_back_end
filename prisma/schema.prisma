@@ -919,7 +919,13 @@ model CustomerPrice {
 //   server_updated_at may change. Any other change fails with a check error
 //   (SQLSTATE 23514), so code must not try to edit a finished order.
 // These are CHECK constraints and a trigger, which Prisma cannot express.
-// The rules on creation (ORD-003, ORD-006) are added by later stories.
+// - An order can only be created on a relationship that is ACTIVE, not deleted
+//   and has an organization as supplier, and that organization must be ACTIVE
+//   (not suspended or closed); otherwise the insert fails with a check error
+//   (SQLSTATE 23514). Counters (no customer) are allowed. Only inserts are
+//   checked, so existing orders of a closed business stay editable within the
+//   rules above. (Migration 20261004290000_ord_003_creation_guard)
+// The other rules on creation (ORD-006) are added by a later story.
 model Order {
   id                     String      @id @db.Uuid
   customerRelationshipId String      @map("customer_relationship_id") @db.Uuid

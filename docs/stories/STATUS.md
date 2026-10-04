@@ -132,7 +132,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-011 | done | | Copy article endpoint; 15 story tests, full suite green |
 | ORD-001 | done | | orders table, enums, FKs, indexes, triggers; 16 tests |
 | ORD-002 | done | | CHECKs and status trigger on orders; 1510 tests pass |
-| ORD-003 | todo | | |
+| ORD-003 | done | | BEFORE INSERT trigger orders_creation_guard; 2048/2048 pass |
 | ORD-004 | todo | | |
 | ORD-005 | todo | | |
 | ORD-006 | todo | | |
