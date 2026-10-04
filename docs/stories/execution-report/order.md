@@ -276,3 +276,29 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 
 **Evidence:** story tests 14/14; full suite 2103/2103, failing: none; typecheck clean; lint 0 errors, 59 warnings (pre-existing)
 <!-- end ORD-007 -->
+
+<!-- begin ORD-008 -->
+## ORD-008 — Order state machine
+
+- Filed: 2026-10-04 16:48 UTC
+- Status: **done**: transitionOrder with conditional update, viaSync delivery-wins; 23 tests
+- Risk: high · story: [ORD-008-order-state-machine.md](../modules/order/ORD-008-order-state-machine.md)
+- Agent: 41,304 tokens, 14 tool uses, 6 min 15 s
+
+### Agent report
+
+**Summary:** Added transitionOrder (order.state.ts) and order.repository.ts with conditional status updates; all story tests pass.
+
+**Decisions:**
+- Conditional UPDATE: used Prisma `updateMany` with `status in allowedFrom` (one atomic statement) plus a read-back in the same tx, instead of raw `UPDATE ... RETURNING *` (avoids snake_case/bigint mapping).
+- viaSync: normal step is tried first; only if it updates nothing, a second conditional update handles CANCELLED to DELIVERED (sets sync_issue, clears cancellation columns) or DELIVERED to CANCELLED (sync_issue only, order returned unchanged). Normal syncs never get a sync_issue.
+- Reason is trimmed; a blank reason counts as missing for SUPPLIER. A reason sent for a non-cancel target is ignored.
+- Unknown order id: 404 NOT_FOUND (story only lists 409/400).
+
+**Tests added beyond the story:**
+- `tests/integration/order/state-machine.test.ts` › answers 404 NOT_FOUND for an unknown order: fail-closed on absent id (CONVENTIONS errors); passed at once? no, written with the implementation
+- `...` › lets a CUSTOMER cancel without a reason: C-16 reason only required for SUPPLIER
+- `...` › does not set sync_issue when sync delivers a CONFIRMED order normally; refuses delivery-after-cancellation without viaSync; still refuses other impossible steps through sync: viaSync scope limits (story Context)
+
+**Evidence:** story tests 23/23; full suite 2126/2126 after fixing a lint error in my test (first run 2125/2126, quality-gates lint), failing: none; typecheck clean; lint 0 errors, 60 pre-existing warnings
+<!-- end ORD-008 -->
