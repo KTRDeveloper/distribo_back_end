@@ -16,8 +16,9 @@ import type {
   OpeningBalanceInput,
   PaymentInput,
   ReturnInput,
+  ReverseEntryInput,
 } from './finance.schemas.js';
-import { appendLedgerEntry } from './ledger.service.js';
+import { appendLedgerEntry, reverseLedgerEntry } from './ledger.service.js';
 
 /** A ledger entry as the recorder sees it: an explicit field list, money in whole XAF. */
 export type LedgerEntryView = {
@@ -96,6 +97,31 @@ export function recordPayment(
 }
 
 /**
+ * Refuses a gesture on the caller's own customer record (CM-26): the customer person is the
+ * caller, or, below OWNER, the customer organization is one the caller manages. Only the owner
+ * may act on such a record.
+ */
+async function assertNotOwnRecord(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  relationship: { customerPersonId: string | null; customerOrganizationId: string | null },
+  route: string
+): Promise<void> {
+  const ownPerson = relationship.customerPersonId === actor.personId;
+  const managesCustomer =
+    actor.role !== 'OWNER' &&
+    relationship.customerOrganizationId !== null &&
+    (await managesOrganization(tx, actor.personId, relationship.customerOrganizationId));
+  if (ownPerson || managesCustomer) {
+    logger.warn(
+      { event: 'own_record_refused', personId: actor.personId, route },
+      'Permission refused'
+    );
+    throw httpError(403, 'OWN_RECORD', 'Not allowed on your own record');
+  }
+}
+
+/**
  * Shared guards of the manager gestures that favour a customer (refund FIN-005, credit note
  * FIN-006). The organization must be ACTIVE; the relationship is locked through the caller's own
  * organization (404 outside it, ASVS v5.0.0-8.2.2); a counter, the caller's own record and a
@@ -130,18 +156,7 @@ async function lockCustomerForOutflow(
   ) {
     throw httpError(409, 'COUNTER_ONLY_RETURNS', 'A counter only takes returns.');
   }
-  const ownPerson = relationship.customerPersonId === actor.personId;
-  const managesCustomer =
-    actor.role !== 'OWNER' &&
-    relationship.customerOrganizationId !== null &&
-    (await managesOrganization(tx, actor.personId, relationship.customerOrganizationId));
-  if (ownPerson || managesCustomer) {
-    logger.warn(
-      { event: 'own_record_refused', personId: actor.personId, route },
-      'Permission refused'
-    );
-    throw httpError(403, 'OWN_RECORD', 'Not allowed on your own record');
-  }
+  await assertNotOwnRecord(tx, actor, relationship, route);
   if (relationship.status === 'PENDING') {
     throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'Relationship is not active');
   }
@@ -390,6 +405,84 @@ export function recordReturn(
     return {
       credit_note: view(creditNote, relationship.balance + creditNote.balanceEffect),
       refund: view(refund, relationship.balance + creditNote.balanceEffect + refund.balanceEffect),
+    };
+  });
+}
+
+/**
+ * A MANAGER online or the OWNER cancels a wrong ledger entry by adding its mirror (FIN-009,
+ * C-25). The route checked the rules table (`reverse` LedgerEntry, ASVS v5.0.0-8.2.1). One
+ * transaction (v5.0.0-2.3.3): the entry is looked up only through the caller's own organization
+ * (another business's entry is 404, v5.0.0-8.2.2), then its relationship is locked, so two
+ * reversals of one entry run one after the other and the second sees the first. Own-record
+ * gestures go to the owner; a reversal of a reversal and a second reversal are 409. The mirror is
+ * written by `reverseLedgerEntry`: balance first, then the held money of the person who recorded
+ * the original (CM-17: the cash comes back out of the hands that took it). A registered customer
+ * person is told `balance.increased` when the reversal raises the balance. The original entry is
+ * never touched.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked the role.
+ * @param entryId - Entry to reverse, from the path.
+ * @param input - Validated body: `id` is the mirror entry's id.
+ * @returns The mirror entry and the customer's balance after it.
+ * @throws 403 `OWN_RECORD`; 404 `NOT_FOUND`; 409 `ALREADY_REVERSED`, `CANNOT_REVERSE_REVERSAL`.
+ */
+export function reverseEntry(
+  actor: Actor,
+  entryId: string,
+  input: ReverseEntryInput
+): Promise<LedgerEntryView> {
+  return runInTransaction(async (tx) => {
+    const scoped = await tx.ledgerEntry.findFirst({
+      where: {
+        id: entryId,
+        customerRelationship: { supplierOrganizationId: actor.organizationId },
+      },
+      select: { customerRelationshipId: true },
+    });
+    if (!scoped) throw httpError(404, 'NOT_FOUND', 'Not found');
+
+    const relationship = await findSupplierRelationshipLocked(
+      tx,
+      { personId: actor.personId, organizationId: actor.organizationId },
+      scoped.customerRelationshipId
+    );
+    if (!relationship) throw httpError(404, 'NOT_FOUND', 'Not found');
+    await assertNotOwnRecord(tx, actor, relationship, 'reverse_entry');
+
+    // Read after the lock: a reversal committed by a concurrent request is visible here.
+    const target = await tx.ledgerEntry.findUniqueOrThrow({
+      where: { id: entryId },
+      select: { reversesEntryId: true, recordedById: true },
+    });
+    if (target.reversesEntryId !== null) {
+      throw httpError(409, 'CANNOT_REVERSE_REVERSAL', 'A reversal cannot be reversed');
+    }
+    const reversal = await tx.ledgerEntry.findFirst({
+      where: { reversesEntryId: entryId },
+      select: { id: true },
+    });
+    if (reversal) throw httpError(409, 'ALREADY_REVERSED', 'Entry already reversed');
+
+    const entry = await reverseLedgerEntry(tx, entryId, {
+      id: input.id,
+      recordedById: actor.personId,
+      heldById: target.recordedById,
+      note: input.note,
+    });
+
+    if (entry.balanceEffect > 0n) {
+      await notifyBalanceIncreased(tx, actor, relationship, entry.id, Number(entry.amount));
+    }
+
+    // The row is locked since the lookup, so the balance read before plus the entry's effect is exact.
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      amount: Number(entry.amount),
+      mode: entry.mode,
+      occurred_at: entry.occurredAt,
+      balance: Number(relationship.balance + entry.balanceEffect),
     };
   });
 }

@@ -70,3 +70,20 @@ export const returnSchema = z
   });
 
 export type ReturnInput = z.infer<typeof returnSchema>;
+
+/** Path of the reversal gesture: the entry id is a UUID, so a malformed one never reaches the database. */
+export const reverseParamSchema = z.object({ entryId: uuidV7Schema }).strict();
+
+/**
+ * Strict body of the reversal gesture (FIN-009): the gesture id, which becomes the mirror entry's
+ * id, and an optional reason. The kind, amount, relationship, recorder and time are copied or set
+ * by the server, never accepted (ASVS v5.0.0-15.3.3, CWE-915).
+ */
+export const reverseEntrySchema = z
+  .object({
+    id: uuidV7Schema,
+    note: z.string().max(TEXT_MAX).optional(),
+  })
+  .strict();
+
+export type ReverseEntryInput = z.infer<typeof reverseEntrySchema>;

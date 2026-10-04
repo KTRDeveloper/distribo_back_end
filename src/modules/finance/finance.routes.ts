@@ -12,6 +12,8 @@ import {
   paymentParamSchema,
   recordPaymentSchema,
   returnSchema,
+  reverseEntrySchema,
+  reverseParamSchema,
 } from './finance.schemas.js';
 import {
   recordCreditNote,
@@ -19,6 +21,7 @@ import {
   recordPayment,
   recordRefund,
   recordReturn,
+  reverseEntry,
 } from './finance.service.js';
 
 /** Finance routes of one organization, mounted at `/organizations/:organizationId`. */
@@ -178,6 +181,36 @@ financeRoutes.post(
       req.actor!,
       paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
       returnSchema.parse(req.body)
+    )
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/ledger-entries/:entryId/reverse - a MANAGER online or
+// the OWNER cancels a wrong ledger entry by adding its mirror. The rules table grants `reverse
+// LedgerEntry` to nobody below MANAGER, so a SELLER or DRIVER is refused there; the entry is
+// reached only through the caller's own organization, which the service checks (404 outside it).
+financeRoutes.post(
+  '/ledger-entries/:entryId/reverse',
+  authMiddleware,
+  loadActor,
+  requireAbility('reverse', 'LedgerEntry'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = reverseParamSchema.safeParse({ entryId: req.params.entryId });
+    if (!params.success) return next(params.error);
+    const parsed = reverseEntrySchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    reverseEntry(
+      req.actor!,
+      reverseParamSchema.parse({ entryId: req.params.entryId }).entryId,
+      reverseEntrySchema.parse(req.body)
     )
       .then((view) => res.status(201).json(view))
       .catch(next);

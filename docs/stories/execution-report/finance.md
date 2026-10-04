@@ -330,6 +330,43 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - No finance `.openapi.ts` exists and earlier finance routes are not in catalog/per-001 lists; I followed that, so the route is undocumented in OpenAPI.
 <!-- end FIN-008 -->
 
+<!-- begin FIN-009 -->
+## FIN-009 — Manager reverses a ledger entry
+
+- Filed: 2026-10-04 21:50 UTC
+- Status: **done**: POST ledger-entries/:id/reverse; mirror held effect goes to the original recorder (AC-1)
+- Risk: high · story: [FIN-009-manager-reverses-a-ledger-entry.md](../modules/finance/FIN-009-manager-reverses-a-ledger-entry.md)
+- Agent: 69,851 tokens, 19 tool uses, 8 min 28 s
+
+### Agent report
+
+**Summary:** Added POST /ledger-entries/:entryId/reverse (route, schemas, `reverseEntry`) with refusals, notification and idempotency; all green.
+
+**Decisions:**
+- Held-money target: the original entry's recorder (AC-1 says the seller's amount_held falls), not the reverser; added optional `heldById` to `reverseLedgerEntry`/`insertAndApply`, default unchanged so FIN-003 tests still pass.
+- Race (AC-3): lock the relationship row (`findSupplierRelationshipLocked`), then check ALREADY_REVERSED; no FOR UPDATE on the ledger (app account has no UPDATE right).
+- Extracted `assertNotOwnRecord` from `lockCustomerForOutflow` so OWN_RECORD is shared; checked before the 409s.
+- No organization-status or relationship-status guard: the story lists none, so a wrong entry stays reversible.
+- `requireAbility('reverse','LedgerEntry')` without a kind condition: the rule already lists every kind.
+- No finance `.openapi.ts` or catalog/per-001 entries: none exist for FIN-004 to FIN-008 either.
+
+**Tests added beyond the story:**
+- `reverse.test.ts` › notifies a registered customer once (Context); passed only after implementation
+- `reverse.test.ts` › reverses a REFUND, no notification (AC-1 mirror rule, CM-17)
+- `reverse.test.ts` › retried id answers the first result (Project rules: idempotent gestures)
+- `reverse.test.ts` › unknown fields, bad ids, oversize note give 400 (Validation convention)
+
+**Other additions:**
+- `reverseParamSchema`, `reverseEntrySchema` in finance.schemas.ts; JSDoc of `reverseLedgerEntry` updated.
+
+**Evidence:** story tests 12/12; full suite 2607/2607 (one earlier run had 8 unrelated failures in sync-area tests, gone on rerun), failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- FIN-018 must count a reversal's held effect under the original entry's recorder, not `recorded_by_id` of the reversal (the old FIN-003 comment said the opposite).
+- Finance routes (FIN-004 onward) still have no OpenAPI registration or catalog/per-001 entries.
+- Flaky sync test seen once under load (customer_prices deleted list); not investigated.
+<!-- end FIN-009 -->
+
 <!-- begin FIN-011 -->
 ## FIN-011 — Expenses table
 

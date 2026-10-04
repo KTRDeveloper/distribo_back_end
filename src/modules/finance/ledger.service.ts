@@ -29,6 +29,8 @@ type EntryRow = {
   transactionReference?: string;
   note?: string;
   recordedById: string;
+  /** Person whose held money changes, when not the recorder (reversals). */
+  heldById?: string;
   occurredAt: Date;
   reversesEntryId?: string;
 };
@@ -84,7 +86,7 @@ async function insertAndApply(
   await addToBalance(tx, entry.customerRelationshipId, entry.balanceEffect);
 
   const held = heldEffect(entry.kind, entry.amount, entry.reversesEntryId !== null);
-  if (held !== 0n) await addAmountHeld(tx, entry.recordedById, organizationId, held);
+  if (held !== 0n) await addAmountHeld(tx, row.heldById ?? entry.recordedById, organizationId, held);
   return entry;
 }
 
@@ -136,20 +138,22 @@ export async function appendLedgerEntry(
  * through `reverses_entry_id`, so its effects are the opposite of the original (CM-17). The
  * database refuses a second reversal, a reversal of a reversal and any mismatch (C-25).
  *
- * The held-money effect goes to the collaboration of `input.recordedById` in the supplier
- * organization of the relationship, as the nightly check (FIN-018) counts a reversal under the
- * person who recorded it.
+ * The held-money effect goes to the collaboration of `input.heldById` in the supplier
+ * organization of the relationship: the person who took (or gave) the cash of the original entry,
+ * so a reversed entry counts the other way in the held money of the person it first counted for
+ * (CM-17, FIN-009 AC-1). It defaults to `input.recordedById`, the person writing the reversal.
  *
  * @param tx - The caller's transaction.
  * @param entryId - The entry to reverse.
- * @param input - New entry id, the person reversing and an optional note.
+ * @param input - New entry id, the person reversing, an optional note and, when it differs from
+ *   the person reversing, the person whose held money the original entry changed.
  * @returns The stored reversal entry.
  * @throws 404 NOT_FOUND when the entry, its relationship or the recorder's collaboration is absent.
  */
 export async function reverseLedgerEntry(
   tx: Prisma.TransactionClient,
   entryId: string,
-  input: { id: string; recordedById: string; note?: string }
+  input: { id: string; recordedById: string; heldById?: string; note?: string }
 ): Promise<LedgerEntry> {
   const target = await tx.ledgerEntry.findUnique({
     where: { id: entryId },
@@ -169,6 +173,7 @@ export async function reverseLedgerEntry(
       orderId: target.orderId ?? undefined,
       note: input.note,
       recordedById: input.recordedById,
+      heldById: input.heldById,
       occurredAt: new Date(),
       reversesEntryId: target.id,
     },
