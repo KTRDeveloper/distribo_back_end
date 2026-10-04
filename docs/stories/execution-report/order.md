@@ -6,6 +6,16 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 18:46 UTC: `/implement-stories ORD-006`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORD-006 Order total equals the sum of its lines | done | e1c22aa | Deferred totals/delivered-quantity triggers; 14 story tests, full suite 2234 pass |
+
+- Run completed: ORD-006 done; it resumed the previous run's partial changes (stash popped before the run) and the story's amended "Tests to update" (6 order/finance/relationship files plus the 2 sync files).
+- No stash created.
+- Next: `/implement-stories next:N`.
+
 ### Run 2026-10-04 18:32 UTC: `/implement-stories ORD-006`
 
 | story | status | commit | note |
