@@ -66,6 +66,54 @@ export async function lockSuperAdminBootstrap(tx: Prisma.TransactionClient): Pro
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${BOOTSTRAP_LOCK_KEY})`;
 }
 
+/** Arbitrary constant naming the advisory lock that serializes removals of administrators. */
+const REMOVAL_LOCK_KEY = 7_265_002;
+
+/**
+ * Takes a transaction-scoped lock so two concurrent removals cannot each see another live
+ * SUPER_ADMIN and both remove the last two (CWE-362). Released when the transaction ends.
+ */
+export async function lockAdministratorRemoval(tx: Prisma.TransactionClient): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${REMOVAL_LOCK_KEY})`;
+}
+
+/** The live administrator row with this id (`removed_at` empty), or null. */
+export async function findLiveAdministratorById(
+  tx: Prisma.TransactionClient,
+  administratorId: string
+): Promise<{ id: string; personId: string; role: AdministratorRole } | null> {
+  return tx.administrator.findFirst({
+    where: { id: administratorId, removedAt: null },
+    select: { id: true, personId: true, role: true },
+  });
+}
+
+/** Number of live SUPER_ADMIN rows other than `exceptId`. */
+export async function countOtherLiveSuperAdmins(
+  tx: Prisma.TransactionClient,
+  exceptId: string
+): Promise<number> {
+  return tx.administrator.count({
+    where: { role: 'SUPER_ADMIN', removedAt: null, id: { not: exceptId } },
+  });
+}
+
+/**
+ * Marks a live administrator removed; the row stays so the journal keeps its author.
+ *
+ * @returns false when the row was not live (nothing changed).
+ */
+export async function markAdministratorRemoved(
+  tx: Prisma.TransactionClient,
+  administratorId: string
+): Promise<boolean> {
+  const result = await tx.administrator.updateMany({
+    where: { id: administratorId, removedAt: null },
+    data: { removedAt: new Date() },
+  });
+  return result.count === 1;
+}
+
 /** True when at least one SUPER_ADMIN row has not been removed. */
 export async function hasLiveSuperAdmin(tx: Prisma.TransactionClient): Promise<boolean> {
   const count = await tx.administrator.count({ where: { role: 'SUPER_ADMIN', removedAt: null } });

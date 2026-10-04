@@ -14,16 +14,20 @@ import {
   type PublicPerson,
 } from '../person/person.repository.js';
 import {
+  countOtherLiveSuperAdmins,
+  findLiveAdministratorById,
   findLiveAdministratorByPerson,
   findPersonEmail,
   findRegisteredPersonByPhone,
   hasLiveAdministrator,
   inTransaction,
   insertAdministrator,
+  lockAdministratorRemoval,
+  markAdministratorRemoved,
   recordAdminAction,
   setRecoveryEmail,
 } from './admin.repository.js';
-import type { AdminLoginInput, AppointInput } from './admin.schemas.js';
+import type { AdminLoginInput, AppointInput, RemoveInput } from './admin.schemas.js';
 
 const MAX_LOGIN_FAILURES = 5;
 
@@ -236,4 +240,51 @@ export async function appointAdministrator(
     role: input.role,
     otpauth_uri: otpauthUri,
   };
+}
+
+/**
+ * Removes an administrator (C-29, v5.0.0-8.2.1: the route only lets super administrators in).
+ * `removed_at` is set and the row stays, so earlier journal rows keep their author; the
+ * `REMOVE_ADMIN` journal row (caller as author, the person as target, the reason) is saved in
+ * the same transaction (v5.0.0-2.3.3, v5.0.0-16.3.1). The administrator middleware looks the
+ * row up on every request, so the token stops working at once.
+ *
+ * The last live SUPER_ADMIN cannot be removed. A lock taken first makes two parallel removals
+ * of the last two super administrators run one after the other, so exactly one succeeds.
+ * An unknown or already removed id gives 404.
+ *
+ * @throws 404 NOT_FOUND; 409 LAST_SUPER_ADMIN
+ */
+export async function removeAdministrator(
+  admin: AdminContext,
+  administratorId: string,
+  input: RemoveInput
+): Promise<void> {
+  const target = await inTransaction(async (tx) => {
+    await lockAdministratorRemoval(tx);
+    const found = await findLiveAdministratorById(tx, administratorId);
+    if (!found) throw httpError(404, 'NOT_FOUND', 'Administrator not found');
+    if (found.role === 'SUPER_ADMIN' && (await countOtherLiveSuperAdmins(tx, found.id)) === 0) {
+      throw httpError(409, 'LAST_SUPER_ADMIN', 'The last super administrator cannot be removed');
+    }
+    if (!(await markAdministratorRemoved(tx, found.id))) {
+      throw httpError(404, 'NOT_FOUND', 'Administrator not found');
+    }
+    await recordAdminAction(tx, {
+      administratorId: admin.administratorId,
+      action: 'REMOVE_ADMIN',
+      targetPersonId: found.personId,
+      reason: input.reason,
+    });
+    return found;
+  });
+  logger.info(
+    {
+      event: 'admin_removed',
+      administratorId: admin.administratorId,
+      targetAdministratorId: target.id,
+      targetPersonId: target.personId,
+    },
+    'Administrator removed'
+  );
 }

@@ -1,9 +1,11 @@
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { z } from 'zod';
 import {
+  administratorIdParamsSchema,
   appointAdministratorSchema,
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
+  removeAdministratorSchema,
 } from './admin.schemas.js';
 
 const appointedResponseSchema = z.object({
@@ -69,5 +71,25 @@ openApiRegistry.registerPath({
     403: err('FORBIDDEN'),
     404: err('NOT_FOUND: a guest or unknown number'),
     409: err('ALREADY_ADMINISTRATOR'),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/admin/administrators/{administratorId}',
+  tags: ['admin'],
+  summary: 'Remove an administrator, keeping the row for the journal (super administrator only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: administratorIdParamsSchema,
+    body: { content: { 'application/json': { schema: removeAdministratorSchema } } },
+  },
+  responses: {
+    204: { description: 'Removed; the administrator token stops working at once' },
+    400: err('VALIDATION_ERROR'),
+    401: err('UNAUTHORIZED'),
+    403: err('FORBIDDEN'),
+    404: err('NOT_FOUND: unknown or already removed'),
+    409: err('LAST_SUPER_ADMIN'),
   },
 });

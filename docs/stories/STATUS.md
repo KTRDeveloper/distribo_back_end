@@ -88,7 +88,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-007 | done | | recovery email request and confirm; all tests pass |
 | ADM-008 | blocked | | Source event admin.2fa_recovered breaks the NTF-002 grammar (segment must start with a letter, DB CHECK too): which name should be used, e.g. admin.totp_recovered? |
 | ADM-009 | done | | Appointment route, service, repository and tests; full suite green |
-| ADM-010 | todo | | |
+| ADM-010 | done | | DELETE /admin/administrators/{id}; 17 story tests, full suite 1196 green |
 | ADM-011 | todo | | |
 | ADM-012 | todo | | |
 | ADM-013 | todo | | |

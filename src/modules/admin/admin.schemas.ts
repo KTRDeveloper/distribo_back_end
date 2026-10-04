@@ -52,3 +52,13 @@ export const appointAdministratorSchema = z
   .strict();
 
 export type AppointInput = z.infer<typeof appointAdministratorSchema>;
+
+/** Path parameters of DELETE /admin/administrators/{administratorId}: the administrator row id. */
+export const administratorIdParamsSchema = z.object({ administratorId: uuidV7Schema }).strict();
+
+/** Body of DELETE /admin/administrators/{administratorId}: the reason kept in the journal. */
+export const removeAdministratorSchema = z
+  .object({ reason: z.string().trim().min(1).max(500) })
+  .strict();
+
+export type RemoveInput = z.infer<typeof removeAdministratorSchema>;

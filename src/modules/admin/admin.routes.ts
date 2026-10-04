@@ -2,14 +2,17 @@ import { Router } from 'express';
 import { adminAuthMiddleware, requireAdminRole } from '../../middleware/admin-auth.js';
 import {
   adminLoginSchema,
+  administratorIdParamsSchema,
   appointAdministratorSchema,
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
+  removeAdministratorSchema,
 } from './admin.schemas.js';
 import {
   adminLogin,
   appointAdministrator,
   confirmRecoveryEmail,
+  removeAdministrator,
   requestRecoveryEmail,
 } from './admin.service.js';
 
@@ -74,6 +77,21 @@ adminRoutes.post(
           otpauth_uri: view.otpauth_uri,
         });
       })
+      .catch(next);
+  }
+);
+
+// DELETE /api/v1/admin/administrators/{administratorId} - SUPER_ADMIN only: removes an
+// administrator; the row stays for the journal and the token stops working at once
+adminRoutes.delete(
+  '/administrators/:administratorId',
+  adminAuthMiddleware,
+  requireAdminRole('SUPER_ADMIN'),
+  (req, res, next) => {
+    const { administratorId } = administratorIdParamsSchema.parse(req.params);
+    const body = removeAdministratorSchema.parse(req.body);
+    removeAdministrator(req.admin!, administratorId, body)
+      .then(() => res.status(204).end())
       .catch(next);
   }
 );
