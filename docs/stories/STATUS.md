@@ -120,7 +120,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-024 | todo | | |
 | REL-025 | todo | | |
 | CAT-001 | done | | products table, price checks and price date trigger; 18 tests, full suite 1305 pass |
-| CAT-002 | todo | | |
+| CAT-002 | done | | customer_prices table, supplier-product trigger, live unique index; 1316 tests pass |
 | CAT-003 | todo | | |
 | CAT-004 | todo | | |
 | CAT-005 | todo | | |

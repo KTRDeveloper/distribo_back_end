@@ -287,6 +287,8 @@ model Person {
   reassignmentsTo   CustomerRelationshipReassignment[] @relation("ReassignmentNewPerson")
   reassignmentsMade CustomerRelationshipReassignment[] @relation("ReassignmentAuthor")
 
+  customerPricesSet CustomerPrice[] @relation("CustomerPriceSetBy")
+
   administrators Administrator[]
 
   adminActionsAsTarget AdminAction[] @relation("AdminActionTargetPerson")
@@ -475,6 +477,7 @@ model CustomerRelationship {
   mergedDuplicates     CustomerRelationship[]             @relation("RelationshipMergedInto")
   creditLimitChanges   CreditLimitChange[]
   reassignments        CustomerRelationshipReassignment[]
+  customerPrices       CustomerPrice[]
 
   @@index([supplierOrganizationId])
   @@index([supplierPersonId])
@@ -783,8 +786,44 @@ model Product {
   serverUpdatedAt  DateTime      @default(now()) @map("server_updated_at") @db.Timestamptz
   deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  customerPrices CustomerPrice[]
 
   @@index([organizationId])
   @@map("products")
+}
+
+// Rules the database enforces on negotiated prices (one customer's own price
+// for one product), beyond what this model declares. All come from migration
+// 20261004210000_cat_002_customer_prices.
+// - The product must belong to the organization that is the supplier of the
+//   relationship. A relationship whose supplier is a person has no products, so
+//   it can never hold a price. Checked on every insert and every change of the
+//   relationship or product, even for code that skipped validation.
+// - Only one live price may exist per relationship and product. Deleted rows do
+//   not count, so a price can be set again after it was deleted. This is a
+//   partial unique index that Prisma cannot express, so code must not rely on a
+//   Prisma unique lookup; catch the unique violation (23505) instead.
+// - The person who set the price must be a registered person, never a guest.
+//   This is checked when the transaction is saved, not row by row.
+// - set_at is the creation time given by the database. server_updated_at is set
+//   by the database on every change.
+// The rule that a price is positive is checked by the routes (CAT-008), not here.
+model CustomerPrice {
+  id                     String    @id @db.Uuid
+  customerRelationshipId String    @map("customer_relationship_id") @db.Uuid
+  productId              String    @map("product_id") @db.Uuid
+  price                  BigInt
+  setById                String    @map("set_by_id") @db.Uuid
+  setAt                  DateTime  @default(now()) @map("set_at") @db.Timestamptz
+  serverUpdatedAt        DateTime  @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz
+
+  customerRelationship CustomerRelationship @relation(fields: [customerRelationshipId], references: [id])
+  product              Product              @relation(fields: [productId], references: [id])
+  setBy                Person               @relation("CustomerPriceSetBy", fields: [setById], references: [id])
+
+  @@index([customerRelationshipId])
+  @@index([productId])
+  @@map("customer_prices")
 }

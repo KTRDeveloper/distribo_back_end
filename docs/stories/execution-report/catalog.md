@@ -61,3 +61,33 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Follow-ups:**
 - `prisma migrate diff` shows existing drift on tasks and reports FKs, unrelated to products (no products diff).
 <!-- end CAT-001 -->
+
+<!-- begin CAT-002 -->
+## CAT-002 — Negotiated prices table
+
+- Filed: 2026-10-04 09:44 UTC
+- Status: **done**: customer_prices table, supplier-product trigger, live unique index; 1316 tests pass
+- Risk: medium · story: [CAT-002-negotiated-prices-table.md](../modules/catalog/CAT-002-negotiated-prices-table.md)
+- Agent: 44,656 tokens, 15 tool uses, 10 min 31 s
+
+### Agent report
+
+**Summary:** Added `customer_prices` (migration 20261004210000_cat_002_customer_prices, Prisma model with schema comment) with live unique index and DB triggers.
+
+**Decisions:**
+- Supplier/product trigger is BEFORE INSERT or UPDATE OF relationship/product columns; if the relationship or product is unknown it lets the FK answer 23503, so AC-4 codes stay distinct from AC-3 23514.
+- A person-supplied relationship (null supplier organization) raises 23514, as the story says it has no products.
+- `require_registered_person('set_by_id')` is a deferred constraint trigger, like the other author columns (checked at commit, 23514).
+- Added indexes on `customer_relationship_id` and `product_id` (FK lookups), not in the story.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/customer-price-table.test.ts` › moves server_updated_at forward on update: C-35 (same pattern as the relationship table); passed once the table existed
+- same file › rejects restoring a deleted price while a live one exists: partial index applies on UPDATE too (AC-2/C-11)
+- same file › rejects moving an existing price to a foreign product: trigger covers UPDATE (AB-1, AC-3)
+- same file › rejects a relationship whose supplier is a person: story context (AC-3)
+
+**Evidence:** story tests 11/11; full suite 1316/1316, failing: none; typecheck clean; lint 0 errors, 55 warnings (existing)
+
+**Follow-ups:**
+- Soft-deleted products or relationships are not checked by the trigger; the story does not say they should be.
+<!-- end CAT-002 -->
