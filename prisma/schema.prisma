@@ -173,6 +173,11 @@ enum ReportDecision {
   SUSPENSION
 }
 
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -345,6 +350,8 @@ model Organization {
   notifications  Notification[]
   collaborations Collaboration[]
   subscriptions  Subscription[]
+
+  products Product[]
 
   suppliedRelationships CustomerRelationship[] @relation("RelationshipSupplierOrganization")
   customerRelationships CustomerRelationship[] @relation("RelationshipCustomerOrganization")
@@ -749,4 +756,35 @@ model Report {
   @@index([targetOrganizationId])
   @@index([resolvedById])
   @@map("reports")
+}
+
+// Rules the database enforces on products (the articles an organization sells),
+// beyond what this model declares. All come from migration
+// 20261004200000_cat_001_products.
+// - The price must be greater than zero, and the minimum order quantity, when
+//   given, must be greater than zero. A quantity is rounded to 3 decimals
+//   first, so 0.0004 counts as 0 and is refused.
+// - price_updated_at is set by the database when the product is created and
+//   moves only when the price really changes. A value sent by the code is
+//   ignored, so never try to set it yourself.
+// - server_updated_at is set by the database on every change.
+model Product {
+  id               String        @id @db.Uuid
+  organizationId   String        @map("organization_id") @db.Uuid
+  name             String
+  unit             String
+  price            BigInt
+  priceUpdatedAt   DateTime      @default(now()) @map("price_updated_at") @db.Timestamptz
+  minOrderQuantity Decimal?      @map("min_order_quantity") @db.Decimal(12, 3)
+  description      String?       @db.Text
+  category         String?
+  status           ProductStatus @default(ACTIVE)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  serverUpdatedAt  DateTime      @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("products")
 }
