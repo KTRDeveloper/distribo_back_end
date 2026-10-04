@@ -11,6 +11,7 @@ import {
   placeOrderSchema,
   placePurchaseSchema,
   refuseOrderSchema,
+  setSupplierNoteSchema,
 } from './order.schemas.js';
 import {
   acceptOrder,
@@ -19,6 +20,7 @@ import {
   placeOrder,
   placePurchase,
   refuseOrder,
+  setSupplierNote,
 } from './order.service.js';
 import './order.openapi.js';
 
@@ -178,6 +180,25 @@ supplierOrderRoutes.patch(
       orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
       editOrderSchema.parse(req.body)
     )
+      .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// PATCH /api/v1/organizations/:organizationId/orders/:orderId/note - the seller writes or clears
+// the note the customer sees, in any order status. No gesture id: setting the same note twice is
+// the same state, so a repeat is naturally harmless.
+supplierOrderRoutes.patch(
+  '/orders/:orderId/note',
+  authMiddleware,
+  loadActor,
+  requireAbility('update', 'Order'),
+  (req, res, next) => {
+    const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = setSupplierNoteSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    setSupplierNote(req.actor!, params.data.orderId, parsed.data.supplier_note)
       .then((view) => res.status(200).json(view))
       .catch(next);
   }

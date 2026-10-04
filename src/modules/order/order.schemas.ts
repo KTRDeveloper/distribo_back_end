@@ -178,3 +178,13 @@ export const editOrderSchema = z
   );
 
 export type EditOrderInput = z.infer<typeof editOrderSchema>;
+
+/**
+ * Strict body of the seller's note gesture (ORD-015): the note itself, up to 2000 characters, or
+ * `null` to clear it. Nothing else is writable on a finished order (ASVS v5.0.0-15.3.3).
+ */
+export const setSupplierNoteSchema = z
+  .object({ supplier_note: z.string().max(TEXT_MAX).nullable() })
+  .strict();
+
+export type SetSupplierNoteInput = z.infer<typeof setSupplierNoteSchema>;

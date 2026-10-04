@@ -15890,6 +15890,308 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/orders/{orderId}/note": {
+      "patch": {
+        "tags": [
+          "order"
+        ],
+        "summary": "A seller writes or clears the supplier note of an order, in any status (ORD-015)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "orderId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "supplier_note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "supplier_note"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The order with its note, supplier view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "customer_relationship_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "placed_by_party": {
+                      "type": "string",
+                      "enum": [
+                        "CUSTOMER",
+                        "SUPPLIER"
+                      ]
+                    },
+                    "delivery_address_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "total_amount": {
+                      "type": "integer"
+                    },
+                    "delivery_cost": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "delivered_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "desired_delivery_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cancelled_by_party": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cancelled_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "cancellation_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "parent_order_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "customer_note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "supplier_note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "product_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "label_applied": {
+                            "type": "string"
+                          },
+                          "quantity": {
+                            "type": "string"
+                          },
+                          "delivered_quantity": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "reference_price": {
+                            "type": "integer"
+                          },
+                          "unit_price_applied": {
+                            "type": "integer"
+                          },
+                          "amount": {
+                            "type": "integer"
+                          },
+                          "price_set_by_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "price_set_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "product_id",
+                          "label_applied",
+                          "quantity",
+                          "delivered_quantity",
+                          "reference_price",
+                          "unit_price_applied",
+                          "amount"
+                        ]
+                      }
+                    },
+                    "entered_by_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "delivered_by_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "cancelled_by_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "sync_issue": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "customer_relationship_id",
+                    "placed_by_party",
+                    "delivery_address_applied",
+                    "total_amount",
+                    "delivery_cost",
+                    "status",
+                    "delivered_at",
+                    "created_at",
+                    "desired_delivery_date",
+                    "cancelled_by_party",
+                    "cancelled_at",
+                    "cancellation_reason",
+                    "parent_order_id",
+                    "customer_note",
+                    "supplier_note",
+                    "lines",
+                    "entered_by_id",
+                    "delivered_by_id",
+                    "cancelled_by_id",
+                    "sync_issue"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body (note over 2000 characters, other keys)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The role may not write the note",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a member or order outside the business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/remote-config": {
       "post": {
         "tags": [

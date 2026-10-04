@@ -23,6 +23,7 @@ import {
   setLinePrice,
   setOrderTotal,
   updateEditableOrderFields,
+  updateSupplierNote,
   type NewOrderLine,
 } from './order.repository.js';
 import type {
@@ -551,5 +552,32 @@ export function editOrder(
       edited.lines.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
     }
     return projectOrderForSupplier(edited, actor.role);
+  });
+}
+
+/**
+ * A seller writes, replaces or clears the note the customer sees on an order, in any status
+ * (ORD-015). Only `supplier_note` is written. The order is looked up by the caller's organization
+ * under a row lock, so another business's order, or an unknown one, is a 404 (ASVS v5.0.0-8.2.1).
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked `update Order`.
+ * @param orderId - Order from the path.
+ * @param note - New note, or null to clear it.
+ * @returns The order, supplier view for the caller's role.
+ * @throws 404 `NOT_FOUND` when the order is not the caller's business's.
+ */
+export function setSupplierNote(
+  actor: Actor,
+  orderId: string,
+  note: string | null
+): Promise<SupplierOrderView> {
+  return runInTransaction(async (tx) => {
+    if (!(await lockSupplierOrder(tx, orderId, actor.organizationId))) {
+      throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    }
+    await updateSupplierNote(tx, orderId, note);
+    const order = await findOrderToAccept(tx, orderId);
+    if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    return projectOrderForSupplier(order, actor.role);
   });
 }

@@ -333,3 +333,15 @@ export async function replaceOrderLines(
   });
   await tx.orderLine.createMany({ data: lines.map((line) => ({ ...line, orderId })) });
 }
+
+/**
+ * Writes the supplier's note alone, whatever the order status: it is the one field a DELIVERED or
+ * CANCELLED order still accepts (ORD-002). The caller holds the row lock.
+ */
+export async function updateSupplierNote(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  supplierNote: string | null
+): Promise<void> {
+  await tx.order.update({ where: { id: orderId }, data: { supplierNote } });
+}

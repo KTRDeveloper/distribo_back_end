@@ -542,6 +542,37 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - Editing an order whose relationship has since ENDED is not blocked (story silent).
 <!-- end ORD-014 -->
 
+<!-- begin ORD-015 -->
+## ORD-015 — Seller writes a note on an order at any time
+
+- Filed: 2026-10-04 20:03 UTC
+- Status: **done**: PATCH orders/{id}/note, 9 tests + full suite green
+- Risk: low · story: [ORD-015-seller-writes-a-note-on-an-order-at-any-time.md](../modules/order/ORD-015-seller-writes-a-note-on-an-order-at-any-time.md)
+- Agent: 51,170 tokens, 19 tool uses, 4 min 19 s
+
+### Agent report
+
+**Summary:** Added PATCH /organizations/{org}/orders/{id}/note (setSupplierNote), strict schema, repository write, OpenAPI entry; all green.
+
+**Decisions:**
+- Route guard: `requireAbility('update','Order')` (SELLER rule is field-limited to supplier_note, OWNER also passes); the route cannot check the field, the strict schema is the field limit.
+- No gesture `id` and no `idempotent()`: the story body is `{ supplier_note }` only and AC-3 rejects other keys; setting the same note twice is the same state.
+- `supplier_note` is required in the body (null clears); not trimmed, empty string allowed, max 2000.
+- No ORGANIZATION_NOT_ACTIVE check (story silent; unlike ORD-014).
+
+**Tests added beyond the story:**
+- `tests/integration/order/order-note.test.ts` › lets the OWNER write the note too: role scope "seller and above" (v5.0.0-8.2.1); passed at once
+- `tests/integration/order/order-note.test.ts` › refuses ... missing note or non-string (AC-3 variants: status, total_amount, customer_note keys, {}, number): nothing changes (v5.0.0-15.3.3)
+
+**Other additions:**
+- Path added to `tests/integration/api-docs/catalog.test.ts` (per convention); per-001 lists no order routes so left alone.
+
+**Evidence:** story tests 9/9; full suite 2389/2389, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing security/detect warnings)
+
+**Follow-ups:**
+- Customer-side visibility of the note is not exercised here (no customer order read route in this story).
+<!-- end ORD-015 -->
+
 <!-- begin ORD-018 -->
 ## ORD-018 — Closing a business refuses its pending orders
 

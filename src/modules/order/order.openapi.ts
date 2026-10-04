@@ -7,6 +7,7 @@ import {
   enterOrderSchema,
   placePurchaseSchema,
   refuseOrderSchema,
+  setSupplierNoteSchema,
 } from './order.schemas.js';
 
 const errorContent = { 'application/json': { schema: errorResponseSchema } };
@@ -204,5 +205,30 @@ openApiRegistry.registerPath({
         'ORDER_FROZEN (not CONFIRMED or placed by the customer), ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
       content: errorContent,
     },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/api/v1/organizations/{organizationId}/orders/{orderId}/note',
+  tags: ['order'],
+  summary: 'A seller writes or clears the supplier note of an order, in any status (ORD-015)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: setSupplierNoteSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The order with its note, supplier view',
+      content: { 'application/json': { schema: supplierOrderViewSchema } },
+    },
+    400: {
+      description: 'Invalid body (note over 2000 characters, other keys)',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not write the note', content: errorContent },
+    404: { description: 'Not a member or order outside the business', content: errorContent },
   },
 });

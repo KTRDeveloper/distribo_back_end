@@ -144,7 +144,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-012 | done | | Refuse route, service, schema, openapi; 15 tests green |
 | ORD-013 | done | | POST /orders enterOrder; 16 tests, full suite green |
 | ORD-014 | done | | PATCH orders/{orderId}: editOrder, ORDER_FROZEN, lines replaced |
-| ORD-015 | todo | | |
+| ORD-015 | done | | PATCH orders/{id}/note, 9 tests + full suite green |
 | ORD-016 | todo | | |
 | ORD-017 | todo | | |
 | ORD-018 | done | | Pending orders refused in the close transaction; customers notified |
