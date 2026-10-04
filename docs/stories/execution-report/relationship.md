@@ -816,3 +816,38 @@ Also in this run: admin, catalog, order, finance, delivery.
 
 **Evidence:** story tests 7/7; full suite 1783/1783, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing kind)
 <!-- end REL-022 -->
+
+<!-- begin REL-023 -->
+## REL-023 — Customer contests a relationship ("this is not me")
+
+- Filed: 2026-10-04 15:03 UTC
+- Status: **done**: POST /suppliers/{id}/contest; 14 story tests, full suite 1797 green
+- Risk: high · story: [REL-023-customer-contests-a-relationship-this-is-not-me.md](../modules/relationship/REL-023-customer-contests-a-relationship-this-is-not-me.md)
+- Agent: 90,500 tokens, 28 tool uses, 4 min 48 s
+
+### Agent report
+
+**Summary:** Added POST /api/v1/suppliers/{relationshipId}/contest (204): ghost person, journal row, scope bump and notices in one transaction.
+
+**Decisions:**
+- 204 with idempotent(): the route sends `res.status(204).json({})` (no body on the wire) because the guard stores a null response as "in progress"; a replay now returns 204.
+- Second contestation: checked by a lookup in the locked transaction (hasContested) before creating the ghost; the partial unique index stays the backstop.
+- PENDING rows and rows of others answer 404 through customerScope plus a status check; notices go to ACTIVE registered OWNER/MANAGER of the supplier organization, in each recipient's language (FR "Un numéro est à corriger", EN equivalent).
+- Journal row id is a fresh newId(), not the gesture id, so a gesture id reused by another person cannot collide.
+
+**Tests added beyond the story:**
+- `contest.test.ts` › contests an ENDED relationship, no reason: ENDED allowed, reason null (Context: ACTIVE or ENDED); passed at once with implementation
+- `contest.test.ts` › 404 when caller is only the supplier person: scope by customer_person_id (AC-4 / v5.0.0-8.2.2)
+- `contest.test.ts` › 400 for unknown field, over-long reason, bad id: strict body (CONVENTIONS validation)
+- `contest.test.ts` › requires authentication: 401 (deny by default)
+- `contest.test.ts` › replays the first response for the same gesture id: one journal row (Project rules, idempotency)
+
+**Other additions:**
+- `/contest` path added to `tests/integration/api-docs/catalog.test.ts` (Project rules); per-001 lists no relationship routes, so unchanged.
+
+**Evidence:** story tests 14/14; full suite 1797/1797, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+
+**Follow-ups:**
+- idempotent() cannot store a body-less response: other 204 gestures should use the same json({}) trick or the guard should be fixed.
+- REL-024 (supplier restores the number) is not built: the AB-1 tests simulate the restore by a direct update.
+<!-- end REL-023 -->

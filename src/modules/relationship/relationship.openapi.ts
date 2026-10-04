@@ -5,6 +5,7 @@ import {
   acceptInvitationSchema,
   addCounterSchema,
   addCustomerSchema,
+  contestSchema,
   creditLimitChangesQuerySchema,
   customerParamsSchema,
   editCustomerSchema,
@@ -651,5 +652,30 @@ openApiRegistry.registerPath({
       },
     },
     401: { description: 'Missing or invalid token', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/suppliers/{relationshipId}/contest',
+  tags: ['relationship'],
+  summary: 'Say "this is not me": the relationship moves to a ghost person and leaves the caller',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: customerParamsSchema,
+    body: { content: { 'application/json': { schema: contestSchema } } },
+  },
+  responses: {
+    204: { description: 'Contested; the supplier owner and managers are notified' },
+    400: { description: 'Invalid body or relationship id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    404: {
+      description: 'Relationship of someone else, a PENDING invitation or absent',
+      content: errorContent,
+    },
+    409: {
+      description: 'ALREADY_CONTESTED, or conflicting gesture id',
+      content: errorContent,
+    },
   },
 });

@@ -895,3 +895,114 @@ export async function deleteInvitationRow(
   });
   return count === 1;
 }
+
+/**
+ * Tells whether the person already contested this relationship: a journal row where the person is
+ * both the previous person and the author (C-12, one contestation per relationship and person).
+ */
+export async function hasContested(
+  tx: Prisma.TransactionClient,
+  relationshipId: string,
+  personId: string
+): Promise<boolean> {
+  const found = await tx.customerRelationshipReassignment.findFirst({
+    where: {
+      customerRelationshipId: relationshipId,
+      previousPersonId: personId,
+      reassignedById: personId,
+    },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
+/** Reads the active phone number of a person, or null when the person holds none. */
+export async function findActivePhoneNumber(
+  tx: Prisma.TransactionClient,
+  personId: string
+): Promise<string | null> {
+  const person = await tx.person.findUnique({
+    where: { id: personId },
+    select: { phoneNumber: true },
+  });
+  return person?.phoneNumber ?? null;
+}
+
+/**
+ * Creates a ghost person: no name, no active number, not registered, holding `releasedPhoneNumber`
+ * as its released number (C-02: exactly one of the two numbers is set).
+ *
+ * @param tx - Transaction client of the caller.
+ * @param releasedPhoneNumber - The contesting person's active number.
+ * @returns The id of the new person.
+ */
+export async function insertGhostPerson(
+  tx: Prisma.TransactionClient,
+  releasedPhoneNumber: string
+): Promise<string> {
+  const person = await tx.person.create({
+    data: { id: newId(), releasedPhoneNumber },
+    select: { id: true },
+  });
+  return person.id;
+}
+
+/**
+ * Points a relationship at another customer person in one conditional update, so the row changes
+ * only if the previous person is still the customer (ASVS v5.0.0-2.3.3).
+ *
+ * @returns True when one row was updated.
+ */
+export async function reassignCustomerPerson(
+  tx: Prisma.TransactionClient,
+  input: { id: string; fromPersonId: string; toPersonId: string }
+): Promise<boolean> {
+  const { count } = await tx.customerRelationship.updateMany({
+    where: { id: input.id, customerPersonId: input.fromPersonId },
+    data: { customerPersonId: input.toPersonId },
+  });
+  return count === 1;
+}
+
+/** Appends one row to the reassignment journal; the journal is never updated afterwards (C-12). */
+export function insertReassignment(
+  tx: Prisma.TransactionClient,
+  input: {
+    relationshipId: string;
+    previousPersonId: string;
+    newPersonId: string;
+    reassignedById: string;
+    reason: string | null;
+  }
+) {
+  return tx.customerRelationshipReassignment.create({
+    data: {
+      id: newId(),
+      customerRelationshipId: input.relationshipId,
+      previousPersonId: input.previousPersonId,
+      newPersonId: input.newPersonId,
+      reassignedById: input.reassignedById,
+      reason: input.reason,
+    },
+    select: { id: true },
+  });
+}
+
+/** Lists the registered people holding an ACTIVE OWNER or MANAGER role in the organization. */
+export async function listOwnerAndManagerIds(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<string[]> {
+  const found = await tx.collaboration.findMany({
+    where: {
+      organizationId,
+      role: { in: ['OWNER', 'MANAGER'] },
+      status: 'ACTIVE',
+      deletedAt: null,
+      person: { registeredAt: { not: null } },
+    },
+    select: { personId: true },
+    orderBy: { personId: 'asc' },
+  });
+  return found.map((collaboration) => collaboration.personId);
+}

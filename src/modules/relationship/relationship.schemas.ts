@@ -157,3 +157,17 @@ export const acceptInvitationSchema = z
   .strict();
 
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;
+
+/**
+ * Strict body of the contest gesture: the gesture id and an optional reason, at most 2000
+ * characters after trimming (ASVS v5.0.0-15.3.3). The person, the ghost and the journal columns
+ * are set by the server and rejected as unknown keys (CWE-915).
+ */
+export const contestSchema = z
+  .object({
+    id: uuidV7Schema,
+    reason: z.string().trim().min(1).max(TEXT_MAX).optional(),
+  })
+  .strict();
+
+export type ContestInput = z.infer<typeof contestSchema>;

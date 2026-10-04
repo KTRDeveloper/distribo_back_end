@@ -7,6 +7,7 @@ import { requireAbility } from '../../middleware/require-ability.js';
 import {
   acceptInvitationSchema,
   addCounterSchema,
+  contestSchema,
   addCustomerSchema,
   creditLimitChangesQuerySchema,
   customerParamsSchema,
@@ -24,6 +25,7 @@ import {
   acceptSupplierInvitation,
   addCounter,
   addCustomer,
+  contestRelationship,
   customerEditSupplier,
   customerEndRelationship,
   customerReopenRelationship,
@@ -359,6 +361,35 @@ customerGestureRoute('/:relationshipId/end', customerEndRelationship);
 // POST /api/v1/suppliers/:relationshipId/reopen - the customer comes back; 409 when the supplier
 // ended the relationship
 customerGestureRoute('/:relationshipId/reopen', customerReopenRelationship);
+
+// POST /api/v1/suppliers/:relationshipId/contest - the customer says "this is not me"; 204. The
+// person comes from the session; 404 outside the caller's scope, 409 on a second contestation.
+supplierRoutes.post(
+  '/:relationshipId/contest',
+  authMiddleware,
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = contestSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        contestRelationship(
+          req.user!.id,
+          customerParamsSchema.parse(req.params).relationshipId,
+          contestSchema.parse(req.body)
+        )
+      )
+      // `json({})` on a 204 sends no body (HTTP) but lets the idempotency guard store a non-null
+      // response to replay; `end()` would leave a replay looking "in progress".
+      .then(() => res.status(204).json({}))
+      .catch(next);
+  }
+);
 
 /** Invitation routes of the signed-in person as invited supplier, mounted at `/supplier-invitations`. */
 export const supplierInvitationRoutes = Router();

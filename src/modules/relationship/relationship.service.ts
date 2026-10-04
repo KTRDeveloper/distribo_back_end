@@ -10,7 +10,7 @@ import {
 import { checkAndConsume } from '../../lib/rate-limit.js';
 import { listMyInvitations } from '../organization/organization.service.js';
 import type { InvitationItem as TeamInvitationView } from '../organization/organization.schemas.js';
-import { findOrCreateByPhone } from '../person/person.repository.js';
+import { bumpScopeVersion, findOrCreateByPhone } from '../person/person.repository.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { atLeast, type Role } from '../../shared/access/roles.js';
@@ -19,6 +19,7 @@ import { abilityFor } from '../../shared/access/ability.js';
 import type {
   AddCounterInput,
   AddCustomerInput,
+  ContestInput,
   EditCustomerInput,
   EditSupplierInput,
   InviteSupplierInput,
@@ -41,8 +42,14 @@ import {
   findSupplierRelationship,
   findSupplierRelationshipLocked,
   findWithParties,
+  findActivePhoneNumber,
   findWithSupplier,
+  hasContested,
+  insertGhostPerson,
   insertInvitation,
+  insertReassignment,
+  listOwnerAndManagerIds,
+  reassignCustomerPerson,
   listAttachedRelationships,
   listInvitationRows,
   listCreditLimitChangeRows,
@@ -1099,4 +1106,87 @@ export async function getAttachments(personId: string): Promise<{
     team_invitations: team.items,
     supplier_invitations: supplier.items,
   };
+}
+
+const CONTESTED_CONTENT = {
+  FR: 'Un numéro est à corriger',
+  EN: 'A number needs to be corrected',
+} as const;
+
+/**
+ * A customer says "this is not me" about a relationship (CM-24, C-12): a ghost person holding the
+ * caller's number as released number becomes the customer, one journal row records it, the
+ * caller's `scope_version` is bumped (CM-03) and the supplier's owner and managers are notified
+ * `relationship.contested`. Balance, orders and ledger entries stay on the same relationship.
+ *
+ * The relationship is selected by id and the caller as customer person (404 otherwise, v5.0.0-8.2.2);
+ * only ACTIVE and ENDED rows can be contested, a PENDING invitation answers 404 (decline it
+ * instead). A second contestation by the same person answers 409 `ALREADY_CONTESTED`, even after
+ * the supplier restored the number. Everything runs in one transaction under a row lock
+ * (v5.0.0-2.3.3), so a failure leaves no ghost behind.
+ *
+ * @param personId - Caller's person id from the session.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param input - Validated body: the gesture id (read by the idempotency guard) and the reason.
+ * @throws 404 `NOT_FOUND`; 409 `ALREADY_CONTESTED`.
+ */
+export function contestRelationship(
+  personId: string,
+  relationshipId: string,
+  input: ContestInput
+): Promise<void> {
+  return runInTransaction(async (tx) => {
+    const row = await findCustomerRelationshipLocked(tx, personId, relationshipId);
+    if (!row || row.status === 'PENDING') throw httpError(404, 'NOT_FOUND', 'Supplier not found');
+
+    if (await hasContested(tx, row.id, personId)) {
+      logger.warn(
+        { event: 'relationship_contest_refused', relationshipId: row.id, personId },
+        'Relationship already contested by this person'
+      );
+      throw httpError(409, 'ALREADY_CONTESTED', 'This relationship was already contested');
+    }
+
+    const phoneNumber = await findActivePhoneNumber(tx, personId);
+    if (phoneNumber === null) throw new Error('Contesting person holds no active number');
+
+    const ghostId = await insertGhostPerson(tx, phoneNumber);
+    if (
+      !(await reassignCustomerPerson(tx, {
+        id: row.id,
+        fromPersonId: personId,
+        toPersonId: ghostId,
+      }))
+    ) {
+      throw httpError(404, 'NOT_FOUND', 'Supplier not found');
+    }
+    await insertReassignment(tx, {
+      relationshipId: row.id,
+      previousPersonId: personId,
+      newPersonId: ghostId,
+      reassignedById: personId,
+      reason: input.reason ?? null,
+    });
+    await bumpScopeVersion(personId, tx);
+
+    if (row.supplierOrganizationId !== null) {
+      for (const recipientId of await listOwnerAndManagerIds(tx, row.supplierOrganizationId)) {
+        const language = await recipientLanguage(recipientId, tx);
+        await notify(
+          {
+            recipientId,
+            organizationId: row.supplierOrganizationId,
+            sourceEvent: 'relationship.contested',
+            content: language === 'EN' ? CONTESTED_CONTENT.EN : CONTESTED_CONTENT.FR,
+            related: { type: 'customer_relationship', id: row.id },
+          },
+          tx
+        );
+      }
+    }
+    logger.warn(
+      { event: 'relationship_contested', relationshipId: row.id, personId },
+      'Relationship contested'
+    );
+  });
 }
