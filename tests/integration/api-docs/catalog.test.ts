@@ -128,6 +128,10 @@ describe('GET /docs/openapi.json', () => {
     // ORD-016: the supplier cancels an order
     expect(paths).toContain('/api/v1/organizations/{organizationId}/orders/{orderId}/cancel');
 
+    // ORD-017: the customer cancels an order
+    expect(paths).toContain('/api/v1/orders/{orderId}/cancel');
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases/{orderId}/cancel');
+
     // ORD-015: the seller writes a note on an order
     expect(paths).toContain('/api/v1/organizations/{organizationId}/orders/{orderId}/note');
 

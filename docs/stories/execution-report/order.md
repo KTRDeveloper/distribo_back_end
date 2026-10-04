@@ -598,6 +598,39 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 17/17; full suite 2406/2406, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
 <!-- end ORD-016 -->
 
+<!-- begin ORD-017 -->
+## ORD-017 — Customer cancels an order before departure
+
+- Filed: 2026-10-04 20:12 UTC
+- Status: **done**: customer cancel routes (person and organization purchases) done; 2429 tests pass
+- Risk: medium · story: [ORD-017-customer-cancels-an-order-before-departure.md](../modules/order/ORD-017-customer-cancels-an-order-before-departure.md)
+- Agent: 63,868 tokens, 17 tool uses, 5 min 1 s
+
+### Agent report
+
+**Summary:** Added customer cancel for persons (`POST /orders/:orderId/cancel`) and organizations (`POST /organizations/:id/purchases/:orderId/cancel`), with supplier team notification.
+
+**Decisions:**
+- Order selection: new `lockCustomerOrder` locks the order through the caller's own relationship (person or organization), so another customer's order is 404 and parallel cancels serialize.
+- Org role: route uses `order_from_supplier` (MANAGER/OWNER, network); the service also rejects any other role with 403 (fail closed).
+- Reason: new `cancelOrderAsCustomerSchema` (strict, optional trimmed 1..2000; empty string is a 400).
+- Notification content: a new FR/EN text, "order cancelled by the customer", sent to OWNER/MANAGER/SELLER via `listOrderTeamIds`.
+
+**Tests added beyond the story:**
+- `cancel-order-customer.test.ts` › 400 table (unknown field, forged party, empty reason, 2001 chars): strict body (15.3.3); passed at once
+- `cancel-order-customer.test.ts` › person/org cross-path 404s: a purchases route cannot cancel a person's order and the reverse (v5.0.0-8.2.2)
+- `cancel-order-customer.test.ts` › idempotent repeat and two parallel cancels: one wins 200/409 (v5.0.0-2.3.1, ACC gesture rule)
+- `cancel-order-customer.test.ts` › OWNER cancels; CANCELLED order 409; supplier-entered CONFIRMED order cancels (Context)
+
+**Other additions:**
+- `openapi/openapi.json` regenerated; two paths added to `catalog.test.ts` (convention); per-001 needed no change (it lists no order routes).
+
+**Evidence:** story tests 23/23; full suite 2429/2429, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
+
+**Follow-ups:**
+- Cancelling does not check that the customer organization is ACTIVE (story silent).
+<!-- end ORD-017 -->
+
 <!-- begin ORD-018 -->
 ## ORD-018 — Closing a business refuses its pending orders
 

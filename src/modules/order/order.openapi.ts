@@ -3,6 +3,7 @@ import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
   acceptOrderSchema,
+  cancelOrderAsCustomerSchema,
   cancelOrderSchema,
   editOrderSchema,
   enterOrderSchema,
@@ -72,6 +73,47 @@ openApiRegistry.registerPath({
       content: errorContent,
     },
   },
+});
+
+const customerCancelResponses = {
+  200: {
+    description: 'The CANCELLED order, customer view',
+    content: { 'application/json': { schema: customerOrderViewSchema } },
+  },
+  400: { description: 'Invalid body (reason too long) or order id', content: errorContent },
+  401: { description: 'Missing or invalid token', content: errorContent },
+  403: { description: 'The role may not cancel purchases', content: errorContent },
+  404: { description: 'Not a member, or order outside the customer', content: errorContent },
+  409: {
+    description: 'INVALID_TRANSITION (left, delivered or cancelled) or conflicting gesture id',
+    content: errorContent,
+  },
+};
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/orders/{orderId}/cancel',
+  tags: ['order'],
+  summary: 'The customer cancels a PENDING or CONFIRMED order before departure (ORD-017)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: cancelOrderAsCustomerSchema } } },
+  },
+  responses: customerCancelResponses,
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/purchases/{orderId}/cancel',
+  tags: ['order'],
+  summary: 'A manager cancels an order of the business before departure (ORD-017)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: cancelOrderAsCustomerSchema } } },
+  },
+  responses: customerCancelResponses,
 });
 
 /** Supplier-side order view (`projectOrderForSupplier`); the price author goes to OWNER and MANAGER only. */

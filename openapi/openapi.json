@@ -14500,6 +14500,541 @@
         }
       }
     },
+    "/api/v1/orders/{orderId}/cancel": {
+      "post": {
+        "tags": [
+          "order"
+        ],
+        "summary": "The customer cancels a PENDING or CONFIRMED order before departure (ORD-017)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "orderId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The CANCELLED order, customer view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "customer_relationship_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "placed_by_party": {
+                      "type": "string",
+                      "enum": [
+                        "CUSTOMER",
+                        "SUPPLIER"
+                      ]
+                    },
+                    "delivery_address_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "total_amount": {
+                      "type": "integer"
+                    },
+                    "delivery_cost": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "delivered_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "desired_delivery_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cancelled_by_party": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cancelled_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "cancellation_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "parent_order_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "customer_note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "supplier_note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "product_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "label_applied": {
+                            "type": "string"
+                          },
+                          "quantity": {
+                            "type": "string"
+                          },
+                          "delivered_quantity": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "reference_price": {
+                            "type": "integer"
+                          },
+                          "unit_price_applied": {
+                            "type": "integer"
+                          },
+                          "amount": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "product_id",
+                          "label_applied",
+                          "quantity",
+                          "delivered_quantity",
+                          "reference_price",
+                          "unit_price_applied",
+                          "amount"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "customer_relationship_id",
+                    "placed_by_party",
+                    "delivery_address_applied",
+                    "total_amount",
+                    "delivery_cost",
+                    "status",
+                    "delivered_at",
+                    "created_at",
+                    "desired_delivery_date",
+                    "cancelled_by_party",
+                    "cancelled_at",
+                    "cancellation_reason",
+                    "parent_order_id",
+                    "customer_note",
+                    "supplier_note",
+                    "lines"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body (reason too long) or order id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The role may not cancel purchases",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a member, or order outside the customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_TRANSITION (left, delivered or cancelled) or conflicting gesture id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/purchases/{orderId}/cancel": {
+      "post": {
+        "tags": [
+          "order"
+        ],
+        "summary": "A manager cancels an order of the business before departure (ORD-017)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "orderId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The CANCELLED order, customer view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "customer_relationship_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "placed_by_party": {
+                      "type": "string",
+                      "enum": [
+                        "CUSTOMER",
+                        "SUPPLIER"
+                      ]
+                    },
+                    "delivery_address_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "total_amount": {
+                      "type": "integer"
+                    },
+                    "delivery_cost": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "delivered_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "desired_delivery_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cancelled_by_party": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cancelled_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "cancellation_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "parent_order_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "customer_note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "supplier_note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "product_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "label_applied": {
+                            "type": "string"
+                          },
+                          "quantity": {
+                            "type": "string"
+                          },
+                          "delivered_quantity": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "reference_price": {
+                            "type": "integer"
+                          },
+                          "unit_price_applied": {
+                            "type": "integer"
+                          },
+                          "amount": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "product_id",
+                          "label_applied",
+                          "quantity",
+                          "delivered_quantity",
+                          "reference_price",
+                          "unit_price_applied",
+                          "amount"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "customer_relationship_id",
+                    "placed_by_party",
+                    "delivery_address_applied",
+                    "total_amount",
+                    "delivery_cost",
+                    "status",
+                    "delivered_at",
+                    "created_at",
+                    "desired_delivery_date",
+                    "cancelled_by_party",
+                    "cancelled_at",
+                    "cancellation_reason",
+                    "parent_order_id",
+                    "customer_note",
+                    "supplier_note",
+                    "lines"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body (reason too long) or order id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The role may not cancel purchases",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a member, or order outside the customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_TRANSITION (left, delivered or cancelled) or conflicting gesture id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/orders/{orderId}/accept": {
       "post": {
         "tags": [

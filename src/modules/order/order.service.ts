@@ -9,6 +9,7 @@ import {
   findSupplierRelationshipLocked,
 } from '../relationship/relationship.repository.js';
 import { lineAmountOf, orderTotal } from './order.calculations.js';
+import type { Role } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import {
   findExistingLineIds,
@@ -17,6 +18,7 @@ import {
   insertPendingOrder,
   isRegisteredPerson,
   listOrderTeamIds,
+  lockCustomerOrder,
   lockSupplierOrder,
   replaceOrderLines,
   runInTransaction,
@@ -28,6 +30,7 @@ import {
 } from './order.repository.js';
 import type {
   AcceptInput,
+  CancelAsCustomerInput,
   CancelInput,
   EditOrderInput,
   EnterOrderInput,
@@ -421,6 +424,75 @@ export function cancelOrderAsSupplier(
     await notifyCustomerOfStatus(tx, order, actor.organizationId, CANCELLED_CONTENT);
 
     return projectOrderForSupplier(order, actor.role);
+  });
+}
+
+const CUSTOMER_CANCELLED_CONTENT = {
+  FR: 'Une commande a été annulée par le client.',
+  EN: 'An order was cancelled by the customer.',
+} as const;
+
+/**
+ * The customer cancels a PENDING or CONFIRMED order before it leaves (ORD-017, CM-12, C-16). One
+ * transaction (v5.0.0-2.3.3): the order is selected through the caller's own customer relationship,
+ * the person's or, for a purchase, the organization's, whoever entered it (an order of another
+ * customer is 404, v5.0.0-8.2.2); then the conditional update of `transitionOrder` (v5.0.0-2.3.1)
+ * records the CUSTOMER party, the caller, the time and the optional reason. IN_DELIVERY, DELIVERED
+ * and CANCELLED orders answer 409. The supplier's OWNER, MANAGERs and SELLERs are notified
+ * `order.status_changed`. Replays with the same `id` are answered by `idempotent()`.
+ *
+ * @param customer - The caller, from the session; `organizationId` and `role` come from
+ * `loadActor` for a purchase, where only a MANAGER or OWNER may cancel.
+ * @param orderId - Order from the path.
+ * @param input - Validated body: gesture id and optional reason.
+ * @returns The CANCELLED order, customer view.
+ * @throws 403 `FORBIDDEN` (organization role other than MANAGER or OWNER); 404 `NOT_FOUND` (order
+ * outside the caller's relationships); 409 `INVALID_TRANSITION` (IN_DELIVERY, DELIVERED or
+ * CANCELLED).
+ */
+export function cancelOrderAsCustomer(
+  customer: { personId: string; organizationId?: string; role?: Role },
+  orderId: string,
+  input: CancelAsCustomerInput
+): Promise<CustomerOrderView> {
+  if (
+    customer.organizationId !== undefined &&
+    customer.role !== 'OWNER' &&
+    customer.role !== 'MANAGER'
+  ) {
+    return Promise.reject(httpError(403, 'FORBIDDEN', 'Permission denied'));
+  }
+  return runInTransaction(async (tx) => {
+    const found = await lockCustomerOrder(tx, orderId, customer);
+    if (!found) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+
+    await transitionOrder(
+      tx,
+      orderId,
+      'CANCELLED',
+      { personId: customer.personId, party: 'CUSTOMER' },
+      { cancellationReason: input.reason }
+    );
+
+    const order = await findOrderToAccept(tx, orderId);
+    if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+
+    for (const recipientId of await listOrderTeamIds(tx, found.supplierOrganizationId)) {
+      const language = await recipientLanguage(recipientId, tx);
+      await notify(
+        {
+          recipientId,
+          organizationId: found.supplierOrganizationId,
+          sourceEvent: 'order.status_changed',
+          content:
+            language === 'EN' ? CUSTOMER_CANCELLED_CONTENT.EN : CUSTOMER_CANCELLED_CONTENT.FR,
+          related: { type: 'order', id: orderId },
+        },
+        tx
+      );
+    }
+
+    return projectOrderForCustomer(order);
   });
 }
 

@@ -5,6 +5,7 @@ import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
   acceptOrderSchema,
+  cancelOrderAsCustomerSchema,
   cancelOrderSchema,
   editOrderSchema,
   enterOrderSchema,
@@ -16,6 +17,7 @@ import {
 } from './order.schemas.js';
 import {
   acceptOrder,
+  cancelOrderAsCustomer,
   cancelOrderAsSupplier,
   editOrder,
   enterOrder,
@@ -49,6 +51,32 @@ orderRoutes.post(
   }
 );
 
+// POST /api/v1/orders/:orderId/cancel - the customer cancels a PENDING or CONFIRMED order of their
+// own relationship; the customer is always the caller. The status condition is the service's
+// conditional update (409 once the order has left).
+orderRoutes.post(
+  '/:orderId/cancel',
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = cancelOrderAsCustomerSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    cancelOrderAsCustomer(
+      { personId: req.user!.id },
+      orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      cancelOrderAsCustomerSchema.parse(req.body)
+    )
+      .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
 /** Purchase routes of one organization, mounted at `/organizations/:organizationId`. */
 export const purchaseRoutes = Router({ mergeParams: true });
 
@@ -70,6 +98,36 @@ purchaseRoutes.post(
   (req, res, next) => {
     placePurchase(req.actor!, placePurchaseSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/purchases/:orderId/cancel - a manager cancels an
+// order of the business before it leaves; the organization is the path's (a non-member gets 404),
+// the order is selected through the organization's own relationship.
+purchaseRoutes.post(
+  '/purchases/:orderId/cancel',
+  authMiddleware,
+  loadActor,
+  requireAbility('order_from_supplier', 'CustomerRelationship'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = cancelOrderAsCustomerSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    const actor = req.actor!;
+    cancelOrderAsCustomer(
+      { personId: actor.personId, organizationId: actor.organizationId, role: actor.role },
+      orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      cancelOrderAsCustomerSchema.parse(req.body)
+    )
+      .then((view) => res.status(200).json(view))
       .catch(next);
   }
 );

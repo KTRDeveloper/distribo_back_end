@@ -1,4 +1,4 @@
-import type { Order, OrderStatus, Prisma } from '@prisma/client';
+import { Prisma, type Order, type OrderStatus } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import type { OrderWithLines } from './order.views.js';
 
@@ -226,6 +226,37 @@ export async function lockSupplierOrder(
     FOR UPDATE OF o
   `;
   return rows.length === 1;
+}
+
+/**
+ * Locks one order of the caller's own customer relationship until the transaction ends, so a
+ * parallel cancellation waits for this one (v5.0.0-2.3.4). The order is selected through the
+ * relationship whose customer is the caller's person, or the caller's organization when
+ * `organizationId` is given, never through an id from the request (v5.0.0-8.2.2).
+ *
+ * @param customer the caller, from the session; `organizationId` set means a business purchase
+ * @returns the supplier organization of the order, or null when the order is not the caller's
+ */
+export async function lockCustomerOrder(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  customer: { personId: string; organizationId?: string }
+): Promise<{ supplierOrganizationId: string } | null> {
+  const rows = await tx.$queryRaw<Array<{ supplier_organization_id: string }>>`
+    SELECT r.supplier_organization_id
+    FROM orders o
+    JOIN customer_relationships r ON r.id = o.customer_relationship_id
+    WHERE o.id = ${orderId}::uuid
+      AND o.deleted_at IS NULL
+      AND ${
+        customer.organizationId === undefined
+          ? Prisma.sql`r.customer_person_id = ${customer.personId}::uuid`
+          : Prisma.sql`r.customer_organization_id = ${customer.organizationId}::uuid`
+      }
+    FOR UPDATE OF o
+  `;
+  const row = rows[0];
+  return row ? { supplierOrganizationId: row.supplier_organization_id } : null;
 }
 
 /** An order with its undeleted lines (by id) and the customer person of its relationship. */
