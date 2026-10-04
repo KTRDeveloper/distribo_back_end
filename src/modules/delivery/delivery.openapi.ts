@@ -3,6 +3,7 @@ import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
   assignDeliverySchema,
+  deliverSchema,
   failDeliverySchema,
   departSchema,
   mineQuerySchema,
@@ -210,6 +211,63 @@ openApiRegistry.registerPath({
     409: {
       description:
         'INVALID_TRANSITION (not departed, already arrived or failed) or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+const deliveredEntrySchema = z.object({
+  id: z.string().uuid(),
+  kind: z.enum(['SALE', 'PAYMENT']),
+  amount: z.number().int(),
+  mode: z.enum(['CASH', 'MOBILE_MONEY']).nullable(),
+  order_id: z.string().uuid().nullable(),
+  occurred_at: z.string().datetime(),
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/orders/{orderId}/deliver',
+  tags: ['delivery'],
+  summary: '"Commande livrée": deliver a whole order and record the sale and the payment (DLV-007)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: deliverSchema } } },
+  },
+  responses: {
+    200: {
+      description:
+        'The delivered order, the SALE of its total and the PAYMENT of the collected amount (null when nothing was collected)',
+      content: {
+        'application/json': {
+          schema: z.object({
+            order: z.object({
+              id: z.string().uuid(),
+              status: z.literal('DELIVERED'),
+              total_amount: z.number().int(),
+              delivered_at: z.string().datetime().nullable(),
+            }),
+            sale: deliveredEntrySchema,
+            payment: deliveredEntrySchema.nullable(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'VALIDATION_ERROR (body or path, or a collection above 0 without mode)',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not deliver orders', content: errorContent },
+    404: {
+      description:
+        'Not a member, order outside the business, or a DRIVER on an order of another driver',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'INVALID_TRANSITION (status does not fit the role), CREDIT_INSUFFICIENT (details.min_collect) or conflicting gesture id',
       content: errorContent,
     },
   },

@@ -6,6 +6,7 @@ import { requireAbility } from '../../middleware/require-ability.js';
 import {
   assignDeliverySchema,
   assignParamSchema,
+  deliverSchema,
   deliveryParamSchema,
   departSchema,
   failDeliverySchema,
@@ -14,6 +15,7 @@ import {
 } from './delivery.schemas.js';
 import {
   assignDelivery,
+  deliverOrder,
   departWithOrder,
   failDelivery,
   listMyDeliveries,
@@ -124,6 +126,36 @@ deliveryRoutes.post(
       req.actor!,
       deliveryParamSchema.parse({ deliveryId: req.params.deliveryId }).deliveryId,
       failDeliverySchema.parse(req.body)
+    )
+      .then((result) => res.status(200).json(result))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/orders/:orderId/deliver - "Commande livrée": a DRIVER
+// (or above) closes an order, recording the sale and the payment collected. The caller is the
+// recorder and the sale amount is the order total computed by the server, never body fields.
+// Order status, ownership of the delivery, credit and race checks are the service's.
+deliveryRoutes.post(
+  '/orders/:orderId/deliver',
+  authMiddleware,
+  loadActor,
+  requireAbility('deliver', 'Order'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = assignParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = deliverSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    deliverOrder(
+      req.actor!,
+      assignParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      deliverSchema.parse(req.body)
     )
       .then((result) => res.status(200).json(result))
       .catch(next);

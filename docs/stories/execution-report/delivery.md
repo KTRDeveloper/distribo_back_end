@@ -262,3 +262,42 @@ Also in this run: relationship, admin, catalog, order, finance.
 
 **Evidence:** story tests 23/23; full suite 2780/2780, failing: none; typecheck clean; lint 0 errors, 65 warnings (pre-existing security/detect-non-literal-fs-filename)
 <!-- end DLV-006 -->
+
+<!-- begin DLV-007 -->
+## DLV-007 — "Commande livrée": deliver a whole order and record the sale and the payment
+
+- Filed: 2026-10-04 23:23 UTC
+- Status: **done**: deliver route, credit rule under relationship lock; error details support added to httpError
+- Risk: high · story: [DLV-007-commande-livree-deliver-a-whole-order-and.md](../modules/delivery/DLV-007-commande-livree-deliver-a-whole-order-and.md)
+- Agent: 107,529 tokens, 31 tool uses, 7 min 16 s
+
+### Agent report
+
+**Summary:** Added POST .../orders/{orderId}/deliver (deliverOrder): one transaction, order then relationship row locked, credit rule, SALE and optional PAYMENT, customer notified.
+
+**Decisions:**
+- `details.min_collect` needed error details: `httpError` got an optional 4th `details` arg and `error-handler.ts` emits it (backward compatible; both files not listed in the story).
+- A collection above 0 needs `mode` and `payment_entry_id` (400 otherwise); with 0 both are ignored. `payment_entry_id` must differ from `sale_entry_id`.
+- SELLER or above deliver only CONFIRMED orders (story text); an IN_DELIVERY order for them is 409 INVALID_TRANSITION. DRIVER only IN_DELIVERY with own departed delivery (another's is 404).
+- Order lock is taken before the relationship lock (merged relation resolved to the surviving row); `viaSync` is only passed through to `transitionOrder`.
+- No rule invented for a collection above the order total (overpayment is allowed, balance goes negative).
+
+**Tests added beyond the story:**
+- `deliver.test.ts` › notifies the customer order.status_changed: AC text in Context.
+- `deliver.test.ts` › lets a SELLER / the OWNER deliver a CONFIRMED order: Context rule; passed at once.
+- `deliver.test.ts` › null limit = no limit, limit 0 requires the whole total: CM-15.
+- `deliver.test.ts` › answers 404 to a member of another business / unknown order, 401 without token: CONVENTIONS scope rules.
+- `deliver.test.ts` › same id twice creates one sale and one payment: idempotent() rule.
+- `deliver.test.ts` › writes nothing when a ledger entry id already exists: v5.0.0-2.3.3 single transaction.
+- `deliver.test.ts` › 400 for kind, amount, negative, fractional, unknown mode: AB-2 extension.
+
+**Other additions:**
+- Catalog test path and regenerated `openapi/openapi.json` (CONVENTIONS rule); `per-001` lists only auth routes, so nothing added.
+
+**Evidence:** story tests 30/30; full suite 2810/2810, failing: none; typecheck clean; lint 0 errors, 65 warnings (all pre-existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- A reused ledger entry id (sale_entry_id or payment_entry_id of an earlier gesture) surfaces as a 500 from the primary-key violation, not a 409.
+- Overpayment (collected above total) and SELLER+ delivering an IN_DELIVERY order are unspecified: confirm the intended rule.
+- Delivery imports `resolveMergedRelation` from relationship.repository, which is not in the delivery contracts list.
+<!-- end DLV-007 -->

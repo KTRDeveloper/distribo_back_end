@@ -10,6 +10,10 @@ function toValidationDetails(err: ZodError): ValidationDetail[] {
   return err.issues.map((i) => ({ path: [...i.path], code: i.code }));
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * Standard error response interface
  */
@@ -17,7 +21,7 @@ export interface ErrorResponse {
   error: {
     message: string;
     code?: string;
-    details?: ValidationDetail[];
+    details?: ValidationDetail[] | Record<string, unknown>;
     requestId?: string;
   };
 }
@@ -55,6 +59,7 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
       error: {
         message: err.message,
         code: 'code' in err && typeof err.code === 'string' ? err.code : undefined,
+        details: 'details' in err && isPlainObject(err.details) ? err.details : undefined,
         requestId,
       },
     } satisfies ErrorResponse);

@@ -51,3 +51,43 @@ export const failDeliverySchema = z
   .strict();
 
 export type FailDeliveryInput = z.infer<typeof failDeliverySchema>;
+
+/** Upper bound of an amount collected at delivery, in XAF: explicit maximum (ASVS v5.0.0-2.2.1). */
+const COLLECTED_MAX = 999_999_999_999;
+
+/**
+ * Strict body of the deliver gesture (DLV-007): the gesture id, the amount collected, its mode and
+ * the ids of the ledger entries the gesture creates. The sale amount, a kind, the order total,
+ * the recorder and times are never accepted (CM-13; ASVS v5.0.0-2.2.1, v5.0.0-15.3.3). A
+ * collection above 0 needs a mode and a payment entry id; with 0 neither is used.
+ */
+export const deliverSchema = z
+  .object({
+    id: uuidV7Schema,
+    collected_amount: z.number().int().min(0).max(COLLECTED_MAX),
+    mode: z.enum(['CASH', 'MOBILE_MONEY']).optional(),
+    sale_entry_id: uuidV7Schema,
+    payment_entry_id: uuidV7Schema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.collected_amount > 0 && value.mode === undefined) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['mode'], message: 'Required' });
+    }
+    if (value.collected_amount > 0 && value.payment_entry_id === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['payment_entry_id'],
+        message: 'Required',
+      });
+    }
+    if (value.payment_entry_id !== undefined && value.payment_entry_id === value.sale_entry_id) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['payment_entry_id'],
+        message: 'Must differ from sale_entry_id',
+      });
+    }
+  });
+
+export type DeliverInput = z.infer<typeof deliverSchema>;

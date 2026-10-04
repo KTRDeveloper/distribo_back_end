@@ -1,4 +1,4 @@
-import type { Delivery, Order, OrderLine } from '@prisma/client';
+import type { Delivery, LedgerEntry, Order, OrderLine } from '@prisma/client';
 import {
   projectForDriver,
   type DriverRelationshipView,
@@ -98,5 +98,43 @@ export function projectFailedDelivery(delivery: Delivery): FailedDeliveryView {
     ...projectDelivery(delivery),
     failed_at: iso(delivery.failedAt),
     failure_reason: delivery.failureReason,
+  };
+}
+
+export type DeliveredOrderView = {
+  id: string;
+  status: string;
+  total_amount: number;
+  delivered_at: string | null;
+};
+
+export type DeliveredEntryView = {
+  id: string;
+  kind: string;
+  amount: number;
+  mode: string | null;
+  order_id: string | null;
+  occurred_at: string;
+};
+
+/** The order fields the closing gesture answers with, listed one by one (v5.0.0-15.3.1). */
+export function projectDeliveredOrder(order: Order): DeliveredOrderView {
+  return {
+    id: order.id,
+    status: order.status,
+    total_amount: Number(order.totalAmount),
+    delivered_at: iso(order.deliveredAt),
+  };
+}
+
+/** The ledger entry fields the closing gesture answers with, listed one by one (v5.0.0-15.3.1). */
+export function projectDeliveredEntry(entry: LedgerEntry): DeliveredEntryView {
+  return {
+    id: entry.id,
+    kind: entry.kind,
+    amount: Number(entry.amount),
+    mode: entry.mode,
+    order_id: entry.orderId,
+    occurred_at: entry.occurredAt.toISOString(),
   };
 }

@@ -1,5 +1,8 @@
 import { httpError } from '../../lib/http-error.js';
 import type { Actor } from '../../types/express.js';
+import { parseQuantity } from '../../shared/money.js';
+import { appendLedgerEntry } from '../finance/ledger.service.js';
+import { lineAmountOf, orderTotal } from '../order/order.calculations.js';
 import { transitionOrder } from '../order/order.state.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
@@ -8,28 +11,39 @@ import {
   insertDelivery,
   insertDepartedDelivery,
   isActiveCollaborator,
+  listLiveLines,
   listOwnDeliveries,
   listOwnerAndManagerIds,
   listToDeliverOrders,
   lockDeliveryToFail,
   lockOrderToAssign,
+  lockOrderToDeliver,
+  lockRelationshipForCredit,
+  markArrived,
   markDeparted,
   markFailed,
   reassignDelivery,
   runInTransaction,
+  setLineDelivered,
+  setOrderTotal,
 } from './delivery.repository.js';
 import type {
   AssignDeliveryInput,
+  DeliverInput,
   DepartInput,
   FailDeliveryInput,
   MineQuery,
   PageQuery,
 } from './delivery.schemas.js';
 import {
+  projectDeliveredEntry,
+  projectDeliveredOrder,
   projectDelivery,
   projectDeliveryForDriver,
   projectFailedDelivery,
   projectOrderForDriver,
+  type DeliveredEntryView,
+  type DeliveredOrderView,
   type DeliveryView,
   type FailedDeliveryView,
   type MyDeliveryItem,
@@ -278,5 +292,152 @@ export function failDelivery(
       );
     }
     return { delivery: projectFailedDelivery(delivery), order_status: 'CONFIRMED' };
+  });
+}
+
+const DELIVERED_CONTENT = {
+  FR: 'Votre commande a été livrée.',
+  EN: 'Your order has been delivered.',
+} as const;
+
+export type DeliverResult = {
+  order: DeliveredOrderView;
+  sale: DeliveredEntryView;
+  payment: DeliveredEntryView | null;
+};
+
+/**
+ * The one gesture that closes an order, "Commande livrée" (DLV-007, CM-13, CM-15). One transaction
+ * (v5.0.0-2.3.3): the order of the caller's organization is locked (another business's order is
+ * 404, v5.0.0-8.2.2), then its customer relationship row is locked before the credit check, so
+ * two deliveries for one customer cannot both pass it (v5.0.0-2.3.4, CWE-362). A DRIVER needs the
+ * order IN_DELIVERY with a departed delivery of their own (another's is 404; any other status is
+ * 409); a SELLER or above delivers a CONFIRMED order in the shop. Every line gets
+ * `delivered_quantity` = `quantity`, line amounts and the order total are recomputed by the
+ * server, and the SALE entry is the order total: the phone never sends it (v5.0.0-2.2.1). When
+ * `collected_amount` is above 0 a PAYMENT entry of that amount is written with the mode. The
+ * credit rule `balance + total - collected <= credit_limit` (null: no limit) is checked before
+ * any write; a refusal names the smallest allowed collection and rolls everything back. Both
+ * entries are recorded by the caller. The customer is notified `order.status_changed`. Replays
+ * with the same `id` are answered by `idempotent()`.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked `deliver Order`.
+ * @param orderId - Order from the path.
+ * @param input - Validated body: gesture id, collected amount, mode and entry ids.
+ * @param options - `viaSync` lets `transitionOrder` apply the sync judgment (delivery wins).
+ * @returns The delivered order, the sale and the payment (null when nothing was collected).
+ * @throws 404 `NOT_FOUND` (order outside the business, or a DRIVER's order of another driver); 409
+ * `INVALID_TRANSITION` (status does not fit the caller's role); 409 `CREDIT_INSUFFICIENT` with
+ * `details.min_collect`.
+ */
+export function deliverOrder(
+  actor: Actor,
+  orderId: string,
+  input: DeliverInput,
+  options: { viaSync?: boolean } = {}
+): Promise<DeliverResult> {
+  return runInTransaction(async (tx) => {
+    const order = await lockOrderToDeliver(tx, orderId, actor.organizationId);
+    if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+
+    const isDriver = actor.role === 'DRIVER';
+    if (order.status !== (isDriver ? 'IN_DELIVERY' : 'CONFIRMED')) {
+      throw httpError(409, 'INVALID_TRANSITION', `Order cannot be delivered from ${order.status}.`);
+    }
+    const inProgress = isDriver ? await findDeliveryInProgress(tx, orderId) : null;
+    if (isDriver && (!inProgress?.departedAt || inProgress.assignedToId !== actor.personId)) {
+      throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    }
+
+    const relationship = await lockRelationshipForCredit(tx, order.customerRelationshipId);
+    if (!relationship) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+
+    const lines = await listLiveLines(tx, orderId);
+    const delivered = lines.map((line) => {
+      const quantityMilli = parseQuantity(line.quantity.toFixed(3));
+      const amount = lineAmountOf({
+        quantityMilli,
+        deliveredQuantityMilli: quantityMilli,
+        unitPriceApplied: line.unitPriceApplied,
+      });
+      return { line, amount };
+    });
+    const total = orderTotal(
+      delivered.map(({ amount }) => amount),
+      order.deliveryCost
+    );
+
+    const collected = BigInt(input.collected_amount);
+    if (
+      relationship.creditLimit !== null &&
+      relationship.balance + total - collected > relationship.creditLimit
+    ) {
+      const minCollect = relationship.balance + total - relationship.creditLimit;
+      throw httpError(409, 'CREDIT_INSUFFICIENT', 'The credit limit would be exceeded.', {
+        min_collect: Number(minCollect),
+      });
+    }
+
+    for (const { line, amount } of delivered) {
+      await setLineDelivered(tx, line.id, line.quantity, amount);
+    }
+    await setOrderTotal(tx, orderId, total);
+    const closed = await transitionOrder(
+      tx,
+      orderId,
+      'DELIVERED',
+      { personId: actor.personId, party: 'SUPPLIER' },
+      {},
+      { viaSync: options.viaSync }
+    );
+    if (inProgress && !(await markArrived(tx, inProgress.id, closed.deliveredAt ?? new Date()))) {
+      throw httpError(409, 'INVALID_TRANSITION', 'The delivery is not in progress.');
+    }
+
+    const occurredAt = new Date();
+    const sale = await appendLedgerEntry(tx, {
+      id: input.sale_entry_id,
+      relationshipId: relationship.id,
+      kind: 'SALE',
+      amount: closed.totalAmount,
+      orderId,
+      recordedById: actor.personId,
+      organizationId: actor.organizationId,
+      occurredAt,
+    });
+    const payment =
+      collected > 0n && input.mode !== undefined && input.payment_entry_id !== undefined
+        ? await appendLedgerEntry(tx, {
+            id: input.payment_entry_id,
+            relationshipId: relationship.id,
+            kind: 'PAYMENT',
+            amount: collected,
+            mode: input.mode,
+            orderId,
+            recordedById: actor.personId,
+            organizationId: actor.organizationId,
+            occurredAt,
+          })
+        : null;
+
+    const recipientId = await findRegisteredCustomerRecipient(tx, orderId);
+    if (recipientId !== null) {
+      const language = await recipientLanguage(recipientId, tx);
+      await notify(
+        {
+          recipientId,
+          organizationId: actor.organizationId,
+          sourceEvent: 'order.status_changed',
+          content: language === 'EN' ? DELIVERED_CONTENT.EN : DELIVERED_CONTENT.FR,
+          related: { type: 'order', id: orderId },
+        },
+        tx
+      );
+    }
+    return {
+      order: projectDeliveredOrder(closed),
+      sale: projectDeliveredEntry(sale),
+      payment: payment ? projectDeliveredEntry(payment) : null,
+    };
   });
 }

@@ -1,6 +1,7 @@
 import type { Delivery, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import { resolveMergedRelation } from '../relationship/relationship.repository.js';
 import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
 import type { DeliveryForDriver, OrderForDriver } from './delivery.views.js';
 
@@ -345,4 +346,113 @@ export async function listOwnerAndManagerIds(
     orderBy: { personId: 'asc' },
   });
   return found.map((collaboration) => collaboration.personId);
+}
+
+/** The fields of an order the deliver gesture checks, read under the order lock. */
+export type OrderToDeliver = {
+  status: string;
+  customerRelationshipId: string;
+  deliveryCost: bigint;
+};
+
+/**
+ * Locks one order of the supplier organization until the transaction ends, so two parallel
+ * closings, departures or failures of the order wait for each other (v5.0.0-2.3.4). The order is
+ * selected through the relationship of the caller's organization, never through an organization
+ * sent by the client (v5.0.0-8.2.2).
+ *
+ * @returns the order fields, or null when the order is outside the supplier
+ */
+export async function lockOrderToDeliver(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  supplierOrganizationId: string
+): Promise<OrderToDeliver | null> {
+  const rows = await tx.$queryRaw<
+    Array<{ status: string; customer_relationship_id: string; delivery_cost: bigint }>
+  >`
+    SELECT o.status::text AS status, o.customer_relationship_id, o.delivery_cost
+    FROM orders o
+    JOIN customer_relationships r ON r.id = o.customer_relationship_id
+    WHERE o.id = ${orderId}::uuid
+      AND r.supplier_organization_id = ${supplierOrganizationId}::uuid
+      AND o.deleted_at IS NULL
+    FOR UPDATE OF o
+  `;
+  const row = rows[0];
+  return row
+    ? {
+        status: row.status,
+        customerRelationshipId: row.customer_relationship_id,
+        deliveryCost: row.delivery_cost,
+      }
+    : null;
+}
+
+/**
+ * Locks the live relationship an order belongs to (following a merge to the surviving row) until
+ * the transaction ends, then reads its balance and credit limit. Two deliveries of one customer
+ * wait for each other here, so the second sees the first's balance (v5.0.0-2.3.4, CWE-362).
+ *
+ * @returns the relationship id the ledger writes on, its balance and its limit (null: no limit),
+ * or null when the relationship is deleted
+ */
+export async function lockRelationshipForCredit(
+  tx: Prisma.TransactionClient,
+  relationshipId: string
+): Promise<{ id: string; balance: bigint; creditLimit: bigint | null } | null> {
+  const id = await resolveMergedRelation(relationshipId, tx);
+  const rows = await tx.$queryRaw<Array<{ balance: bigint; credit_limit: bigint | null }>>`
+    SELECT balance, credit_limit
+    FROM customer_relationships
+    WHERE id = ${id}::uuid AND deleted_at IS NULL
+    FOR UPDATE
+  `;
+  const row = rows[0];
+  return row ? { id, balance: row.balance, creditLimit: row.credit_limit } : null;
+}
+
+/** The live lines of an order, in a stable order. */
+export function listLiveLines(tx: Prisma.TransactionClient, orderId: string) {
+  return tx.orderLine.findMany({
+    where: { orderId, deletedAt: null },
+    orderBy: { id: 'asc' },
+  });
+}
+
+/** Sets a line's delivered quantity and its amount, computed by the caller (CM-14). */
+export async function setLineDelivered(
+  tx: Prisma.TransactionClient,
+  id: string,
+  deliveredQuantity: Prisma.Decimal,
+  amount: bigint
+): Promise<void> {
+  await tx.orderLine.update({ where: { id }, data: { deliveredQuantity, amount } });
+}
+
+/** Sets the order total, computed by the server from the line amounts (C-19). */
+export async function setOrderTotal(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  totalAmount: bigint
+): Promise<void> {
+  await tx.order.update({ where: { id: orderId }, data: { totalAmount } });
+}
+
+/**
+ * Marks a delivery in progress as arrived, conditionally on it being neither arrived nor failed
+ * (v5.0.0-2.3.1).
+ *
+ * @returns true when the delivery was updated
+ */
+export async function markArrived(
+  tx: Prisma.TransactionClient,
+  id: string,
+  arrivedAt: Date
+): Promise<boolean> {
+  const { count } = await tx.delivery.updateMany({
+    where: { id, arrivedAt: null, failedAt: null, deletedAt: null },
+    data: { arrivedAt },
+  });
+  return count === 1;
 }
