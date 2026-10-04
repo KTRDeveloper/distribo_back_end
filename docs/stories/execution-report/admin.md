@@ -299,34 +299,40 @@ Also in this run: relationship, catalog, order, finance, delivery.
 <!-- begin ADM-008 -->
 ## ADM-008 — Administrator reinstalls the authenticator through the recovery email
 
-- Filed: 2026-10-04 08:12 UTC
-- Status: **blocked**: Source event admin.2fa_recovered breaks the NTF-002 grammar (segment must start with a letter, DB CHECK too): which name should be used, e.g. admin.totp_recovered?
+- Filed: 2026-10-04 12:10 UTC
+- Status: **done**: totp recovery request/confirm, RECOVER_2FA journal and alerts; suite 1468 passed
 - Risk: high · story: [ADM-008-administrator-reinstalls-the-authenticator.md](../modules/admin/ADM-008-administrator-reinstalls-the-authenticator.md)
-- Agent: 62,624 tokens, 19 tool uses, 3 min 27 s
+- Agent: 75,221 tokens, 29 tool uses, 28 min 10 s
 
 ### Agent report
 
-**Summary:** Blocked: the story's notification event `admin.2fa_recovered` is refused by `notify` (NTF-002 grammar `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`, also a DB CHECK); the segment `2fa_recovered` starts with a digit.
+**Summary:** Added public totp-recovery request/confirm routes: password check, emailed TOTP_RECOVERY code, new secret, RECOVER_2FA row and alerts in one transaction.
 
 **Decisions:**
-- Question for a human: which `source_event` name to use (for example `admin.totp_recovered`)? I did not pick one; the working tree keeps the story's name, so 5 of 19 tests fail on it.
-- With `admin.totp_recovered` swapped in temporarily, all 19 story tests passed; revert is one sed on service and test.
-- `requestTotpRecovery` lets a real 429 OTP_RATE_LIMITED from `issueCode` through (answer "always 202" otherwise); only reachable after a right password and a real send.
-- Request resets the `admin:<phone>` counter once the password is right (same answer in every branch); confirm resets it only on success.
-- Notification content is exactly "Ce n'était pas vous ? Bloquer"; one notification per person (the person's devices read the same row), other super admins deduplicated.
+- Counter: both routes take one attempt from the `admin:<phone>` counter and never clear it, so recovery calls cannot reset login attempts (a password holder could otherwise brute-force TOTP).
+- Request with a right password: always 202, silently nothing sent for non-admin, suspended, or no recovery email; wrong password or unknown number gives 401.
+- Confirm: password checked before the code (a wrong password burns no code attempt); ineligible person, wrong, expired, consumed or foreign code all give 400 OTP_INVALID.
+- Alert text: the story's fixed French string for every recipient and language; one notification per person (admin plus other live SUPER_ADMINs, deduplicated).
+- OTP_RATE_LIMITED from issueCode stays 429 (visible only to a password holder).
 
 **Tests added beyond the story:**
-- `tests/integration/admin/totp-recovery.test.ts` › lockout after 5 wrong passwords: shares the sign-in counter, 429 LOGIN_LOCKED (AC-3, ADM-006 counter)
-- same file › another administrator's code with a shared address: 400 OTP_INVALID (C-33)
-- same file › right code with wrong password: 401, code stays usable; removed admin and unknown number give no code; unknown fields refused
+- `tests/integration/admin/totp-recovery.test.ts` › unknown number: 401 like a wrong password, no code (AC-3 wording); passed at once after implementation
+- same file › suspended administrator: 202, no code (C-33 live administrator)
+- same file › expired code: OTP_INVALID (C-33)
+- same file › reused code: second confirm 400, secret unchanged, one journal row (C-33, AC-5)
+- same file › right code with wrong password: 401, unchanged, no journal (AB-1)
+- same file › another person's code refused (C-33 code bound to the person)
+- same file › 5 failures lock: 429 LOGIN_LOCKED (Errors list, ADM-006 counter)
+- same file › unknown fields: 400 VALIDATION_ERROR (Conventions)
 
 **Other additions:**
-- catalog.test.ts: two ADM-008 paths (required by CONVENTIONS); openapi entries; repository helpers `inTransaction`, `replaceTotpSecret`, `listOtherSuperAdminPersonIds`, `findRecoveryEmail`.
+- `tests/integration/api-docs/catalog.test.ts`: the two new paths (CONVENTIONS rule; per-001 lists only /auth paths, no change).
+- Both routes registered in `admin.openapi.ts`.
 
-**Evidence:** story tests 14/19 with the story's event name (19/19 with a grammar-valid name); full suite, typecheck and lint not run (blocked)
+**Evidence:** story tests 16/16; full suite 1468/1468, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
 
 **Follow-ups:**
-- Decide the event name (or amend NTF-002 grammar / the story), then rerun; also run typecheck, lint and the full suite.
+- The ADM-006 login route is not in OpenAPI or the catalog; left as is.
 <!-- end ADM-008 -->
 
 <!-- begin ADM-009 -->

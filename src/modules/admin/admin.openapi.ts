@@ -14,6 +14,8 @@ import {
   removeAdministratorSchema,
   reportIdParamsSchema,
   resolveReportSchema,
+  totpRecoveryConfirmSchema,
+  totpRecoveryRequestSchema,
 } from './admin.schemas.js';
 
 const appointedResponseSchema = z.object({
@@ -30,6 +32,37 @@ const appointedResponseSchema = z.object({
 const err = (description: string) => ({
   description,
   content: { 'application/json': { schema: errorResponseSchema } },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/auth/totp-recovery/request',
+  tags: ['admin'],
+  summary: 'Send a recovery code to the administrator recovery email (public, password checked)',
+  request: { body: { content: { 'application/json': { schema: totpRecoveryRequestSchema } } } },
+  responses: {
+    202: { description: 'Accepted whether or not a code was sent' },
+    400: err('VALIDATION_ERROR'),
+    401: err('INVALID_CREDENTIALS'),
+    429: err('LOGIN_LOCKED or OTP_RATE_LIMITED'),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/auth/totp-recovery/confirm',
+  tags: ['admin'],
+  summary: 'Install a new authenticator key with the recovery code (public, no session issued)',
+  request: { body: { content: { 'application/json': { schema: totpRecoveryConfirmSchema } } } },
+  responses: {
+    200: {
+      description: 'New key installed; the otpauth_uri is shown only in this response',
+      content: { 'application/json': { schema: z.object({ otpauth_uri: z.string() }) } },
+    },
+    400: err('VALIDATION_ERROR or OTP_INVALID'),
+    401: err('INVALID_CREDENTIALS'),
+    429: err('LOGIN_LOCKED or OTP_LOCKED'),
+  },
 });
 
 openApiRegistry.registerPath({

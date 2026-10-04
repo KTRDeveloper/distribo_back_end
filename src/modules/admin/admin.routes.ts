@@ -11,16 +11,20 @@ import {
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
   removeAdministratorSchema,
+  totpRecoveryConfirmSchema,
+  totpRecoveryRequestSchema,
 } from './admin.schemas.js';
 import {
   adminLogin,
   appointAdministrator,
   confirmRecoveryEmail,
+  confirmTotpRecovery,
   listAdminActions,
   reactivateOrganization,
   reactivatePerson,
   removeAdministrator,
   requestRecoveryEmail,
+  requestTotpRecovery,
   suspendOrganization,
   suspendPerson,
 } from './admin.service.js';
@@ -40,6 +44,25 @@ adminRoutes.post('/auth/login', (req, res, next) => {
         expires_in: result.expires_in,
         role: result.role,
       });
+    })
+    .catch(next);
+});
+
+// POST /api/v1/admin/auth/totp-recovery/request - public: password checked, then a code goes to the
+// recovery email; the answer is 202 whether or not a code was sent
+adminRoutes.post('/auth/totp-recovery/request', (req, res, next) => {
+  requestTotpRecovery(totpRecoveryRequestSchema.parse(req.body))
+    .then(() => res.status(202).end())
+    .catch(next);
+});
+
+// POST /api/v1/admin/auth/totp-recovery/confirm - public: password and emailed code install a
+// new authenticator key; the URI is shown once, so it is never cached, and no session is issued
+adminRoutes.post('/auth/totp-recovery/confirm', (req, res, next) => {
+  confirmTotpRecovery(totpRecoveryConfirmSchema.parse(req.body))
+    .then((result) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(200).json({ otpauth_uri: result.otpauth_uri });
     })
     .catch(next);
 });

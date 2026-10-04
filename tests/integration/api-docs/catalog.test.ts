@@ -51,6 +51,10 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/admin/recovery-email/request');
     expect(paths).toContain('/api/v1/admin/recovery-email/confirm');
 
+    // ADM-008: authenticator recovery through the recovery email
+    expect(paths).toContain('/api/v1/admin/auth/totp-recovery/request');
+    expect(paths).toContain('/api/v1/admin/auth/totp-recovery/confirm');
+
     // ADM-009: appointing an administrator
     expect(paths).toContain('/api/v1/admin/administrators');
 

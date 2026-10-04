@@ -221,6 +221,44 @@ export async function findLiveAdministrator(
   });
 }
 
+/** The recovery email of a live administrator, or null when none was verified. */
+export async function findRecoveryEmail(administratorId: string): Promise<string | null> {
+  const row = await prisma.administrator.findFirst({
+    where: { id: administratorId, removedAt: null },
+    select: { recoveryEmail: true },
+  });
+  return row?.recoveryEmail ?? null;
+}
+
+/**
+ * Replaces the encrypted TOTP secret of a live administrator.
+ *
+ * @returns false when the row is gone or removed (nothing changed).
+ */
+export async function replaceTotpSecret(
+  tx: Prisma.TransactionClient,
+  administratorId: string,
+  encryptedTotpSecret: string
+): Promise<boolean> {
+  const result = await tx.administrator.updateMany({
+    where: { id: administratorId, removedAt: null },
+    data: { totpSecret: encryptedTotpSecret },
+  });
+  return result.count === 1;
+}
+
+/** Person ids of the live SUPER_ADMIN rows other than `exceptId`. */
+export async function listOtherLiveSuperAdminPersonIds(
+  tx: Prisma.TransactionClient,
+  exceptId: string
+): Promise<string[]> {
+  const rows = await tx.administrator.findMany({
+    where: { role: 'SUPER_ADMIN', removedAt: null, id: { not: exceptId } },
+    select: { personId: true },
+  });
+  return rows.map((row) => row.personId);
+}
+
 /** The person's own email, or null when none is saved. */
 export async function findPersonEmail(personId: string): Promise<string | null> {
   const person = await prisma.person.findUnique({

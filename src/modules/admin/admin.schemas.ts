@@ -14,6 +14,26 @@ export const adminLoginSchema = z
 
 export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 
+/** Body of POST /admin/auth/totp-recovery/request: the account's phone and password; unknown fields are refused. */
+export const totpRecoveryRequestSchema = z
+  .object({
+    phone_number: z.string().min(1).max(32),
+    password: z.string().min(1).max(256),
+  })
+  .strict();
+
+/** Body of POST /admin/auth/totp-recovery/confirm: the same two fields and the 6-digit code received by email. */
+export const totpRecoveryConfirmSchema = z
+  .object({
+    phone_number: z.string().min(1).max(32),
+    password: z.string().min(1).max(256),
+    code: z.string().regex(/^\d{6}$/),
+  })
+  .strict();
+
+export type TotpRecoveryRequestInput = z.infer<typeof totpRecoveryRequestSchema>;
+export type TotpRecoveryConfirmInput = z.infer<typeof totpRecoveryConfirmSchema>;
+
 const recoveryEmail = z.string().trim().toLowerCase().min(3).max(254).email();
 
 /** Body of POST /admin/recovery-email/request: the address to verify; unknown fields are refused. */

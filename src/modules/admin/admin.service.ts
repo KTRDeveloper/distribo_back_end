@@ -29,6 +29,9 @@ import {
   findLiveAdministratorById,
   findLiveAdministratorByPerson,
   findPersonEmail,
+  findRecoveryEmail,
+  listOtherLiveSuperAdminPersonIds,
+  replaceTotpSecret,
   findReportRow,
   findRegisteredPersonByPhone,
   hasLiveAdministrator,
@@ -55,6 +58,8 @@ import type {
   ModerationReasonInput,
   RemoveInput,
   ResolveReportInput,
+  TotpRecoveryConfirmInput,
+  TotpRecoveryRequestInput,
 } from './admin.schemas.js';
 
 const MAX_LOGIN_FAILURES = 5;
@@ -132,6 +137,159 @@ export async function adminLogin(
     expires_in: ADMIN_TOKEN_EXPIRES_IN_SECONDS,
     role: administrator.role,
   };
+}
+
+/**
+ * Checks phone and password for a recovery call, with the login rules (C-29, v5.0.0-6.3.1,
+ * v5.0.0-6.3.8): one attempt is taken from the `admin:<phone>` counter first, every failure is
+ * the same 401, and an unknown number still costs one password verification. The counter is
+ * not cleared here: only a real sign-in clears it, so recovery calls cannot be used to reset
+ * the attempts of the login route. Returns the person, or throws.
+ *
+ * @throws 401 INVALID_CREDENTIALS; 429 LOGIN_LOCKED
+ */
+async function checkRecoveryPassword(phoneNumber: string, password: string): Promise<Person> {
+  const phone = normalizeE164(phoneNumber);
+  if (phone === null) {
+    await verifyPassword(await getDummyHash(), password);
+    throw invalidCredentials();
+  }
+  const slot = await checkAndConsume(
+    `admin:${phone}`,
+    MAX_LOGIN_FAILURES,
+    config.auth.loginLockMinutes * 60
+  );
+  if (!slot.allowed) {
+    logger.warn({ event: 'admin_login_locked' }, 'Admin attempts locked');
+    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
+  }
+  const person = await findByActivePhone(phone);
+  const hash = person?.registeredAt && person.passwordHash ? person.passwordHash : null;
+  const passwordOk = await verifyPassword(hash ?? (await getDummyHash()), password);
+  if (!passwordOk || hash === null || !person) throw invalidCredentials(person?.id);
+  return person;
+}
+
+/**
+ * The live administrator who may recover: a registered, non-suspended person with a live
+ * administrator row and a verified recovery email. Null otherwise, so callers treat every
+ * ineligible case alike.
+ */
+async function findRecoverableAdministrator(
+  person: Person
+): Promise<{ administratorId: string; recoveryEmail: string } | null> {
+  if (person.status === 'SUSPENDED') return null;
+  const administrator = await findLiveAdministratorByPerson(person.id);
+  if (!administrator) return null;
+  const recoveryEmail = await findRecoveryEmail(administrator.id);
+  if (recoveryEmail === null) return null;
+  return { administratorId: administrator.id, recoveryEmail };
+}
+
+/**
+ * Sends a TOTP_RECOVERY code to the administrator's verified recovery email (CM-34, C-33,
+ * v5.0.0-6.4.4). The password is checked first, with the login counter and generic 401. Once
+ * it is right the answer never tells whether a code left: a person who is not an administrator,
+ * a suspended one and an administrator without a recovery email all end quietly with nothing
+ * sent. The code is tied to the administrator's person and the recovery address.
+ *
+ * @throws 401 INVALID_CREDENTIALS; 429 LOGIN_LOCKED, OTP_RATE_LIMITED
+ */
+export async function requestTotpRecovery(input: TotpRecoveryRequestInput): Promise<void> {
+  const person = await checkRecoveryPassword(input.phone_number, input.password);
+  const target = await findRecoverableAdministrator(person);
+  if (!target) {
+    logger.info(
+      { event: 'admin_totp_recovery_ignored', personId: person.id },
+      'Authenticator recovery request ignored'
+    );
+    return;
+  }
+  await issueCode({
+    personId: person.id,
+    target: target.recoveryEmail,
+    purpose: 'TOTP_RECOVERY',
+    channel: 'EMAIL',
+  });
+  logger.info(
+    { event: 'admin_totp_recovery_code_sent', personId: person.id },
+    'Authenticator recovery code sent'
+  );
+}
+
+/** Alert text fixed by the story for every recipient, whatever their language. */
+const TOTP_RECOVERED_CONTENT = "Ce n'était pas vous ? Bloquer";
+
+/**
+ * Installs a new authenticator key after password and recovery email code (CM-34, C-33,
+ * v5.0.0-6.4.4). Only the key changes: no session is issued, nothing else is touched (AB-1).
+ * A person who cannot recover and a wrong, expired, consumed or foreign code all give the same
+ * 400 OTP_INVALID, and the password is checked before the code so a wrong password burns no
+ * attempt of the code. The new encrypted secret, the `RECOVER_2FA` journal row (the
+ * administrator as author, their person as target, reason "totp recovery") and the
+ * `admin.totp_recovered` notifications to the administrator and to every other live
+ * SUPER_ADMIN are saved in one transaction, so a recovery is never silent (v5.0.0-16.3.1).
+ * The new URI is returned here and nowhere else.
+ *
+ * @throws 400 OTP_INVALID; 401 INVALID_CREDENTIALS; 429 LOGIN_LOCKED, OTP_LOCKED
+ */
+export async function confirmTotpRecovery(
+  input: TotpRecoveryConfirmInput
+): Promise<{ otpauth_uri: string }> {
+  const invalid = () => httpError(400, 'OTP_INVALID', 'Invalid code');
+  const person = await checkRecoveryPassword(input.phone_number, input.password);
+  const target = await findRecoverableAdministrator(person);
+  if (!target) throw invalid();
+
+  let result: Awaited<ReturnType<typeof verifyCode>>;
+  try {
+    result = await verifyCode({
+      target: target.recoveryEmail,
+      purpose: 'TOTP_RECOVERY',
+      code: input.code,
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code === 'OTP_EXPIRED') throw invalid();
+    throw e;
+  }
+  if (result.personId !== person.id) throw invalid();
+
+  const { secret, otpauthUri } = createTotpSecret();
+  await inTransaction(async (tx) => {
+    if (!(await replaceTotpSecret(tx, target.administratorId, encryptSecret(secret)))) {
+      throw invalid();
+    }
+    await recordAdminAction(tx, {
+      administratorId: target.administratorId,
+      action: 'RECOVER_2FA',
+      targetPersonId: person.id,
+      reason: 'totp recovery',
+    });
+    const recipients = [
+      person.id,
+      ...(await listOtherLiveSuperAdminPersonIds(tx, target.administratorId)),
+    ];
+    for (const recipientId of new Set(recipients)) {
+      await notify(
+        {
+          recipientId,
+          sourceEvent: 'admin.totp_recovered',
+          content: TOTP_RECOVERED_CONTENT,
+          related: { type: 'administrator', id: target.administratorId },
+        },
+        tx
+      );
+    }
+  });
+  logger.warn(
+    {
+      event: 'admin_totp_recovered',
+      personId: person.id,
+      administratorId: target.administratorId,
+    },
+    'Administrator authenticator replaced through recovery'
+  );
+  return { otpauth_uri: otpauthUri };
 }
 
 /** The signed-in administrator, as set by `adminAuthMiddleware`. */
