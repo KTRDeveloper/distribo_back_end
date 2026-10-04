@@ -232,14 +232,16 @@ describe('GET /api/v1/organizations/:organizationId', () => {
     expect(bodyOf<ErrorBody>(response).error.code).toBe('NOT_FOUND');
   });
 
-  it('answers 404 NOT_FOUND for an unknown or malformed id', async () => {
+  it('answers 404 NOT_FOUND for an unknown id', async () => {
     const unknown = await get(`/api/v1/organizations/${UNKNOWN}`);
     expect(unknown.status).toBe(404);
     expect(bodyOf<ErrorBody>(unknown).error.code).toBe('NOT_FOUND');
+  });
 
+  it('answers 400 VALIDATION_ERROR for a malformed id', async () => {
     const malformed = await get('/api/v1/organizations/not-a-uuid');
-    expect(malformed.status).toBe(404);
-    expect(bodyOf<ErrorBody>(malformed).error.code).toBe('NOT_FOUND');
+    expect(malformed.status).toBe(400);
+    expect(bodyOf<ErrorBody>(malformed).error.code).toBe('VALIDATION_ERROR');
   });
 
   it('never returns another business to a member of a different one (AB-1)', async () => {

@@ -2790,6 +2790,16 @@
               }
             }
           },
+          "400": {
+            "description": "Malformed id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Missing or invalid token",
             "content": {
@@ -2936,7 +2946,7 @@
             }
           },
           "400": {
-            "description": "Invalid body",
+            "description": "Malformed id or invalid body",
             "content": {
               "application/json": {
                 "schema": {

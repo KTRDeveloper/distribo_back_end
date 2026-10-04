@@ -13,10 +13,11 @@ import { uuidV7Schema } from '../shared/ids.js';
  *
  * The person comes from the verified token and the organization from the path only; a body or
  * header value is never read (ASVS v5.0.0-8.2.2, CWE-639). Every non-member case (no
- * collaboration, INVITED, REVOKED, unknown or malformed id) answers the same 404, so an
- * organization id is never confirmed (ASVS v5.0.0-8.4.1).
+ * collaboration, INVITED, REVOKED, unknown id) answers the same 404, so an organization id is
+ * never confirmed (ASVS v5.0.0-8.4.1). A malformed id answers 400: it can match no row.
  *
- * @throws 401 `UNAUTHORIZED` when no person is authenticated; 404 `NOT_FOUND` when not a member.
+ * @throws 401 `UNAUTHORIZED` when no person is authenticated; 400 `VALIDATION_ERROR` for a
+ * malformed id; 404 `NOT_FOUND` when not a member.
  */
 export const loadActor: RequestHandler = (req, _res, next) => {
   const personId = req.user?.id;
@@ -28,7 +29,7 @@ export const loadActor: RequestHandler = (req, _res, next) => {
   const organizationId: unknown = req.params.organizationId;
   const parsed = uuidV7Schema.safeParse(organizationId);
   if (!parsed.success) {
-    next(httpError(404, 'NOT_FOUND', 'Not found'));
+    next(httpError(400, 'VALIDATION_ERROR', 'Invalid request'));
     return;
   }
 
