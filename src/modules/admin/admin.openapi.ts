@@ -4,6 +4,7 @@ import {
   administratorIdParamsSchema,
   appointAdministratorSchema,
   createReportSchema,
+  listActionsQuerySchema,
   listReportsQuerySchema,
   moderationReasonSchema,
   organizationIdParamsSchema,
@@ -264,3 +265,47 @@ for (const [path, summary, kind, verb] of moderationRoutes) {
     },
   });
 }
+
+const adminActionSchema = z.object({
+  id: z.string(),
+  administrator_id: z.string(),
+  action: z.enum([
+    'SUSPEND',
+    'REACTIVATE',
+    'DISMISS_REPORT',
+    'APPOINT_ADMIN',
+    'REMOVE_ADMIN',
+    'REPLAY_SYNC',
+    'RECOVER_2FA',
+  ]),
+  target_person_id: z.string().nullable(),
+  target_organization_id: z.string().nullable(),
+  report_id: z.string().nullable(),
+  sync_archive_id: z.string().nullable(),
+  reason: z.string(),
+  occurred_at: z.string(),
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/admin/actions',
+  tags: ['admin'],
+  summary: 'List the administration action journal, newest first (admin token only)',
+  security: [{ bearerAuth: [] }],
+  request: { query: listActionsQuerySchema },
+  responses: {
+    200: {
+      description: 'One page of journal rows',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(adminActionSchema),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: err('VALIDATION_ERROR'),
+    401: err('UNAUTHORIZED'),
+  },
+});

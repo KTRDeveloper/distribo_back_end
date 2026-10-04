@@ -36,6 +36,7 @@ import {
   insertAdministrator,
   insertReport,
   isActiveOwner,
+  listAdminActionRows,
   listReportRows,
   lockAdministratorRemoval,
   markAdministratorRemoved,
@@ -49,6 +50,7 @@ import type {
   AdminLoginInput,
   AppointInput,
   CreateReportInput,
+  ListActionsQuery,
   ListReportsQuery,
   ModerationReasonInput,
   RemoveInput,
@@ -741,4 +743,41 @@ export function reactivateOrganization(
   input: ModerationReasonInput
 ): Promise<void> {
   return changeOrganizationStatus(admin, organizationId, input, 'reactivate');
+}
+
+/** One journal row as administrators see it: ids, kind, reason and time, nothing else. */
+export interface AdminActionView {
+  id: string;
+  administrator_id: string;
+  action: string;
+  target_person_id: string | null;
+  target_organization_id: string | null;
+  report_id: string | null;
+  sync_archive_id: string | null;
+  reason: string;
+  occurred_at: string;
+}
+
+/**
+ * Lists the administration journal, newest first (v5.0.0-16.3.3: readable for audit). The
+ * route only lets live administrators in (v5.0.0-8.2.1). The view is built field by field.
+ */
+export async function listAdminActions(
+  query: ListActionsQuery
+): Promise<{ items: AdminActionView[]; next_cursor: string | null }> {
+  const { rows, nextCursor } = await listAdminActionRows(query);
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      administrator_id: row.administratorId,
+      action: row.action,
+      target_person_id: row.targetPersonId,
+      target_organization_id: row.targetOrganizationId,
+      report_id: row.reportId,
+      sync_archive_id: row.syncArchiveId,
+      reason: row.reason,
+      occurred_at: row.occurredAt.toISOString(),
+    })),
+    next_cursor: nextCursor,
+  };
 }

@@ -2,7 +2,7 @@ import type { AdminAction, AdministratorRole, Person, Prisma } from '@prisma/cli
 import { prisma } from '../../lib/db.js';
 import { newId } from '../../shared/ids.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
-import type { ListReportsQuery } from './admin.schemas.js';
+import type { ListActionsQuery, ListReportsQuery } from './admin.schemas.js';
 
 /** Kinds of administrator action recorded in the journal. */
 export type AdminActionType =
@@ -476,4 +476,43 @@ export async function transitionOrganizationStatus(
     data: { status: change.to },
   });
   return result.count === 1;
+}
+
+/**
+ * Lists journal rows, newest first, keyset-paged on (`occurred_at`, `id`) with the same
+ * ordering rule as the other lists. Each given filter narrows the result (all are ANDed).
+ */
+export async function listAdminActionRows(
+  query: ListActionsQuery
+): Promise<{ rows: AdminAction[]; nextCursor: string | null }> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const rows = await prisma.adminAction.findMany({
+    where: {
+      ...(query.action ? { action: query.action } : {}),
+      ...(query.administrator_id ? { administratorId: query.administrator_id } : {}),
+      ...(query.target_person_id ? { targetPersonId: query.target_person_id } : {}),
+      ...(query.target_organization_id
+        ? { targetOrganizationId: query.target_organization_id }
+        : {}),
+      ...(cursor
+        ? {
+            OR: [
+              { occurredAt: { lt: cursor.createdAt } },
+              { occurredAt: cursor.createdAt, id: { gt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ occurredAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const page = rows.slice(0, query.limit);
+  const last = page[page.length - 1];
+  return {
+    rows: page,
+    nextCursor:
+      rows.length > query.limit && last
+        ? encodeCursor({ createdAt: last.occurredAt, id: last.id })
+        : null,
+  };
 }

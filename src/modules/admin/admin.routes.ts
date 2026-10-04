@@ -4,6 +4,7 @@ import {
   adminLoginSchema,
   administratorIdParamsSchema,
   appointAdministratorSchema,
+  listActionsQuerySchema,
   moderationReasonSchema,
   organizationIdParamsSchema,
   personIdParamsSchema,
@@ -15,6 +16,7 @@ import {
   adminLogin,
   appointAdministrator,
   confirmRecoveryEmail,
+  listAdminActions,
   reactivateOrganization,
   reactivatePerson,
   removeAdministrator,
@@ -22,6 +24,7 @@ import {
   suspendOrganization,
   suspendPerson,
 } from './admin.service.js';
+import './admin.openapi.js';
 import { adminReportRoutes } from './report.routes.js';
 
 /** Administration routes, mounted under /api/v1/admin. */
@@ -145,4 +148,17 @@ adminRoutes.post(
   '/organizations/:organizationId/reactivate',
   ...moderatorOnly,
   organizationAction(reactivateOrganization)
+);
+
+// GET /api/v1/admin/actions - any live administrator reads the journal, newest first
+adminRoutes.get(
+  '/actions',
+  adminAuthMiddleware,
+  requireAdminRole('MODERATOR'),
+  (req, res, next) => {
+    const query = listActionsQuerySchema.parse(req.query);
+    listAdminActions(query)
+      .then((page) => res.status(200).json(page))
+      .catch(next);
+  }
 );

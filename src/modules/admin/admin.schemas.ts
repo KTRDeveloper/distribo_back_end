@@ -127,3 +127,28 @@ export const moderationReasonSchema = z
   .strict();
 
 export type ModerationReasonInput = z.infer<typeof moderationReasonSchema>;
+
+/**
+ * Query of GET /admin/actions: the shared page parameters and four optional filters; unknown
+ * parameters are refused. `action` lists the journal's action kinds.
+ */
+export const listActionsQuerySchema = paginationQuerySchema
+  .extend({
+    action: z
+      .enum([
+        'SUSPEND',
+        'REACTIVATE',
+        'DISMISS_REPORT',
+        'APPOINT_ADMIN',
+        'REMOVE_ADMIN',
+        'REPLAY_SYNC',
+        'RECOVER_2FA',
+      ])
+      .optional(),
+    administrator_id: uuidV7Schema.optional(),
+    target_person_id: uuidV7Schema.optional(),
+    target_organization_id: uuidV7Schema.optional(),
+  })
+  .strict();
+
+export type ListActionsQuery = z.infer<typeof listActionsQuerySchema>;

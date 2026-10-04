@@ -3782,6 +3782,200 @@
         }
       }
     },
+    "/api/v1/admin/actions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List the administration action journal, newest first (admin token only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SUSPEND",
+                "REACTIVATE",
+                "DISMISS_REPORT",
+                "APPOINT_ADMIN",
+                "REMOVE_ADMIN",
+                "REPLAY_SYNC",
+                "RECOVER_2FA"
+              ]
+            },
+            "required": false,
+            "name": "action",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": false,
+            "name": "administrator_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": false,
+            "name": "target_person_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": false,
+            "name": "target_organization_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of journal rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "administrator_id": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "SUSPEND",
+                              "REACTIVATE",
+                              "DISMISS_REPORT",
+                              "APPOINT_ADMIN",
+                              "REMOVE_ADMIN",
+                              "REPLAY_SYNC",
+                              "RECOVER_2FA"
+                            ]
+                          },
+                          "target_person_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "target_organization_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "report_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sync_archive_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "occurred_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "administrator_id",
+                          "action",
+                          "target_person_id",
+                          "target_organization_id",
+                          "report_id",
+                          "sync_archive_id",
+                          "reason",
+                          "occurred_at"
+                        ]
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [
