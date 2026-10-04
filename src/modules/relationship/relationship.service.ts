@@ -30,10 +30,12 @@ import {
   findWithSupplier,
   listCreditLimitChangeRows,
   listCustomerRelationships,
+  listOrganizationSuppliers,
   listSupplierRelationships,
   lockOrganization,
   managesOrganization,
   transitionRelationship,
+  updateOrganizationSupplierLabel,
   updateSupplierFields,
   updateSupplierLabel,
   writeCreditLimit,
@@ -665,4 +667,67 @@ export function customerReopenRelationship(
     if (!changed) throw httpError(409, 'RELATIONSHIP_NOT_ENDED', 'The relationship is not ended');
     return projectForCustomer(await findWithSupplier(tx, row.id));
   });
+}
+
+/** Refuses a role below MANAGER with a logged 403 (deny by default, v5.0.0-8.2.1). */
+function assertManagerOrAbove(actor: Actor, action: string): void {
+  if (atLeast(actor.role, 'MANAGER')) return;
+  logger.warn(
+    {
+      event: 'permission_refused',
+      personId: actor.personId,
+      action,
+      subjectType: 'CustomerRelationship',
+    },
+    'Permission refused'
+  );
+  throw httpError(403, 'FORBIDDEN', 'Permission denied');
+}
+
+/**
+ * An OWNER or a MANAGER lists the suppliers of the actor's organization: the relationships where
+ * it is the customer organization, newest first.
+ *
+ * The organization comes from the loaded actor, never from the client (v5.0.0-8.2.2). Each row
+ * goes through `projectForCustomer`, so `customer_label` and `supplier_notes` are never sent
+ * (CM-19, v5.0.0-15.3.1).
+ *
+ * @param actor - Actor loaded from the path.
+ * @param query - Validated page size, cursor and optional status.
+ * @returns A page of customer views and the next cursor, or null on the last page.
+ * @throws 403 `FORBIDDEN` below MANAGER; 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listSuppliersOfOrganization(
+  actor: Actor,
+  query: ListSuppliersQuery
+): Promise<{ items: CustomerRelationshipView[]; next_cursor: string | null }> {
+  assertManagerOrAbove(actor, 'list');
+
+  const { rows, nextCursor } = await listOrganizationSuppliers(actor, query);
+  return { items: rows.map(projectForCustomer), next_cursor: nextCursor };
+}
+
+/**
+ * An OWNER or a MANAGER names a supplier of the actor's organization: writes `supplier_label` on a
+ * relationship where the organization is the customer organization.
+ *
+ * The row is selected by id, visibility and customer organization together (v5.0.0-8.2.2): a
+ * relationship of another business answers 404. Only `supplier_label` is writable
+ * (v5.0.0-15.3.3, CM-19); the response is the customer projection.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param input - Validated body: the label.
+ * @throws 403 `FORBIDDEN` below MANAGER; 404 `NOT_FOUND`.
+ */
+export async function orgEditSupplier(
+  actor: Actor,
+  relationshipId: string,
+  input: EditSupplierInput
+): Promise<CustomerRelationshipView> {
+  assertManagerOrAbove(actor, 'update');
+
+  const row = await updateOrganizationSupplierLabel(actor, relationshipId, input.supplier_label);
+  if (!row) throw httpError(404, 'NOT_FOUND', 'Supplier not found');
+  return projectForCustomer(row);
 }

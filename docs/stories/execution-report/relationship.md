@@ -662,3 +662,37 @@ Also in this run: admin, catalog, order, finance, delivery.
 **Follow-ups:**
 - Customer-side end/reopen do not notify the supplier; the story does not ask for it.
 <!-- end REL-017 -->
+
+<!-- begin REL-018 -->
+## REL-018 — Organization lists and names its suppliers
+
+- Filed: 2026-10-04 14:38 UTC
+- Status: **done**: GET/PATCH /organizations/{id}/suppliers, MANAGER+, customer projection; 23 tests, full suite 1706 green
+- Risk: medium · story: [REL-018-organization-lists-and-names-its-suppliers.md](../modules/relationship/REL-018-organization-lists-and-names-its-suppliers.md)
+- Agent: 73,787 tokens, 20 tool uses, 3 min 53 s
+
+### Agent report
+
+**Summary:** Added GET and PATCH /organizations/{id}/suppliers (MANAGER and above, customer projection, scoped to customer_organization_id).
+
+**Decisions:**
+- Role check: `atLeast(role, 'MANAGER')` with a logged 403, because the rules table has no rule for `supplier_label` (only NETWORK rules for ordering); the server is always online.
+- `listSuppliersQuerySchema` and `editSupplierSchema` from REL-016/017 reused unchanged, so no schema change; a status filter is also accepted on the list.
+- Extracted `pageOfSuppliers` and `writeSupplierLabel` in the repository so the person and organization variants share code (REL-016/017 behavior unchanged, their tests still pass).
+
+**Tests added beyond the story:**
+- `org-suppliers.test.ts` › pagination with limit and cursor: keyset paging of the new list (Project rules: lists)
+- `org-suppliers.test.ts` › SELLER and DRIVER get 403 on PATCH, nothing written: role gate on the write (AC-3, v5.0.0-8.2.1); passed at once with the implementation
+- `org-suppliers.test.ts` › only relationships where the organization is the customer: a row where it is the supplier is excluded (AB-1 scope)
+- `org-suppliers.test.ts` › PATCH 404 for supplier-side row, unknown id, deleted row, and B's row through A's path (AB-1)
+- `org-suppliers.test.ts` › PATCH writes only supplier_label; 100 chars pass, 101, extra keys, empty body and blank label give 400 (AC-4, CWE-915)
+
+**Other additions:**
+- `tests/integration/api-docs/catalog.test.ts`: two new paths (Project rules). per-001 has no route list for these modules, so unchanged.
+- `openapi/openapi.json` regenerated.
+
+**Evidence:** story tests 23/23; full suite 1706/1706, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+
+**Follow-ups:**
+- None.
+<!-- end REL-018 -->

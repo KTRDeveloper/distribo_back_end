@@ -219,15 +219,50 @@ export async function listSupplierRelationships(
  * @returns Rows (at most limit) with the supplier parties loaded, and the next cursor or null.
  * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
  */
-export async function listCustomerRelationships(
+export function listCustomerRelationships(
   personId: string,
   query: { limit: number; cursor?: string; status?: RelationshipStatus }
 ) {
+  return pageOfSuppliers(
+    [visibleRelationsWhere({ personId, organizationIds: [] }), { customerPersonId: personId }],
+    query
+  );
+}
+
+/**
+ * Lists the relationships where the organization is the customer organization, newest first,
+ * keyset-paged. The query starts from the visibility predicate for the organization
+ * (v5.0.0-8.2.2) and narrows it to the rows whose customer organization is that organization;
+ * deleted and merged rows never match.
+ *
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param query - Page size, opaque cursor and optional status filter.
+ * @returns Rows (at most limit) with the supplier parties loaded, and the next cursor or null.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export function listOrganizationSuppliers(
+  viewer: { personId: string; organizationId: string },
+  query: { limit: number; cursor?: string; status?: RelationshipStatus }
+) {
+  return pageOfSuppliers(
+    [
+      visibleRelationsWhere({
+        personId: viewer.personId,
+        organizationIds: [viewer.organizationId],
+      }),
+      { customerOrganizationId: viewer.organizationId },
+    ],
+    query
+  );
+}
+
+/** Pages the customer-side rows matching `scope`: status filter, keyset cursor, supplier parties. */
+async function pageOfSuppliers(
+  scope: Prisma.CustomerRelationshipWhereInput[],
+  query: { limit: number; cursor?: string; status?: RelationshipStatus }
+) {
   const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
-  const and: Prisma.CustomerRelationshipWhereInput[] = [
-    visibleRelationsWhere({ personId, organizationIds: [] }),
-    { customerPersonId: personId },
-  ];
+  const and = [...scope];
   if (query.status) and.push({ status: query.status });
   if (cursor) {
     and.push({
@@ -519,11 +554,45 @@ function customerScope(personId: string, id: string): Prisma.CustomerRelationshi
  * @returns The updated row with the supplier parties loaded, or null when not visible.
  */
 export function updateSupplierLabel(personId: string, id: string, supplierLabel: string) {
+  return writeSupplierLabel(customerScope(personId, id), supplierLabel);
+}
+
+/**
+ * Updates `supplier_label` of one relationship where the organization is the customer
+ * organization. The row is matched by id, visibility and customer organization in one
+ * transaction (v5.0.0-8.2.2): another business's row, a relationship where the organization is
+ * only the supplier, a deleted or a merged one answers null like an absent id. Only
+ * `supplier_label` is written (v5.0.0-15.3.3).
+ *
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param id - Relationship id from the path.
+ * @param supplierLabel - Validated label.
+ * @returns The updated row with the supplier parties loaded, or null when not visible.
+ */
+export function updateOrganizationSupplierLabel(
+  viewer: { personId: string; organizationId: string },
+  id: string,
+  supplierLabel: string
+) {
+  return writeSupplierLabel(
+    {
+      AND: [
+        visibleRelationsWhere({
+          personId: viewer.personId,
+          organizationIds: [viewer.organizationId],
+        }),
+        { customerOrganizationId: viewer.organizationId },
+        { id },
+      ],
+    },
+    supplierLabel
+  );
+}
+
+/** Finds the one row matching `where`, then writes only `supplier_label` on it. */
+function writeSupplierLabel(where: Prisma.CustomerRelationshipWhereInput, supplierLabel: string) {
   return prisma.$transaction(async (tx) => {
-    const found = await tx.customerRelationship.findFirst({
-      where: customerScope(personId, id),
-      select: { id: true },
-    });
+    const found = await tx.customerRelationship.findFirst({ where, select: { id: true } });
     if (!found) return null;
     return tx.customerRelationship.update({
       where: { id: found.id },

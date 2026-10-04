@@ -391,3 +391,54 @@ for (const [action, summary, conflicts] of [
     },
   });
 }
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/suppliers',
+  tags: ['relationship'],
+  summary: 'List the suppliers of the organization, newest first (MANAGER and above)',
+  security: [{ bearerAuth: [] }],
+  request: { params: organizationParamsSchema, query: listSuppliersQuerySchema },
+  responses: {
+    200: {
+      description: 'A page of customer-side relationship views',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(customerRelationshipViewSchema),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid query', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role is below MANAGER', content: errorContent },
+    404: { description: 'Not found or not a member', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/api/v1/organizations/{organizationId}/suppliers/{relationshipId}',
+  tags: ['relationship'],
+  summary: 'Name a supplier of the organization: write supplier_label (MANAGER and above)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema.merge(customerParamsSchema),
+    body: { content: { 'application/json': { schema: editSupplierSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The updated customer-side relationship view',
+      content: { 'application/json': { schema: customerRelationshipViewSchema } },
+    },
+    400: { description: 'Invalid body or relationship id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role is below MANAGER', content: errorContent },
+    404: {
+      description: 'Not found, deleted, of another business, or not a member',
+      content: errorContent,
+    },
+  },
+});

@@ -26,7 +26,9 @@ import {
   getCustomer,
   listCreditLimitChanges,
   listCustomers,
+  listSuppliersOfOrganization,
   listSuppliersOfPerson,
+  orgEditSupplier,
   reopenRelationship,
   setCreditLimit,
 } from './relationship.service.js';
@@ -168,6 +170,35 @@ relationshipRoutes.get(
         )
       )
       .then((page) => res.json(page))
+      .catch(next);
+  }
+);
+
+// GET /api/v1/organizations/:organizationId/suppliers - an owner or a manager lists the suppliers
+// of the organization (customer view); the service answers 403 below MANAGER
+relationshipRoutes.get('/suppliers', authMiddleware, loadActor, (req, res, next) => {
+  Promise.resolve()
+    .then(() => listSuppliersOfOrganization(req.actor!, listSuppliersQuerySchema.parse(req.query)))
+    .then((page) => res.json(page))
+    .catch(next);
+});
+
+// PATCH /api/v1/organizations/:organizationId/suppliers/:relationshipId - an owner or a manager
+// names a supplier; the service answers 403 below MANAGER and 404 outside the organization
+relationshipRoutes.patch(
+  '/suppliers/:relationshipId',
+  authMiddleware,
+  loadActor,
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        orgEditSupplier(
+          req.actor!,
+          customerParamsSchema.parse(req.params).relationshipId,
+          editSupplierSchema.parse(req.body)
+        )
+      )
+      .then((supplier) => res.json(supplier))
       .catch(next);
   }
 );
