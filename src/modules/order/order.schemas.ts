@@ -111,6 +111,16 @@ export const refuseOrderSchema = z
 export type RefuseInput = z.infer<typeof refuseOrderSchema>;
 
 /**
+ * Strict body of the supplier cancel gesture (ORD-016): the gesture id and a reason of 1 to 2000
+ * characters once trimmed. Status, party, author and time are set by the server (v5.0.0-15.3.3).
+ */
+export const cancelOrderSchema = z
+  .object({ id: uuidV7Schema, reason: z.string().trim().min(1).max(TEXT_MAX) })
+  .strict();
+
+export type CancelInput = z.infer<typeof cancelOrderSchema>;
+
+/**
  * One line entered by a seller: ids, a quantity and, optionally, a price from 0 up. The reference
  * price, the label and the amount are never accepted (ASVS v5.0.0-15.3.3, CWE-915).
  */

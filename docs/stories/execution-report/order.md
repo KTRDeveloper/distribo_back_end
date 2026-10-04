@@ -573,6 +573,31 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - Customer-side visibility of the note is not exercised here (no customer order read route in this story).
 <!-- end ORD-015 -->
 
+<!-- begin ORD-016 -->
+## ORD-016 — Supplier cancels an order before departure
+
+- Filed: 2026-10-04 20:07 UTC
+- Status: **done**: POST orders/{id}/cancel via transitionOrder; 17 tests, suite 2406 green
+- Risk: medium · story: [ORD-016-supplier-cancels-an-order-before-departure.md](../modules/order/ORD-016-supplier-cancels-an-order-before-departure.md)
+- Agent: 42,430 tokens, 15 tool uses, 4 min 13 s
+
+### Agent report
+
+**Summary:** Added POST /orders/{orderId}/cancel (cancelOrderAsSupplier) reusing transitionOrder; done.
+
+**Decisions:**
+- Ability check: `requireAbility('cancel','Order')`; status gate left to transitionOrder (CANCELLED only from PENDING/CONFIRMED), so IN_DELIVERY/DELIVERED/CANCELLED give 409 INVALID_TRANSITION.
+- Added a separate `cancelOrderSchema` (same shape as refuse) rather than reusing refuseOrderSchema, to keep the two gestures independent.
+- per-001.test.ts has no order routes, so only catalog.test.ts got the new path.
+
+**Tests added beyond the story:**
+- `cancel-order-supplier.test.ts` › also cancels a PENDING order: ACC-003 rule allows PENDING or CONFIRMED (story Context); passed at once after implementation
+- `cancel-order-supplier.test.ts` › validation rows (blank/2001 chars/unknown field), 400 malformed id, 401 no token (story: 1 to 2000, strict schema)
+- `cancel-order-supplier.test.ts` › idempotent repeat and two parallel cancels give one 200 and one 409 (project rule, v5.0.0-2.3.1)
+
+**Evidence:** story tests 17/17; full suite 2406/2406, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+<!-- end ORD-016 -->
+
 <!-- begin ORD-018 -->
 ## ORD-018 — Closing a business refuses its pending orders
 

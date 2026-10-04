@@ -28,6 +28,7 @@ import {
 } from './order.repository.js';
 import type {
   AcceptInput,
+  CancelInput,
   EditOrderInput,
   EnterOrderInput,
   PlaceOrderInput,
@@ -370,6 +371,54 @@ export function refuseOrder(
     if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
 
     await notifyCustomerOfStatus(tx, order, actor.organizationId, REFUSED_CONTENT);
+
+    return projectOrderForSupplier(order, actor.role);
+  });
+}
+
+const CANCELLED_CONTENT = {
+  FR: 'Votre commande a été annulée.',
+  EN: 'Your order was cancelled.',
+} as const;
+
+/**
+ * The supplier's SELLER, MANAGER or OWNER cancels a PENDING or CONFIRMED order with a reason before
+ * it leaves (ORD-016, CM-12, C-16). One transaction (v5.0.0-2.3.3): the order of the caller's
+ * organization is locked (an order of another business is 404, v5.0.0-8.2.2), then the conditional
+ * update of `transitionOrder` (v5.0.0-2.3.1) records the SUPPLIER party, the caller, the time and
+ * the reason; IN_DELIVERY, DELIVERED and CANCELLED orders answer 409. The customer is notified
+ * `order.status_changed`. The supplier note is untouched. Unstarted deliveries are removed by
+ * DLV-010. Replays with the same `id` are answered by `idempotent()`.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked `cancel Order`.
+ * @param orderId - Order from the path.
+ * @param input - Validated body: gesture id and the reason (1 to 2000 characters).
+ * @returns The CANCELLED order, supplier view for the caller's role.
+ * @throws 404 `NOT_FOUND` (order outside the caller's business); 409 `INVALID_TRANSITION`
+ * (IN_DELIVERY, DELIVERED or CANCELLED).
+ */
+export function cancelOrderAsSupplier(
+  actor: Actor,
+  orderId: string,
+  input: CancelInput
+): Promise<SupplierOrderView> {
+  return runInTransaction(async (tx) => {
+    if (!(await lockSupplierOrder(tx, orderId, actor.organizationId))) {
+      throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    }
+    // CANCELLED comes only from PENDING or CONFIRMED (CM-12), so the state machine settles the rest.
+    await transitionOrder(
+      tx,
+      orderId,
+      'CANCELLED',
+      { personId: actor.personId, party: 'SUPPLIER' },
+      { cancellationReason: input.reason }
+    );
+
+    const order = await findOrderToAccept(tx, orderId);
+    if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+
+    await notifyCustomerOfStatus(tx, order, actor.organizationId, CANCELLED_CONTENT);
 
     return projectOrderForSupplier(order, actor.role);
   });

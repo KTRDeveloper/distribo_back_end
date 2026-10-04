@@ -5,6 +5,7 @@ import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
   acceptOrderSchema,
+  cancelOrderSchema,
   editOrderSchema,
   enterOrderSchema,
   orderIdParamSchema,
@@ -15,6 +16,7 @@ import {
 } from './order.schemas.js';
 import {
   acceptOrder,
+  cancelOrderAsSupplier,
   editOrder,
   enterOrder,
   placeOrder,
@@ -150,6 +152,35 @@ supplierOrderRoutes.post(
       req.actor!,
       orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
       refuseOrderSchema.parse(req.body)
+    )
+      .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/orders/:orderId/cancel - the supplier cancels a
+// PENDING or CONFIRMED order with a reason; the organization is the caller's, never a body field.
+// The status condition is the service's conditional update (409 once the order has left).
+supplierOrderRoutes.post(
+  '/orders/:orderId/cancel',
+  authMiddleware,
+  loadActor,
+  requireAbility('cancel', 'Order'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = cancelOrderSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    cancelOrderAsSupplier(
+      req.actor!,
+      orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      cancelOrderSchema.parse(req.body)
     )
       .then((view) => res.status(200).json(view))
       .catch(next);

@@ -3,6 +3,7 @@ import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
   acceptOrderSchema,
+  cancelOrderSchema,
   editOrderSchema,
   enterOrderSchema,
   placePurchaseSchema,
@@ -140,6 +141,32 @@ openApiRegistry.registerPath({
     404: { description: 'Not a member, or order outside the business', content: errorContent },
     409: {
       description: 'INVALID_TRANSITION (not PENDING) or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/orders/{orderId}/cancel',
+  tags: ['order'],
+  summary: 'The supplier cancels a PENDING or CONFIRMED order with a reason (ORD-016)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: cancelOrderSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The CANCELLED order, supplier view',
+      content: { 'application/json': { schema: supplierOrderViewSchema } },
+    },
+    400: { description: 'Invalid body (missing or too long reason)', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not cancel orders', content: errorContent },
+    404: { description: 'Not a member, or order outside the business', content: errorContent },
+    409: {
+      description: 'INVALID_TRANSITION (left, delivered or cancelled) or conflicting gesture id',
       content: errorContent,
     },
   },
