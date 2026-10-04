@@ -180,3 +180,30 @@ Also in this run: admin, catalog, order, finance, delivery.
 **Follow-ups:**
 - `prisma migrate diff` shows no drift for credit_limit_changes (existing drift on other FKs onDelete is pre-existing).
 <!-- end REL-003 -->
+
+<!-- begin REL-004 -->
+## REL-004 — Credit limit rules and journal trigger
+
+- Filed: 2026-10-04 06:08 UTC
+- Status: **blocked**: Story tests pass (20/20), but 2 REL-001 tests in relationship-table.test.ts contradict AC-1/AC-2 (credit_limit default null; set_by_id without set_at) and are not under Tests to update: list them, or say how to proceed
+- Risk: high · story: [REL-004-credit-limit-rules-and-journal-trigger.md](../modules/relationship/REL-004-credit-limit-rules-and-journal-trigger.md)
+- Agent: 47,088 tokens, 14 tool uses, 11 min 25 s
+
+### Agent report
+
+**Summary:** Blocked: migration and tests done and green, but two REL-001 tests contradict the story's AC-1/AC-2 and are not listed under "Tests to update".
+
+**Decisions:**
+- Trigger split: BEFORE UPDATE OF credit_limit (author must change, else 23514; sets credit_limit_set_at = now()) plus AFTER UPDATE OF credit_limit (journal insert), because an AFTER trigger cannot change NEW.
+- Journal id: no uuidv7() in PostgreSQL 16, so the trigger builds a UUIDv7 inline (ms time + random).
+- Counter CHECK uses IS NOT DISTINCT FROM 0, so a counter with NULL is also refused ("always 0"); NULL stays allowed for a customer.
+- Backfilled existing counters to 0 before adding the CHECK; added @default(0) to creditLimit in schema.prisma and the rules comment above CustomerRelationship.
+
+**Tests added beyond the story:**
+- credit-limit-rules.test.ts: counter with NULL limit refused, time-without-author refused, journal id is UUIDv7, caller-sent set_at ignored, move to NULL journals new_limit null, one row per change, author cleared on change refused, first change without author refused, unrelated update adds no row (C-10, AC-2..5, v5.0.0-2.2.3); all failed before the migration.
+
+**Evidence:** story tests 20/20; full suite 1042/1045, failing: relationship-table.test.ts "applies defaults and uses the expected column types" (expects credit_limit NULL by default, AC-1 requires 0) and "accepts credit_limit_set_by_id of a registered person" (inserts set_by_id without set_at, AC-2 requires 23514); the third failure, quality-gates, was only lint errors in my test, now fixed; typecheck clean; lint 0 errors, 44 warnings
+
+**Follow-ups:**
+- Add those two REL-001 tests to this story's "Tests to update" (expected: credit_limit 0; insert with set_by_id and set_at together), then rerun; work is uncommitted in the tree (migration 20261004160000_rel_004_credit_limit_rules, schema.prisma, the new test).
+<!-- end REL-004 -->
