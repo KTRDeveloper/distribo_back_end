@@ -9,7 +9,8 @@
     "allow": [
       "Bash(node .claude/skills/implement-stories/scripts/select.mjs *)",
       "Bash(node .claude/skills/implement-stories/scripts/set-status.mjs *)",
-      "Bash(node .claude/skills/implement-stories/scripts/report.mjs *)"
+      "Bash(node .claude/skills/implement-stories/scripts/report.mjs *)",
+      "Bash(sleep 60)"
     ],
     "deny": [
       "Edit(./data-model/**)",

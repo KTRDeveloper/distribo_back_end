@@ -30,11 +30,11 @@ With `--plan`, print these lines and stop.
 
 For each `PLAN` line, in order:
 1. Delegate the story to the story-implementer subagent, passing only its path and no model override (its Sonnet, effort high setup is what lets a risk: high story skip review). Never pass other stories: each story gets a fresh context.
-2. Wait until the subagent has finished before doing anything else. In the background, it ends with two messages, both needed below: its hand-back (`<agent-message>`), which holds its report, then a task notification, which holds its figures in `<usage>`. In the foreground, its tool result holds both.
+2. Wait until the subagent has finished before doing anything else. In the background, it ends with two messages: its hand-back (`<agent-message>`), which holds its report, then a task notification, which holds its figures in `<usage>`. Once the hand-back has arrived, the notification never wakes you: it comes attached to the result of your next tool call, or is added silently when your turn ends. So go on to step 3 in the same turn; never end your turn to wait for the notification. In the foreground, its tool result holds both.
 3. Then read only the story's line, with `grep -m1 "| <ID> |" <stories folder>/STATUS.md`.
 4. File the subagent's report, whatever the status, never edited or summarized:
    - write to the file the lines of its hand-back between the `[Subagent hand-back]` line and `</agent-message>`, as they are, two-space indent included (the script removes it). Without a hand-back, take the task notification's `<result>`, or a foreground tool result without the agent ID and usage lines. If the subagent returned nothing, leave the file empty: the script says so.
-   - run `report story <ID> --file <that file>` with its figures: from the task notification's `<usage>`, `<subagent_tokens>` as `--tokens`, `<tool_uses>` as `--tool-uses` and `<duration_ms>` as `--duration-ms` (a foreground result shows the same three). Leave out a figure you cannot find; never estimate one.
+   - run `report story <ID> --file <that file>` with its figures: from the task notification's `<usage>`, `<subagent_tokens>` as `--tokens`, `<tool_uses>` as `--tool-uses` and `<duration_ms>` as `--duration-ms` (a foreground result shows the same three). The notification normally comes with step 3's result. If it is still missing, wait one minute at most: run `sleep 60` with Bash `run_in_background`, then end your turn; the timer's notice wakes you. Run the command then, with the figures if the notification has come, without them otherwise. Leave out a figure you cannot find; never estimate one.
 5. Then act on the status:
    - done: commit every change, the report included, with the message `<ID>: <title>`, then continue;
    - blocked or anything else: stop. With `--keep-going`, continue only with stories that don't depend on it.
@@ -44,7 +44,7 @@ For each `PLAN` line, in order:
 After the last `PLAN` line, or when you stop, file your own report the same way, with `report run <every PLAN ID> --selection "$ARGUMENTS" --file <that file>`. The script puts it at the top of the file of each module in the plan, newest run first, under a table of that module's stories with their status, commit and note. Write only what the table cannot show, one line per item:
 - the stories skipped as blocked or in progress, or not reached, with the reason (done and obsolete ones need no line);
 - why the run stopped, or that it completed;
-- what you decided beyond the plan (stopping, `--keep-going`, a retry, a failed commit, a refused command) and anything unexpected (a missing or partial agent report, a status the report contradicts);
+- what you decided beyond the plan (stopping, `--keep-going`, a retry, a failed commit, a refused command) and anything unexpected (a missing or partial agent report, figures filed without the notification, a status the report contradicts);
 - the next command to run.
 
 Then commit only the reports: `git add <folder> && git commit -m "Execution report: $ARGUMENTS" -- <folder>`, where `<folder>` is `<stories folder>/execution-report`.
