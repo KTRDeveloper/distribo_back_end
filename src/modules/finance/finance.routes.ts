@@ -11,6 +11,7 @@ import {
   ledgerQuerySchema,
   openingBalanceSchema,
   paymentParamSchema,
+  recordExpenseSchema,
   recordPaymentSchema,
   returnSchema,
   reverseEntrySchema,
@@ -19,6 +20,7 @@ import {
 import {
   listLedger,
   recordCreditNote,
+  recordExpense,
   recordOpeningBalance,
   recordPayment,
   recordRefund,
@@ -215,6 +217,30 @@ financeRoutes.post(
       reverseParamSchema.parse({ entryId: req.params.entryId }).entryId,
       reverseEntrySchema.parse(req.body)
     )
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/expenses - a MANAGER online or the OWNER records an
+// expense paid by a collaborator. The rules table grants `create Expense` to nobody below MANAGER,
+// so a SELLER or DRIVER is refused there; the organization and the recorder are the caller's,
+// never body fields.
+financeRoutes.post(
+  '/expenses',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'Expense'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const parsed = recordExpenseSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    recordExpense(req.actor!, recordExpenseSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
       .catch(next);
   }

@@ -6,6 +6,7 @@ import {
   ledgerQuerySchema,
   openingBalanceSchema,
   paymentParamSchema,
+  recordExpenseSchema,
   recordPaymentSchema,
   returnSchema,
   reverseEntrySchema,
@@ -195,5 +196,37 @@ openApiRegistry.registerPath({
     },
     403: { description: 'Below MANAGER', content: errorContent },
     ...readErrors,
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/expenses',
+  tags: ['finance'],
+  summary:
+    'Record an expense paid by a collaborator, lowering their held money (MANAGER and above)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema,
+    body: { content: { 'application/json': { schema: recordExpenseSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The stored expense',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string().uuid(),
+            paid_by_id: z.string().uuid(),
+            amount: z.number().int(),
+            category: z.string().nullable(),
+            description: z.string().nullable(),
+            recorded_by_id: z.string().uuid(),
+            occurred_at: z.string().datetime(),
+          }),
+        },
+      },
+    },
+    ...gestureErrors,
   },
 });

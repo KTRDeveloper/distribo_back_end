@@ -131,6 +131,9 @@ describe('GET /docs/openapi.json', () => {
       '/api/v1/organizations/{organizationId}/suppliers/{relationshipId}/ledger'
     );
 
+    // FIN-012: recording an expense
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/expenses');
+
     // ORD-010: the organization purchase route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases');
 

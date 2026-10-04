@@ -437,6 +437,42 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - DELETE/TRUNCATE on expenses by distribo_app is not revoked; confirm whether Expense should be append-only at privilege level (not in story or C-27).
 <!-- end FIN-011 -->
 
+<!-- begin FIN-012 -->
+## FIN-012 — Manager records an expense
+
+- Filed: 2026-10-04 22:11 UTC
+- Status: **done**: POST /expenses with recordExpenseInTx; 12 story tests + 2 extra pass, full suite 2631 green
+- Risk: high · story: [FIN-012-manager-records-an-expense.md](../modules/finance/FIN-012-manager-records-an-expense.md)
+- Agent: 71,906 tokens, 23 tool uses, 10 min 48 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/{id}/expenses, `recordExpenseInTx` in held-money.ts, and the service, schema and route; all tests green.
+
+**Decisions:**
+- Payer "collaborator, ACTIVE or gone": the service accepts a non-deleted collaboration with status ACTIVE or REVOKED. An INVITED-only person or a soft-deleted row is 404, because `addAmountHeld` ignores deleted rows. The DB trigger is looser (any row).
+- Organization check: only ACTIVE passes. CLOSED and SUSPENDED give 409 ORGANIZATION_NOT_ACTIVE, since money moves.
+- Response 201 lists id, paid_by_id, amount, category, description, recorded_by_id, occurred_at.
+- `occurred_at` is an ISO datetime with offset, refused if after server now (no clock skew allowance); `category` is trimmed, 1 to 100.
+- Route runs requireAbility('create','Expense'), then strict validation, then idempotent(), as the other finance gestures do.
+
+**Tests added beyond the story:**
+- `record-expense.test.ts` › owner records an expense: OWNER is allowed (ACC-004, v5.0.0-8.2.1); passed at once
+- `record-expense.test.ts` › past occurred_at and a revoked payer: C-27 "active or gone"; passed at once
+- `record-expense.test.ts` › rolls back when held money cannot be lowered: calls recordExpenseInTx directly on a soft-deleted payer, no expense left (v5.0.0-2.3.3)
+- `record-expense.test.ts` › deleted payer is 404; manager of another org is 404 (v5.0.0-8.2.2); passed at once
+
+**Other additions:**
+- `finance.openapi.ts` registration, `openapi/openapi.json` regenerated and a path line in `catalog.test.ts`: CONVENTIONS requires every route registered, though the story's "Out of scope" lists OpenAPI (FIN-020). I followed the convention and FIN-010's precedent.
+- `per-001.test.ts` has no finance path list, so I left it unchanged.
+
+**Evidence:** story tests 14/14 (12 story and abuse cases + 2 extra); full suite 2631/2631 on the final run, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- The first full run showed 1 failed test (not identified); two later full runs were fully green. Likely flaky and unrelated, but worth watching.
+- Prettier reformatted `ledger.service.ts` when run on the module folder. I reverted it.
+<!-- end FIN-012 -->
+
 <!-- begin FIN-014 -->
 ## FIN-014 — Handovers table
 

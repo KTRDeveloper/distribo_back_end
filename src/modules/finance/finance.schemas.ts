@@ -93,3 +93,26 @@ export type ReverseEntryInput = z.infer<typeof reverseEntrySchema>;
 export const ledgerQuerySchema = paginationQuerySchema.strict();
 
 export type LedgerQuery = z.infer<typeof ledgerQuerySchema>;
+
+/**
+ * Strict body of the record-expense gesture (FIN-012): the gesture id, which becomes the expense
+ * id, an optional payer (the caller when absent), an amount in whole XAF and optional category,
+ * description and past `occurred_at`. The organization, the recorder and the cancellation fields
+ * are never accepted: the server sets them (ASVS v5.0.0-15.3.3, CWE-915).
+ */
+export const recordExpenseSchema = z
+  .object({
+    id: uuidV7Schema,
+    paid_by_id: uuidV7Schema.optional(),
+    amount: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+    category: z.string().trim().min(1).max(LABEL_MAX).optional(),
+    description: z.string().max(TEXT_MAX).optional(),
+    occurred_at: z
+      .string()
+      .datetime({ offset: true })
+      .refine((value) => Date.parse(value) <= Date.now(), 'occurred_at is in the future')
+      .optional(),
+  })
+  .strict();
+
+export type RecordExpenseInput = z.infer<typeof recordExpenseSchema>;

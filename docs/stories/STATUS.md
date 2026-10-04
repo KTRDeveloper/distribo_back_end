@@ -162,7 +162,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-009 | done | | POST ledger-entries/:id/reverse; mirror held effect goes to the original recorder (AC-1) |
 | FIN-010 | done | | 3 ledger read routes, finance.openapi, per-party fields; full suite 2618 green |
 | FIN-011 | done | | expenses table, triggers and tests green |
-| FIN-012 | todo | | |
+| FIN-012 | done | | POST /expenses with recordExpenseInTx; 12 story tests + 2 extra pass, full suite 2631 green |
 | FIN-013 | todo | | |
 | FIN-014 | done | | handovers table, party-role and cancel-once triggers; 33 tests pass |
 | FIN-015 | todo | | |

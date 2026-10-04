@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js';
 import { atLeast } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import {
+  findCollaboration,
   findOrganizationStatus,
   runInTransaction,
 } from '../organization/organization.repository.js';
@@ -16,10 +17,12 @@ import type {
   CreditNoteInput,
   OpeningBalanceInput,
   PaymentInput,
+  RecordExpenseInput,
   ReturnInput,
   ReverseEntryInput,
 } from './finance.schemas.js';
 import { listLedgerPage } from './finance.repository.js';
+import { recordExpenseInTx } from './held-money.js';
 import { appendLedgerEntry, reverseLedgerEntry } from './ledger.service.js';
 
 /** A ledger entry as the recorder sees it: an explicit field list, money in whole XAF. */
@@ -485,6 +488,67 @@ export function reverseEntry(
       mode: entry.mode,
       occurred_at: entry.occurredAt,
       balance: Number(relationship.balance + entry.balanceEffect),
+    };
+  });
+}
+
+/** An expense as the recorder sees it: an explicit field list, money in whole XAF. */
+export type ExpenseView = {
+  id: string;
+  paid_by_id: string;
+  amount: number;
+  category: string | null;
+  description: string | null;
+  recorded_by_id: string;
+  occurred_at: Date;
+};
+
+/**
+ * A MANAGER online or the OWNER records an expense paid by a collaborator (FIN-012, C-27, CM-17):
+ * the payer's held money goes down. The route checked the rules table (`create` Expense, ASVS
+ * v5.0.0-8.2.1). One transaction (v5.0.0-2.3.3): the organization must be ACTIVE (money moves, so
+ * a CLOSED one is refused too); the payer defaults to the caller and must have a collaboration in
+ * the caller's own organization, ACTIVE or revoked (a person of another business, an unknown id or
+ * a mere invitee is 404, v5.0.0-8.2.2). `recordExpenseInTx` inserts the row and lowers the money.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked the role.
+ * @param input - Validated body.
+ * @returns The stored expense.
+ * @throws 404 `NOT_FOUND` (payer outside the organization); 409 `ORGANIZATION_NOT_ACTIVE`.
+ */
+export function recordExpense(actor: Actor, input: RecordExpenseInput): Promise<ExpenseView> {
+  return runInTransaction(async (tx) => {
+    const status = await findOrganizationStatus(actor.organizationId, tx);
+    if (status === null) throw httpError(404, 'NOT_FOUND', 'Not found');
+    if (status !== 'ACTIVE') {
+      throw httpError(409, 'ORGANIZATION_NOT_ACTIVE', 'Organization is not active');
+    }
+
+    const paidById = input.paid_by_id ?? actor.personId;
+    const payer = await findCollaboration(tx, paidById, actor.organizationId);
+    if (!payer || (payer.status !== 'ACTIVE' && payer.status !== 'REVOKED')) {
+      throw httpError(404, 'NOT_FOUND', 'Not found');
+    }
+
+    const expense = await recordExpenseInTx(tx, {
+      id: input.id,
+      organizationId: actor.organizationId,
+      paidById,
+      amount: BigInt(input.amount),
+      category: input.category,
+      description: input.description,
+      recordedById: actor.personId,
+      occurredAt: input.occurred_at ? new Date(input.occurred_at) : new Date(),
+    });
+
+    return {
+      id: expense.id,
+      paid_by_id: expense.paidById,
+      amount: Number(expense.amount),
+      category: expense.category,
+      description: expense.description,
+      recorded_by_id: expense.recordedById,
+      occurred_at: expense.occurredAt,
     };
   });
 }
