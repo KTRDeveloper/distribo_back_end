@@ -251,6 +251,7 @@ model Person {
   customerRelationships   CustomerRelationship[] @relation("RelationshipCustomerPerson")
   creditLimitSetRelations CustomerRelationship[] @relation("RelationshipCreditLimitSetBy")
   createdRelationships    CustomerRelationship[] @relation("RelationshipCreatedBy")
+  creditLimitChanges      CreditLimitChange[]
 
   @@map("people")
 }
@@ -425,12 +426,38 @@ model CustomerRelationship {
   createdBy            Person                 @relation("RelationshipCreatedBy", fields: [createdById], references: [id])
   mergedInto           CustomerRelationship?  @relation("RelationshipMergedInto", fields: [mergedIntoId], references: [id])
   mergedDuplicates     CustomerRelationship[] @relation("RelationshipMergedInto")
+  creditLimitChanges   CreditLimitChange[]
 
   @@index([supplierOrganizationId])
   @@index([supplierPersonId])
   @@index([customerPersonId])
   @@index([customerOrganizationId])
   @@map("customer_relationships")
+}
+
+// Rules the database enforces on the credit limit journal, beyond what this
+// model declares. All come from migration 20261004150000_rel_003_credit_limit_changes.
+// - The journal can only grow: the application can add and read entries but
+//   never change, delete or empty them.
+// - The person who set the limit must be a registered person, never a guest.
+//   This is checked when the transaction is saved, not row by row.
+// - server_updated_at is set by the database on every change.
+// - An empty previous_limit or new_limit means "no ceiling"; zero is a real
+//   limit (no credit).
+model CreditLimitChange {
+  id                     String   @id @db.Uuid
+  customerRelationshipId String   @map("customer_relationship_id") @db.Uuid
+  previousLimit          BigInt?  @map("previous_limit")
+  newLimit               BigInt?  @map("new_limit")
+  setById                String   @map("set_by_id") @db.Uuid
+  setAt                  DateTime @default(now()) @map("set_at") @db.Timestamptz
+  serverUpdatedAt        DateTime @default(now()) @map("server_updated_at") @db.Timestamptz
+
+  customerRelationship CustomerRelationship @relation(fields: [customerRelationshipId], references: [id])
+  setBy                Person               @relation(fields: [setById], references: [id])
+
+  @@index([customerRelationshipId])
+  @@map("credit_limit_changes")
 }
 
 // Rules the database enforces on one-time codes, beyond what this model

@@ -149,3 +149,34 @@ Also in this run: admin, catalog, order, finance, delivery.
 
 **Evidence:** story tests 47/47 (relationship folder); full suite 1017/1017, failing: none; typecheck clean; lint 0 errors, 44 warnings (pre-existing security/detect-non-literal-fs-filename)
 <!-- end REL-002 -->
+
+<!-- begin REL-003 -->
+## REL-003 — Credit limit journal table
+
+- Filed: 2026-10-04 05:57 UTC
+- Status: **done**: credit_limit_changes table, append-only; story tests 8/8, full suite 1025/1025
+- Risk: medium · story: [REL-003-credit-limit-journal-table.md](../modules/relationship/REL-003-credit-limit-journal-table.md)
+- Agent: 44,356 tokens, 16 tool uses, 5 min 42 s
+
+### Agent report
+
+**Summary:** Added credit_limit_changes table (migration 20261004150000_rel_003_credit_limit_changes), Prisma model, and its integration tests; all green.
+
+**Decisions:**
+- No `deleted_at` column: the story's "Adds" lists only server_updated_at and the design table has none, despite C-35's general wording.
+- `set_at` NOT NULL with DEFAULT now(): design says "server time"; tests still pass it explicitly.
+- Author trigger is a deferred constraint trigger (INSERT OR UPDATE), same as customer_relationships; guest insert still fails with 23514 at autocommit.
+- Index on customer_relationship_id added for history lookups per relationship.
+
+**Tests added beyond the story:**
+- `credit-limit-changes-table.test.ts` › rejects a row without set_by_id, set_at or relationship with 23502: NOT NULL list of CreditLimitChange:required (story); passed at once only after migration, written first and failed with the table missing
+- `credit-limit-changes-table.test.ts` › TRUNCATE denied (inside the immutability test): REVOKE TRUNCATE in the Adds section (story Context)
+
+**Other additions:**
+- Plain-language comment above the model in schema.prisma, per CLAUDE.md database rules.
+
+**Evidence:** story tests 8/8; full suite 1025/1025, failing: none; typecheck clean; lint 0 errors, 44 warnings (pre-existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- `prisma migrate diff` shows no drift for credit_limit_changes (existing drift on other FKs onDelete is pre-existing).
+<!-- end REL-003 -->

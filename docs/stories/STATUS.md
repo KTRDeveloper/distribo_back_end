@@ -96,7 +96,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-015 | todo | | |
 | REL-001 | done | | customer_relationships table, migration, 14 tests green |
 | REL-002 | done | | CHECKs and four partial unique indexes added; REL-001 merged_into_id test updated as listed |
-| REL-003 | todo | | |
+| REL-003 | done | | credit_limit_changes table, append-only; story tests 8/8, full suite 1025/1025 |
 | REL-004 | todo | | |
 | REL-005 | todo | | |
 | REL-006 | todo | | |
