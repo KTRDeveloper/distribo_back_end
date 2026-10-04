@@ -136,3 +136,31 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 - Driver relationships appear only while an order is CONFIRMED (per story); an IN_DELIVERY order without own delivery or address would drop the customer on a later resync. A relationship leaving a driver's scope is not sent in `deleted`.
 - Customer-organization side (organization as customer) is not synced, per story text.
 <!-- end SYNC-004 -->
+
+<!-- begin SYNC-005 -->
+## SYNC-005 — Pull the catalog
+
+- Filed: 2026-10-04 17:28 UTC
+- Status: **done**: products adapter: full catalog for OWNER/MANAGER/SELLER, 3 columns for DRIVER, none for customer
+- Risk: medium · story: [SYNC-005-pull-the-catalog.md](../modules/sync/SYNC-005-pull-the-catalog.md)
+- Agent: 54,783 tokens, 23 tool uses, 7 min 37 s
+
+### Agent report
+
+**Summary:** Added the `products` sync adapter (full catalog for OWNER/MANAGER/SELLER, id/name/unit for DRIVER, nothing for customers) and registered it.
+
+**Decisions:**
+- Registration: done in `sync.routes.ts` (where the other adapters register), not `sync.service.ts` which the story lists; the service needed no change.
+- Driver "orders to deliver": CONFIRMED or IN_DELIVERY orders, not deleted, with an applied address or a delivery assigned to the driver (same pool as the relationships adapter, SYNC-006 AC-2).
+- `min_order_quantity` sent as a decimal string like the catalog API ("2.5"); price as a number.
+- Driver incremental: a product newly on a visible order line (line or order changed since) is sent even if unchanged; a deleted product goes in `deleted` by id only if some order line names it.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-catalog.test.ts` › seller deleted product in `deleted`: C-35 deletion path on incremental pull (C-35); passed only once the adapter existed
+- same file › driver newly-linked product arrives incrementally: a product that becomes visible is never missing on the phone (mirrors people adapter rule)
+
+**Evidence:** story tests 7/7; full suite 2176/2177 on the first run, the failure was the lint gate test caused by one lint error in my test (fixed, re-ran lint-gate test and sync tests green); typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- Driver orders delivered in the last 90 days (SYNC-006 pool) are not counted for product visibility; revisit if SYNC-006 widens the driver order scope.
+<!-- end SYNC-005 -->

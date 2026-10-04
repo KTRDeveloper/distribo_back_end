@@ -1,0 +1,155 @@
+import type { CollaborationRole, Prisma } from '@prisma/client';
+import { classifyChanges, toEpoch } from '../sync.changes.js';
+import { registerAdapter } from '../sync.registry.js';
+import type { Row, SyncAdapter, Viewer } from '../sync.types.js';
+import { refuseEveryLine } from './identity.adapter.js';
+
+type Changes = { created: Row[]; updated: Row[]; deleted: string[] };
+
+/** Roles that receive the whole catalog of their organization; a DRIVER gets names only. */
+const CATALOG_ROLES: CollaborationRole[] = ['OWNER', 'MANAGER', 'SELLER'];
+
+function organizationsWithRole(viewer: Viewer, roles: CollaborationRole[]): string[] {
+  return viewer.memberships.filter((m) => roles.includes(m.role)).map((m) => m.organizationId);
+}
+
+/**
+ * The order lines a driver may know about: lines of CONFIRMED or IN_DELIVERY orders that have a
+ * delivery address or are assigned to the driver (the same pool as the relationships they see).
+ */
+function driverVisibleLines(viewer: Viewer): Prisma.OrderLineWhereInput {
+  return {
+    deletedAt: null,
+    order: {
+      deletedAt: null,
+      status: { in: ['CONFIRMED', 'IN_DELIVERY'] },
+      OR: [
+        { deliveryAddressApplied: { not: null } },
+        { deliveries: { some: { assignedToId: viewer.personId, deletedAt: null } } },
+      ],
+    },
+  };
+}
+
+/**
+ * The products a viewer may receive, as OR branches (ASVS v5.0.0-8.2.2). Scope comes from the
+ * viewer's ACTIVE memberships only. A customer person has no branch at all: they browse online.
+ * A product the driver newly sees because an order line appeared or its order changed is sent
+ * even if the product row itself did not change, so it is never missing on the phone.
+ */
+function scopeBranches(viewer: Viewer, since: Date | null): Prisma.ProductWhereInput[] {
+  const branches: Prisma.ProductWhereInput[] = [];
+
+  const catalogOrgs = organizationsWithRole(viewer, CATALOG_ROLES);
+  if (catalogOrgs.length > 0) {
+    branches.push({
+      organizationId: { in: catalogOrgs },
+      ...(since ? { serverUpdatedAt: { gt: since } } : { deletedAt: null }),
+    });
+  }
+
+  const driverOrgs = organizationsWithRole(viewer, ['DRIVER']);
+  if (driverOrgs.length > 0) {
+    const lines = driverVisibleLines(viewer);
+    if (since === null) {
+      branches.push({
+        organizationId: { in: driverOrgs },
+        deletedAt: null,
+        orderLines: { some: lines },
+      });
+    } else {
+      branches.push({
+        organizationId: { in: driverOrgs },
+        deletedAt: null,
+        orderLines: { some: lines },
+        OR: [
+          { serverUpdatedAt: { gt: since } },
+          {
+            orderLines: {
+              some: {
+                ...lines,
+                OR: [
+                  { serverUpdatedAt: { gt: since } },
+                  { order: { serverUpdatedAt: { gt: since } } },
+                ],
+              },
+            },
+          },
+        ],
+      });
+      // A deleted product is announced by id only, and only if some order line still names it.
+      branches.push({
+        organizationId: { in: driverOrgs },
+        deletedAt: { not: null },
+        serverUpdatedAt: { gt: since },
+        orderLines: { some: {} },
+      });
+    }
+  }
+  return branches;
+}
+
+/**
+ * `products`: the whole catalog of the organization for OWNER, MANAGER and SELLER (any status,
+ * deleted rows in `deleted`); `id, name, unit` of the products on orders to deliver for a DRIVER
+ * (ASVS v5.0.0-15.3.1); nothing for a customer person (C-35, CM-30). `min_order_quantity` is sent
+ * as a decimal string, like the catalog API.
+ */
+export const productsAdapter: SyncAdapter = {
+  table: 'products',
+  async pull(viewer, since, tx): Promise<Changes> {
+    const branches = scopeBranches(viewer, since);
+    if (branches.length === 0) return { created: [], updated: [], deleted: [] };
+
+    const rows = await tx.product.findMany({
+      where: { OR: branches },
+      select: {
+        id: true,
+        organizationId: true,
+        name: true,
+        unit: true,
+        price: true,
+        priceUpdatedAt: true,
+        minOrderQuantity: true,
+        description: true,
+        category: true,
+        status: true,
+        createdAt: true,
+        serverUpdatedAt: true,
+        deletedAt: true,
+      },
+      orderBy: { id: 'asc' },
+    });
+    const catalogOrgs = new Set(organizationsWithRole(viewer, CATALOG_ROLES));
+    return classifyChanges(
+      rows,
+      since,
+      (r) => r.createdAt,
+      (r): Row =>
+        catalogOrgs.has(r.organizationId)
+          ? {
+              id: r.id,
+              organization_id: r.organizationId,
+              name: r.name,
+              unit: r.unit,
+              price: Number(r.price),
+              price_updated_at: toEpoch(r.priceUpdatedAt),
+              min_order_quantity: r.minOrderQuantity?.toString() ?? null,
+              description: r.description,
+              category: r.category,
+              status: r.status,
+              created_at: toEpoch(r.createdAt),
+              server_updated_at: toEpoch(r.serverUpdatedAt),
+            }
+          : { id: r.id, name: r.name, unit: r.unit }
+    );
+  },
+  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+};
+
+export const catalogAdapters: SyncAdapter[] = [productsAdapter];
+
+/** Registers the catalog adapters; called once when the sync routes are built. */
+export function registerCatalogAdapters(): void {
+  for (const adapter of catalogAdapters) registerAdapter(adapter);
+}

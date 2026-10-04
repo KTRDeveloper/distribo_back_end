@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.js';
+import { registerCatalogAdapters } from './adapters/catalog.adapter.js';
 import { registerIdentityAdapters } from './adapters/identity.adapter.js';
 import { registerRelationshipAdapters } from './adapters/relationship.adapter.js';
 import { pullQuerySchema } from './sync.schemas.js';
@@ -8,6 +9,7 @@ import { buildViewer } from './sync.viewer.js';
 
 registerIdentityAdapters();
 registerRelationshipAdapters();
+registerCatalogAdapters();
 
 /** Sync routes; all require authentication. */
 export const syncRoutes = Router();

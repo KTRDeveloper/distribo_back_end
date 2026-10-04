@@ -187,7 +187,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-002 | blocked | | FK admin_actions.sync_archive_id breaks existing admin-action-table.test.ts 'accepts REPLAY_SYNC...' (uses non-existent ARCHIVE_ID); story lists no Tests to update: allow inserting an archive row in that test's setup? |
 | SYNC-003 | done | | GET /sync/pull and identity adapters; 19 tests pass; no OpenAPI (SYNC-006) |
 | SYNC-004 | done | | customer_relationships and customer_prices pull adapters; suite 2170/2170 |
-| SYNC-005 | todo | | |
+| SYNC-005 | done | | products adapter: full catalog for OWNER/MANAGER/SELLER, 3 columns for DRIVER, none for customer |
 | SYNC-006 | todo | | |
 | SYNC-007 | todo | | |
 | SYNC-008 | todo | | |
