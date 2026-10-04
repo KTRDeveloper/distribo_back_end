@@ -3,7 +3,7 @@ name: design-to-user-stories
 description: Turns one Markdown design file that holds the data model (design.md, conception, functional spec) into small, self-contained, secure and testable user stories that a weaker coding agent can implement without guessing, with CONVENTIONS.md, a walking skeleton (FND-000), OWASP ASVS 5.0 requirements, abuse cases, tests for every constraint and a dependency-ordered backlog, all checked by scripts, and keeps them in sync when the design changes later. Use it whenever someone wants to turn a design, a data model or a spec into user stories, a backlog, tickets or implementation tasks for an AI coding agent, for example "generate user stories from design.md", "split this design into stories for Claude Code", "génère les user stories à partir de ce fichier de conception", "découpe cette conception en stories", "crée le backlog à partir du modèle de données", "the design changed, update the stories", "resynchronise les stories avec la conception", even when the word story is not used.
 compatibility: Python 3 with PyYAML; git optional.
 metadata:
-  version: "1.3.0"
+  version: "1.3.1"
 ---
 
 # Design to user stories

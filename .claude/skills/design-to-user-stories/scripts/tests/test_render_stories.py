@@ -159,6 +159,16 @@ class RenderTest(unittest.TestCase):
         self.assertIn("- Never swallow an exception.", text)
         self.assertIsNone(re.search(r"^- \[[a-z-]+\] ", text, re.M), "tags never reach CONVENTIONS.md")
 
+    def test_replace_swaps_the_review_line_of_the_definition_of_done(self):
+        project = load("project.yaml")
+        project["replace"] = {"review": "A risk: high story is reviewed before done, unless a strong enough agent implemented it."}
+        code, out = self.render(project)
+        self.assertEqual(code, 0, out)
+        dod = (self.p.out / "CONVENTIONS.md").read_text().split("## Definition of Done\n")[1].split("\n## ")[0]
+        self.assertIn("\n- A risk: high story is reviewed before done, unless a strong enough agent implemented it.\n", dod)
+        self.assertNotIn("reviewed by a human or a stronger model", dod)
+        self.assertIn("- Fixtures contain no real personal data.", dod)
+
     def test_replace_errors(self):
         project = load("project.yaml")
         project["baseline_omit"] = ["passwords"]

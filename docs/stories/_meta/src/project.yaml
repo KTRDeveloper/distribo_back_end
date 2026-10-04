@@ -115,6 +115,7 @@ baseline:
 - 'v5.0.0-8.3.1: the server decides access with the rules table (ACC) and the visibility predicate (REL); a phone''s own checks only hide buttons.'
 replace:
   status-codes: "400 malformed request or failed schema validation · 401 not authenticated · 403 not allowed · 404 absent or outside the caller's scope · 409 conflict · 429 rate limited · 500 unexpected."
+  review: "A risk: high story is reviewed by a human or a stronger model before done, unless an agent running Sonnet 5.5 or a more capable model, at effort high or above, implemented it."
 rules:
 - Lists take `limit` (default 50, max 100) and an opaque `cursor`, ordered by `created_at` descending then `id`.
 - Every online gesture that changes data carries a client-generated UUIDv7 `id`; a repeat with the same id changes nothing and returns the first response (ACC).
