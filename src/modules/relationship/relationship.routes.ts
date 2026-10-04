@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.js';
 import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
+import type { Actor } from '../../types/express.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
   addCounterSchema,
@@ -29,6 +30,8 @@ import {
   listSuppliersOfOrganization,
   listSuppliersOfPerson,
   orgEditSupplier,
+  orgEndSupplier,
+  orgReopenSupplier,
   reopenRelationship,
   setCreditLimit,
 } from './relationship.service.js';
@@ -206,7 +209,7 @@ relationshipRoutes.patch(
 /** Builds the POST handler of an end or reopen gesture: same guards, one service call. */
 function endOrReopenRoute(
   path: string,
-  gesture: typeof endRelationship | typeof reopenRelationship
+  gesture: (actor: Actor, relationshipId: string) => Promise<unknown>
 ) {
   relationshipRoutes.post(
     path,
@@ -237,6 +240,14 @@ endOrReopenRoute('/customers/:relationshipId/end', endRelationship);
 // POST /api/v1/organizations/:organizationId/customers/:relationshipId/reopen - a manager online
 // reopens a relationship the supplier ended; 409 when the customer ended it
 endOrReopenRoute('/customers/:relationshipId/reopen', reopenRelationship);
+
+// POST /api/v1/organizations/:organizationId/suppliers/:relationshipId/end - a manager online
+// leaves a supplier for the organization; 403 below MANAGER, 404 outside it, 409 unless ACTIVE
+endOrReopenRoute('/suppliers/:relationshipId/end', orgEndSupplier);
+
+// POST /api/v1/organizations/:organizationId/suppliers/:relationshipId/reopen - a manager online
+// comes back to a supplier the organization left; 409 when the supplier ended it
+endOrReopenRoute('/suppliers/:relationshipId/reopen', orgReopenSupplier);
 
 /** Relationship routes of the signed-in person as customer, mounted at `/suppliers`. */
 export const supplierRoutes = Router();

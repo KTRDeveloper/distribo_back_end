@@ -24,6 +24,7 @@ import {
   ensureCustomerRelationship,
   findPersonName,
   findCustomerRelationshipLocked,
+  findOrganizationSupplierLocked,
   findSupplierRelationship,
   findSupplierRelationshipLocked,
   findWithParties,
@@ -730,4 +731,85 @@ export async function orgEditSupplier(
   const row = await updateOrganizationSupplierLabel(actor, relationshipId, input.supplier_label);
   if (!row) throw httpError(404, 'NOT_FOUND', 'Supplier not found');
   return projectForCustomer(row);
+}
+
+/**
+ * A manager (or owner) leaves a supplier on behalf of the organization: ACTIVE becomes ENDED with
+ * `ended_by_party` CUSTOMER. History, balance and payments stay untouched.
+ *
+ * The rules table decides first (`end`, online only, ASVS v5.0.0-8.2.1). One transaction then
+ * locks the row selected by id, visibility and customer organization together (404 outside the
+ * organization, v5.0.0-8.2.2), refuses any status but ACTIVE, and writes the change in one
+ * conditional update (v5.0.0-2.3.1, C-09). The response is the customer projection (CM-19).
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @returns The customer view of the ended relationship.
+ * @throws 403 `FORBIDDEN`; 404 `NOT_FOUND`; 409 `RELATIONSHIP_NOT_ACTIVE`.
+ */
+export async function orgEndSupplier(
+  actor: Actor,
+  relationshipId: string
+): Promise<CustomerRelationshipView> {
+  assertMayEndOrReopen(actor, 'end');
+
+  return runInTransaction(async (tx) => {
+    const row = await findOrganizationSupplierLocked(tx, actor, relationshipId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Supplier not found');
+    if (row.status !== 'ACTIVE') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'The relationship is not active');
+    }
+
+    const changed = await transitionRelationship(tx, row.id, {
+      from: { status: 'ACTIVE', endedByParty: null },
+      to: { status: 'ENDED', endedByParty: 'CUSTOMER' },
+    });
+    if (!changed) throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'The relationship is not active');
+    logger.warn(
+      { event: 'relationship_ended', relationshipId: row.id, personId: actor.personId },
+      'Relationship ended'
+    );
+    return projectForCustomer(await findWithSupplier(tx, row.id));
+  });
+}
+
+/**
+ * A manager (or owner) brings the organization back to a supplier it left: ENDED by CUSTOMER
+ * becomes ACTIVE with `ended_by_party` empty. Only the party that closed it may reopen it (C-09):
+ * a relationship the supplier ended (a block) answers 409 and stays ENDED.
+ *
+ * Same access checks, lock and conditional update as {@link orgEndSupplier}.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @returns The customer view of the reopened relationship.
+ * @throws 403 `FORBIDDEN`; 404 `NOT_FOUND`; 409 `ENDED_BY_OTHER_PARTY` or `RELATIONSHIP_NOT_ENDED`.
+ */
+export async function orgReopenSupplier(
+  actor: Actor,
+  relationshipId: string
+): Promise<CustomerRelationshipView> {
+  assertMayEndOrReopen(actor, 'reopen');
+
+  return runInTransaction(async (tx) => {
+    const row = await findOrganizationSupplierLocked(tx, actor, relationshipId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Supplier not found');
+    if (row.status !== 'ENDED') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ENDED', 'The relationship is not ended');
+    }
+    if (row.endedByParty !== 'CUSTOMER') {
+      logger.warn(
+        { event: 'reopen_refused', relationshipId: row.id, personId: actor.personId },
+        'Reopen refused: ended by the other party'
+      );
+      throw httpError(409, 'ENDED_BY_OTHER_PARTY', 'The other party ended this relationship');
+    }
+
+    const changed = await transitionRelationship(tx, row.id, {
+      from: { status: 'ENDED', endedByParty: 'CUSTOMER' },
+      to: { status: 'ACTIVE', endedByParty: null },
+    });
+    if (!changed) throw httpError(409, 'RELATIONSHIP_NOT_ENDED', 'The relationship is not ended');
+    return projectForCustomer(await findWithSupplier(tx, row.id));
+  });
 }

@@ -696,3 +696,29 @@ Also in this run: admin, catalog, order, finance, delivery.
 **Follow-ups:**
 - None.
 <!-- end REL-018 -->
+
+<!-- begin REL-019 -->
+## REL-019 — Organization ends and reopens a supplier
+
+- Filed: 2026-10-04 14:44 UTC
+- Status: **done**: org end/reopen supplier routes; 19 tests, suite 1725 green
+- Risk: medium · story: [REL-019-organization-ends-and-reopens-a-supplier.md](../modules/relationship/REL-019-organization-ends-and-reopens-a-supplier.md)
+- Agent: 51,017 tokens, 17 tool uses, 5 min 16 s
+
+### Agent report
+
+**Summary:** Added POST end and reopen on organizations/{id}/suppliers/{relationshipId}, mirroring REL-017 with the organization scope.
+
+**Decisions:**
+- Role check: reused `assertMayEndOrReopen` (rules table, online context) rather than `atLeast(MANAGER)`, so end/reopen follow ACC-002 as in REL-015.
+- Scope: new `findOrganizationSupplierLocked` (visibility + customerOrganizationId + id, row lock); a relationship where the org is only the supplier answers 404.
+- Route helper `endOrReopenRoute` now takes a generic `(actor, id) => Promise<unknown>` since the views differ (supplier vs customer).
+
+**Tests added beyond the story:**
+- `org-end-reopen.test.ts` › not active / not ended 409 codes, absent id and org-as-supplier 404, non-member 404, OWNER allowed, 400 on unknown field, CM-19 no leak, blocked row stays ENDED by SUPPLIER (story rules / REL-017 pattern); all passed at once once implemented
+
+**Other additions:**
+- Two paths added to `tests/integration/api-docs/catalog.test.ts` (convention); per-001 lists none for these modules so unchanged.
+
+**Evidence:** story tests 19/19; full suite 1725/1725, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing)
+<!-- end REL-019 -->

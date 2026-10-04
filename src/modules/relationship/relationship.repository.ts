@@ -603,6 +603,41 @@ function writeSupplierLabel(where: Prisma.CustomerRelationshipWhereInput, suppli
 }
 
 /**
+ * Reads one relationship where the organization is the customer organization and holds a row lock
+ * on it until the transaction ends, so a concurrent end, reopen or merge waits. Selected by id,
+ * visibility and customer organization together (v5.0.0-8.2.2): another business's row, one where
+ * the organization is only the supplier, a deleted or a merged one answers null and is never locked.
+ *
+ * @param tx - Transaction client of the caller.
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param id - Relationship id from the path.
+ * @returns The locked row with the supplier parties loaded, or null.
+ */
+export async function findOrganizationSupplierLocked(
+  tx: Prisma.TransactionClient,
+  viewer: { personId: string; organizationId: string },
+  id: string
+) {
+  const scope: Prisma.CustomerRelationshipWhereInput = {
+    AND: [
+      visibleRelationsWhere({
+        personId: viewer.personId,
+        organizationIds: [viewer.organizationId],
+      }),
+      { customerOrganizationId: viewer.organizationId },
+      { id },
+    ],
+  };
+  const found = await tx.customerRelationship.findFirst({ where: scope, select: { id: true } });
+  if (!found) return null;
+  await tx.$queryRaw`SELECT "id" FROM "customer_relationships" WHERE "id" = ${found.id}::uuid FOR UPDATE`;
+  return tx.customerRelationship.findFirst({
+    where: scope,
+    include: { supplierPerson: true, supplierOrganization: true },
+  });
+}
+
+/**
  * Reads one relationship where the person is the customer person and holds a row lock on it
  * until the transaction ends, so a concurrent end, reopen or merge waits. The scoped lookup
  * runs first (v5.0.0-8.2.2): another person's row answers null and is never locked.

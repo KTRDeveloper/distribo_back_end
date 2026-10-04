@@ -442,3 +442,42 @@ openApiRegistry.registerPath({
     },
   },
 });
+
+for (const [action, summary, conflicts] of [
+  [
+    'end',
+    'Leave a supplier for the organization (ACTIVE becomes ENDED by the customer; MANAGER and above)',
+    'RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+  ],
+  [
+    'reopen',
+    'Come back to a supplier the organization left (MANAGER and above)',
+    'ENDED_BY_OTHER_PARTY, RELATIONSHIP_NOT_ENDED or conflicting gesture id',
+  ],
+] as const) {
+  openApiRegistry.registerPath({
+    method: 'post',
+    path: `/api/v1/organizations/{organizationId}/suppliers/{relationshipId}/${action}`,
+    tags: ['relationship'],
+    summary,
+    security: [{ bearerAuth: [] }],
+    request: {
+      params: organizationParamsSchema.merge(customerParamsSchema),
+      body: { content: { 'application/json': { schema: endReopenSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'The updated customer-side relationship view',
+        content: { 'application/json': { schema: customerRelationshipViewSchema } },
+      },
+      400: { description: 'Invalid body or relationship id', content: errorContent },
+      401: { description: 'Missing or invalid token', content: errorContent },
+      403: { description: 'The role cannot end or reopen', content: errorContent },
+      404: {
+        description: 'Not found, of another business, or not a member',
+        content: errorContent,
+      },
+      409: { description: conflicts, content: errorContent },
+    },
+  });
+}
