@@ -137,6 +137,11 @@ enum CollaborationStatus {
   REVOKED
 }
 
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+}
+
 model SystemConfig {
   id               String    @id @default(uuid())
   category         String
@@ -286,8 +291,30 @@ model Organization {
 
   notifications  Notification[]
   collaborations Collaboration[]
+  subscriptions  Subscription[]
 
   @@map("organizations")
+}
+
+// Rule the database enforces on subscriptions (the billing history of an
+// organization), beyond what this model declares. It comes from migration
+// 20261004120000_org_012_subscriptions.
+// - An organization has at most one active subscription. Expired ones stay as
+//   history, so several can exist. The exception for expired rows is why this
+//   rule is not written as @@unique here.
+// Subscriptions are not synchronized to phones, so there is no
+// server_updated_at or deleted_at column.
+model Subscription {
+  id             String             @id @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  plan           String
+  status         SubscriptionStatus
+  startsAt       DateTime?          @map("starts_at") @db.Timestamptz
+  endsAt         DateTime?          @map("ends_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("subscriptions")
 }
 
 // Rules the database enforces on collaborations (a person's membership in an
