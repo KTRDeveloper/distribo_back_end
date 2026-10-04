@@ -319,6 +319,8 @@ model Person {
   ordersDelivered Order[] @relation("OrderDeliveredBy")
   ordersCancelled Order[] @relation("OrderCancelledBy")
 
+  deliveriesAssigned Delivery[] @relation("DeliveryAssignedTo")
+
   ledgerEntriesRecorded LedgerEntry[] @relation("LedgerEntryRecordedBy")
 
   expensesPaid      Expense[] @relation("ExpensePaidBy")
@@ -914,6 +916,7 @@ model Order {
   parentOrder          Order?               @relation("OrderParent", fields: [parentOrderId], references: [id])
   childOrders          Order[]              @relation("OrderParent")
   ledgerEntries        LedgerEntry[]
+  deliveries           Delivery[]
 
   @@index([customerRelationshipId])
   @@index([status])
@@ -1051,4 +1054,36 @@ model Handover {
   @@index([fromPersonId])
   @@index([toPersonId])
   @@map("handovers")
+}
+
+// Rules the database enforces on deliveries (one row per delivery attempt of
+// an order), beyond what this model declares. All come from migration
+// 20261004260000_dlv_001_deliveries.
+// - An order can have several deliveries (one per attempt); the order must
+//   exist, and the driver (assigned_to_id) is required.
+// - The driver must be a registered person, never a guest. This is checked
+//   when the transaction is saved, not row by row.
+// - departed_at, arrived_at and failed_at start empty; failure_reason and
+//   sync_issue are free text and optional.
+// - server_updated_at is set by the database on every change.
+// The rules on state changes (departure, arrival, failure) are added by a
+// later story (DLV-002), not here.
+model Delivery {
+  id              String    @id @db.Uuid
+  orderId         String    @map("order_id") @db.Uuid
+  assignedToId    String    @map("assigned_to_id") @db.Uuid
+  departedAt      DateTime? @map("departed_at") @db.Timestamptz
+  arrivedAt       DateTime? @map("arrived_at") @db.Timestamptz
+  failedAt        DateTime? @map("failed_at") @db.Timestamptz
+  failureReason   String?   @map("failure_reason") @db.Text
+  syncIssue       String?   @map("sync_issue") @db.Text
+  serverUpdatedAt DateTime  @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  order      Order  @relation(fields: [orderId], references: [id])
+  assignedTo Person @relation("DeliveryAssignedTo", fields: [assignedToId], references: [id])
+
+  @@index([orderId])
+  @@index([assignedToId, departedAt])
+  @@map("deliveries")
 }

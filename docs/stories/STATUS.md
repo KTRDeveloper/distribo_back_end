@@ -171,7 +171,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-018 | todo | | |
 | FIN-019 | todo | | |
 | FIN-020 | todo | | |
-| DLV-001 | todo | | |
+| DLV-001 | done | | deliveries table, triggers and tests green |
 | DLV-002 | todo | | |
 | DLV-003 | todo | | |
 | DLV-004 | todo | | |

@@ -27,3 +27,27 @@ Also in this run: relationship, admin, catalog, order, finance.
 - Nothing unexpected: the agent report and the notification figures both came in.
 - REL-002's migration, test file and schema.prisma comment are left uncommitted in the working tree, waiting for the human decision.
 - Next: decide whether that REL-001 test may be updated (amend REL-002's "Tests to update"), then `/implement-stories REL-002` and `/implement-stories next:100`.
+
+<!-- begin DLV-001 -->
+## DLV-001 — Deliveries table
+
+- Filed: 2026-10-04 10:54 UTC
+- Status: **done**: deliveries table, triggers and tests green
+- Risk: medium · story: [DLV-001-deliveries-table.md](../modules/delivery/DLV-001-deliveries-table.md)
+- Agent: 37,258 tokens, 15 tool uses, 13 min 4 s
+
+### Agent report
+
+**Summary:** Added `deliveries` table (migration 20261004260000_dlv_001_deliveries), Delivery model and relations, and the integration test file.
+
+**Decisions:**
+- FK delete rule: ON DELETE RESTRICT on order_id and assigned_to_id, matching the orders and handovers migrations.
+- `failure_reason` and `sync_issue` typed TEXT (story says string, no length given), as in orders.
+- `require_registered_person` is a deferred constraint trigger, like the other author columns, so 23514 shows at commit.
+
+**Tests added beyond the story:**
+- `tests/integration/delivery/delivery-table.test.ts` › allows several attempts for the same order: one row per attempt (story: "one row per attempt"); passed at once
+- same file › rejects an unknown assigned_to_id with 23503, rejects a null order_id with 23502, accepts a registered driver, moves server_updated_at forward on update, has indexes: Delivery:fk / Delivery:required / C-35 / Context; passed at once after the migration
+
+**Evidence:** story tests 10/10; full suite 1431/1431, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+<!-- end DLV-001 -->
