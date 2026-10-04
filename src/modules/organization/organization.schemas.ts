@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
 import { NAME_MAX, TEXT_MAX } from '../../shared/limits.js';
+import { paginationQuerySchema } from '../../shared/pagination.js';
 
 const EMAIL_MAX = 254;
 
@@ -19,6 +20,12 @@ export const createOrganizationSchema = z
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 
+/** Strict list query: only `limit` and `cursor`. */
+export const listOrganizationsQuerySchema = paginationQuerySchema.strict();
+
+/** Path parameter of the detail route. */
+export const organizationIdParamsSchema = z.object({ organizationId: uuidV7Schema }).strict();
+
 /** Closed response of the create gesture. */
 export type OrganizationView = {
   id: string;
@@ -27,5 +34,13 @@ export type OrganizationView = {
   email: string | null;
   status: string;
   created_at: string;
-  role: 'OWNER';
+  role: string;
+};
+
+/** One item of the list of my organizations. */
+export type MyOrganizationItem = {
+  id: string;
+  name: string;
+  status: string;
+  role: string;
 };
