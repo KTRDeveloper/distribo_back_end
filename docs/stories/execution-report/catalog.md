@@ -6,6 +6,31 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| CAT-003 Reference price and active product lookup | done | ad5f9c1 | getReferencePrice and getActiveProduct in catalog.repository; 13 tests pass, suite 1843 green |
+| CAT-004 Manager creates a product | done | 0d625c3 | POST /products implemented; 34 story tests, full suite 1877 pass |
+| CAT-005 Manager edits and retires a product | done | 2e02234 | PATCH product edit/retire, 28 tests green |
+| CAT-006 Seller lists the catalog | done | f42a5aa | GET products list with filters, cursor paging, openapi for product routes |
+| CAT-007 Customer browses a supplier's catalog | done | 4d0f83b | GET /organizations/{id}/catalog with own negotiated prices; 1952 tests pass |
+| CAT-008 Owner or manager sets a negotiated price | done | dcec5f3 | PUT negotiated price; non-ACTIVE (ENDED) refused 409; PENDING unreachable for org supplier (DB rule) |
+| CAT-009 Owner or manager removes a negotiated price and reads them | done | a0d375f | List and delete negotiated prices; 20 story tests, full suite 2009 green |
+| CAT-010 Manager copies negotiated prices between customers | done | 3c36fed | copy prices route; 15 tests, full suite 2024 green |
+| CAT-011 Reseller copies a purchased article into their catalog | done | 10cae1f | Copy article endpoint; 15 story tests, full suite green |
+
+Also in this run: relationship, order, finance, delivery, sync, privacy.
+
+- Completed: every PLAN line was run or skipped; the run did not stop.
+- Skipped, a dependency not done (via ORD-006): ORD-009 to ORD-017, ORD-019 to ORD-021, FIN-002 to FIN-020, SYNC-007.
+- Skipped, a dependency not done (via DLV-002): DLV-003 to DLV-012.
+- Skipped, a dependency not done (via SYNC-002, or the chains above): SYNC-009 to SYNC-023, PRIV-003.
+- Stashes: "ORD-006 blocked: partial changes", "DLV-002 blocked: partial changes", "SYNC-002 blocked: partial changes".
+- All three blocks have one cause: the story's new database rule breaks existing tests (ORD-006: 48 in 6 files; DLV-002: 4 in delivery-table; SYNC-002: 1 in admin-action-table), and none lists them under "Tests to update".
+- Unexpected: REL-012, ORD-003 and SYNC-006 hand-backs lacked the final `<ID> <status>` line; STATUS.md said done, as their text did. No missing report file, every figure came from its notification.
+- Next: add "Tests to update" to ORD-006, DLV-002 and SYNC-002, then `/implement-stories ORD-006,DLV-002,SYNC-002`, then `/implement-stories next:100`.
+
 ### Run 2026-10-04 10:55 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |

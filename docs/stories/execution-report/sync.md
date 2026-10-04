@@ -6,6 +6,30 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-001 Sync types, adapter registry and viewer | done | da21022 | types, registry, viewer; 7 tests pass |
+| SYNC-002 Sync archive table | blocked | c543bea | FK admin_actions.sync_archive_id breaks existing admin-action-table.test.ts 'accepts REPLAY_SYNC...' (uses non-existent ARCHIVE_ID); story lists no Tests to update: allow inserting an archive row in that test's setup? |
+| SYNC-003 Pull endpoint and identity tables | done | 385e6a9 | GET /sync/pull and identity adapters; 19 tests pass; no OpenAPI (SYNC-006) |
+| SYNC-004 Pull relationships and negotiated prices | done | b2fa665 | customer_relationships and customer_prices pull adapters; suite 2170/2170 |
+| SYNC-005 Pull the catalog | done | 61fa592 | products adapter: full catalog for OWNER/MANAGER/SELLER, 3 columns for DRIVER, none for customer |
+| SYNC-006 Pull orders, lines and deliveries | done | 4782765 | orders, order_lines, deliveries pull adapters; 11 tests green |
+| SYNC-008 Device tracking and full resynchronization | done | f6a33d1 | Pull checks X-Scope-Version, revoked device 401, records last_synced_at and scope_version_seen |
+
+Not run: SYNC-007, SYNC-009..SYNC-023.
+Also in this run: relationship, catalog, order, finance, delivery, privacy.
+
+- Completed: every PLAN line was run or skipped; the run did not stop.
+- Skipped, a dependency not done (via ORD-006): ORD-009 to ORD-017, ORD-019 to ORD-021, FIN-002 to FIN-020, SYNC-007.
+- Skipped, a dependency not done (via DLV-002): DLV-003 to DLV-012.
+- Skipped, a dependency not done (via SYNC-002, or the chains above): SYNC-009 to SYNC-023, PRIV-003.
+- Stashes: "ORD-006 blocked: partial changes", "DLV-002 blocked: partial changes", "SYNC-002 blocked: partial changes".
+- All three blocks have one cause: the story's new database rule breaks existing tests (ORD-006: 48 in 6 files; DLV-002: 4 in delivery-table; SYNC-002: 1 in admin-action-table), and none lists them under "Tests to update".
+- Unexpected: REL-012, ORD-003 and SYNC-006 hand-backs lacked the final `<ID> <status>` line; STATUS.md said done, as their text did. No missing report file, every figure came from its notification.
+- Next: add "Tests to update" to ORD-006, DLV-002 and SYNC-002, then `/implement-stories ORD-006,DLV-002,SYNC-002`, then `/implement-stories next:100`.
+
 <!-- begin SYNC-001 -->
 ## SYNC-001 — Sync types, adapter registry and viewer
 

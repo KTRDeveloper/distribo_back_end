@@ -6,6 +6,38 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| REL-009 Seller opens one customer | done | 2934aa3 | GET customer by id; 8 tests, full suite 1569 green |
+| REL-010 Seller edits the supplier-side fields | done | 2253f53 | PATCH customers/:id; per-field ability check, 21 tests |
+| REL-011 Manager adds a counter | done | f10001a | POST /counters; SELLER blocked by an extra MANAGER rank check |
+| REL-012 Owner or manager sets a credit limit | done | f673c62 | PUT credit-limit done; same-author trigger workaround (clear author then write, locked tx) |
+| REL-013 Owner reads the credit limit history | done | 325484d | GET credit-limit-changes: MANAGER and above, visibility first, keyset on set_at; 10 tests |
+| REL-015 Manager ends and reopens a relationship as supplier | done | 5e87e6c | end/reopen routes; PENDING unreachable via org scope (404); reopen of non-ended = RELATIONSHIP_NOT_ENDED (unspecified) |
+| REL-016 Customer lists their suppliers | done | a4bb07e | GET /suppliers customer view, 11 tests, suite 1671 green |
+| REL-017 Customer names, ends and reopens a supplier | done | b3838dc | customer PATCH/end/reopen on /suppliers; 12 story tests, full suite 1683 green |
+| REL-018 Organization lists and names its suppliers | done | d07dca9 | GET/PATCH /organizations/{id}/suppliers, MANAGER+, customer projection; 23 tests, full suite 1706 green |
+| REL-019 Organization ends and reopens a supplier | done | 86e47fc | org end/reopen supplier routes; 19 tests, suite 1725 green |
+| REL-020 Customer invites a supplier by phone number | done | 89e3456 | invitations by person and organization, 24 tests, full suite green |
+| REL-021 Invited supplier accepts or declines | done | 045f49a | list, accept, merge, decline; 27 tests, full suite 1776 green |
+| REL-022 Newly registered person sees what is attached to their number | done | 21b080c | GET /people/me/attachments; 7 tests, full suite 1783 green |
+| REL-023 Customer contests a relationship ("this is not me") | done | 9b15573 | POST /suppliers/{id}/contest; 14 story tests, full suite 1797 green |
+| REL-024 Owner or manager corrects a customer's number | done | af92bfa | correct-number route, service, 18 tests; full suite 1815 green |
+| REL-025 Merge a duplicate customer record | done | 144411f | mergeDuplicateRelation and resolveMergedRelation added; 15 story tests, full suite green |
+
+Also in this run: catalog, order, finance, delivery, sync, privacy.
+
+- Completed: every PLAN line was run or skipped; the run did not stop.
+- Skipped, a dependency not done (via ORD-006): ORD-009 to ORD-017, ORD-019 to ORD-021, FIN-002 to FIN-020, SYNC-007.
+- Skipped, a dependency not done (via DLV-002): DLV-003 to DLV-012.
+- Skipped, a dependency not done (via SYNC-002, or the chains above): SYNC-009 to SYNC-023, PRIV-003.
+- Stashes: "ORD-006 blocked: partial changes", "DLV-002 blocked: partial changes", "SYNC-002 blocked: partial changes".
+- All three blocks have one cause: the story's new database rule breaks existing tests (ORD-006: 48 in 6 files; DLV-002: 4 in delivery-table; SYNC-002: 1 in admin-action-table), and none lists them under "Tests to update".
+- Unexpected: REL-012, ORD-003 and SYNC-006 hand-backs lacked the final `<ID> <status>` line; STATUS.md said done, as their text did. No missing report file, every figure came from its notification.
+- Next: add "Tests to update" to ORD-006, DLV-002 and SYNC-002, then `/implement-stories ORD-006,DLV-002,SYNC-002`, then `/implement-stories next:100`.
+
 ### Run 2026-10-04 13:47 UTC: `/implement-stories next:3`
 
 | story | status | commit | note |

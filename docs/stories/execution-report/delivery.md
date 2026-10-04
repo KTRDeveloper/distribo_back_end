@@ -6,6 +6,24 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| DLV-002 Delivery state rules in the database | blocked | bc49604 | DLV-001 tests in delivery-table.test.ts (4) contradict DLV-002 (no collaboration; two in-progress deliveries); story lists no Tests to update, may I amend them? |
+
+Not run: DLV-003..DLV-012.
+Also in this run: relationship, catalog, order, finance, sync, privacy.
+
+- Completed: every PLAN line was run or skipped; the run did not stop.
+- Skipped, a dependency not done (via ORD-006): ORD-009 to ORD-017, ORD-019 to ORD-021, FIN-002 to FIN-020, SYNC-007.
+- Skipped, a dependency not done (via DLV-002): DLV-003 to DLV-012.
+- Skipped, a dependency not done (via SYNC-002, or the chains above): SYNC-009 to SYNC-023, PRIV-003.
+- Stashes: "ORD-006 blocked: partial changes", "DLV-002 blocked: partial changes", "SYNC-002 blocked: partial changes".
+- All three blocks have one cause: the story's new database rule breaks existing tests (ORD-006: 48 in 6 files; DLV-002: 4 in delivery-table; SYNC-002: 1 in admin-action-table), and none lists them under "Tests to update".
+- Unexpected: REL-012, ORD-003 and SYNC-006 hand-backs lacked the final `<ID> <status>` line; STATUS.md said done, as their text did. No missing report file, every figure came from its notification.
+- Next: add "Tests to update" to ORD-006, DLV-002 and SYNC-002, then `/implement-stories ORD-006,DLV-002,SYNC-002`, then `/implement-stories next:100`.
+
 ### Run 2026-10-04 10:55 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |

@@ -6,6 +6,30 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORD-003 Orders only on live relationships of active organizations | done | 3fde21b | BEFORE INSERT trigger orders_creation_guard; 2048/2048 pass |
+| ORD-004 Order lines table | done | 3778f01 | order_lines table with CHECKs and triggers; 25 tests pass |
+| ORD-005 Order line product and minimum quantity rules | done | 947da57 | line product, minimum quantity and customer-price trigger (migration 20261004310000) |
+| ORD-006 Order total equals the sum of its lines | blocked | bfcbaff | Migration and 14 story tests pass, but the new totals trigger breaks 48 existing tests in 6 files (ledger-table, line-rules, order-line-table, order-table, status-rules, contest) that build orders with arbitrary totals or lines without matching total; story has no Tests to update: may they be updated? |
+| ORD-007 Order calculations and party views | done | 642d452 | Pure order calculations and supplier/customer views; 14 unit tests, full suite 2103 pass |
+| ORD-008 Order state machine | done | 0c1fa3d | transitionOrder with conditional update, viaSync delivery-wins; 23 tests |
+| ORD-018 Closing a business refuses its pending orders | done | bba70d2 | Pending orders refused in the close transaction; customers notified |
+
+Not run: ORD-009..ORD-017, ORD-019..ORD-021.
+Also in this run: relationship, catalog, finance, delivery, sync, privacy.
+
+- Completed: every PLAN line was run or skipped; the run did not stop.
+- Skipped, a dependency not done (via ORD-006): ORD-009 to ORD-017, ORD-019 to ORD-021, FIN-002 to FIN-020, SYNC-007.
+- Skipped, a dependency not done (via DLV-002): DLV-003 to DLV-012.
+- Skipped, a dependency not done (via SYNC-002, or the chains above): SYNC-009 to SYNC-023, PRIV-003.
+- Stashes: "ORD-006 blocked: partial changes", "DLV-002 blocked: partial changes", "SYNC-002 blocked: partial changes".
+- All three blocks have one cause: the story's new database rule breaks existing tests (ORD-006: 48 in 6 files; DLV-002: 4 in delivery-table; SYNC-002: 1 in admin-action-table), and none lists them under "Tests to update".
+- Unexpected: REL-012, ORD-003 and SYNC-006 hand-backs lacked the final `<ID> <status>` line; STATUS.md said done, as their text did. No missing report file, every figure came from its notification.
+- Next: add "Tests to update" to ORD-006, DLV-002 and SYNC-002, then `/implement-stories ORD-006,DLV-002,SYNC-002`, then `/implement-stories next:100`.
+
 ### Run 2026-10-04 12:26 UTC: `/implement-stories REL-004,ORD-002,ADM-008`
 
 | story | status | commit | note |
