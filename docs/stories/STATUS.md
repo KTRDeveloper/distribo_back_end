@@ -63,7 +63,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-001 | done | | organizations table, enum, set_server_updated_at trigger; 6 tests, full suite green |
 | ORG-002 | done | | FK notifications.organization_id to organizations; 3 tests added |
 | ORG-003 | done | | collaborations table, row and deferred owner triggers, people phone-release trigger; 24 tests, full suite 719 pass |
-| ORG-004 | todo | | |
+| ORG-004 | done | | POST /organizations done; 20 tests; OpenAPI left to ORG-005 so route lists unchanged |
 | ORG-005 | todo | | |
 | ORG-006 | todo | | |
 | ORG-007 | todo | | |
