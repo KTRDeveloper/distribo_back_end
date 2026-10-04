@@ -722,3 +722,38 @@ Also in this run: admin, catalog, order, finance, delivery.
 
 **Evidence:** story tests 19/19; full suite 1725/1725, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing)
 <!-- end REL-019 -->
+
+<!-- begin REL-020 -->
+## REL-020 — Customer invites a supplier by phone number
+
+- Filed: 2026-10-04 14:48 UTC
+- Status: **done**: invitations by person and organization, 24 tests, full suite green
+- Risk: high · story: [REL-020-customer-invites-a-supplier-by-phone-number.md](../modules/relationship/REL-020-customer-invites-a-supplier-by-phone-number.md)
+- Agent: 96,413 tokens, 25 tool uses, 4 min 31 s
+
+### Agent report
+
+**Summary:** Added both invite-supplier routes (person and organization), schema, service, repository insert, OpenAPI and catalog entries; done.
+
+**Decisions:**
+- Insert: raw `INSERT ... ON CONFLICT DO NOTHING`, 0 rows gives 409 RELATIONSHIP_EXISTS: race-safe on the C-07 pair indexes, no pre-check needed.
+- Relationship id is `newId()`, not the gesture `id` (as addCustomer): the gesture id only serves the idempotency key.
+- Order in service: role (org only), then lookup allowance, then transaction (org ACTIVE, public-number check, find/create guest, insert); a refusal rolls back the guest, so nothing is stored.
+- `ORGANIZATION_NOT_ACTIVE` 409 for a non-ACTIVE organization customer, as addCustomer does; the story's Errors list omits it.
+- Service re-checks `invite_supplier` through the rules table when an organization is the customer (the route has requireAbility too); the SELLER 403 does not spend the allowance.
+
+**Tests added beyond the story:**
+- `invite-supplier.test.ts` › repeat with the same gesture id: one row, same response (project rule on idempotent gestures); passed at once
+- `invite-supplier.test.ts` › a deleted relationship does not block a new invitation (C-07); passed at once
+- `invite-supplier.test.ts` › person and organization may invite the same number (distinct pairs); passed at once
+- `invite-supplier.test.ts` › 61st shared limit for organization route; refused role spends no allowance; non-member 404; 401 without token; number normalization; reuse of an existing person (AC-2, AC-4, 8.2.2, FND-004)
+
+**Other additions:**
+- `openapi/openapi.json` regenerated; two paths added to `tests/integration/api-docs/catalog.test.ts` (allowed by CONVENTIONS).
+
+**Evidence:** story tests 24/24; full suite 1749/1749, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+
+**Follow-ups:**
+- A person inviting their own number (supplier person = customer person) is not refused: the story and DB rules are silent; ask whether to add a 400/409.
+- A member of the organization inviting a number of their own team is likewise not covered.
+<!-- end REL-020 -->

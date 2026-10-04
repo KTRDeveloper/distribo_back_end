@@ -669,3 +669,39 @@ export function findWithSupplier(tx: Prisma.TransactionClient, id: string) {
     include: { supplierPerson: true, supplierOrganization: true },
   });
 }
+
+/**
+ * Inserts a PENDING invitation: the supplier is a person, the customer a person or an
+ * organization (C-06, C-08), credit limit 0 (C-10, database default, so no journal row). The
+ * insert uses `ON CONFLICT DO NOTHING` against the pair indexes (C-07), so a concurrent duplicate
+ * never aborts the caller's transaction.
+ *
+ * @param tx - Transaction client of the caller.
+ * @param input - Supplier person, exactly one customer, label and the registered creator.
+ * @returns The new row's id, or null when a live relationship already exists for the pair.
+ */
+export async function insertInvitation(
+  tx: Prisma.TransactionClient,
+  input: {
+    supplierPersonId: string;
+    customerPersonId?: string;
+    customerOrganizationId?: string;
+    supplierLabel: string;
+    createdById: string;
+  }
+): Promise<string | null> {
+  const id = newId();
+  const inserted = await tx.$executeRaw`
+    INSERT INTO "customer_relationships" (
+      "id", "supplier_person_id", "customer_person_id", "customer_organization_id",
+      "supplier_label", "credit_limit", "status", "created_by_id"
+    )
+    VALUES (
+      ${id}::uuid, ${input.supplierPersonId}::uuid,
+      ${input.customerPersonId ?? null}::uuid, ${input.customerOrganizationId ?? null}::uuid,
+      ${input.supplierLabel}, 0, 'PENDING'::"RelationshipStatus", ${input.createdById}::uuid
+    )
+    ON CONFLICT DO NOTHING
+  `;
+  return inserted === 1 ? id : null;
+}

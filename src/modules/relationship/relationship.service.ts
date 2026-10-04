@@ -2,11 +2,16 @@ import type { Prisma } from '@prisma/client';
 import type { Actor } from '../../types/express.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
-import { findActiveOwnerId, runInTransaction } from '../organization/organization.repository.js';
+import {
+  findActiveOwnerId,
+  findOrganizationsByPublicNumber,
+  runInTransaction,
+} from '../organization/organization.repository.js';
+import { checkAndConsume } from '../../lib/rate-limit.js';
 import { findOrCreateByPhone } from '../person/person.repository.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
-import { atLeast } from '../../shared/access/roles.js';
+import { atLeast, type Role } from '../../shared/access/roles.js';
 import { subject } from '@casl/ability';
 import { abilityFor } from '../../shared/access/ability.js';
 import type {
@@ -14,6 +19,7 @@ import type {
   AddCustomerInput,
   EditCustomerInput,
   EditSupplierInput,
+  InviteSupplierInput,
   ListCustomersQuery,
   ListSuppliersQuery,
   SetCreditLimitInput,
@@ -29,6 +35,7 @@ import {
   findSupplierRelationshipLocked,
   findWithParties,
   findWithSupplier,
+  insertInvitation,
   listCreditLimitChangeRows,
   listCustomerRelationships,
   listOrganizationSuppliers,
@@ -811,5 +818,83 @@ export async function orgReopenSupplier(
     });
     if (!changed) throw httpError(409, 'RELATIONSHIP_NOT_ENDED', 'The relationship is not ended');
     return projectForCustomer(await findWithSupplier(tx, row.id));
+  });
+}
+
+const LOOKUP_LIMIT = 60;
+const LOOKUP_WINDOW_SECONDS = 3600;
+const INVITE_CONTEXT = { onServer: false, online: true, daysSinceSync: 0 } as const;
+
+/**
+ * A customer invites a supplier by phone number: a PENDING relationship whose supplier is a
+ * person (found or created as a guest), with credit limit 0 (C-06, C-08, C-10). No message is
+ * sent; the customer sends the invitation from their own phone.
+ *
+ * The customer is the organization when `viewer.organizationId` is set (then the rules table must
+ * allow `invite_supplier`, MANAGER and above, online only, ASVS v5.0.0-8.2.1), else the person.
+ * Both come from the session and the path, never from the body. Each call consumes one unit of the
+ * shared `lookup:<personId>` allowance (60 an hour, ASVS v5.0.0-2.4.1) because it tells whether a
+ * number belongs to someone. In one transaction (v5.0.0-2.3.3) the number must not be a public
+ * number of an organization, and no live relationship may exist for the pair; a refusal rolls back
+ * the guest created for the number, so nothing is stored.
+ *
+ * @param viewer - Person from the session; organization and role from the loaded actor, if any.
+ * @param input - Validated body: gesture id, E.164 number and supplier label.
+ * @returns The customer view of the new relationship.
+ * @throws 403 `FORBIDDEN`; 429 `RATE_LIMITED`; 409 `NUMBER_IS_ORGANIZATION` or
+ * `RELATIONSHIP_EXISTS`; 409 `ORGANIZATION_NOT_ACTIVE`.
+ */
+export async function inviteSupplier(
+  viewer: { personId: string; organizationId?: string; role?: Role },
+  input: InviteSupplierInput
+): Promise<CustomerRelationshipView> {
+  if (viewer.organizationId !== undefined) {
+    const allowed =
+      viewer.role !== undefined &&
+      abilityFor(viewer.role, INVITE_CONTEXT).can('invite_supplier', 'CustomerRelationship');
+    if (!allowed) {
+      logger.warn(
+        {
+          event: 'permission_refused',
+          personId: viewer.personId,
+          action: 'invite_supplier',
+          subjectType: 'CustomerRelationship',
+        },
+        'Permission refused'
+      );
+      throw httpError(403, 'FORBIDDEN', 'Permission denied');
+    }
+  }
+
+  const allowance = await checkAndConsume(
+    `lookup:${viewer.personId}`,
+    LOOKUP_LIMIT,
+    LOOKUP_WINDOW_SECONDS
+  );
+  if (!allowance.allowed) {
+    logger.warn({ event: 'lookup_rate_limited', personId: viewer.personId }, 'Lookup rate limited');
+    throw httpError(429, 'RATE_LIMITED', 'Too many lookups');
+  }
+
+  const organizationId = viewer.organizationId;
+  return runInTransaction(async (tx) => {
+    if (organizationId !== undefined) await assertOrganizationActive(organizationId, tx);
+
+    if ((await findOrganizationsByPublicNumber(input.phone_number)).length > 0) {
+      throw httpError(409, 'NUMBER_IS_ORGANIZATION', 'This number belongs to an organization');
+    }
+
+    const supplier = await findOrCreateByPhone(input.phone_number, tx);
+    const id = await insertInvitation(tx, {
+      supplierPersonId: supplier.id,
+      customerPersonId: organizationId === undefined ? viewer.personId : undefined,
+      customerOrganizationId: organizationId,
+      supplierLabel: input.supplier_label,
+      createdById: viewer.personId,
+    });
+    if (id === null) {
+      throw httpError(409, 'RELATIONSHIP_EXISTS', 'A relationship with this supplier exists');
+    }
+    return projectForCustomer(await findWithSupplier(tx, id));
   });
 }

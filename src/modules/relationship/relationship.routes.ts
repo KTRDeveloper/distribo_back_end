@@ -12,6 +12,7 @@ import {
   editCustomerSchema,
   editSupplierSchema,
   endReopenSchema,
+  inviteSupplierSchema,
   listCustomersQuerySchema,
   listSuppliersQuerySchema,
   setCreditLimitSchema,
@@ -25,6 +26,7 @@ import {
   editCustomer,
   endRelationship,
   getCustomer,
+  inviteSupplier,
   listCreditLimitChanges,
   listCustomers,
   listSuppliersOfOrganization,
@@ -241,6 +243,29 @@ endOrReopenRoute('/customers/:relationshipId/end', endRelationship);
 // reopens a relationship the supplier ended; 409 when the customer ended it
 endOrReopenRoute('/customers/:relationshipId/reopen', reopenRelationship);
 
+// POST /api/v1/organizations/:organizationId/suppliers/invitations - a manager online invites a
+// supplier by number for the organization; 201, PENDING. Declared before the `:relationshipId`
+// routes so `invitations` is never read as an id.
+relationshipRoutes.post(
+  '/suppliers/invitations',
+  authMiddleware,
+  loadActor,
+  requireAbility('invite_supplier', 'CustomerRelationship'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = inviteSupplierSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    inviteSupplier(req.actor!, inviteSupplierSchema.parse(req.body))
+      .then((supplier) => res.status(201).json(supplier))
+      .catch(next);
+  }
+);
+
 // POST /api/v1/organizations/:organizationId/suppliers/:relationshipId/end - a manager online
 // leaves a supplier for the organization; 403 below MANAGER, 404 outside it, 409 unless ACTIVE
 endOrReopenRoute('/suppliers/:relationshipId/end', orgEndSupplier);
@@ -275,6 +300,26 @@ supplierRoutes.patch('/:relationshipId', authMiddleware, (req, res, next) => {
     .then((supplier) => res.json(supplier))
     .catch(next);
 });
+
+// POST /api/v1/suppliers/invitations - a signed-in person invites a supplier by number; 201,
+// PENDING. The person comes from the session. Declared before `/:relationshipId/...`.
+supplierRoutes.post(
+  '/invitations',
+  authMiddleware,
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = inviteSupplierSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    inviteSupplier({ personId: req.user!.id }, inviteSupplierSchema.parse(req.body))
+      .then((supplier) => res.status(201).json(supplier))
+      .catch(next);
+  }
+);
 
 /** Builds the POST handler of a customer-side end or reopen gesture: same guards, one call. */
 function customerGestureRoute(

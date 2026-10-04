@@ -9,6 +9,7 @@ import {
   editCustomerSchema,
   editSupplierSchema,
   endReopenSchema,
+  inviteSupplierSchema,
   listCustomersQuerySchema,
   listSuppliersQuerySchema,
   setCreditLimitSchema,
@@ -478,6 +479,48 @@ for (const [action, summary, conflicts] of [
         content: errorContent,
       },
       409: { description: conflicts, content: errorContent },
+    },
+  });
+}
+
+for (const [path, params, summary, forbidden] of [
+  [
+    '/api/v1/suppliers/invitations',
+    undefined,
+    'Invite a supplier by phone number as a customer person (PENDING, credit limit 0)',
+    undefined,
+  ],
+  [
+    '/api/v1/organizations/{organizationId}/suppliers/invitations',
+    organizationParamsSchema,
+    'Invite a supplier by phone number for the organization (MANAGER and above)',
+    'The role is below MANAGER',
+  ],
+] as const) {
+  openApiRegistry.registerPath({
+    method: 'post',
+    path,
+    tags: ['relationship'],
+    summary,
+    security: [{ bearerAuth: [] }],
+    request: {
+      ...(params ? { params } : {}),
+      body: { content: { 'application/json': { schema: inviteSupplierSchema } } },
+    },
+    responses: {
+      201: {
+        description: 'The PENDING customer-side relationship view',
+        content: { 'application/json': { schema: customerRelationshipViewSchema } },
+      },
+      400: { description: 'Invalid body, landline or empty label', content: errorContent },
+      401: { description: 'Missing or invalid token', content: errorContent },
+      ...(forbidden ? { 403: { description: forbidden, content: errorContent } } : {}),
+      ...(params ? { 404: { description: 'Not a member', content: errorContent } } : {}),
+      409: {
+        description: 'NUMBER_IS_ORGANIZATION, RELATIONSHIP_EXISTS or conflicting gesture id',
+        content: errorContent,
+      },
+      429: { description: 'RATE_LIMITED: 60 lookups per hour reached', content: errorContent },
     },
   });
 }

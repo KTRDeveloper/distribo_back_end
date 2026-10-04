@@ -120,3 +120,18 @@ export const editSupplierSchema = z
   .strict();
 
 export type EditSupplierInput = z.infer<typeof editSupplierSchema>;
+
+/**
+ * Strict body of the invite-supplier gesture: exactly three writable fields (ASVS v5.0.0-15.3.3).
+ * The number is normalized to E.164 and landlines are refused. Status, credit limit, parties and
+ * author are set by the server and rejected as unknown keys (CWE-915).
+ */
+export const inviteSupplierSchema = z
+  .object({
+    id: uuidV7Schema,
+    phone_number: phoneNumberSchema,
+    supplier_label: z.string().trim().min(1).max(LABEL_MAX),
+  })
+  .strict();
+
+export type InviteSupplierInput = z.infer<typeof inviteSupplierSchema>;
