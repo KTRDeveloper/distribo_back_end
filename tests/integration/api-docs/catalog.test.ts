@@ -67,6 +67,12 @@ describe('GET /docs/openapi.json', () => {
     // ADM-013: a moderator resolves a report
     expect(paths).toContain('/api/v1/admin/reports/{reportId}/resolve');
 
+    // ADM-014: suspending or reactivating a person or an organization without a report
+    expect(paths).toContain('/api/v1/admin/people/{personId}/suspend');
+    expect(paths).toContain('/api/v1/admin/people/{personId}/reactivate');
+    expect(paths).toContain('/api/v1/admin/organizations/{organizationId}/suspend');
+    expect(paths).toContain('/api/v1/admin/organizations/{organizationId}/reactivate');
+
     // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
     expect(authPaths.sort()).toEqual([

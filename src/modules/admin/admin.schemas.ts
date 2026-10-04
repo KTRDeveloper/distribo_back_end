@@ -111,3 +111,19 @@ export const resolveReportSchema = z
   .strict();
 
 export type ResolveReportInput = z.infer<typeof resolveReportSchema>;
+
+/** Path parameter of POST /admin/people/{personId}/suspend and /reactivate: the person id. */
+export const personIdParamsSchema = z.object({ personId: uuidV7Schema }).strict();
+
+/** Path parameter of POST /admin/organizations/{organizationId}/suspend and /reactivate. */
+export const organizationIdParamsSchema = z.object({ organizationId: uuidV7Schema }).strict();
+
+/**
+ * Body of the direct suspend and reactivate routes: only the reason kept in the journal (1 to
+ * 2000 characters once trimmed); unknown fields are refused (v5.0.0-15.3.3).
+ */
+export const moderationReasonSchema = z
+  .object({ reason: z.string().trim().min(1).max(2000) })
+  .strict();
+
+export type ModerationReasonInput = z.infer<typeof moderationReasonSchema>;

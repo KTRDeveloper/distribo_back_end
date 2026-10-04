@@ -1,9 +1,12 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { adminAuthMiddleware, requireAdminRole } from '../../middleware/admin-auth.js';
 import {
   adminLoginSchema,
   administratorIdParamsSchema,
   appointAdministratorSchema,
+  moderationReasonSchema,
+  organizationIdParamsSchema,
+  personIdParamsSchema,
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
   removeAdministratorSchema,
@@ -12,8 +15,12 @@ import {
   adminLogin,
   appointAdministrator,
   confirmRecoveryEmail,
+  reactivateOrganization,
+  reactivatePerson,
   removeAdministrator,
   requestRecoveryEmail,
+  suspendOrganization,
+  suspendPerson,
 } from './admin.service.js';
 import { adminReportRoutes } from './report.routes.js';
 
@@ -99,3 +106,43 @@ adminRoutes.delete(
 
 // /api/v1/admin/reports - moderators list and open reports (see report.routes.ts)
 adminRoutes.use('/reports', adminReportRoutes);
+
+// POST /api/v1/admin/people/{personId}/suspend|reactivate and
+// /api/v1/admin/organizations/{organizationId}/suspend|reactivate - moderators act without a
+// report; each change is journaled (CM-33)
+const moderatorOnly = [adminAuthMiddleware, requireAdminRole('MODERATOR')];
+
+function personAction(action: typeof suspendPerson | typeof reactivatePerson): RequestHandler {
+  return (req, res, next) => {
+    const { personId } = personIdParamsSchema.parse(req.params);
+    const body = moderationReasonSchema.parse(req.body);
+    action(req.admin!, personId, body)
+      .then(() => res.status(204).end())
+      .catch(next);
+  };
+}
+
+function organizationAction(
+  action: typeof suspendOrganization | typeof reactivateOrganization
+): RequestHandler {
+  return (req, res, next) => {
+    const { organizationId } = organizationIdParamsSchema.parse(req.params);
+    const body = moderationReasonSchema.parse(req.body);
+    action(req.admin!, organizationId, body)
+      .then(() => res.status(204).end())
+      .catch(next);
+  };
+}
+
+adminRoutes.post('/people/:personId/suspend', ...moderatorOnly, personAction(suspendPerson));
+adminRoutes.post('/people/:personId/reactivate', ...moderatorOnly, personAction(reactivatePerson));
+adminRoutes.post(
+  '/organizations/:organizationId/suspend',
+  ...moderatorOnly,
+  organizationAction(suspendOrganization)
+);
+adminRoutes.post(
+  '/organizations/:organizationId/reactivate',
+  ...moderatorOnly,
+  organizationAction(reactivateOrganization)
+);

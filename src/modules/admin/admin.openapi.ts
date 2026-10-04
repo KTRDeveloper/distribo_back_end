@@ -5,6 +5,9 @@ import {
   appointAdministratorSchema,
   createReportSchema,
   listReportsQuerySchema,
+  moderationReasonSchema,
+  organizationIdParamsSchema,
+  personIdParamsSchema,
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
   removeAdministratorSchema,
@@ -210,3 +213,54 @@ openApiRegistry.registerPath({
     409: err('ALREADY_RESOLVED or TARGET_ANONYMIZED'),
   },
 });
+
+const moderationRoutes = [
+  [
+    '/api/v1/admin/people/{personId}/suspend',
+    'Suspend a person without a report',
+    'person',
+    'suspend',
+  ],
+  [
+    '/api/v1/admin/people/{personId}/reactivate',
+    'Reactivate a suspended person',
+    'person',
+    'reactivate',
+  ],
+  [
+    '/api/v1/admin/organizations/{organizationId}/suspend',
+    'Suspend an organization without a report',
+    'organization',
+    'suspend',
+  ],
+  [
+    '/api/v1/admin/organizations/{organizationId}/reactivate',
+    'Reactivate a suspended organization',
+    'organization',
+    'reactivate',
+  ],
+] as const;
+
+for (const [path, summary, kind, verb] of moderationRoutes) {
+  openApiRegistry.registerPath({
+    method: 'post',
+    path,
+    tags: ['admin'],
+    summary: `${summary} (moderator token only)`,
+    security: [{ bearerAuth: [] }],
+    request: {
+      params: kind === 'person' ? personIdParamsSchema : organizationIdParamsSchema,
+      body: { content: { 'application/json': { schema: moderationReasonSchema } } },
+    },
+    responses: {
+      204: {
+        description: verb === 'suspend' ? 'Suspended and journaled' : 'Reactivated and journaled',
+      },
+      400: err('VALIDATION_ERROR'),
+      401: err('UNAUTHORIZED'),
+      403: err('FORBIDDEN'),
+      404: err('NOT_FOUND'),
+      409: err('INVALID_STATE, or TARGET_ANONYMIZED for a person'),
+    },
+  });
+}

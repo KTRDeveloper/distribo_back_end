@@ -20,8 +20,12 @@ import {
   findActiveOwnerId,
   findReportRowTx,
   markReportResolved,
-  suspendOrganization,
-  suspendPerson,
+  suspendOrganization as suspendOrganizationRow,
+  suspendPerson as suspendPersonRow,
+  findOrganizationForModeration,
+  findPersonStatus,
+  transitionOrganizationStatus,
+  transitionPersonStatus,
   findLiveAdministratorById,
   findLiveAdministratorByPerson,
   findPersonEmail,
@@ -46,6 +50,7 @@ import type {
   AppointInput,
   CreateReportInput,
   ListReportsQuery,
+  ModerationReasonInput,
   RemoveInput,
   ResolveReportInput,
 } from './admin.schemas.js';
@@ -491,7 +496,7 @@ export async function resolveReport(
         reason: input.reason,
       });
     } else if (report.targetPersonId !== null) {
-      await suspendPerson(tx, report.targetPersonId);
+      await suspendPersonRow(tx, report.targetPersonId);
       await revokeSessions(report.targetPersonId, 'ACCOUNT_SUSPENDED', { tx });
       await recordAdminAction(tx, {
         administratorId: admin.administratorId,
@@ -512,7 +517,7 @@ export async function resolveReport(
       );
     } else if (report.targetOrganizationId !== null && report.targetOrganization) {
       const organizationId = report.targetOrganizationId;
-      await suspendOrganization(tx, organizationId);
+      await suspendOrganizationRow(tx, organizationId);
       await recordAdminAction(tx, {
         administratorId: admin.administratorId,
         action: 'SUSPEND',
@@ -552,4 +557,188 @@ export async function resolveReport(
     'Report resolved'
   );
   return toAdminReportView(row);
+}
+
+const PERSON_NOTICE = {
+  suspend: {
+    event: 'account.suspended',
+    FR: 'Votre compte a été suspendu par un modérateur.',
+    EN: 'Your account has been suspended by a moderator.',
+  },
+  reactivate: {
+    event: 'account.reactivated',
+    FR: 'Votre compte a été réactivé par un modérateur.',
+    EN: 'Your account has been reactivated by a moderator.',
+  },
+};
+const ORG_NOTICE = {
+  suspend: {
+    event: 'account.suspended',
+    FR: (name: string) => `L\u2019organisation ${name} a été suspendue par un modérateur.`,
+    EN: (name: string) => `The organization ${name} has been suspended by a moderator.`,
+  },
+  reactivate: {
+    event: 'account.reactivated',
+    FR: (name: string) => `L\u2019organisation ${name} a été réactivée par un modérateur.`,
+    EN: (name: string) => `The organization ${name} has been reactivated by a moderator.`,
+  },
+};
+
+async function changePersonStatus(
+  admin: AdminContext,
+  personId: string,
+  input: ModerationReasonInput,
+  verb: 'suspend' | 'reactivate'
+): Promise<void> {
+  const suspending = verb === 'suspend';
+  await inTransaction(async (tx) => {
+    const status = await findPersonStatus(tx, personId);
+    if (status === null) throw httpError(404, 'NOT_FOUND', 'Person not found');
+    if (status === 'ANONYMIZED')
+      throw httpError(409, 'TARGET_ANONYMIZED', 'The target is anonymized');
+    const changed = await transitionPersonStatus(tx, personId, {
+      from: suspending ? 'ACTIVE' : 'SUSPENDED',
+      to: suspending ? 'SUSPENDED' : 'ACTIVE',
+      bumpScope: suspending,
+    });
+    if (!changed) {
+      throw httpError(
+        409,
+        'INVALID_STATE',
+        suspending ? 'The person is already suspended' : 'The person is not suspended'
+      );
+    }
+    if (suspending) await revokeSessions(personId, 'ACCOUNT_SUSPENDED', { tx });
+    await recordAdminAction(tx, {
+      administratorId: admin.administratorId,
+      action: suspending ? 'SUSPEND' : 'REACTIVATE',
+      targetPersonId: personId,
+      reason: input.reason,
+    });
+    const notice = PERSON_NOTICE[verb];
+    const language = await recipientLanguage(personId, tx);
+    await notify(
+      { recipientId: personId, sourceEvent: notice.event, content: notice[language] },
+      tx
+    );
+  });
+  logger.info(
+    {
+      event: suspending ? 'person_suspended' : 'person_reactivated',
+      administratorId: admin.administratorId,
+      targetPersonId: personId,
+    },
+    suspending ? 'Person suspended' : 'Person reactivated'
+  );
+}
+
+async function changeOrganizationStatus(
+  admin: AdminContext,
+  organizationId: string,
+  input: ModerationReasonInput,
+  verb: 'suspend' | 'reactivate'
+): Promise<void> {
+  const suspending = verb === 'suspend';
+  await inTransaction(async (tx) => {
+    const organization = await findOrganizationForModeration(tx, organizationId);
+    if (!organization) throw httpError(404, 'NOT_FOUND', 'Organization not found');
+    const changed = await transitionOrganizationStatus(tx, organizationId, {
+      from: suspending ? 'ACTIVE' : 'SUSPENDED',
+      to: suspending ? 'SUSPENDED' : 'ACTIVE',
+    });
+    if (!changed) {
+      throw httpError(
+        409,
+        'INVALID_STATE',
+        suspending ? 'The organization cannot be suspended' : 'The organization is not suspended'
+      );
+    }
+    await recordAdminAction(tx, {
+      administratorId: admin.administratorId,
+      action: suspending ? 'SUSPEND' : 'REACTIVATE',
+      targetOrganizationId: organizationId,
+      reason: input.reason,
+    });
+    const ownerId = await findActiveOwnerId(tx, organizationId);
+    if (ownerId !== null) {
+      const notice = ORG_NOTICE[verb];
+      const language = await recipientLanguage(ownerId, tx);
+      await notify(
+        {
+          recipientId: ownerId,
+          organizationId,
+          sourceEvent: notice.event,
+          content: notice[language](organization.name),
+        },
+        tx
+      );
+    }
+  });
+  logger.info(
+    {
+      event: suspending ? 'organization_suspended' : 'organization_reactivated',
+      administratorId: admin.administratorId,
+      targetOrganizationId: organizationId,
+    },
+    suspending ? 'Organization suspended' : 'Organization reactivated'
+  );
+}
+
+/**
+ * Suspends an ACTIVE person without a report (CM-33; v5.0.0-8.2.1: the route only lets live
+ * moderators in). Status, `scope_version`, every session (reason ACCOUNT_SUSPENDED, v5.0.0-7.4.2),
+ * the `SUSPEND` journal row (no report) and the notice are one transaction (v5.0.0-16.3.1). The
+ * status change is conditional on ACTIVE, so of two parallel requests one gets 409 (CWE-362).
+ *
+ * @throws 404 NOT_FOUND; 409 TARGET_ANONYMIZED; 409 INVALID_STATE when not ACTIVE
+ */
+export function suspendPerson(
+  admin: AdminContext,
+  personId: string,
+  input: ModerationReasonInput
+): Promise<void> {
+  return changePersonStatus(admin, personId, input, 'suspend');
+}
+
+/**
+ * Returns a SUSPENDED person to ACTIVE, with a `REACTIVATE` journal row and a notice in one
+ * transaction. The person can then pass the login status check again.
+ *
+ * @throws 404 NOT_FOUND; 409 TARGET_ANONYMIZED; 409 INVALID_STATE when not SUSPENDED
+ */
+export function reactivatePerson(
+  admin: AdminContext,
+  personId: string,
+  input: ModerationReasonInput
+): Promise<void> {
+  return changePersonStatus(admin, personId, input, 'reactivate');
+}
+
+/**
+ * Suspends an ACTIVE organization without a report (CM-33), with a `SUSPEND` journal row and a
+ * notice to its owner in one transaction. A CLOSED organization is refused too, so a closure
+ * cannot be turned into a suspension that a later reactivation would undo.
+ *
+ * @throws 404 NOT_FOUND; 409 INVALID_STATE when not ACTIVE
+ */
+export function suspendOrganization(
+  admin: AdminContext,
+  organizationId: string,
+  input: ModerationReasonInput
+): Promise<void> {
+  return changeOrganizationStatus(admin, organizationId, input, 'suspend');
+}
+
+/**
+ * Returns a SUSPENDED organization to ACTIVE, with a `REACTIVATE` journal row and a notice to
+ * its owner. An organization CLOSED by its owner stays closed: only the owner reopens it.
+ *
+ * @throws 404 NOT_FOUND; 409 INVALID_STATE when not SUSPENDED
+ */
+export function reactivateOrganization(
+  admin: AdminContext,
+  organizationId: string,
+  input: ModerationReasonInput
+): Promise<void> {
+  return changeOrganizationStatus(admin, organizationId, input, 'reactivate');
 }

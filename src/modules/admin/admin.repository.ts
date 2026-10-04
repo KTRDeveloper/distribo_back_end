@@ -417,3 +417,63 @@ export async function findActiveOwnerId(
   });
   return owner?.personId ?? null;
 }
+
+/** A person's status, read inside a transaction, or null when no person has this id. */
+export async function findPersonStatus(
+  tx: Prisma.TransactionClient,
+  personId: string
+): Promise<Person['status'] | null> {
+  const row = await tx.person.findUnique({ where: { id: personId }, select: { status: true } });
+  return row?.status ?? null;
+}
+
+/** An organization's name and status, read inside a transaction, or null when absent. */
+export function findOrganizationForModeration(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<{ name: string; status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED' } | null> {
+  return tx.organization.findUnique({
+    where: { id: organizationId },
+    select: { name: true, status: true },
+  });
+}
+
+/**
+ * Moves a person from one status to another only if it still has the expected one. The
+ * condition makes the change atomic: of two parallel requests only one updates a row (CWE-362).
+ * `scope_version` rises when `bumpScope` is set, so the change reaches the person's devices.
+ *
+ * @returns false when the person no longer had the expected status (nothing changed).
+ */
+export async function transitionPersonStatus(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  change: { from: 'ACTIVE' | 'SUSPENDED'; to: 'ACTIVE' | 'SUSPENDED'; bumpScope: boolean }
+): Promise<boolean> {
+  const result = await tx.person.updateMany({
+    where: { id: personId, status: change.from },
+    data: {
+      status: change.to,
+      ...(change.bumpScope ? { scopeVersion: { increment: 1 } } : {}),
+    },
+  });
+  return result.count === 1;
+}
+
+/**
+ * Moves an organization from one status to another only if it still has the expected one
+ * (atomic, CWE-362).
+ *
+ * @returns false when the organization no longer had the expected status (nothing changed).
+ */
+export async function transitionOrganizationStatus(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  change: { from: 'ACTIVE' | 'SUSPENDED'; to: 'ACTIVE' | 'SUSPENDED' }
+): Promise<boolean> {
+  const result = await tx.organization.updateMany({
+    where: { id: organizationId, status: change.from },
+    data: { status: change.to },
+  });
+  return result.count === 1;
+}
