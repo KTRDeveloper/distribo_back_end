@@ -1,5 +1,6 @@
 import type { Collaboration, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
+import { httpError } from '../../lib/http-error.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { newId } from '../../shared/ids.js';
 import { bumpScopeVersion } from '../person/person.repository.js';
@@ -180,4 +181,30 @@ export function findOrganization(organizationId: string): Promise<CreatedOrganiz
       createdAt: true,
     },
   });
+}
+
+/**
+ * Adds `delta` to a collaborator's held money with one atomic SQL increment inside the caller's
+ * transaction, so simultaneous operations never lose an update (C-37; ASVS v5.0.0-2.3.3,
+ * v5.0.0-2.3.4). Never read then write. The value may go negative. Callers update the customer
+ * relationship balance first, then this value (C-37). Rows marked deleted are ignored (C-35).
+ *
+ * @param tx - The caller's transaction; a rollback undoes the increment.
+ * @param personId - Collaborator.
+ * @param organizationId - Organization holding the money.
+ * @param delta - Signed amount in XAF to add.
+ * @throws 404 NOT_FOUND when the person is not a collaborator of the organization.
+ */
+export async function addAmountHeld(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  organizationId: string,
+  delta: bigint
+): Promise<void> {
+  const updated = await tx.$executeRaw`
+    UPDATE collaborations SET amount_held = amount_held + ${delta}
+    WHERE person_id = ${personId}::uuid AND organization_id = ${organizationId}::uuid
+      AND deleted_at IS NULL
+  `;
+  if (updated === 0) throw httpError(404, 'NOT_FOUND', 'Not found');
 }

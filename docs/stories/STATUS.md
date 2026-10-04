@@ -65,7 +65,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-003 | done | | collaborations table, row and deferred owner triggers, people phone-release trigger; 24 tests, full suite 719 pass |
 | ORG-004 | done | | POST /organizations done; 20 tests; OpenAPI left to ORG-005 so route lists unchanged |
 | ORG-005 | done | | 16 tests pass; full suite green after generate-openapi import fix |
-| ORG-006 | todo | | |
+| ORG-006 | done | | addAmountHeld single-statement increment, 5 tests pass; ignores deleted rows (C-35) |
 | ORG-007 | todo | | |
 | ORG-008 | todo | | |
 | ORG-009 | todo | | |
