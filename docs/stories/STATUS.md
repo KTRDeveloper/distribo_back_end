@@ -86,7 +86,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-005 | done | | createFirstSuperAdmin script + admin:create-super; 9 tests; full suite 1131 pass |
 | ADM-006 | done | | Admin login, admin JWT and adminAuthMiddleware; 19 tests; OpenAPI left to ADM-015 |
 | ADM-007 | done | | recovery email request and confirm; all tests pass |
-| ADM-008 | todo | | |
+| ADM-008 | blocked | | Source event admin.2fa_recovered breaks the NTF-002 grammar (segment must start with a letter, DB CHECK too): which name should be used, e.g. admin.totp_recovered? |
 | ADM-009 | todo | | |
 | ADM-010 | todo | | |
 | ADM-011 | todo | | |

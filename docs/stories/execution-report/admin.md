@@ -259,3 +259,36 @@ Also in this run: relationship, catalog, order, finance, delivery.
 - `POST /admin/auth/login` (ADM-006) is still not registered in OpenAPI.
 - `scripts/` is outside the eslint project config (pre-existing).
 <!-- end ADM-007 -->
+
+<!-- begin ADM-008 -->
+## ADM-008 — Administrator reinstalls the authenticator through the recovery email
+
+- Filed: 2026-10-04 08:12 UTC
+- Status: **blocked**: Source event admin.2fa_recovered breaks the NTF-002 grammar (segment must start with a letter, DB CHECK too): which name should be used, e.g. admin.totp_recovered?
+- Risk: high · story: [ADM-008-administrator-reinstalls-the-authenticator.md](../modules/admin/ADM-008-administrator-reinstalls-the-authenticator.md)
+- Agent: 62,624 tokens, 19 tool uses, 3 min 27 s
+
+### Agent report
+
+**Summary:** Blocked: the story's notification event `admin.2fa_recovered` is refused by `notify` (NTF-002 grammar `^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`, also a DB CHECK); the segment `2fa_recovered` starts with a digit.
+
+**Decisions:**
+- Question for a human: which `source_event` name to use (for example `admin.totp_recovered`)? I did not pick one; the working tree keeps the story's name, so 5 of 19 tests fail on it.
+- With `admin.totp_recovered` swapped in temporarily, all 19 story tests passed; revert is one sed on service and test.
+- `requestTotpRecovery` lets a real 429 OTP_RATE_LIMITED from `issueCode` through (answer "always 202" otherwise); only reachable after a right password and a real send.
+- Request resets the `admin:<phone>` counter once the password is right (same answer in every branch); confirm resets it only on success.
+- Notification content is exactly "Ce n'était pas vous ? Bloquer"; one notification per person (the person's devices read the same row), other super admins deduplicated.
+
+**Tests added beyond the story:**
+- `tests/integration/admin/totp-recovery.test.ts` › lockout after 5 wrong passwords: shares the sign-in counter, 429 LOGIN_LOCKED (AC-3, ADM-006 counter)
+- same file › another administrator's code with a shared address: 400 OTP_INVALID (C-33)
+- same file › right code with wrong password: 401, code stays usable; removed admin and unknown number give no code; unknown fields refused
+
+**Other additions:**
+- catalog.test.ts: two ADM-008 paths (required by CONVENTIONS); openapi entries; repository helpers `inTransaction`, `replaceTotpSecret`, `listOtherSuperAdminPersonIds`, `findRecoveryEmail`.
+
+**Evidence:** story tests 14/19 with the story's event name (19/19 with a grammar-valid name); full suite, typecheck and lint not run (blocked)
+
+**Follow-ups:**
+- Decide the event name (or amend NTF-002 grammar / the story), then rerun; also run typecheck, lint and the full suite.
+<!-- end ADM-008 -->
