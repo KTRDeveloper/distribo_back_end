@@ -291,3 +291,127 @@ export async function reinviteRevoked(
   if (!row) throw httpError(409, 'ALREADY_MEMBER', 'Already a member');
   return row;
 }
+
+export type InvitationRow = {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  role: string;
+  invitedAt: Date;
+};
+
+/**
+ * Lists the person's INVITED collaborations in non-deleted organizations, newest invitation first
+ * (invited_at descending then id), keyset-paged. Filters on the person from the token only.
+ *
+ * @param personId - Invitee from the token.
+ * @param query - Page size and optional opaque cursor.
+ * @returns Rows (at most limit) and the cursor of the next page, or null.
+ */
+export async function listInvitations(
+  personId: string,
+  query: { limit: number; cursor?: string }
+): Promise<{ rows: InvitationRow[]; nextCursor: string | null }> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const found = await prisma.collaboration.findMany({
+    where: {
+      personId,
+      status: 'INVITED',
+      deletedAt: null,
+      organization: { deletedAt: null },
+      ...(cursor
+        ? {
+            OR: [
+              { invitedAt: { lt: cursor.createdAt } },
+              { invitedAt: cursor.createdAt, id: { gt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    select: {
+      id: true,
+      organizationId: true,
+      role: true,
+      invitedAt: true,
+      organization: { select: { name: true } },
+    },
+    orderBy: [{ invitedAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit).map((c) => ({
+    id: c.id,
+    organizationId: c.organizationId,
+    organizationName: c.organization.name,
+    role: c.role,
+    invitedAt: c.invitedAt,
+  }));
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.invitedAt, id: last.id })
+        : null,
+  };
+}
+
+/**
+ * Turns the person's own INVITED collaboration into ACTIVE with `accepted_at` = now. The update
+ * filters on the collaboration id, the person id, the INVITED status and a registered person, so
+ * another person's id, a repeat or a guest matches nothing (ASVS v5.0.0-8.2.2, C-05). The role is
+ * never written.
+ *
+ * @returns The organization id of the activated row, or null when nothing matched.
+ */
+export async function activateInvitation(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  collaborationId: string
+): Promise<{ organizationId: string } | null> {
+  const updated = await tx.collaboration.updateManyAndReturn({
+    where: {
+      id: collaborationId,
+      personId,
+      status: 'INVITED',
+      deletedAt: null,
+      person: { registeredAt: { not: null } },
+      organization: { deletedAt: null },
+    },
+    data: { status: 'ACTIVE', acceptedAt: new Date() },
+    select: { organizationId: true },
+  });
+  return updated[0] ?? null;
+}
+
+/**
+ * Turns the person's own INVITED collaboration into REVOKED, filtered like `activateInvitation`.
+ *
+ * @returns True when a row was updated.
+ */
+export async function revokeInvitation(
+  personId: string,
+  collaborationId: string
+): Promise<boolean> {
+  const result = await prisma.collaboration.updateMany({
+    where: { id: collaborationId, personId, status: 'INVITED', deletedAt: null },
+    data: { status: 'REVOKED' },
+  });
+  return result.count > 0;
+}
+
+/**
+ * Finds the person id of the organization's ACTIVE OWNER (exactly one by C-05).
+ *
+ * @param tx - Transaction client of the gesture.
+ * @param organizationId - Organization of the accepted invitation.
+ */
+export async function findActiveOwnerId(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<string | null> {
+  const owner = await tx.collaboration.findFirst({
+    where: { organizationId, role: 'OWNER', status: 'ACTIVE', deletedAt: null },
+    select: { personId: true },
+  });
+  return owner?.personId ?? null;
+}

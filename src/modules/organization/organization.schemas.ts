@@ -69,3 +69,20 @@ export type CollaborationView = {
   status: 'INVITED';
   invited_at: string;
 };
+
+/** Strict query of the invitation list: only the INVITED status, `limit` and `cursor`. */
+export const listInvitationsQuerySchema = paginationQuerySchema
+  .extend({ status: z.literal('INVITED') })
+  .strict();
+
+/** Path parameter of the accept and decline routes. */
+export const collaborationIdParamsSchema = z.object({ id: uuidV7Schema }).strict();
+
+/** One pending invitation of the caller, explicit fields only (ASVS v5.0.0-15.3.1). */
+export type InvitationItem = {
+  id: string;
+  organization_id: string;
+  organization_name: string;
+  role: string;
+  invited_at: string;
+};

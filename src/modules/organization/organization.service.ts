@@ -4,19 +4,28 @@ import { logger } from '../../lib/logger.js';
 import { checkAndConsume } from '../../lib/rate-limit.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
-import { findOrCreateByPhone, toPublicPerson } from '../person/person.repository.js';
 import {
+  bumpScopeVersion,
+  findOrCreateByPhone,
+  toPublicPerson,
+} from '../person/person.repository.js';
+import {
+  activateInvitation,
+  findActiveOwnerId,
   findCollaboration,
   findOrganization,
   insertInvitation,
   insertOrganizationWithOwner,
   listActiveOrganizations,
+  listInvitations,
   reinviteRevoked,
+  revokeInvitation,
   runInTransaction,
 } from './organization.repository.js';
 import type {
   CollaborationView,
   CreateOrganizationInput,
+  InvitationItem,
   InviteInput,
   MyOrganizationItem,
   OrganizationView,
@@ -164,4 +173,83 @@ export async function inviteCollaborator(
       invited_at: collaboration.invitedAt.toISOString(),
     };
   });
+}
+
+const ACCEPTED_CONTENT = {
+  FR: (organizationName: string) =>
+    `Une personne invitee a rejoint l'equipe de ${organizationName}.`,
+  EN: (organizationName: string) => `An invited person has joined the team of ${organizationName}.`,
+};
+
+/**
+ * Lists the caller's own pending invitations, newest first.
+ *
+ * @param personId - Authenticated person; never a client-supplied id (ASVS v5.0.0-8.2.2).
+ * @param query - Validated page size and cursor.
+ * @returns A page of closed items (explicit fields, ASVS v5.0.0-15.3.1) and the next cursor.
+ */
+export async function listMyInvitations(
+  personId: string,
+  query: { limit: number; cursor?: string }
+): Promise<{ items: InvitationItem[]; next_cursor: string | null }> {
+  const { rows, nextCursor } = await listInvitations(personId, query);
+  return {
+    items: rows.map((r) => ({
+      id: r.id,
+      organization_id: r.organizationId,
+      organization_name: r.organizationName,
+      role: r.role,
+      invited_at: r.invitedAt.toISOString(),
+    })),
+    next_cursor: nextCursor,
+  };
+}
+
+/**
+ * The invited person joins the organization: INVITED becomes ACTIVE, the caller's scope version
+ * is bumped (CM-03) and the owner is notified, all in one transaction (C-05).
+ *
+ * The update filters on the collaboration id and the person id from the token, so the role in
+ * the row is never touched and another person's invitation looks absent (ASVS v5.0.0-8.2.2).
+ *
+ * @param personId - Authenticated invitee.
+ * @param collaborationId - Collaboration from the path.
+ * @throws 404 `NOT_FOUND` when the row is not the caller's INVITED collaboration.
+ */
+export async function acceptInvitation(personId: string, collaborationId: string): Promise<void> {
+  await runInTransaction(async (tx) => {
+    const activated = await activateInvitation(tx, personId, collaborationId);
+    if (!activated) throw httpError(404, 'NOT_FOUND', 'Not found');
+
+    await bumpScopeVersion(personId, tx);
+
+    const ownerId = await findActiveOwnerId(tx, activated.organizationId);
+    const org = await findOrganization(activated.organizationId);
+    if (!ownerId || !org) throw httpError(404, 'NOT_FOUND', 'Not found');
+    const language = await recipientLanguage(ownerId, tx);
+    await notify(
+      {
+        recipientId: ownerId,
+        organizationId: activated.organizationId,
+        sourceEvent: 'collaboration.accepted',
+        content: language === 'EN' ? ACCEPTED_CONTENT.EN(org.name) : ACCEPTED_CONTENT.FR(org.name),
+        related: { type: 'collaboration', id: collaborationId },
+      },
+      tx
+    );
+  });
+}
+
+/**
+ * The invited person turns the invitation down: INVITED becomes REVOKED, so the organization can
+ * invite them again later (C-05).
+ *
+ * @param personId - Authenticated invitee.
+ * @param collaborationId - Collaboration from the path.
+ * @throws 404 `NOT_FOUND` when the row is not the caller's INVITED collaboration.
+ */
+export async function declineInvitation(personId: string, collaborationId: string): Promise<void> {
+  if (!(await revokeInvitation(personId, collaborationId))) {
+    throw httpError(404, 'NOT_FOUND', 'Not found');
+  }
 }

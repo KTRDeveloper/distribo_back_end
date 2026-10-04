@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
+  collaborationIdParamsSchema,
   createOrganizationSchema,
   inviteCollaboratorSchema,
+  listInvitationsQuerySchema,
   listOrganizationsQuerySchema,
   organizationIdParamsSchema,
 } from './organization.schemas.js';
@@ -130,3 +132,55 @@ openApiRegistry.registerPath({
     429: { description: 'Too many person lookups', content: errorContent },
   },
 });
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/collaborations',
+  tags: ['organization'],
+  summary: 'List my pending team invitations',
+  security: [{ bearerAuth: [] }],
+  request: { query: listInvitationsQuerySchema },
+  responses: {
+    200: {
+      description: 'A page of my INVITED collaborations with the organization name',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(
+              z.object({
+                id: z.string().uuid(),
+                organization_id: z.string().uuid(),
+                organization_name: z.string(),
+                role: roleSchema,
+                invited_at: z.string().datetime(),
+              })
+            ),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid query', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+  },
+});
+
+for (const action of ['accept', 'decline'] as const) {
+  openApiRegistry.registerPath({
+    method: 'post',
+    path: `/api/v1/collaborations/{id}/${action}`,
+    tags: ['organization'],
+    summary: action === 'accept' ? 'Accept one of my invitations' : 'Decline one of my invitations',
+    security: [{ bearerAuth: [] }],
+    request: { params: collaborationIdParamsSchema },
+    responses: {
+      204: { description: 'Done; no body' },
+      400: { description: 'Malformed id', content: errorContent },
+      401: { description: 'Missing or invalid token', content: errorContent },
+      404: {
+        description: 'Unknown, not mine or no longer INVITED',
+        content: errorContent,
+      },
+    },
+  });
+}

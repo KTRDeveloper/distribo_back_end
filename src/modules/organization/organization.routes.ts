@@ -4,14 +4,19 @@ import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
+  collaborationIdParamsSchema,
   createOrganizationSchema,
   inviteCollaboratorSchema,
+  listInvitationsQuerySchema,
   listOrganizationsQuerySchema,
 } from './organization.schemas.js';
 import {
+  acceptInvitation,
   createOrganization,
+  declineInvitation,
   getOrganizationDetails,
   inviteCollaborator,
+  listMyInvitations,
   listMyOrganizations,
 } from './organization.service.js';
 import './organization.openapi.js';
@@ -73,3 +78,32 @@ organizationRoutes.post(
       .catch(next);
   }
 );
+
+/** Invitation routes, mounted at `/collaborations`; the caller is always the invited person. */
+export const collaborationRoutes = Router();
+
+collaborationRoutes.use(authMiddleware);
+
+// GET /api/v1/collaborations?status=INVITED - my pending invitations
+collaborationRoutes.get('/', (req, res, next) => {
+  Promise.resolve()
+    .then(() => listMyInvitations(req.user!.id, listInvitationsQuerySchema.parse(req.query)))
+    .then((page) => res.json(page))
+    .catch(next);
+});
+
+// POST /api/v1/collaborations/:id/accept - the body is never read, so no field can be assigned
+collaborationRoutes.post('/:id/accept', (req, res, next) => {
+  Promise.resolve()
+    .then(() => acceptInvitation(req.user!.id, collaborationIdParamsSchema.parse(req.params).id))
+    .then(() => res.status(204).end())
+    .catch(next);
+});
+
+// POST /api/v1/collaborations/:id/decline
+collaborationRoutes.post('/:id/decline', (req, res, next) => {
+  Promise.resolve()
+    .then(() => declineInvitation(req.user!.id, collaborationIdParamsSchema.parse(req.params).id))
+    .then(() => res.status(204).end())
+    .catch(next);
+});
