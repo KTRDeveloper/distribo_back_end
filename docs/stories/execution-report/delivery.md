@@ -301,3 +301,38 @@ Also in this run: relationship, admin, catalog, order, finance.
 - Overpayment (collected above total) and SELLER+ delivering an IN_DELIVERY order are unspecified: confirm the intended rule.
 - Delivery imports `resolveMergedRelation` from relationship.repository, which is not in the delivery contracts list.
 <!-- end DLV-007 -->
+
+<!-- begin DLV-008 -->
+## DLV-008 — Deliver only part of an order and settle the rest
+
+- Filed: 2026-10-04 23:36 UTC
+- Status: **done**: Partial delivery with LATER child order / ABANDON; 48/48 story tests, full suite green
+- Risk: high · story: [DLV-008-deliver-only-part-of-an-order-and-settle-the.md](../modules/delivery/DLV-008-deliver-only-part-of-an-order-and-settle-the.md)
+- Agent: 73,279 tokens, 25 tool uses, 12 min 31 s
+
+### Agent report
+
+**Summary:** The deliver gesture accepts `lines` and `rest`; LATER creates a CONFIRMED child order in the same transaction, ABANDON creates nothing.
+
+**Decisions:**
+- Request-level checks that need the order (short line without `rest`, quantity above the ordered one, nothing delivered): done in the service after the locks and before any write, as 400 VALIDATION_ERROR. A line of another order is 404.
+- Child order: placed by SUPPLIER, `entered_by` is the delivering actor, address copied from the parent. Price author and time are copied from the original line.
+- `rest` sent when no line is short: ignored, not refused.
+- `delivered_quantity` accepts a string or a number, validated by a regex of plain decimals with at most 3 places. `lines` is capped at 200 and a duplicate `line_id` is a 400.
+- `setLineDelivered` now takes the quantity as text, formatted from thousandths.
+
+**Tests added beyond the story:**
+- `partial-delivery.test.ts` › price author kept on the rest line: CM-22 prices and author, with a lowered price and 5.5 remaining; passed at once with the implementation
+- `partial-delivery.test.ts` › unlisted lines fully delivered, child only of short lines: story Context
+- `partial-delivery.test.ts` › a line delivered at 0 beside another delivered line: story Context, 0 is allowed if one line is above 0
+- `partial-delivery.test.ts` › extra refusal rows (negative quantity, duplicate line, unknown rest, amount on a line): AC-3 and AB-2
+
+**Other additions:**
+- `delivery.openapi.ts`: summary and 400/404 texts updated for the partial delivery.
+
+**Evidence:** story tests 48/48 (partial-delivery and deliver); full suite 2828/2828, failing: none; typecheck clean; lint 0 errors (warnings are existing ones plus 1 in the new test)
+
+**Follow-ups:**
+- Another test file had one flaky failure (price_updated_at timing) in the first full run; it was green on rerun.
+- If the product was deactivated since the order, the LATER child's line insert fails (ORD-005) and answers 500. The story does not say what to do.
+<!-- end DLV-008 -->

@@ -229,7 +229,8 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/api/v1/organizations/{organizationId}/orders/{orderId}/deliver',
   tags: ['delivery'],
-  summary: '"Commande livrée": deliver a whole order and record the sale and the payment (DLV-007)',
+  summary:
+    '"Commande livrée": deliver an order, whole or in part, and record the sale and the payment (DLV-007, DLV-008)',
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
@@ -255,14 +256,15 @@ openApiRegistry.registerPath({
       },
     },
     400: {
-      description: 'VALIDATION_ERROR (body or path, or a collection above 0 without mode)',
+      description:
+        'VALIDATION_ERROR (body or path, a collection above 0 without mode, a quantity above the ordered one, a short line without rest, or nothing delivered)',
       content: errorContent,
     },
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'The role may not deliver orders', content: errorContent },
     404: {
       description:
-        'Not a member, order outside the business, or a DRIVER on an order of another driver',
+        'Not a member, order outside the business, a line of another order, or a DRIVER on an order of another driver',
       content: errorContent,
     },
     409: {

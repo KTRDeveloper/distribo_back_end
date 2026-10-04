@@ -19596,7 +19596,7 @@
         "tags": [
           "delivery"
         ],
-        "summary": "\"Commande livrée\": deliver a whole order and record the sale and the payment (DLV-007)",
+        "summary": "\"Commande livrée\": deliver an order, whole or in part, and record the sale and the payment (DLV-007, DLV-008)",
         "security": [
           {
             "bearerAuth": []
@@ -19651,6 +19651,43 @@
                   "payment_entry_id": {
                     "type": "string",
                     "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "line_id": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                        },
+                        "delivered_quantity": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^\\d{1,9}(\\.\\d{1,3})?$"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "line_id",
+                        "delivered_quantity"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 200
+                  },
+                  "rest": {
+                    "type": "string",
+                    "enum": [
+                      "LATER",
+                      "ABANDON"
+                    ]
                   }
                 },
                 "required": [
@@ -19812,7 +19849,7 @@
             }
           },
           "400": {
-            "description": "VALIDATION_ERROR (body or path, or a collection above 0 without mode)",
+            "description": "VALIDATION_ERROR (body or path, a collection above 0 without mode, a quantity above the ordered one, a short line without rest, or nothing delivered)",
             "content": {
               "application/json": {
                 "schema": {
@@ -19842,7 +19879,7 @@
             }
           },
           "404": {
-            "description": "Not a member, order outside the business, or a DRIVER on an order of another driver",
+            "description": "Not a member, order outside the business, a line of another order, or a DRIVER on an order of another driver",
             "content": {
               "application/json": {
                 "schema": {

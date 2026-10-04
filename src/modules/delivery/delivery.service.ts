@@ -1,5 +1,6 @@
 import { httpError } from '../../lib/http-error.js';
 import type { Actor } from '../../types/express.js';
+import { newId } from '../../shared/ids.js';
 import { parseQuantity } from '../../shared/money.js';
 import { appendLedgerEntry } from '../finance/ledger.service.js';
 import { lineAmountOf, orderTotal } from '../order/order.calculations.js';
@@ -10,6 +11,7 @@ import {
   findRegisteredCustomerRecipient,
   insertDelivery,
   insertDepartedDelivery,
+  insertRestOrder,
   isActiveCollaborator,
   listLiveLines,
   listOwnDeliveries,
@@ -300,6 +302,11 @@ const DELIVERED_CONTENT = {
   EN: 'Your order has been delivered.',
 } as const;
 
+/** Thousandths as the decimal text the database stores, always with 3 places. */
+function formatQuantity(milli: bigint): string {
+  return `${milli / 1000n}.${(milli % 1000n).toString().padStart(3, '0')}`;
+}
+
 export type DeliverResult = {
   order: DeliveredOrderView;
   sale: DeliveredEntryView;
@@ -321,14 +328,22 @@ export type DeliverResult = {
  * entries are recorded by the caller. The customer is notified `order.status_changed`. Replays
  * with the same `id` are answered by `idempotent()`.
  *
+ * Partial delivery (DLV-008, CM-22): `lines` gives the delivered quantity of the listed lines
+ * (parsed with `parseQuantity`, from 0 up to the ordered one); unlisted lines are fully delivered
+ * and at least one line must be delivered above 0. When a line is short, `rest` is required:
+ * `LATER` creates, in the same transaction, a CONFIRMED order linked by `parent_order_id` with one
+ * line per short line at the original prices and price author, `ABANDON` creates nothing (the
+ * order keeps its short lines). Sale and credit rule use the total of the delivered quantities.
+ *
  * @param actor - Person, organization and role from `loadActor`; the route checked `deliver Order`.
  * @param orderId - Order from the path.
  * @param input - Validated body: gesture id, collected amount, mode and entry ids.
  * @param options - `viaSync` lets `transitionOrder` apply the sync judgment (delivery wins).
  * @returns The delivered order, the sale and the payment (null when nothing was collected).
- * @throws 404 `NOT_FOUND` (order outside the business, or a DRIVER's order of another driver); 409
- * `INVALID_TRANSITION` (status does not fit the caller's role); 409 `CREDIT_INSUFFICIENT` with
- * `details.min_collect`.
+ * @throws 404 `NOT_FOUND` (order outside the business, a DRIVER's order of another driver, or a line
+ * of another order); 400 `VALIDATION_ERROR` (quantity above the ordered one, short line without
+ * `rest`, nothing delivered); 409 `INVALID_TRANSITION` (status does not fit the caller's role);
+ * 409 `CREDIT_INSUFFICIENT` with `details.min_collect`.
  */
 export function deliverOrder(
   actor: Actor,
@@ -353,15 +368,39 @@ export function deliverOrder(
     if (!relationship) throw httpError(404, 'NOT_FOUND', 'Order not found.');
 
     const lines = await listLiveLines(tx, orderId);
+    const requested = new Map<string, bigint>();
+    for (const entry of input.lines ?? []) {
+      if (!lines.some((line) => line.id === entry.line_id)) {
+        throw httpError(404, 'NOT_FOUND', 'Line not found.');
+      }
+      try {
+        requested.set(entry.line_id, parseQuantity(String(entry.delivered_quantity)));
+      } catch {
+        throw httpError(400, 'VALIDATION_ERROR', 'Invalid delivered quantity.');
+      }
+    }
     const delivered = lines.map((line) => {
       const quantityMilli = parseQuantity(line.quantity.toFixed(3));
+      const deliveredMilli = requested.get(line.id) ?? quantityMilli;
+      if (deliveredMilli > quantityMilli) {
+        throw httpError(400, 'VALIDATION_ERROR', 'Delivered quantity above the ordered one.');
+      }
       const amount = lineAmountOf({
         quantityMilli,
-        deliveredQuantityMilli: quantityMilli,
+        deliveredQuantityMilli: deliveredMilli,
         unitPriceApplied: line.unitPriceApplied,
       });
-      return { line, amount };
+      return { line, quantityMilli, deliveredMilli, amount };
     });
+    if (!delivered.some(({ deliveredMilli }) => deliveredMilli > 0n)) {
+      throw httpError(400, 'VALIDATION_ERROR', 'At least one line must be delivered.');
+    }
+    const shortLines = delivered.filter(
+      ({ deliveredMilli, quantityMilli }) => deliveredMilli < quantityMilli
+    );
+    if (shortLines.length > 0 && input.rest === undefined) {
+      throw httpError(400, 'VALIDATION_ERROR', 'Say what happens to the rest.');
+    }
     const total = orderTotal(
       delivered.map(({ amount }) => amount),
       order.deliveryCost
@@ -378,8 +417,8 @@ export function deliverOrder(
       });
     }
 
-    for (const { line, amount } of delivered) {
-      await setLineDelivered(tx, line.id, line.quantity, amount);
+    for (const { line, deliveredMilli, amount } of delivered) {
+      await setLineDelivered(tx, line.id, formatQuantity(deliveredMilli), amount);
     }
     await setOrderTotal(tx, orderId, total);
     const closed = await transitionOrder(
@@ -392,6 +431,38 @@ export function deliverOrder(
     );
     if (inProgress && !(await markArrived(tx, inProgress.id, closed.deliveredAt ?? new Date()))) {
       throw httpError(409, 'INVALID_TRANSITION', 'The delivery is not in progress.');
+    }
+
+    if (input.rest === 'LATER' && shortLines.length > 0) {
+      const restLines = shortLines.map(({ line, quantityMilli, deliveredMilli }) => {
+        const remaining = quantityMilli - deliveredMilli;
+        return {
+          id: newId(),
+          productId: line.productId,
+          labelApplied: line.labelApplied,
+          quantity: formatQuantity(remaining),
+          referencePrice: line.referencePrice,
+          unitPriceApplied: line.unitPriceApplied,
+          amount: lineAmountOf({
+            quantityMilli: remaining,
+            unitPriceApplied: line.unitPriceApplied,
+          }),
+          priceSetById: line.priceSetById,
+          priceSetAt: line.priceSetAt,
+        };
+      });
+      await insertRestOrder(tx, {
+        id: newId(),
+        parentOrderId: orderId,
+        customerRelationshipId: order.customerRelationshipId,
+        enteredById: actor.personId,
+        deliveryAddressApplied: order.deliveryAddress,
+        totalAmount: orderTotal(
+          restLines.map(({ amount }) => amount),
+          0n
+        ),
+        lines: restLines,
+      });
     }
 
     const occurredAt = new Date();

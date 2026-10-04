@@ -353,6 +353,7 @@ export type OrderToDeliver = {
   status: string;
   customerRelationshipId: string;
   deliveryCost: bigint;
+  deliveryAddress: string | null;
 };
 
 /**
@@ -369,9 +370,15 @@ export async function lockOrderToDeliver(
   supplierOrganizationId: string
 ): Promise<OrderToDeliver | null> {
   const rows = await tx.$queryRaw<
-    Array<{ status: string; customer_relationship_id: string; delivery_cost: bigint }>
+    Array<{
+      status: string;
+      customer_relationship_id: string;
+      delivery_cost: bigint;
+      delivery_address_applied: string | null;
+    }>
   >`
-    SELECT o.status::text AS status, o.customer_relationship_id, o.delivery_cost
+    SELECT o.status::text AS status, o.customer_relationship_id, o.delivery_cost,
+      o.delivery_address_applied
     FROM orders o
     JOIN customer_relationships r ON r.id = o.customer_relationship_id
     WHERE o.id = ${orderId}::uuid
@@ -385,6 +392,7 @@ export async function lockOrderToDeliver(
         status: row.status,
         customerRelationshipId: row.customer_relationship_id,
         deliveryCost: row.delivery_cost,
+        deliveryAddress: row.delivery_address_applied,
       }
     : null;
 }
@@ -424,10 +432,51 @@ export function listLiveLines(tx: Prisma.TransactionClient, orderId: string) {
 export async function setLineDelivered(
   tx: Prisma.TransactionClient,
   id: string,
-  deliveredQuantity: Prisma.Decimal,
+  deliveredQuantity: string,
   amount: bigint
 ): Promise<void> {
   await tx.orderLine.update({ where: { id }, data: { deliveredQuantity, amount } });
+}
+
+/** A line of the order made for the undelivered rest, its amount computed by the caller. */
+export type RestLine = {
+  productId: string;
+  labelApplied: string;
+  quantity: string;
+  referencePrice: bigint;
+  unitPriceApplied: bigint;
+  amount: bigint;
+  priceSetById: string | null;
+  priceSetAt: Date | null;
+};
+
+/**
+ * Inserts the CONFIRMED order for the undelivered rest of a partially delivered order, with its
+ * lines (CM-22). Placed by the SUPPLIER party, linked to its parent, with no delivery cost; the
+ * caller computes every amount and the database checks the total at commit (ORD-006).
+ */
+export async function insertRestOrder(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    parentOrderId: string;
+    customerRelationshipId: string;
+    enteredById: string;
+    deliveryAddressApplied: string | null;
+    totalAmount: bigint;
+    lines: Array<RestLine & { id: string }>;
+  }
+): Promise<void> {
+  const { lines, ...order } = data;
+  await tx.order.create({
+    data: {
+      ...order,
+      placedByParty: 'SUPPLIER',
+      status: 'CONFIRMED',
+      deliveryCost: 0n,
+      lines: { create: lines },
+    },
+  });
 }
 
 /** Sets the order total, computed by the server from the line amounts (C-19). */

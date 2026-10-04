@@ -55,11 +55,34 @@ export type FailDeliveryInput = z.infer<typeof failDeliverySchema>;
 /** Upper bound of an amount collected at delivery, in XAF: explicit maximum (ASVS v5.0.0-2.2.1). */
 const COLLECTED_MAX = 999_999_999_999;
 
+/** Upper bound of the lines a deliver body may list: explicit maximum (ASVS v5.0.0-2.2.1). */
+const DELIVERED_LINES_MAX = 200;
+
+/** A plain decimal with at most 3 places, as `parseQuantity` accepts it (ASVS v5.0.0-2.2.1). */
+const QUANTITY_FORMAT = /^\d{1,9}(\.\d{1,3})?$/;
+
 /**
- * Strict body of the deliver gesture (DLV-007): the gesture id, the amount collected, its mode and
- * the ids of the ledger entries the gesture creates. The sale amount, a kind, the order total,
- * the recorder and times are never accepted (CM-13; ASVS v5.0.0-2.2.1, v5.0.0-15.3.3). A
- * collection above 0 needs a mode and a payment entry id; with 0 neither is used.
+ * A delivered quantity sent as a decimal string or a number: plain notation, from 0, at most 3
+ * decimal places. The upper bound (the ordered quantity) depends on the line and is the service's.
+ */
+const deliveredQuantitySchema = z.union([
+  z.string().regex(QUANTITY_FORMAT),
+  z.number().refine((value) => QUANTITY_FORMAT.test(String(value)), 'Invalid quantity'),
+]);
+
+/** One line of a partial delivery: the line and what was really delivered; no amount (CM-14). */
+const deliveredLineSchema = z
+  .object({ line_id: uuidV7Schema, delivered_quantity: deliveredQuantitySchema })
+  .strict();
+
+/**
+ * Strict body of the deliver gesture (DLV-007, DLV-008): the gesture id, the amount collected, its
+ * mode and the ids of the ledger entries the gesture creates, and for a partial delivery the
+ * delivered quantity per short line (unlisted lines are fully delivered) and what happens to the
+ * rest. The sale amount, a line amount, a kind, the order total, the recorder and times are never
+ * accepted (CM-13; ASVS v5.0.0-2.2.1, v5.0.0-15.3.3). A collection above 0 needs a mode and a
+ * payment entry id; with 0 neither is used. Whether a line is short, hence whether `rest` is
+ * required, depends on the order and is the service's check.
  */
 export const deliverSchema = z
   .object({
@@ -68,9 +91,21 @@ export const deliverSchema = z
     mode: z.enum(['CASH', 'MOBILE_MONEY']).optional(),
     sale_entry_id: uuidV7Schema,
     payment_entry_id: uuidV7Schema.optional(),
+    lines: z.array(deliveredLineSchema).min(1).max(DELIVERED_LINES_MAX).optional(),
+    rest: z.enum(['LATER', 'ABANDON']).optional(),
   })
   .strict()
   .superRefine((value, context) => {
+    if (
+      value.lines &&
+      new Set(value.lines.map((line) => line.line_id)).size !== value.lines.length
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lines'],
+        message: 'A line can be listed once',
+      });
+    }
     if (value.collected_amount > 0 && value.mode === undefined) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['mode'], message: 'Required' });
     }
