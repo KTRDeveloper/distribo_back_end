@@ -28,3 +28,34 @@ export async function withPullSnapshot<T>(
 ): Promise<T> {
   return prisma.$transaction(work, { isolationLevel: 'RepeatableRead' });
 }
+
+/**
+ * True when the person's device is revoked. A device row that does not exist counts as not
+ * revoked: the lookup filters on the person as well, so another person's device is never read.
+ */
+export async function isDeviceRevoked(personId: string, deviceId: string): Promise<boolean> {
+  const device = await prisma.device.findFirst({
+    where: { id: deviceId, personId },
+    select: { revokedAt: true },
+  });
+  return device?.revokedAt != null;
+}
+
+/**
+ * Records a pull on the person's live device: `last_synced_at` is server time, and
+ * `scope_version_seen` is written only when `scopeVersionSeen` is given. The update filters on
+ * person and device together and skips revoked devices (C-34).
+ */
+export async function markDevicePulled(
+  personId: string,
+  deviceId: string,
+  scopeVersionSeen: number | null
+): Promise<void> {
+  await prisma.device.updateMany({
+    where: { id: deviceId, personId, revokedAt: null },
+    data: {
+      lastSyncedAt: new Date(),
+      ...(scopeVersionSeen === null ? {} : { scopeVersionSeen }),
+    },
+  });
+}

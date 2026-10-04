@@ -15469,7 +15469,7 @@
           "sync"
         ],
         "summary": "Pull what changed for the signed-in person since the last pull",
-        "description": "Returns, per synchronized table, the rows created, updated and deleted since `last_pulled_at` (epoch milliseconds; absent for a first pull), limited to what the caller may see. Order, order line and delivery rows follow the role of the caller: supplier view for owners, managers and sellers, a narrower view for drivers, the customer view for customers.",
+        "description": "Returns, per synchronized table, the rows created, updated and deleted since `last_pulled_at` (epoch milliseconds; absent for a first pull), limited to what the caller may see. Order, order line and delivery rows follow the role of the caller: supplier view for owners, managers and sellers, a narrower view for drivers, the customer view for customers. The header `X-Scope-Version` is the rights version the phone knows: when it is lower than the person's and `last_pulled_at` is set, the answer is `{ resync_required: true }` without changes and the phone starts again with a full pull. A full pull records the version on the device. Every pull sets the device `last_synced_at`.",
         "security": [
           {
             "bearerAuth": []
@@ -15485,6 +15485,16 @@
             "required": false,
             "name": "last_pulled_at",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,9}$",
+              "description": "The rights version the phone knows; absent counts as 0"
+            },
+            "required": false,
+            "name": "X-Scope-Version",
+            "in": "header"
           }
         ],
         "responses": {
@@ -15493,49 +15503,79 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "changes": {
+                  "anyOf": [
+                    {
                       "type": "object",
-                      "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                          "created": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "additionalProperties": {}
-                            }
-                          },
-                          "updated": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "additionalProperties": {}
-                            }
-                          },
-                          "deleted": {
-                            "type": "array",
-                            "items": {
-                              "type": "string",
-                              "format": "uuid"
-                            }
+                      "properties": {
+                        "changes": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "created": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": {}
+                                }
+                              },
+                              "updated": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": {}
+                                }
+                              },
+                              "deleted": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                }
+                              }
+                            },
+                            "required": [
+                              "created",
+                              "updated",
+                              "deleted"
+                            ]
                           }
                         },
-                        "required": [
-                          "created",
-                          "updated",
-                          "deleted"
-                        ]
-                      }
+                        "timestamp": {
+                          "type": "integer"
+                        },
+                        "scope_version": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "changes",
+                        "timestamp",
+                        "scope_version"
+                      ]
                     },
-                    "timestamp": {
-                      "type": "integer"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "resync_required": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "timestamp": {
+                          "type": "integer"
+                        },
+                        "scope_version": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "resync_required",
+                        "timestamp",
+                        "scope_version"
+                      ]
                     }
-                  },
-                  "required": [
-                    "changes",
-                    "timestamp"
                   ]
                 }
               }
@@ -15552,7 +15592,7 @@
             }
           },
           "401": {
-            "description": "Missing or invalid token",
+            "description": "Missing or invalid token, or `SESSION_REVOKED` for a revoked device",
             "content": {
               "application/json": {
                 "schema": {

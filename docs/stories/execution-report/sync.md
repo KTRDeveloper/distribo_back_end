@@ -202,3 +202,36 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 - An order leaving a driver's scope (taken by another driver) is not re-sent, so the phone keeps the stale row until its own purge.
 - Confirm the truncated DRIVER sentence in the story with its author.
 <!-- end SYNC-006 -->
+
+<!-- begin SYNC-008 -->
+## SYNC-008 — Device tracking and full resynchronization
+
+- Filed: 2026-10-04 17:41 UTC
+- Status: **done**: Pull checks X-Scope-Version, revoked device 401, records last_synced_at and scope_version_seen
+- Risk: high · story: [SYNC-008-device-tracking-and-full-resynchronization.md](../modules/sync/SYNC-008-device-tracking-and-full-resynchronization.md)
+- Agent: 38,495 tokens, 13 tool uses, 4 min 0 s
+
+### Agent report
+
+**Summary:** Pull now validates X-Scope-Version, answers resync_required or 401 SESSION_REVOKED, and records last_synced_at / scope_version_seen on the device.
+
+**Decisions:**
+- Full pull (empty last_pulled_at) skips the version check: otherwise a stale phone could never restart; AC-2 requires data on a full pull.
+- Missing X-Scope-Version counts as 0 (fail closed); malformed value is 400 VALIDATION_ERROR (1-9 digits).
+- Device row absent counts as not revoked, no write: existing SYNC-003..006 tests pull without a Device row and must stay unchanged.
+- Revoked check lives in buildViewer (covers every pull); resync response also carries scope_version and records last_synced_at.
+- phoneScopeVersion in recordPull is never stored; a claim above the real version logs warn `scope_version_claim_ahead` (ids only).
+
+**Tests added beyond the story:**
+- `tests/integration/sync/resync.test.ts` › never writes another person device / pull with another person's device id: updates filter on person + device (ASVS 8.2.2, C-34); passed at once (the update was written scoped)
+- same file › malformed X-Scope-Version 400: boundary validation (CONVENTIONS Validation)
+- same file › missing header is version 0: fail closed
+
+**Other additions:**
+- `scopeVersionHeaderSchema` in sync.schemas.ts, repository functions `isDeviceRevoked` and `markDevicePulled`, service `pull` orchestrator; OpenAPI header, scope_version, resync response and 401 documented.
+
+**Evidence:** story tests 10/10; full suite 2198/2198, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
+
+**Follow-ups:**
+- A token whose device row does not exist is still served (needed by existing tests); revisit if sync must require a registered device.
+<!-- end SYNC-008 -->

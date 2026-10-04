@@ -4,8 +4,8 @@ import { registerCatalogAdapters } from './adapters/catalog.adapter.js';
 import { registerIdentityAdapters } from './adapters/identity.adapter.js';
 import { registerOrderAdapters } from './adapters/order.adapter.js';
 import { registerRelationshipAdapters } from './adapters/relationship.adapter.js';
-import { pullQuerySchema } from './sync.schemas.js';
-import { pullChanges } from './sync.service.js';
+import { pullQuerySchema, scopeVersionHeaderSchema } from './sync.schemas.js';
+import { pull } from './sync.service.js';
 import { buildViewer } from './sync.viewer.js';
 import './sync.openapi.js';
 
@@ -24,9 +24,10 @@ syncRoutes.get('/pull', (req, res, next) => {
   Promise.resolve()
     .then(async () => {
       const lastPulledAt = pullQuerySchema.parse(req.query);
+      const phoneScopeVersion = scopeVersionHeaderSchema.parse(req.header('x-scope-version'));
       const viewer = await buildViewer(req.user!.id, req.user!.deviceId);
       res.set('Cache-Control', 'no-store');
-      res.json(await pullChanges(viewer, lastPulledAt));
+      res.json(await pull(viewer, lastPulledAt, phoneScopeVersion));
     })
     .catch(next);
 });
