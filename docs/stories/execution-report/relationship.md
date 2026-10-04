@@ -6,6 +6,20 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 13:47 UTC: `/implement-stories next:3`
+
+| story | status | commit | note |
+|---|---|---|---|
+| REL-006 Every new organization gets its first counter | done | 8accff3 | Counter created in the org transaction; 1519 tests pass |
+| REL-007 Seller adds a customer by phone number | done | b61bbf2 | POST /organizations/:id/customers; 23 story tests, full suite 1542 pass |
+| REL-008 Seller lists the customers | done | eccf1b5 | GET customers list with filters, keyset paging, supplier view |
+
+- Run completed: 3 of 3 stories done, none skipped, no stash.
+- REL-007's hand-back held its full report, not just the `<ID> <status>` line.
+- REL-007 did not add its POST route to the OpenAPI doc or the catalog test list. REL-008 registered both POST and GET in relationship.openapi.ts and added the shared path to catalog.test.ts.
+- contracts.md does not list the optional `customerLabel` and `deliveryAddress` inputs that REL-007 added to `ensureCustomerRelationship`. The stories folder needs a sync.
+- Next: `/implement-stories next:3`
+
 ### Run 2026-10-04 12:26 UTC: `/implement-stories REL-004,ORD-002,ADM-008`
 
 | story | status | commit | note |
