@@ -2722,6 +2722,435 @@
         }
       }
     },
+    "/api/v1/admin/reports": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List reports: PENDING oldest first, otherwise newest first (admin token only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of reports",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "reporter": {
+                            "type": "object",
+                            "properties": {
+                              "public_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "phone_number": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "registered": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "public_name",
+                              "phone_number",
+                              "registered"
+                            ]
+                          },
+                          "target_person": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "public_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "phone_number": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "registered": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "public_name",
+                              "phone_number",
+                              "registered"
+                            ]
+                          },
+                          "target_organization": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "status"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "RESOLVED"
+                            ]
+                          },
+                          "decision": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "DISMISSED",
+                              "SUSPENSION"
+                            ]
+                          },
+                          "resolved_by_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "reported_at": {
+                            "type": "string"
+                          },
+                          "resolved_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "reporter",
+                          "target_person",
+                          "target_organization",
+                          "reason",
+                          "description",
+                          "status",
+                          "decision",
+                          "resolved_by_id",
+                          "reported_at",
+                          "resolved_at"
+                        ]
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/{reportId}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Open one report with its reporter and target (admin token only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "reportId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "reporter": {
+                      "type": "object",
+                      "properties": {
+                        "public_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "phone_number": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "registered": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "public_name",
+                        "phone_number",
+                        "registered"
+                      ]
+                    },
+                    "target_person": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "public_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "phone_number": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "registered": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "public_name",
+                        "phone_number",
+                        "registered"
+                      ]
+                    },
+                    "target_organization": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ]
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "RESOLVED"
+                      ]
+                    },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "DISMISSED",
+                        "SUSPENSION"
+                      ]
+                    },
+                    "resolved_by_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "reported_at": {
+                      "type": "string"
+                    },
+                    "resolved_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "reporter",
+                    "target_person",
+                    "target_organization",
+                    "reason",
+                    "description",
+                    "status",
+                    "decision",
+                    "resolved_by_id",
+                    "reported_at",
+                    "resolved_at"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [

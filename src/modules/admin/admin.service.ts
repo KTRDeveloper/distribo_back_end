@@ -18,15 +18,18 @@ import {
   findLiveAdministratorById,
   findLiveAdministratorByPerson,
   findPersonEmail,
+  findReportRow,
   findRegisteredPersonByPhone,
   hasLiveAdministrator,
   inTransaction,
   insertAdministrator,
   insertReport,
   isActiveOwner,
+  listReportRows,
   lockAdministratorRemoval,
   markAdministratorRemoved,
   organizationExists,
+  type ReportRow,
   personExists,
   recordAdminAction,
   setRecoveryEmail,
@@ -35,6 +38,7 @@ import type {
   AdminLoginInput,
   AppointInput,
   CreateReportInput,
+  ListReportsQuery,
   RemoveInput,
 } from './admin.schemas.js';
 
@@ -364,4 +368,60 @@ export async function createReport(
     'Report created'
   );
   return { id: stored.id, status: stored.status, reported_at: stored.reportedAt.toISOString() };
+}
+
+/** What a moderator sees of a report: both people through `toPublicPerson`, explicit fields only. */
+export interface AdminReportView {
+  id: string;
+  reporter: PublicPerson;
+  target_person: PublicPerson | null;
+  target_organization: { id: string; name: string; status: string } | null;
+  reason: string;
+  description: string;
+  status: string;
+  decision: string | null;
+  resolved_by_id: string | null;
+  reported_at: string;
+  resolved_at: string | null;
+}
+
+function toAdminReportView(row: ReportRow): AdminReportView {
+  return {
+    id: row.id,
+    reporter: toPublicPerson(row.reporter),
+    target_person: row.targetPerson ? toPublicPerson(row.targetPerson) : null,
+    target_organization: row.targetOrganization
+      ? {
+          id: row.targetOrganization.id,
+          name: row.targetOrganization.name,
+          status: row.targetOrganization.status,
+        }
+      : null,
+    reason: row.reason,
+    description: row.description,
+    status: row.status,
+    decision: row.decision,
+    resolved_by_id: row.resolvedById,
+    reported_at: row.reportedAt.toISOString(),
+    resolved_at: row.resolvedAt ? row.resolvedAt.toISOString() : null,
+  };
+}
+
+/**
+ * Lists reports for a moderator (v5.0.0-8.2.1: the route only lets live administrators in).
+ * PENDING is oldest first, anything else newest first. People go through `toPublicPerson`
+ * (v5.0.0-15.3.1).
+ */
+export async function listReports(
+  query: ListReportsQuery
+): Promise<{ items: AdminReportView[]; next_cursor: string | null }> {
+  const { rows, nextCursor } = await listReportRows(query);
+  return { items: rows.map(toAdminReportView), next_cursor: nextCursor };
+}
+
+/** Opens one report; a missing id is a 404. */
+export async function getReport(reportId: string): Promise<AdminReportView> {
+  const row = await findReportRow(reportId);
+  if (!row) throw httpError(404, 'NOT_FOUND', 'Report not found');
+  return toAdminReportView(row);
 }

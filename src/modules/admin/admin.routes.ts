@@ -15,6 +15,7 @@ import {
   removeAdministrator,
   requestRecoveryEmail,
 } from './admin.service.js';
+import { adminReportRoutes } from './report.routes.js';
 
 /** Administration routes, mounted under /api/v1/admin. */
 export const adminRoutes = Router();
@@ -95,3 +96,6 @@ adminRoutes.delete(
       .catch(next);
   }
 );
+
+// /api/v1/admin/reports - moderators list and open reports (see report.routes.ts)
+adminRoutes.use('/reports', adminReportRoutes);

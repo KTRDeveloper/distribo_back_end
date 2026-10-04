@@ -1,6 +1,8 @@
 import type { AdminAction, AdministratorRole, Person, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { newId } from '../../shared/ids.js';
+import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import type { ListReportsQuery } from './admin.schemas.js';
 
 /** Kinds of administrator action recorded in the journal. */
 export type AdminActionType =
@@ -303,4 +305,55 @@ export async function insertReport(
     select: { id: true, reportedAt: true },
   });
   return { id: row.id, status: 'PENDING', reportedAt: row.reportedAt };
+}
+
+const reportInclude = {
+  reporter: true,
+  targetPerson: true,
+  targetOrganization: { select: { id: true, name: true, status: true } },
+} satisfies Prisma.ReportInclude;
+
+/** A report with its reporter and target loaded, for the moderators' views. */
+export type ReportRow = Prisma.ReportGetPayload<{ include: typeof reportInclude }>;
+
+/**
+ * Lists reports, keyset-paged on (`reported_at`, `id`). PENDING is oldest first so the queue
+ * is worked in order; any other filter is newest first. The cursor carries the last item.
+ */
+export async function listReportRows(
+  query: ListReportsQuery
+): Promise<{ rows: ReportRow[]; nextCursor: string | null }> {
+  const oldestFirst = query.status === 'PENDING';
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const after = oldestFirst ? 'gt' : 'lt';
+  const rows = await prisma.report.findMany({
+    where: {
+      ...(query.status ? { status: query.status } : {}),
+      ...(cursor
+        ? {
+            OR: [
+              { reportedAt: { [after]: cursor.createdAt } },
+              { reportedAt: cursor.createdAt, id: { gt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    include: reportInclude,
+    orderBy: [{ reportedAt: oldestFirst ? 'asc' : 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const page = rows.slice(0, query.limit);
+  const last = page[page.length - 1];
+  return {
+    rows: page,
+    nextCursor:
+      rows.length > query.limit && last
+        ? encodeCursor({ createdAt: last.reportedAt, id: last.id })
+        : null,
+  };
+}
+
+/** One report with its reporter and target, or null when none has this id. */
+export function findReportRow(reportId: string): Promise<ReportRow | null> {
+  return prisma.report.findUnique({ where: { id: reportId }, include: reportInclude });
 }

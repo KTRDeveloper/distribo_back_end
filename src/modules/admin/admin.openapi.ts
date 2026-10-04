@@ -4,9 +4,11 @@ import {
   administratorIdParamsSchema,
   appointAdministratorSchema,
   createReportSchema,
+  listReportsQuerySchema,
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
   removeAdministratorSchema,
+  reportIdParamsSchema,
 } from './admin.schemas.js';
 
 const appointedResponseSchema = z.object({
@@ -119,5 +121,69 @@ openApiRegistry.registerPath({
     401: err('UNAUTHORIZED'),
     404: err('NOT_FOUND: unknown target'),
     429: err('RATE_LIMITED: 10 reports per person per day'),
+  },
+});
+
+const publicPersonSchema = z.object({
+  public_name: z.string().nullable(),
+  phone_number: z.string().nullable(),
+  registered: z.boolean(),
+});
+
+const adminReportSchema = z.object({
+  id: z.string(),
+  reporter: publicPersonSchema,
+  target_person: publicPersonSchema.nullable(),
+  target_organization: z
+    .object({ id: z.string(), name: z.string(), status: z.string() })
+    .nullable(),
+  reason: z.string(),
+  description: z.string(),
+  status: z.enum(['PENDING', 'RESOLVED']),
+  decision: z.enum(['DISMISSED', 'SUSPENSION']).nullable(),
+  resolved_by_id: z.string().nullable(),
+  reported_at: z.string(),
+  resolved_at: z.string().nullable(),
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/admin/reports',
+  tags: ['admin'],
+  summary: 'List reports: PENDING oldest first, otherwise newest first (admin token only)',
+  security: [{ bearerAuth: [] }],
+  request: { query: listReportsQuerySchema },
+  responses: {
+    200: {
+      description: 'One page of reports',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(adminReportSchema),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: err('VALIDATION_ERROR'),
+    401: err('UNAUTHORIZED'),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/admin/reports/{reportId}',
+  tags: ['admin'],
+  summary: 'Open one report with its reporter and target (admin token only)',
+  security: [{ bearerAuth: [] }],
+  request: { params: reportIdParamsSchema },
+  responses: {
+    200: {
+      description: 'The report',
+      content: { 'application/json': { schema: adminReportSchema } },
+    },
+    400: err('VALIDATION_ERROR'),
+    401: err('UNAUTHORIZED'),
+    404: err('NOT_FOUND'),
   },
 });

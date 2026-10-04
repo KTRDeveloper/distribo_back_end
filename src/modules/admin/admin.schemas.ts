@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
+import { paginationQuerySchema } from '../../shared/pagination.js';
 import { normalizeE164 } from '../../shared/phone.js';
 
 /** Body of POST /admin/auth/login: all three fields are required, unknown fields are refused. */
@@ -86,3 +87,13 @@ export const createReportSchema = z
   );
 
 export type CreateReportInput = z.infer<typeof createReportSchema>;
+
+/** Query of GET /admin/reports: the shared page parameters and an optional status; unknown ones are refused. */
+export const listReportsQuerySchema = paginationQuerySchema
+  .extend({ status: z.enum(['PENDING', 'RESOLVED']).optional() })
+  .strict();
+
+export type ListReportsQuery = z.infer<typeof listReportsQuerySchema>;
+
+/** Path parameter of GET /admin/reports/{reportId}: the report id. */
+export const reportIdParamsSchema = z.object({ reportId: uuidV7Schema }).strict();

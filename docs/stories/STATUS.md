@@ -90,7 +90,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-009 | done | | Appointment route, service, repository and tests; full suite green |
 | ADM-010 | done | | DELETE /admin/administrators/{id}; 17 story tests, full suite 1196 green |
 | ADM-011 | done | | POST /reports with idempotency, per-person daily limit; 25 tests |
-| ADM-012 | todo | | |
+| ADM-012 | done | | GET /admin/reports list and open; 13 tests, full suite 1234 green |
 | ADM-013 | todo | | |
 | ADM-014 | todo | | |
 | ADM-015 | todo | | |

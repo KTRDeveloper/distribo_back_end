@@ -395,3 +395,35 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - A client id that collides with another person's report id would surface as 500 (primary key); not covered by the story.
 <!-- end ADM-011 -->
+
+<!-- begin ADM-012 -->
+## ADM-012 — Administrator lists and opens reports
+
+- Filed: 2026-10-04 08:52 UTC
+- Status: **done**: GET /admin/reports list and open; 13 tests, full suite 1234 green
+- Risk: medium · story: [ADM-012-administrator-lists-and-opens-reports.md](../modules/admin/ADM-012-administrator-lists-and-opens-reports.md)
+- Agent: 54,136 tokens, 23 tool uses, 9 min 38 s
+
+### Agent report
+
+**Summary:** Added GET /api/v1/admin/reports (paged list) and GET /api/v1/admin/reports/{reportId}, admin token only.
+
+**Decisions:**
+- Router placement: report.routes.ts exports `adminReportRoutes`, mounted from admin.routes.ts (one line, not in the story's Modify list). The existing reportRoutes uses person auth for all its routes, so it cannot hold admin routes.
+- Role gate: `requireAdminRole('MODERATOR')`, so both administrator roles are allowed (the story says "admin token only").
+- Ordering: PENDING is oldest first, any other filter (or none) newest first, tie-break `id` ascending as in the notifications list. The cursor reuses the shared `(createdAt, id)` cursor with `reported_at`.
+- Query schema is strict (unknown params, limit>100 and a bad status are 400).
+
+**Tests added beyond the story:**
+- `list-reports.test.ts` › list without filter / status=RESOLVED newest first: ordering rule of the Context
+- `list-reports.test.ts` › pages with limit and cursor: no repeat, no gap (Project rules, pagination)
+- `list-reports.test.ts` › bad status, limit, cursor or unknown param is 400 (strict validation convention)
+- `list-reports.test.ts` › organization target and resolved report fields (Context item shape)
+- `list-reports.test.ts` › a removed administrator is refused at once (v5.0.0-8.2.1); passed at once, relies on the existing middleware
+
+**Other additions:**
+- `tests/integration/api-docs/catalog.test.ts`: two ADM-012 path entries (required by Project rules).
+- OpenAPI registration of both paths in admin.openapi.ts.
+
+**Evidence:** story tests 13/13; full suite 1234/1234, failing: none; typecheck clean; lint 0 errors, 46 warnings (none new in this story's files)
+<!-- end ADM-012 -->
