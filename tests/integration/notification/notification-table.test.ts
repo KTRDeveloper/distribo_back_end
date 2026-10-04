@@ -5,6 +5,8 @@ const REGISTERED_ID = '0199b001-0000-7000-8000-000000000001';
 const GUEST_ID = '0199b001-0000-7000-8000-000000000002';
 const UNKNOWN_ID = '0199b001-0000-7000-8000-000000000003';
 const NOTIFICATION_ID = '0199b001-0000-7000-8000-000000000010';
+const ORG_ID = '0199b001-0000-7000-8000-000000000004';
+const UNKNOWN_ORG_ID = '0199b001-0000-7000-8000-000000000005';
 const RELATED_ID = '0199b001-0000-7000-8000-000000000020';
 
 type SqlError = {
@@ -44,6 +46,7 @@ async function captureSqlCode(operation: Promise<unknown>): Promise<string | und
 
 beforeEach(async () => {
   await prisma.$executeRaw`DELETE FROM notifications`;
+  await prisma.$executeRaw`DELETE FROM organizations WHERE id = ${ORG_ID}::uuid`;
   await prisma.person.deleteMany({ where: { id: { in: [REGISTERED_ID, GUEST_ID] } } });
   await prisma.person.createMany({
     data: [
@@ -63,6 +66,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await prisma.$executeRaw`DELETE FROM notifications`;
+  await prisma.$executeRaw`DELETE FROM organizations WHERE id = ${ORG_ID}::uuid`;
   await prisma.person.deleteMany({ where: { id: { in: [REGISTERED_ID, GUEST_ID] } } });
 });
 
@@ -159,5 +163,43 @@ describe('notifications table', () => {
       `
     );
     expect(unknownRecipient).toBe('23503');
+  });
+});
+
+describe('notifications organization key', () => {
+  it('rejects an unknown organization with 23503', async () => {
+    const code = await captureSqlCode(
+      prisma.$executeRaw`
+        INSERT INTO notifications (id, recipient_id, organization_id, content, source_event)
+        VALUES (
+          ${NOTIFICATION_ID}::uuid, ${REGISTERED_ID}::uuid, ${UNKNOWN_ORG_ID}::uuid,
+          'Org event', 'org.event'
+        )
+      `
+    );
+    expect(code).toBe('23503');
+  });
+
+  it('accepts an existing organization and none', async () => {
+    await prisma.$executeRaw`
+      INSERT INTO organizations (id, name) VALUES (${ORG_ID}::uuid, 'Fixture Business')
+    `;
+    await expect(
+      prisma.$executeRaw`
+        INSERT INTO notifications (id, recipient_id, organization_id, content, source_event)
+        VALUES (
+          ${NOTIFICATION_ID}::uuid, ${REGISTERED_ID}::uuid, ${ORG_ID}::uuid,
+          'Org event', 'org.event'
+        )
+      `
+    ).resolves.toBe(1);
+    await expect(
+      prisma.$executeRaw`
+        INSERT INTO notifications (id, recipient_id, organization_id, content, source_event)
+        VALUES (
+          ${RELATED_ID}::uuid, ${REGISTERED_ID}::uuid, NULL, 'No org event', 'no.org.event'
+        )
+      `
+    ).resolves.toBe(1);
   });
 });
