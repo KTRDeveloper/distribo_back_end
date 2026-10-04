@@ -21,6 +21,7 @@ import line of CONVENTIONS.md below.
 
 ## Database rules outside the Prisma schema
 - Every constraint or workaround a migration enforces that `prisma/schema.prisma` cannot express (CHECK, partial unique index, trigger, generated column, GRANT, a constraint deliberately left out of `@@unique`/`@@index`) gets a `//` comment above its model in `schema.prisma`: what it enforces, why it is not in the schema, and the migration that holds it.
+- Write these comments in plain language a person new to the project understands: the business rule and its consequence for the code, not SQL, regexes or constraint names.
 - Changing or removing such a constraint updates that comment in the same change. Read the comments above a model before touching it; never rely on reading the migrations to find these rules.
 
 ## Commands for agents

@@ -1,19 +1,20 @@
 // Prisma schema for Node.js template project
 //
-// Database rules Prisma cannot express are listed in a comment above each
-// model, with the migration that holds them (see CLAUDE.md). Shared by several
-// models:
-// - role distribo_app (no login) has USAGE on schema public and, by default
-//   privileges, SELECT, INSERT, UPDATE, DELETE on every table created later;
-//   immutable tables revoke some of these
-//   (20260930220000_app_role_and_server_time);
-// - function set_server_updated_at(): BEFORE INSERT OR UPDATE triggers use it
-//   to set server_updated_at to the server time on every write, whatever the
-//   client sends (20260930220000_app_role_and_server_time);
-// - function require_registered_person(columns...): trigger function that
-//   rejects (23514) a row whose named person column points to a person
-//   without registered_at; unchanged values on UPDATE are not rechecked
-//   (20261003091410_per_008_registered_person_guard).
+// Some rules live only in the database, because Prisma has no way to declare
+// them. They are written in the SQL migrations, and each model below that has
+// such rules explains them in a comment just above it (see CLAUDE.md).
+//
+// Rules shared by several tables:
+// - The application connects as a limited database user, distribo_app. It can
+//   read, add, change and delete rows in every table, except where a table
+//   says otherwise below. (Migration 20260930220000_app_role_and_server_time)
+// - On tables that have a server_updated_at column, the database itself sets
+//   that column to the current server time whenever a row is added or changed.
+//   Any value sent by the application is ignored.
+//   (Migration 20260930220000_app_role_and_server_time)
+// - Some tables refuse to point at a person who has not finished registering.
+//   The database checks this itself; the tables concerned say so below.
+//   (Migration 20261003091410_per_008_registered_person_guard)
 
 generator client {
   provider = "prisma-client-js"
@@ -180,28 +181,30 @@ model ConfigHistory {
   @@map("config_history")
 }
 
-// Enforced only in the database (Prisma cannot express them):
-// - email is not @unique: unique index people_verified_email_lower_unique on
-//   lower(email) where email_verified_at is not null, so only verified emails
-//   are unique, case-insensitively (20261002060000_per_003_person_checks);
-// - CHECK people_phone_number_e164_check and
-//   people_released_phone_number_e164_check: E.164, ^\+[1-9][0-9]{7,14}$
-//   (20261002060000_per_003_person_checks);
-// - CHECK people_exactly_one_phone_check: exactly one of phone_number and
-//   released_phone_number is set (20261002060000_per_003_person_checks);
-// - CHECK people_anonymized_phone_check: an ANONYMIZED person has no
-//   phone_number (20261002060000_per_003_person_checks);
-// - CHECK people_phone_verification_check: phone_verified_at needs a
-//   phone_number (20261002060000_per_003_person_checks);
-// - CHECK people_registered_completeness_check: a registered person, unless
-//   ANONYMIZED, has a non-blank full_name and password_hash and a verified
-//   phone_number if any; blank means only Unicode White_Space
-//   (20261003061000_fnd_011_person_unicode_whitespace);
-// - CHECK people_email_verification_check: email_verified_at needs a
-//   non-blank email (20261003061000_fnd_011_person_unicode_whitespace);
-// - trigger set_server_updated_at_people (20261002051743_per_002_person_v10);
-// - trigger people_clear_public_contact: setting phone_number to null clears
-//   collaborations.is_public_contact (20261004110000_org_003_collaborations).
+// Rules the database enforces on people, beyond what this model declares:
+// - Two people cannot share the same verified email, whatever the upper or
+//   lower case. Unverified emails may repeat, which is why email is not marked
+//   @unique here. (Migration 20261002060000_per_003_person_checks)
+// - Phone numbers are stored in international format: a "+", then 8 to 15
+//   digits, the first not 0. (Migration 20261002060000_per_003_person_checks)
+// - A person always has exactly one number: either a current phone_number or,
+//   once they gave it up, the released_phone_number.
+//   (Migration 20261002060000_per_003_person_checks)
+// - An anonymized person keeps no current phone number.
+//   (Migration 20261002060000_per_003_person_checks)
+// - A phone can only be marked verified while the person has a current number.
+//   (Migration 20261002060000_per_003_person_checks)
+// - A registered person, unless anonymized, must have a real name and a
+//   password, and their current phone number, if any, must be verified. Text
+//   made only of spaces, of any kind, counts as empty.
+//   (Migration 20261003061000_fnd_011_person_unicode_whitespace)
+// - An email can only be marked verified if there is an email, not just spaces.
+//   (Migration 20261003061000_fnd_011_person_unicode_whitespace)
+// - server_updated_at is set by the database on every change.
+//   (Migration 20261002051743_per_002_person_v10)
+// - When a person's phone number is removed, they stop being the public
+//   contact of every organization they belong to.
+//   (Migration 20261004110000_org_003_collaborations)
 model Person {
   id                  String         @id @db.Uuid
   otpChallenges       OtpChallenge[]
@@ -231,22 +234,22 @@ model Person {
   @@map("people")
 }
 
-// Enforced only in the database (Prisma cannot express them):
-// - CHECK notifications_related_entity_pair_check: related_entity_type and
-//   related_entity_id are both set or both null
-//   (20261003122500_ntf_001_notifications);
-// - CHECK notifications_content_check: at most 2000 characters, not blank
-//   (20261003134000_ntf_002_notify_validation);
-// - CHECK notifications_source_event_check: at most 100 characters, dotted
-//   lowercase, ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$
-//   (20261003134000_ntf_002_notify_validation);
-// - CHECK notifications_related_entity_type_check: null, or at most 100
-//   characters and not blank (20261003134000_ntf_002_notify_validation);
-// - deferred constraint trigger notifications_require_registered_recipient:
-//   at commit, recipient_id is a registered person
-//   (20261003122500_ntf_001_notifications);
-// - trigger notifications_set_server_updated_at
-//   (20261003122500_ntf_001_notifications).
+// Rules the database enforces on notifications, beyond what this model declares:
+// - A notification either points to a related item (both its type and its id
+//   are filled) or to nothing (both empty), never half of it.
+//   (Migration 20261003122500_ntf_001_notifications)
+// - The message text is required, not just spaces, and at most 2000
+//   characters. (Migration 20261003134000_ntf_002_notify_validation)
+// - The event name is at most 100 characters, in lowercase words joined by
+//   dots, for example "order.created".
+//   (Migration 20261003134000_ntf_002_notify_validation)
+// - The related item type, when given, is not just spaces and is at most 100
+//   characters. (Migration 20261003134000_ntf_002_notify_validation)
+// - The recipient must be a registered person. This is checked when the
+//   transaction is saved, not row by row.
+//   (Migration 20261003122500_ntf_001_notifications)
+// - server_updated_at is set by the database on every change.
+//   (Migration 20261003122500_ntf_001_notifications)
 model Notification {
   id                String                 @id @db.Uuid
   recipientId       String                 @map("recipient_id") @db.Uuid
@@ -268,9 +271,9 @@ model Notification {
   @@map("notifications")
 }
 
-// Enforced only in migration 20261004090000_org_001_organizations (Prisma
-// cannot express it):
-// - trigger organizations_set_server_updated_at.
+// Rule the database enforces on organizations, beyond what this model declares:
+// - server_updated_at is set by the database on every change.
+//   (Migration 20261004090000_org_001_organizations)
 model Organization {
   id              String             @id @db.Uuid
   name            String
@@ -287,19 +290,21 @@ model Organization {
   @@map("organizations")
 }
 
-// Enforced only in migration 20261004110000_org_003_collaborations (Prisma
-// cannot express them):
-// - trigger collaborations_set_server_updated_at;
-// - unique (person_id, organization_id) where deleted_at is null (C-05, C-35);
-//   kept out of @@unique because a deleted row must not block a new invitation;
-// - unique (organization_id) where role OWNER, status ACTIVE and not deleted;
-// - trigger collaborations_check_row: ACTIVE needs a registered person; a public
-//   contact needs ACTIVE status and a person with a phone number;
-// - deferred constraint trigger collaborations_one_active_owner: at commit, an
-//   organization with non-deleted collaborations has exactly one ACTIVE OWNER,
-//   so insert the OWNER in the same transaction as the first collaboration;
-// - trigger people_clear_public_contact: a released phone number clears
-//   is_public_contact.
+// Rules the database enforces on collaborations (a person's membership in an
+// organization), beyond what this model declares. All come from migration
+// 20261004110000_org_003_collaborations.
+// - A person has at most one membership per organization. A deleted membership
+//   does not count, so someone who was removed can be invited again. That
+//   exception is why this rule is not written as @@unique here.
+// - An organization has exactly one active owner. Deleted memberships do not
+//   count. This is checked when the transaction is saved, so the owner must be
+//   added in the same transaction as the organization's first membership, and
+//   a change of owner must happen within a single transaction.
+// - Only a registered person can have an active membership.
+// - A member can be the organization's public contact only while their
+//   membership is active and they have a current phone number. If they lose
+//   their phone number, they stop being the public contact automatically.
+// - server_updated_at is set by the database on every change.
 model Collaboration {
   id              String              @id @db.Uuid
   personId        String              @map("person_id") @db.Uuid
@@ -319,10 +324,10 @@ model Collaboration {
   @@map("collaborations")
 }
 
-// Enforced only in migration 20261003150000_auth_001_otp_challenges (Prisma
-// cannot express them):
-// - CHECK otp_challenges_attempts_check: attempts at most 5;
-// - CHECK otp_challenges_sms_target_check: an SMS target starts with +237.
+// Rules the database enforces on one-time codes, beyond what this model
+// declares. Both come from migration 20261003150000_auth_001_otp_challenges.
+// - A code can be tried at most 5 times.
+// - A code sent by SMS can only go to a Cameroon number, starting with +237.
 model OtpChallenge {
   id         String     @id @db.Uuid
   personId   String?    @map("person_id") @db.Uuid
@@ -354,14 +359,14 @@ model IdempotencyKey {
   @@map("idempotency_keys")
 }
 
-// Enforced only in migration 20261002212000_per_003_phone_change_log (Prisma
-// cannot express them):
-// - CHECK phone_number_change_logs_old_phone_number_e164_check and
-//   phone_number_change_logs_new_phone_number_e164_check: E.164,
-//   ^\+[1-9][0-9]{1,14}$;
-// - trigger phone_number_change_logs_server_updated_at_trigger;
-// - REVOKE UPDATE, DELETE, TRUNCATE from distribo_app: append-only journal
-//   (C-32, C-39).
+// Rules the database enforces on the phone number change history, beyond what
+// this model declares. All come from migration
+// 20261002212000_per_003_phone_change_log.
+// - The old and new numbers are stored in international format: a "+", then up
+//   to 15 digits, the first not 0.
+// - The history can only grow: the application can add entries but never
+//   change or delete them.
+// - server_updated_at is set by the database on every change.
 model PhoneNumberChangeLog {
   id              String    @id @db.Uuid
   personId        String    @map("person_id") @db.Uuid
@@ -378,10 +383,11 @@ model PhoneNumberChangeLog {
   @@map("phone_number_change_logs")
 }
 
-// Enforced only in migration 20261003160000_auth_007_devices_refresh_tokens
-// (Prisma cannot express it):
-// - index devices_person_id_active_idx on (person_id) where revoked_at is
-//   null; kept out of @@index because Prisma cannot declare its WHERE clause.
+// Database detail for devices, not declared in this model:
+// - The database keeps an index to quickly find a person's devices that are
+//   still allowed (not revoked). Prisma cannot declare an index limited to some
+//   rows, so it exists only in migration
+//   20261003160000_auth_007_devices_refresh_tokens.
 model Device {
   id               String         @id @db.Uuid
   personId         String         @map("person_id") @db.Uuid
@@ -401,10 +407,10 @@ model Device {
   @@map("devices")
 }
 
-// Enforced only in migration 20261003160000_auth_007_devices_refresh_tokens
-// (Prisma cannot express it):
-// - CHECK refresh_tokens_revoked_check: revoked_at and revoked_reason are both
-//   set or both null.
+// Rule the database enforces on refresh tokens, beyond what this model declares:
+// - A revoked token always records both when and why it was revoked; a token
+//   that is not revoked has neither.
+//   (Migration 20261003160000_auth_007_devices_refresh_tokens)
 model RefreshToken {
   id            String                     @id @db.Uuid
   personId      String                     @map("person_id") @db.Uuid
