@@ -467,7 +467,8 @@ model Collaboration {
 // Rules the database enforces on customer relationships (the commercial link
 // between a supplier and a customer), beyond what this model declares. The
 // first two come from migration 20261004130000_rel_001_relationships, the rest
-// from 20261004140000_rel_002_party_rules.
+// from 20261004140000_rel_002_party_rules, the credit rules from
+// 20261004270000_rel_004_credit_limit_rules.
 // - The person who created the relationship, and the person who set the credit
 //   limit, must be registered people, never guests. This is checked when the
 //   transaction is saved, not row by row.
@@ -487,7 +488,19 @@ model Collaboration {
 // - The status is PENDING exactly when the supplier is a person (an invitation
 //   from a customer); an organization supplier is never PENDING.
 // - ended_by_party is filled in exactly when the status is ENDED.
-// Rules about credit are added by a later story (REL-004).
+// - A new relationship starts with a credit limit of 0 (no credit). An empty
+//   limit means "no ceiling" and is allowed for a customer. A counter (no
+//   customer) always has a limit of exactly 0. A limit is never negative.
+// - credit_limit_set_by_id and credit_limit_set_at are both filled in or both
+//   empty.
+// - A limit can only change together with credit_limit_set_by_id: an update
+//   that changes the limit but not its author is refused. The database sets
+//   credit_limit_set_at to the server time itself and writes one
+//   credit_limit_changes row (old limit, new limit, author, time) in the same
+//   transaction, so code never writes that journal row and cannot skip it.
+//   Setting the same value again changes nothing and writes nothing. The
+//   default of 0 is also applied by the database on insert; an insert that
+//   supplies a limit directly is not journaled (it is creation, not a change).
 model CustomerRelationship {
   id                     String             @id @db.Uuid
   supplierOrganizationId String?            @map("supplier_organization_id") @db.Uuid
@@ -498,7 +511,7 @@ model CustomerRelationship {
   customerLabel          String?            @map("customer_label")
   supplierLabel          String?            @map("supplier_label")
   deliveryAddress        String?            @map("delivery_address")
-  creditLimit            BigInt?            @map("credit_limit")
+  creditLimit            BigInt?            @default(0) @map("credit_limit")
   creditLimitSetById     String?            @map("credit_limit_set_by_id") @db.Uuid
   creditLimitSetAt       DateTime?          @map("credit_limit_set_at") @db.Timestamptz
   balance                BigInt             @default(0)

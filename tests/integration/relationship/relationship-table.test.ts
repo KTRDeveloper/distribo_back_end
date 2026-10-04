@@ -54,6 +54,7 @@ type Row = {
   endedByParty?: string | null;
   createdById?: string | null;
   creditLimitSetById?: string | null;
+  creditLimitSetAt?: Date | null;
   mergedIntoId?: string | null;
   deletedAt?: Date | null;
   customerLabel?: string | null;
@@ -67,14 +68,15 @@ function insertRelationship(row: Row = {}): Promise<number> {
   return prisma.$executeRaw`
     INSERT INTO customer_relationships (
       id, supplier_organization_id, customer_person_id, created_by_id,
-      status, ended_by_party, credit_limit_set_by_id, merged_into_id, deleted_at,
-      customer_label
+      status, ended_by_party, credit_limit_set_by_id, credit_limit_set_at, merged_into_id,
+      deleted_at, customer_label
     )
     VALUES (
       ${row.id ?? REL_ID}::uuid, ${supplier}::uuid, ${customer}::uuid, ${createdBy}::uuid,
       COALESCE(${row.status ?? null}::text, 'ACTIVE')::public."RelationshipStatus",
       ${row.endedByParty ?? null}::text::public."RelationshipParty",
-      ${row.creditLimitSetById ?? null}::uuid, ${row.mergedIntoId ?? null}::uuid,
+      ${row.creditLimitSetById ?? null}::uuid, ${row.creditLimitSetAt ?? null}::timestamptz,
+      ${row.mergedIntoId ?? null}::uuid,
       ${row.deletedAt ?? null}::timestamptz, ${row.customerLabel ?? null}
     )
   `;
@@ -129,7 +131,7 @@ describe('customer_relationships defaults and types (AC-1, C-01, C-35)', () => {
     expect(row.created_at).toBeInstanceOf(Date);
     expect(row.server_updated_at).toBeInstanceOf(Date);
     expect(row.deleted_at).toBeNull();
-    expect(row.credit_limit).toBeNull();
+    expect(row.credit_limit).toBe(0n);
     expect(row.merged_into_id).toBeNull();
 
     for (const column of [
@@ -213,9 +215,9 @@ describe('customer_relationships enums and keys (AC-2)', () => {
 
   it('rejects an unknown merged_into_id with 23503 and accepts an existing one', async () => {
     const deletedAt = new Date('2026-02-01T00:00:00.000Z');
-    expect(
-      await captureSqlCode(insertRelationship({ mergedIntoId: UNKNOWN_ID, deletedAt }))
-    ).toBe('23503');
+    expect(await captureSqlCode(insertRelationship({ mergedIntoId: UNKNOWN_ID, deletedAt }))).toBe(
+      '23503'
+    );
     await insertRelationship();
     await expect(
       insertRelationship({
@@ -233,13 +235,23 @@ describe('customer_relationships enums and keys (AC-2)', () => {
   });
 
   it('rejects credit_limit_set_by_id of a guest with 23514', async () => {
-    expect(await captureSqlCode(insertRelationship({ creditLimitSetById: GUEST_ID }))).toBe(
-      '23514'
-    );
+    expect(
+      await captureSqlCode(
+        insertRelationship({
+          creditLimitSetById: GUEST_ID,
+          creditLimitSetAt: new Date('2026-02-01T00:00:00.000Z'),
+        })
+      )
+    ).toBe('23514');
   });
 
   it('accepts credit_limit_set_by_id of a registered person', async () => {
-    await expect(insertRelationship({ creditLimitSetById: OWNER_ID })).resolves.toBe(1);
+    await expect(
+      insertRelationship({
+        creditLimitSetById: OWNER_ID,
+        creditLimitSetAt: new Date('2026-02-01T00:00:00.000Z'),
+      })
+    ).resolves.toBe(1);
   });
 });
 
