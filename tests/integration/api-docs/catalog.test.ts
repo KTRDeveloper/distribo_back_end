@@ -57,6 +57,9 @@ describe('GET /docs/openapi.json', () => {
     // ADM-010: removing an administrator
     expect(paths).toContain('/api/v1/admin/administrators/{administratorId}');
 
+    // ADM-011: reporting a person or an organization
+    expect(paths).toContain('/api/v1/reports');
+
     // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
     expect(authPaths.sort()).toEqual([

@@ -362,3 +362,36 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - The concurrency test cannot force the lock path every run; the loser may be refused at authentication (401) instead of 409.
 <!-- end ADM-010 -->
+
+<!-- begin ADM-011 -->
+## ADM-011 — Person reports another person or a business
+
+- Filed: 2026-10-04 08:42 UTC
+- Status: **done**: POST /reports with idempotency, per-person daily limit; 25 tests
+- Risk: medium · story: [ADM-011-person-reports-another-person-or-a-business.md](../modules/admin/ADM-011-person-reports-another-person-or-a-business.md)
+- Agent: 66,333 tokens, 24 tool uses, 9 min 43 s
+
+### Agent report
+
+**Summary:** POST /api/v1/reports implemented (strict schema, idempotent, per-person 10/day limit, journal-free insert); all green.
+
+**Decisions:**
+- Rate limit slot (`report:<personId>`, 86400 s) taken only after validation, existence and ownership checks pass: refused requests do not use the allowance.
+- Idempotency key is the report id (same as other create gestures); validation runs before `idempotent()` so invalid bodies never reserve a key. A replayed 429/404 stays replayed for that id.
+- "Exists" for a person = any person row; for an organization = not deleted (any status). "Own organization" = caller is ACTIVE OWNER; other members may report it.
+- Self-report and own-organization checks are in the service (need the caller id), both 400 VALIDATION_ERROR.
+- per-001.test.ts has no non-auth route list, so only catalog.test.ts got the new path.
+
+**Tests added beyond the story:**
+- `create-report.test.ts` › non-owner member may report the organization: owner-only rule scope (story Context); passed at once
+- `create-report.test.ts` › limit is per person; repeat consumes one slot only (AB-2, AC-4); passed at once
+- `create-report.test.ts` › length boundaries 100/2000, blank, unknown field, reporter_id in body (AC-3, AB-1); passed at once
+
+**Other additions:**
+- Repository helpers `personExists`, `organizationExists`, `isActiveOwner`, `insertReport`; OpenAPI path registered in admin.openapi.ts; `report.routes.ts` imports admin.openapi.
+
+**Evidence:** story tests 25/25; full suite 1221/1221, failing: none; typecheck clean; lint 0 errors, 46 warnings (pre-existing)
+
+**Follow-ups:**
+- A client id that collides with another person's report id would surface as 500 (primary key); not covered by the story.
+<!-- end ADM-011 -->

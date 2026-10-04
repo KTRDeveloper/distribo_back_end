@@ -22,12 +22,21 @@ import {
   hasLiveAdministrator,
   inTransaction,
   insertAdministrator,
+  insertReport,
+  isActiveOwner,
   lockAdministratorRemoval,
   markAdministratorRemoved,
+  organizationExists,
+  personExists,
   recordAdminAction,
   setRecoveryEmail,
 } from './admin.repository.js';
-import type { AdminLoginInput, AppointInput, RemoveInput } from './admin.schemas.js';
+import type {
+  AdminLoginInput,
+  AppointInput,
+  CreateReportInput,
+  RemoveInput,
+} from './admin.schemas.js';
 
 const MAX_LOGIN_FAILURES = 5;
 
@@ -287,4 +296,72 @@ export async function removeAdministrator(
     },
     'Administrator removed'
   );
+}
+
+const REPORTS_PER_DAY = 10;
+const DAY_SECONDS = 86_400;
+
+/** What the reporter gets back: the report id, its status and when it was filed. */
+export interface ReportView {
+  id: string;
+  status: 'PENDING';
+  reported_at: string;
+}
+
+/**
+ * Files a report against a person or an organization (C-28). The reporter is always the caller
+ * and the status always PENDING; the schema already refused status, decision and resolver
+ * (v5.0.0-15.3.3). The target must exist (404) and may not be the caller or an organization the
+ * caller owns (400). Refused requests do not use up the allowance: one slot of the 10-a-day
+ * per-person limit (provisional, v5.0.0-2.4.1) is taken only once the request is valid, and the
+ * 11th is refused with 429 before anything is stored. Logs ids only.
+ *
+ * @throws 400 VALIDATION_ERROR (own person or organization); 404 NOT_FOUND; 429 RATE_LIMITED
+ */
+export async function createReport(
+  personId: string,
+  input: CreateReportInput
+): Promise<ReportView> {
+  const targetPersonId = input.target_person_id ?? null;
+  const targetOrganizationId = input.target_organization_id ?? null;
+  const ownTarget = () => httpError(400, 'VALIDATION_ERROR', 'You cannot report yourself');
+
+  if (targetPersonId === personId) throw ownTarget();
+  const stored = await inTransaction(async (tx) => {
+    if (targetPersonId !== null && !(await personExists(tx, targetPersonId))) {
+      throw httpError(404, 'NOT_FOUND', 'Target not found');
+    }
+    if (targetOrganizationId !== null) {
+      if (!(await organizationExists(tx, targetOrganizationId))) {
+        throw httpError(404, 'NOT_FOUND', 'Target not found');
+      }
+      if (await isActiveOwner(tx, personId, targetOrganizationId)) throw ownTarget();
+    }
+
+    const slot = await checkAndConsume(`report:${personId}`, REPORTS_PER_DAY, DAY_SECONDS);
+    if (!slot.allowed) {
+      logger.warn({ event: 'report_rate_limited', personId }, 'Report rate limited');
+      throw httpError(429, 'RATE_LIMITED', 'Too many reports today');
+    }
+
+    return insertReport(tx, {
+      id: input.id,
+      reporterId: personId,
+      targetPersonId,
+      targetOrganizationId,
+      reason: input.reason,
+      description: input.description,
+    });
+  });
+  logger.info(
+    {
+      event: 'report_created',
+      personId,
+      reportId: stored.id,
+      targetPersonId,
+      targetOrganizationId,
+    },
+    'Report created'
+  );
+  return { id: stored.id, status: stored.status, reported_at: stored.reportedAt.toISOString() };
 }

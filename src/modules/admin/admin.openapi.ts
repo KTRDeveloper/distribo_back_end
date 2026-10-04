@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   administratorIdParamsSchema,
   appointAdministratorSchema,
+  createReportSchema,
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
   removeAdministratorSchema,
@@ -91,5 +92,32 @@ openApiRegistry.registerPath({
     403: err('FORBIDDEN'),
     404: err('NOT_FOUND: unknown or already removed'),
     409: err('LAST_SUPER_ADMIN'),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/reports',
+  tags: ['admin'],
+  summary: 'Report a person or an organization (any signed-in person)',
+  security: [{ bearerAuth: [] }],
+  request: { body: { content: { 'application/json': { schema: createReportSchema } } } },
+  responses: {
+    201: {
+      description: 'Report filed as PENDING; a repeat of the same id returns this answer again',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string(),
+            status: z.literal('PENDING'),
+            reported_at: z.string(),
+          }),
+        },
+      },
+    },
+    400: err('VALIDATION_ERROR, including reporting oneself or one own organization'),
+    401: err('UNAUTHORIZED'),
+    404: err('NOT_FOUND: unknown target'),
+    429: err('RATE_LIMITED: 10 reports per person per day'),
   },
 });

@@ -245,3 +245,62 @@ export async function setRecoveryEmail(administratorId: string, email: string): 
 export function inTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
   return prisma.$transaction(fn);
 }
+
+/** True when a person row with this id exists. */
+export async function personExists(
+  tx: Prisma.TransactionClient,
+  personId: string
+): Promise<boolean> {
+  const count = await tx.person.count({ where: { id: personId } });
+  return count > 0;
+}
+
+/** True when a live (not deleted) organization with this id exists. */
+export async function organizationExists(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<boolean> {
+  const count = await tx.organization.count({ where: { id: organizationId, deletedAt: null } });
+  return count > 0;
+}
+
+/** True when the person is the ACTIVE OWNER of the organization. */
+export async function isActiveOwner(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  organizationId: string
+): Promise<boolean> {
+  const count = await tx.collaboration.count({
+    where: { personId, organizationId, role: 'OWNER', status: 'ACTIVE', deletedAt: null },
+  });
+  return count > 0;
+}
+
+/** The fields of a stored report that the reporter gets back. */
+export interface StoredReport {
+  id: string;
+  status: 'PENDING';
+  reportedAt: Date;
+}
+
+/**
+ * Inserts a report. Status is always PENDING and `reported_at` comes from the database; the
+ * decision and the resolver stay empty until a moderator resolves it.
+ */
+export async function insertReport(
+  tx: Prisma.TransactionClient,
+  input: {
+    id: string;
+    reporterId: string;
+    targetPersonId: string | null;
+    targetOrganizationId: string | null;
+    reason: string;
+    description: string;
+  }
+): Promise<StoredReport> {
+  const row = await tx.report.create({
+    data: { ...input, status: 'PENDING' },
+    select: { id: true, reportedAt: true },
+  });
+  return { id: row.id, status: 'PENDING', reportedAt: row.reportedAt };
+}

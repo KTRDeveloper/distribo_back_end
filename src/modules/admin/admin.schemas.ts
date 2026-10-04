@@ -62,3 +62,27 @@ export const removeAdministratorSchema = z
   .strict();
 
 export type RemoveInput = z.infer<typeof removeAdministratorSchema>;
+
+/**
+ * Body of POST /reports. `id` is the client-generated UUIDv7 of the report (also the idempotency
+ * key). Exactly one target (C-28). Status, decision and resolver are never accepted: the server
+ * sets them (v5.0.0-15.3.3); unknown fields are refused.
+ */
+export const createReportSchema = z
+  .object({
+    id: uuidV7Schema,
+    target_person_id: uuidV7Schema.optional(),
+    target_organization_id: uuidV7Schema.optional(),
+    reason: z.string().trim().min(1).max(100),
+    description: z.string().trim().min(1).max(2000),
+  })
+  .strict()
+  .refine(
+    (body) => (body.target_person_id === undefined) !== (body.target_organization_id === undefined),
+    {
+      message: 'Exactly one target is required',
+      path: ['target_person_id'],
+    }
+  );
+
+export type CreateReportInput = z.infer<typeof createReportSchema>;

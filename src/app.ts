@@ -92,6 +92,7 @@ import {
 import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
+import { reportRoutes } from './modules/admin/report.routes.js';
 import { apiDocsRoutes } from './modules/api-docs/api-docs.routes.js';
 
 // Register every module's OpenAPI paths/schemas on the shared registry
@@ -123,6 +124,7 @@ v1Router.use('/organizations', organizationRoutes);
 v1Router.use('/collaborations', collaborationRoutes);
 v1Router.use('/auth', authRoutes);
 v1Router.use('/admin', adminRoutes);
+v1Router.use('/reports', reportRoutes);
 v1Router.use('/notifications', notificationRoutes);
 v1Router.use('/remote-config', remoteConfigRoutes);
 
