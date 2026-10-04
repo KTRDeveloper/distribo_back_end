@@ -6,6 +6,16 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 19:20 UTC: `/implement-stories SYNC-002`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-002 Sync archive table | done | 3d685e3 | sync_archives table, FKs, immutability grants; admin-action-table fixture updated |
+
+- Run completed.
+- SYNC-002 resumed from its blocked stash, after the story gained a "Tests to update" section for the admin-action-table.test.ts fixture (committed with the story).
+- Next: `/implement-stories next:3`
+
 ### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
