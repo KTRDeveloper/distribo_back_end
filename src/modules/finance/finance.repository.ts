@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
+import { lineAmount, parseQuantity } from '../../shared/money.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
 
@@ -154,6 +155,161 @@ export function findCacheMismatches(): Promise<{
         ORDER BY c.id
       `;
       return { balances, held };
+    },
+    { isolationLevel: 'RepeatableRead' }
+  );
+}
+
+/** Count and total amount (whole XAF, bigint) of one kind of gesture. */
+export type ExceptionTally = { count: number; amount: bigint };
+
+/** What one person did in the period, by kind of money exception. */
+export type PersonExceptionTally = {
+  refunds: ExceptionTally;
+  creditNotes: ExceptionTally;
+  reversals: ExceptionTally;
+  expenses: ExceptionTally;
+  priceGaps: ExceptionTally;
+};
+
+/**
+ * Reads, in one repeatable-read transaction (ASVS v5.0.0-2.3.3), every money gesture of the
+ * organization made by someone other than `excludePersonId` between `from` (inclusive) and
+ * `toExclusive`, grouped by person (FIN-019). Every query is bound to the organization: ledger
+ * entries through the relationship's supplier, expenses and handovers through their own column,
+ * order lines through their order's relationship.
+ *
+ * - refunds and credit notes: entries that do not reverse another, by `recorded_by_id`, `occurred_at`;
+ * - reversals: entries that reverse another, plus cancelled expenses and handovers, by the
+ *   canceller (`cancelled_by_id`) and `cancelled_at`;
+ * - expenses: not cancelled, by `recorded_by_id`, `occurred_at`;
+ * - price gaps: live lines of live orders whose applied price is below the reference, by
+ *   `price_set_by_id`, `price_set_at`; amount (reference - applied) x delivered (else ordered)
+ *   quantity, rounded half up like a line amount.
+ */
+export function findMoneyExceptions(
+  organizationId: string,
+  period: { from: Date; toExclusive: Date },
+  excludePersonId: string
+): Promise<Map<string, PersonExceptionTally>> {
+  const empty = (): ExceptionTally => ({ count: 0, amount: 0n });
+  const notOwner = { not: excludePersonId };
+  return prisma.$transaction(
+    async (tx) => {
+      const people = new Map<string, PersonExceptionTally>();
+      const of = (personId: string): PersonExceptionTally => {
+        let tally = people.get(personId);
+        if (!tally) {
+          tally = {
+            refunds: empty(),
+            creditNotes: empty(),
+            reversals: empty(),
+            expenses: empty(),
+            priceGaps: empty(),
+          };
+          people.set(personId, tally);
+        }
+        return tally;
+      };
+      const add = (target: ExceptionTally, count: number, amount: bigint | null) => {
+        target.count += count;
+        target.amount += amount ?? 0n;
+      };
+      const inPeriod = { gte: period.from, lt: period.toExclusive };
+      const scope = { customerRelationship: { supplierOrganizationId: organizationId } };
+
+      const entries = await tx.ledgerEntry.groupBy({
+        by: ['recordedById', 'kind'],
+        where: {
+          ...scope,
+          reversesEntryId: null,
+          kind: { in: ['REFUND', 'CREDIT_NOTE'] },
+          recordedById: notOwner,
+          occurredAt: inPeriod,
+        },
+        _count: { _all: true },
+        _sum: { amount: true },
+      });
+      for (const row of entries) {
+        const tally = of(row.recordedById);
+        add(
+          row.kind === 'REFUND' ? tally.refunds : tally.creditNotes,
+          row._count._all,
+          row._sum.amount
+        );
+      }
+
+      const reversalEntries = await tx.ledgerEntry.groupBy({
+        by: ['recordedById'],
+        where: {
+          ...scope,
+          reversesEntryId: { not: null },
+          recordedById: notOwner,
+          occurredAt: inPeriod,
+        },
+        _count: { _all: true },
+        _sum: { amount: true },
+      });
+      for (const row of reversalEntries) {
+        add(of(row.recordedById).reversals, row._count._all, row._sum.amount);
+      }
+
+      const expenses = await tx.expense.groupBy({
+        by: ['recordedById'],
+        where: {
+          organizationId,
+          cancelledAt: null,
+          recordedById: notOwner,
+          occurredAt: inPeriod,
+        },
+        _count: { _all: true },
+        _sum: { amount: true },
+      });
+      for (const row of expenses)
+        add(of(row.recordedById).expenses, row._count._all, row._sum.amount);
+
+      const cancelledExpenses = await tx.expense.groupBy({
+        by: ['cancelledById'],
+        where: { organizationId, cancelledById: notOwner, cancelledAt: inPeriod },
+        _count: { _all: true },
+        _sum: { amount: true },
+      });
+      const cancelledHandovers = await tx.handover.groupBy({
+        by: ['cancelledById'],
+        where: { organizationId, cancelledById: notOwner, cancelledAt: inPeriod },
+        _count: { _all: true },
+        _sum: { amount: true },
+      });
+      for (const row of [...cancelledExpenses, ...cancelledHandovers]) {
+        if (row.cancelledById)
+          add(of(row.cancelledById).reversals, row._count._all, row._sum.amount);
+      }
+
+      const lines = await tx.orderLine.findMany({
+        where: {
+          deletedAt: null,
+          priceSetById: notOwner,
+          priceSetAt: inPeriod,
+          order: { deletedAt: null, ...scope },
+        },
+        select: {
+          priceSetById: true,
+          referencePrice: true,
+          unitPriceApplied: true,
+          quantity: true,
+          deliveredQuantity: true,
+        },
+      });
+      for (const line of lines) {
+        if (!line.priceSetById || line.unitPriceApplied >= line.referencePrice) continue;
+        const quantity = parseQuantity((line.deliveredQuantity ?? line.quantity).toFixed(3));
+        add(
+          of(line.priceSetById).priceGaps,
+          1,
+          lineAmount(quantity, line.referencePrice - line.unitPriceApplied)
+        );
+      }
+      return people;
     },
     { isolationLevel: 'RepeatableRead' }
   );

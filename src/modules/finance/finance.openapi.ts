@@ -6,6 +6,7 @@ import {
   cancelExpenseSchema,
   creditNoteSchema,
   ledgerQuerySchema,
+  moneyExceptionsQuerySchema,
   openingBalanceSchema,
   paymentParamSchema,
   recordExpenseSchema,
@@ -349,5 +350,47 @@ openApiRegistry.registerPath({
       },
     },
     ...gestureErrors,
+  },
+});
+
+const exceptionBucketSchema = z.object({ count: z.number().int(), amount: z.number().int() });
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/exceptions/money',
+  tags: ['finance'],
+  summary: 'Money gestures made by other people, grouped by person (OWNER only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema,
+    query: moneyExceptionsQuerySchema,
+  },
+  responses: {
+    200: {
+      description: 'One item per collaborator other than the owner, largest total first',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(
+              z.object({
+                person_id: z.string().uuid(),
+                refunds: exceptionBucketSchema,
+                credit_notes: exceptionBucketSchema,
+                reversals: exceptionBucketSchema,
+                expenses: exceptionBucketSchema,
+                price_gaps: exceptionBucketSchema,
+              })
+            ),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'Malformed date, from after to, or more than 92 days',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The caller is not the owner', content: errorContent },
+    404: { description: 'Not a member of the organization', content: errorContent },
   },
 });

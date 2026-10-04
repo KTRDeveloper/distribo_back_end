@@ -26,6 +26,7 @@ import {
 import {
   cancelExpense,
   listLedger,
+  moneyExceptions,
   recordCreditNote,
   recordExpense,
   recordHandover,
@@ -405,6 +406,16 @@ financeRoutes.get(
       .catch(next);
   }
 );
+
+// GET /api/v1/organizations/:organizationId/exceptions/money - the OWNER reads the money gestures
+// other people made, grouped by person. The service answers 403 below OWNER (checked before the
+// query is read); the organization is the actor's, from the path through `loadActor`.
+financeRoutes.get('/exceptions/money', authMiddleware, loadActor, (req, res, next) => {
+  // The raw query goes to the service, which refuses a non-owner first and then validates it strictly.
+  moneyExceptions(req.actor!, req.query as { from?: string; to?: string })
+    .then((view) => res.json(view))
+    .catch(next);
+});
 
 /** Finance routes of the signed-in person as customer, mounted at `/suppliers`. */
 export const financeSupplierRoutes = Router();

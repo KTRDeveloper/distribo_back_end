@@ -21715,6 +21715,198 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/exceptions/money": {
+      "get": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Money gestures made by other people, grouped by person (OWNER only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One item per collaborator other than the owner, largest total first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "person_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "refunds": {
+                            "type": "object",
+                            "properties": {
+                              "count": {
+                                "type": "integer"
+                              },
+                              "amount": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "count",
+                              "amount"
+                            ]
+                          },
+                          "credit_notes": {
+                            "type": "object",
+                            "properties": {
+                              "count": {
+                                "type": "integer"
+                              },
+                              "amount": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "count",
+                              "amount"
+                            ]
+                          },
+                          "reversals": {
+                            "type": "object",
+                            "properties": {
+                              "count": {
+                                "type": "integer"
+                              },
+                              "amount": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "count",
+                              "amount"
+                            ]
+                          },
+                          "expenses": {
+                            "type": "object",
+                            "properties": {
+                              "count": {
+                                "type": "integer"
+                              },
+                              "amount": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "count",
+                              "amount"
+                            ]
+                          },
+                          "price_gaps": {
+                            "type": "object",
+                            "properties": {
+                              "count": {
+                                "type": "integer"
+                              },
+                              "amount": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "count",
+                              "amount"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "person_id",
+                          "refunds",
+                          "credit_notes",
+                          "reversals",
+                          "expenses",
+                          "price_gaps"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed date, from after to, or more than 92 days",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not the owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a member of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/remote-config": {
       "post": {
         "tags": [

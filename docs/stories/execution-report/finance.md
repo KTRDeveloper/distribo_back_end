@@ -665,3 +665,42 @@ Also in this run: relationship, admin, catalog, order, delivery.
 **Follow-ups:**
 - Scheduling is left to deployment (Q-010); alerting on `reconcile_mismatch_total` is not configured.
 <!-- end FIN-018 -->
+
+<!-- begin FIN-019 -->
+## FIN-019 — Owner reads the money exceptions
+
+- Filed: 2026-10-04 22:59 UTC
+- Status: **done**: Owner money exceptions route; full suite 2708 passed
+- Risk: medium · story: [FIN-019-owner-reads-the-money-exceptions.md](../modules/finance/FIN-019-owner-reads-the-money-exceptions.md)
+- Agent: 83,222 tokens, 25 tool uses, 6 min 23 s
+
+### Agent report
+
+**Summary:** Added GET /organizations/:id/exceptions/money (OWNER only), grouped by person, with repository aggregation, service, strict query schema and OpenAPI.
+
+**Decisions:**
+- Role check lives in the service and runs before query validation, so a MANAGER with a bad query gets 403; the service parses the raw query with the strict schema.
+- Period: `to` defaults to today (UTC), `from` to `to` minus 6 days; `to` is inclusive for the whole day; "93 days" means more than 92 days between from and to (92 allowed); the date must be a real calendar date.
+- "reversals" = any entry that reverses another by recorded_by, plus cancelled expenses and handovers by cancelled_by (dated cancelled_at).
+- Price gaps: live lines of live orders of the organization's relationships, applied < reference, via lineAmount (half-up); computed in JS because Prisma cannot compare two columns.
+- Gestures are scoped to the actor's organization (ledger via relationship supplier); only the actor (owner) is excluded; ties in total sorted by person id.
+
+**Tests added beyond the story:**
+- `money-exceptions.test.ts` › includes the whole last day of the period: inclusive `to` boundary (story "from and to dates")
+- `money-exceptions.test.ts` › dates a cancellation by cancelled_at and a price gap by price_set_at (story Dates line)
+- `money-exceptions.test.ts` › uses the delivered quantity and rounds half up; does not count a price raised above the reference (story Counted gestures)
+- `money-exceptions.test.ts` › counts cancelled expenses and handovers under the canceller; counts a credit note (story Counted gestures)
+- `money-exceptions.test.ts` › leaves out what a person did in another business; exposes only person ids and totals (AB-2, v5.0.0-8.2.3)
+- `money-exceptions.test.ts` › 92-day boundary, SELLER 403, malformed or impossible date, unknown field (AC-4, strict validation convention)
+- All written before the route existed (all failed with 404), so none passed at once.
+
+**Other additions:**
+- `openapi/openapi.json` regenerated (diff larger than this route; the file may have been stale).
+- `tests/integration/api-docs/catalog.test.ts`: new path in the route list, as the Project rules require. per-001 has no finance list, so nothing added there.
+
+**Evidence:** story tests 22/22; full suite 2708/2708, failing: none; typecheck clean; lint 0 errors, 65 warnings (existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- DLV-012 must add abandoned rests of partial deliveries to these items.
+- Soft-deleted expenses/handovers (deleted_at) are not filtered, consistent with held-money reconciliation.
+<!-- end FIN-019 -->

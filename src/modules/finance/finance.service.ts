@@ -26,7 +26,8 @@ import type {
   ReturnInput,
   ReverseEntryInput,
 } from './finance.schemas.js';
-import { listLedgerPage } from './finance.repository.js';
+import { findMoneyExceptions, listLedgerPage } from './finance.repository.js';
+import { moneyExceptionsQuerySchema, resolveMoneyPeriod } from './finance.schemas.js';
 import {
   cancelExpenseInTx,
   cancelHandoverInTx,
@@ -907,4 +908,80 @@ export async function listLedger(
     items: page.rows.map((row) => toLedgerItem(row, withRecorder)),
     next_cursor: page.nextCursor,
   };
+}
+
+/** Count and total (whole XAF) of one kind of gesture. */
+export type MoneyExceptionBucket = { count: number; amount: number };
+
+/** One collaborator's money exceptions: person id and totals only (ASVS v5.0.0-8.2.3). */
+export type MoneyExceptionItem = {
+  person_id: string;
+  refunds: MoneyExceptionBucket;
+  credit_notes: MoneyExceptionBucket;
+  reversals: MoneyExceptionBucket;
+  expenses: MoneyExceptionBucket;
+  price_gaps: MoneyExceptionBucket;
+};
+
+/**
+ * The owner reads the money gestures other people made, grouped by person (FIN-019). OWNER only:
+ * any other role is refused with a logged 403 before the query is even read (deny by default,
+ * ASVS v5.0.0-8.2.1); the organization is the actor's, never a client value, and the owner's own
+ * gestures are left out. Nothing is hidden: a refund and its later reversal both show under the
+ * person who recorded them (CWE-778). Items are sorted by total amount, largest first, then by
+ * person id so the order is stable.
+ *
+ * @param actor - Person, organization and role from `loadActor`.
+ * @param query - Raw `from` and `to` (`YYYY-MM-DD`); default the last 7 days, at most 92 days apart.
+ * @returns One item per collaborator who made at least one gesture in the period.
+ * @throws 403 `FORBIDDEN` below OWNER; 400 `VALIDATION_ERROR` for a bad or too long period.
+ */
+export async function moneyExceptions(
+  actor: Actor,
+  query: { from?: string; to?: string }
+): Promise<{ items: MoneyExceptionItem[] }> {
+  if (actor.role !== 'OWNER') {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'read',
+        subjectType: 'MoneyExceptions',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+  const period = resolveMoneyPeriod(moneyExceptionsQuerySchema.parse(query));
+  const people = await findMoneyExceptions(actor.organizationId, period, actor.personId);
+
+  const ranked = [...people.entries()].map(([personId, tally]) => {
+    const total =
+      tally.refunds.amount +
+      tally.creditNotes.amount +
+      tally.reversals.amount +
+      tally.expenses.amount +
+      tally.priceGaps.amount;
+    const bucket = (value: { count: number; amount: bigint }): MoneyExceptionBucket => ({
+      count: value.count,
+      amount: Number(value.amount),
+    });
+    const item: MoneyExceptionItem = {
+      person_id: personId,
+      refunds: bucket(tally.refunds),
+      credit_notes: bucket(tally.creditNotes),
+      reversals: bucket(tally.reversals),
+      expenses: bucket(tally.expenses),
+      price_gaps: bucket(tally.priceGaps),
+    };
+    return { item, total };
+  });
+  ranked.sort((a, b) =>
+    a.total === b.total
+      ? a.item.person_id.localeCompare(b.item.person_id)
+      : a.total > b.total
+        ? -1
+        : 1
+  );
+  return { items: ranked.map((entry) => entry.item) };
 }

@@ -172,3 +172,58 @@ export const disputeHandoverSchema = z
   .strict();
 
 export type DisputeHandoverInput = z.infer<typeof disputeHandoverSchema>;
+
+const DAY_MS = 86_400_000;
+/** Longest period the money exceptions can cover, in days between `from` and `to`. */
+export const MONEY_EXCEPTIONS_MAX_DAYS = 92;
+/** Days read when no period is given: today and the six days before. */
+const MONEY_EXCEPTIONS_DEFAULT_DAYS = 7;
+
+/** True for a real calendar date written `YYYY-MM-DD` (no `2026-02-30`). */
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === value;
+}
+
+const isoDateSchema = z.string().refine(isCalendarDate, 'invalid_date');
+
+/** The period a money-exceptions query covers: `from` inclusive, `toExclusive` the day after `to`. */
+export type MoneyPeriod = { from: Date; toExclusive: Date };
+
+/**
+ * Turns the query dates into a UTC period: `to` defaults to today, `from` to six days before `to`
+ * (seven days counted), and the whole last day is included.
+ *
+ * @param query - Validated `from` and `to` as `YYYY-MM-DD`, both optional.
+ * @param now - Clock, injectable for tests.
+ */
+export function resolveMoneyPeriod(
+  query: { from?: string; to?: string },
+  now: Date = new Date()
+): MoneyPeriod {
+  const to = Date.parse(`${query.to ?? now.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const from = query.from
+    ? Date.parse(`${query.from}T00:00:00.000Z`)
+    : to - (MONEY_EXCEPTIONS_DEFAULT_DAYS - 1) * DAY_MS;
+  return { from: new Date(from), toExclusive: new Date(to + DAY_MS) };
+}
+
+/**
+ * Strict query of the money exceptions (FIN-019): optional `from` and `to` as ISO dates, at most
+ * 92 days apart and `from` not after `to`, defaults applied before the check. Any other field is a 400.
+ */
+export const moneyExceptionsQuerySchema = z
+  .object({ from: isoDateSchema.optional(), to: isoDateSchema.optional() })
+  .strict()
+  .superRefine((query, context) => {
+    const { from, toExclusive } = resolveMoneyPeriod(query);
+    const days = (toExclusive.getTime() - DAY_MS - from.getTime()) / DAY_MS;
+    if (days < 0) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'from_after_to', path: ['from'] });
+    } else if (days > MONEY_EXCEPTIONS_MAX_DAYS) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'period_too_long', path: ['to'] });
+    }
+  });
+
+export type MoneyExceptionsQuery = z.infer<typeof moneyExceptionsQuerySchema>;

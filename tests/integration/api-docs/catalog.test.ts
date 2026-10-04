@@ -146,6 +146,9 @@ describe('GET /docs/openapi.json', () => {
       '/api/v1/organizations/{organizationId}/handovers/{handoverId}/dispute'
     );
 
+    // FIN-019: the owner's money exceptions
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/exceptions/money');
+
     // ORD-010: the organization purchase route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases');
 

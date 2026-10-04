@@ -169,7 +169,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-016 | done | | Cancel and dispute handover routes; full suite 2672 pass |
 | FIN-017 | done | | Former owner's held money handed over in the transfer transaction; sync pull tests flaky on timing, unrelated |
 | FIN-018 | done | | reconcile service + job:reconcile script, 7 tests pass, full suite 2686/2686 |
-| FIN-019 | todo | | |
+| FIN-019 | done | | Owner money exceptions route; full suite 2708 passed |
 | FIN-020 | todo | | |
 | DLV-001 | done | | deliveries table, triggers and tests green |
 | DLV-002 | done | | CHECKs, partial unique index, driver membership trigger; delivery-table tests updated per amended story |
