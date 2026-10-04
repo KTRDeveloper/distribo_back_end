@@ -321,6 +321,10 @@ model Person {
 
   ledgerEntriesRecorded LedgerEntry[] @relation("LedgerEntryRecordedBy")
 
+  expensesPaid      Expense[] @relation("ExpensePaidBy")
+  expensesRecorded  Expense[] @relation("ExpenseRecordedBy")
+  expensesCancelled Expense[] @relation("ExpenseCancelledBy")
+
   administrators Administrator[]
 
   adminActionsAsTarget AdminAction[] @relation("AdminActionTargetPerson")
@@ -386,6 +390,7 @@ model Organization {
   subscriptions  Subscription[]
 
   products Product[]
+  expenses Expense[]
 
   suppliedRelationships CustomerRelationship[] @relation("RelationshipSupplierOrganization")
   customerRelationships CustomerRelationship[] @relation("RelationshipCustomerOrganization")
@@ -957,4 +962,44 @@ model LedgerEntry {
   @@index([orderId])
   @@index([recordedById, occurredAt])
   @@map("ledger_entries")
+}
+
+// Rules the database enforces on expenses (money leaving the business), beyond
+// what this model declares. All come from migration 20261004240000_fin_011_expenses.
+// - The amount is always above zero.
+// - The person who paid must have a membership in the organization, active or
+//   not (someone who has left can still be owed or have paid). A deleted
+//   membership still counts. Checked on every insert.
+// - The people who recorded the expense and the one who cancelled it must be
+//   registered people, never guests. This is checked when the transaction is
+//   saved, not row by row.
+// - cancelled_at and cancelled_by_id are both filled in or both empty.
+// - An expense is never edited. The only change allowed is to cancel it, once,
+//   by filling in cancelled_at and cancelled_by_id together; any other change
+//   (including a second cancellation or removing one) is refused. Code must
+//   never try to correct an expense: cancel it and record a new one.
+// - server_updated_at is set by the database on every change.
+// Routes and who may record or cancel an expense come later (FIN-012, FIN-013).
+model Expense {
+  id              String    @id @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  paidById        String    @map("paid_by_id") @db.Uuid
+  amount          BigInt
+  category        String?
+  description     String?   @db.Text
+  recordedById    String    @map("recorded_by_id") @db.Uuid
+  occurredAt      DateTime  @map("occurred_at") @db.Timestamptz
+  cancelledAt     DateTime? @map("cancelled_at") @db.Timestamptz
+  cancelledById   String?   @map("cancelled_by_id") @db.Uuid
+  serverUpdatedAt DateTime  @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  paidBy       Person       @relation("ExpensePaidBy", fields: [paidById], references: [id])
+  recordedBy   Person       @relation("ExpenseRecordedBy", fields: [recordedById], references: [id])
+  cancelledBy  Person?      @relation("ExpenseCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([organizationId, occurredAt(sort: Desc)])
+  @@index([paidById])
+  @@map("expenses")
 }

@@ -68,3 +68,37 @@ Also in this run: relationship, admin, catalog, order, delivery.
 **Follow-ups:**
 - The SET NULL default would also be wrong for other immutable tables' optional FKs; not checked here.
 <!-- end FIN-001 -->
+
+<!-- begin FIN-011 -->
+## FIN-011 — Expenses table
+
+- Filed: 2026-10-04 10:28 UTC
+- Status: **done**: expenses table, triggers and tests green
+- Risk: medium · story: [FIN-011-expenses-table.md](../modules/finance/FIN-011-expenses-table.md)
+- Agent: 60,450 tokens, 22 tool uses, 17 min 13 s
+
+### Agent report
+
+**Summary:** Added `expenses` table (migration 20261004240000_fin_011_expenses, Prisma model, schema comment) with CHECKs, FKs, payer-collaborator trigger, cancel-once trigger, registered-person and server_updated_at triggers.
+
+**Decisions:**
+- deleted_at: kept per "Adds" but made immutable too (story says every change except cancelling raises 23514); no delete path exists yet.
+- Immutability trigger compares to_jsonb(NEW)/(OLD) minus server_updated_at and the two cancel columns, so future columns are protected by default.
+- Payer trigger counts any collaboration row (any status, deleted or not); it steps aside on NULL or unknown organization so 23502/23503 are reported by their own checks.
+- paid_by_id is also under require_registered_person (story lists it), checked at commit.
+- No REVOKE on distribo_app: story asks for triggers only; DELETE is not blocked (see follow-ups).
+
+**Tests added beyond the story:**
+- `expense-table.test.ts` › payer collaborating only with another organization: tenant scope of C-27 (C-27); passed at once after the migration
+- `expense-table.test.ts` › amount -5, clearing a cancellation, half cancellation, guest canceller, cancel combined with an amount edit: fail-closed paths (AC-2, C-27, C-04)
+- `expense-table.test.ts` › edits of description, organization, recorder, occurred_at, deleted_at: every other column is immutable (AC-3)
+- `expense-table.test.ts` › NOT NULL (23502) and unknown FK (23503), server_updated_at moves on cancel (Expense:required, Expense:fk)
+
+**Other additions:**
+- Test-DB: first migration version failed 23502/23503 tests (BEFORE trigger fired first); I edited the unmerged migration and dropped its objects from the test DB by hand.
+
+**Evidence:** story tests 28/28; full suite 1388/1388, failing: none; typecheck clean; lint 0 errors, 56 warnings (pre-existing)
+
+**Follow-ups:**
+- DELETE/TRUNCATE on expenses by distribo_app is not revoked; confirm whether Expense should be append-only at privilege level (not in story or C-27).
+<!-- end FIN-011 -->

@@ -161,7 +161,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-008 | todo | | |
 | FIN-009 | todo | | |
 | FIN-010 | todo | | |
-| FIN-011 | todo | | |
+| FIN-011 | done | | expenses table, triggers and tests green |
 | FIN-012 | todo | | |
 | FIN-013 | todo | | |
 | FIN-014 | todo | | |
