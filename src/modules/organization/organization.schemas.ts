@@ -101,3 +101,12 @@ export type InvitationItem = {
   role: string;
   invited_at: string;
 };
+
+/**
+ * Strict body of the public-contact gesture: `is_public_contact` is the only writable field
+ * (ASVS v5.0.0-15.3.3). The target row is always the caller's own, so no id is accepted.
+ */
+export const setPublicContactSchema = z.object({ is_public_contact: z.boolean() }).strict();
+
+/** Path parameter of the public-contact route. */
+export const organizationScopeParamsSchema = z.object({ organizationId: uuidV7Schema }).strict();

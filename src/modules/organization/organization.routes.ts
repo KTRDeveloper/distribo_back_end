@@ -11,6 +11,7 @@ import {
   inviteCollaboratorSchema,
   listInvitationsQuerySchema,
   listOrganizationsQuerySchema,
+  setPublicContactSchema,
 } from './organization.schemas.js';
 import {
   acceptInvitation,
@@ -22,6 +23,7 @@ import {
   listMyInvitations,
   listMyOrganizations,
   revokeCollaborator,
+  setPublicContact,
 } from './organization.service.js';
 import './organization.openapi.js';
 
@@ -82,6 +84,18 @@ organizationRoutes.post(
       .catch(next);
   }
 );
+
+// PATCH /api/v1/organizations/:organizationId/collaborators/me - any ACTIVE member sets their own
+// public-contact flag; declared before `/:collaborationId` so `me` is never read as an id
+organizationRoutes.patch('/:organizationId/collaborators/me', loadActor, (req, res, next) => {
+  Promise.resolve()
+    .then(() => {
+      const { is_public_contact } = setPublicContactSchema.parse(req.body);
+      return setPublicContact(req.actor!, is_public_contact);
+    })
+    .then((view) => res.json(view))
+    .catch(next);
+});
 
 // PATCH /api/v1/organizations/:organizationId/collaborators/:collaborationId - the owner changes a
 // role; `role` is the only writable field and the strict schema refuses everything else

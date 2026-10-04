@@ -485,3 +485,30 @@ export async function revokeCollaboration(
   });
   return updated[0] ?? null;
 }
+
+/**
+ * Writes the public-contact flag of the person's own ACTIVE collaboration. The row is selected by
+ * person id and organization id (ASVS v5.0.0-8.2.2); nothing else is written (ASVS v5.0.0-15.3.3).
+ * Turning the flag on also requires a current phone number, the same rule the database enforces
+ * (C-05), so the caller gets a coded answer rather than a constraint error.
+ *
+ * @returns The updated row, or null when nothing matched.
+ */
+export async function updatePublicContact(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  organizationId: string,
+  value: boolean
+): Promise<Collaboration | null> {
+  const updated = await tx.collaboration.updateManyAndReturn({
+    where: {
+      personId,
+      organizationId,
+      deletedAt: null,
+      status: 'ACTIVE',
+      ...(value ? { person: { phoneNumber: { not: null } } } : {}),
+    },
+    data: { isPublicContact: value },
+  });
+  return updated[0] ?? null;
+}

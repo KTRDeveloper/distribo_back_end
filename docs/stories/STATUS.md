@@ -70,7 +70,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-008 | done | | 19 story tests, full suite 807 pass; routers mounted in app.ts at /collaborations |
 | ORG-009 | done | | PATCH collaborator role; 19 tests, full suite 827 pass |
 | ORG-010 | done | | DELETE collaborator revoke; 839 tests pass |
-| ORG-011 | todo | | |
+| ORG-011 | done | | PATCH collaborators/me sets own is_public_contact; 409 NO_ACTIVE_NUMBER; 12 tests, full suite 851 pass |
 | ORG-012 | todo | | |
 | ORG-013 | todo | | |
 | ORG-014 | todo | | |
