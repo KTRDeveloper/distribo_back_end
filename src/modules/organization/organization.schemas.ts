@@ -125,6 +125,17 @@ export type TransferOwnershipInput = z.infer<typeof transferOwnershipSchema>;
 /** Closed response of the transfer-ownership gesture. */
 export type TransferOwnershipView = { new_owner_collaboration_id: string };
 
+/**
+ * Strict body of the close-organization gesture: the gesture id is the only field (ASVS
+ * v5.0.0-15.3.3). The organization comes from the path and the loaded actor.
+ */
+export const closeOrganizationSchema = z.object({ id: uuidV7Schema }).strict();
+
+export type CloseOrganizationInput = z.infer<typeof closeOrganizationSchema>;
+
+/** Closed response of the close-organization gesture. */
+export type CloseOrganizationView = { status: 'CLOSED' };
+
 /** Longest accepted plan name; mirrors the other short-name limits. */
 export const PLAN_MAX = 100;
 

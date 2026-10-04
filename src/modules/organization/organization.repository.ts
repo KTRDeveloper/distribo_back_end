@@ -597,16 +597,61 @@ export async function insertSubscription(
 
 /**
  * Ends the organization's ACTIVE subscription: status EXPIRED and `ends_at` = `now`. The row is
- * kept as history. One conditional update, so two concurrent ends cannot both succeed.
+ * kept as history. One conditional update, so two concurrent ends cannot both succeed. Pass `tx`
+ * to run inside a larger gesture (ORG-016).
  *
  * @returns true when a row was ended, false when none was ACTIVE.
  */
-export async function endActiveSubscription(organizationId: string, now: Date): Promise<boolean> {
-  const result = await prisma.subscription.updateMany({
+export async function endActiveSubscription(
+  organizationId: string,
+  now: Date,
+  tx?: Prisma.TransactionClient
+): Promise<boolean> {
+  const result = await (tx ?? prisma).subscription.updateMany({
     where: { organizationId, status: 'ACTIVE' },
     data: { status: 'EXPIRED', endsAt: now },
   });
   return result.count > 0;
+}
+
+/**
+ * Moves an ACTIVE, non-deleted organization to CLOSED. One conditional update, so two concurrent
+ * closes cannot both succeed and a SUSPENDED or CLOSED organization matches nothing (CM-10).
+ *
+ * @returns true when the organization was ACTIVE and is now CLOSED.
+ */
+export async function closeActiveOrganization(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<boolean> {
+  const result = await tx.organization.updateMany({
+    where: { id: organizationId, status: 'ACTIVE', deletedAt: null },
+    data: { status: 'CLOSED' },
+  });
+  return result.count > 0;
+}
+
+/**
+ * Turns every non-OWNER ACTIVE or INVITED collaboration of the organization into REVOKED and clears
+ * its public-contact flag; `amount_held` is not written (CM-09, CM-10). ACTIVE rows are revoked in
+ * their own statement so the caller knows whose rights ended (scope bump and notification).
+ *
+ * @returns The person ids whose ACTIVE collaboration was revoked, with the collaboration id.
+ */
+export async function revokeNonOwnerCollaborations(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<{ id: string; personId: string }[]> {
+  const revoked = await tx.collaboration.updateManyAndReturn({
+    where: { organizationId, deletedAt: null, status: 'ACTIVE', role: { not: 'OWNER' } },
+    data: { status: 'REVOKED', isPublicContact: false },
+    select: { id: true, personId: true },
+  });
+  await tx.collaboration.updateMany({
+    where: { organizationId, deletedAt: null, status: 'INVITED', role: { not: 'OWNER' } },
+    data: { status: 'REVOKED', isPublicContact: false },
+  });
+  return revoked;
 }
 
 /** Reads the organization's ACTIVE subscription, or null. */

@@ -5,6 +5,7 @@ import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
   changeRoleSchema,
+  closeOrganizationSchema,
   collaborationIdParamsSchema,
   collaboratorParamsSchema,
   createOrganizationSchema,
@@ -18,6 +19,7 @@ import {
 import {
   acceptInvitation,
   changeRole,
+  closeOrganization,
   createOrganization,
   declineInvitation,
   getOrganizationDetails,
@@ -196,6 +198,27 @@ organizationRoutes.post(
   requireAbility('transfer_ownership', 'Organization'),
   (req, res, next) => {
     transferOwnership(req.actor!, transferOwnershipSchema.parse(req.body))
+      .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/close - the owner closes the business; needs the
+// network (`close`)
+organizationRoutes.post(
+  '/:organizationId/close',
+  loadActor,
+  requireAbility('close', 'Organization'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = closeOrganizationSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    closeOrganization(req.actor!, closeOrganizationSchema.parse(req.body))
       .then((view) => res.status(200).json(view))
       .catch(next);
   }

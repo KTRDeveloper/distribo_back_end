@@ -11,6 +11,7 @@ import {
 } from '../person/person.repository.js';
 import {
   activateInvitation,
+  closeActiveOrganization,
   demoteOwner,
   endActiveSubscription,
   expireLapsedSubscriptions,
@@ -19,6 +20,7 @@ import {
   findCollaboration,
   findCollaborationWithPerson,
   findOrganization,
+  findOrganizationStatus,
   insertInvitation,
   insertOrganizationWithOwner,
   insertSubscription,
@@ -26,6 +28,7 @@ import {
   listInvitations,
   promoteToOwner,
   reinviteRevoked,
+  revokeNonOwnerCollaborations,
   revokeCollaboration,
   revokeInvitation,
   runInTransaction,
@@ -33,6 +36,8 @@ import {
   updateRole,
 } from './organization.repository.js';
 import type {
+  CloseOrganizationInput,
+  CloseOrganizationView,
   CollaborationView,
   CreateOrganizationInput,
   InvitationItem,
@@ -455,6 +460,68 @@ export async function transferOwnership(
     'Ownership transferred'
   );
   return { new_owner_collaboration_id: target.id };
+}
+
+const CLOSED_CONTENT = {
+  FR: (organizationName: string) =>
+    `${organizationName} est ferme: votre acces a l'equipe a ete retire.`,
+  EN: (organizationName: string) =>
+    `${organizationName} is closed: your access to the team was removed.`,
+};
+
+/**
+ * The owner closes the business (CM-10). In one transaction (ASVS v5.0.0-2.3.3) the organization
+ * becomes CLOSED (only from ACTIVE), every non-owner ACTIVE or INVITED collaboration becomes
+ * REVOKED with `is_public_contact` false, ACTIVE ones get a scope version bump (CM-03) and an
+ * `organization.closed` notification, and the ACTIVE subscription becomes EXPIRED with `ends_at`
+ * = now. The owner's own collaboration, relations, balances and history are untouched. The
+ * organization comes from the loaded actor, never from the body (ASVS v5.0.0-8.2.1).
+ *
+ * @param actor - Owner loaded from the path and checked for `close Organization`.
+ * @param _input - Validated body; the gesture id is consumed by the idempotency layer.
+ * @returns The new status.
+ * @throws 409 `ORGANIZATION_NOT_ACTIVE` when SUSPENDED or CLOSED; 404 `NOT_FOUND` when absent.
+ */
+export async function closeOrganization(
+  actor: Actor,
+  _input: CloseOrganizationInput
+): Promise<CloseOrganizationView> {
+  const now = new Date();
+  await runInTransaction(async (tx) => {
+    if (!(await closeActiveOrganization(tx, actor.organizationId))) {
+      const status = await findOrganizationStatus(actor.organizationId, tx);
+      if (status === null) throw httpError(404, 'NOT_FOUND', 'Not found');
+      throw httpError(409, 'ORGANIZATION_NOT_ACTIVE', 'Organization is not active');
+    }
+
+    const revoked = await revokeNonOwnerCollaborations(tx, actor.organizationId);
+    const org = revoked.length > 0 ? await findOrganization(actor.organizationId) : null;
+    for (const row of revoked) {
+      await bumpScopeVersion(row.personId, tx);
+      const language = await recipientLanguage(row.personId, tx);
+      await notify(
+        {
+          recipientId: row.personId,
+          organizationId: actor.organizationId,
+          sourceEvent: 'organization.closed',
+          content:
+            language === 'EN'
+              ? CLOSED_CONTENT.EN(org?.name ?? '')
+              : CLOSED_CONTENT.FR(org?.name ?? ''),
+          related: { type: 'collaboration', id: row.id },
+        },
+        tx
+      );
+    }
+
+    await endActiveSubscription(actor.organizationId, now, tx);
+  });
+
+  logger.warn(
+    { event: 'organization_closed', organizationId: actor.organizationId, ownerId: actor.personId },
+    'Organization closed'
+  );
+  return { status: 'CLOSED' };
 }
 
 /**

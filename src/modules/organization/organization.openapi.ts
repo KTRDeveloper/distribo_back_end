@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
   changeRoleSchema,
+  closeOrganizationSchema,
   collaborationIdParamsSchema,
   collaboratorParamsSchema,
   createOrganizationSchema,
@@ -315,6 +316,32 @@ openApiRegistry.registerPath({
       content: errorContent,
     },
     409: { description: 'Gesture id still in progress', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/close',
+  tags: ['organization'],
+  summary: 'The owner closes the business; the team is revoked and the subscription ends',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationIdParamsSchema,
+    body: { content: { 'application/json': { schema: closeOrganizationSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The organization is CLOSED',
+      content: { 'application/json': { schema: z.object({ status: z.literal('CLOSED') }) } },
+    },
+    400: { description: 'Malformed id or invalid body', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: { description: 'Not found or not a member', content: errorContent },
+    409: {
+      description: 'Organization not ACTIVE, or gesture id still in progress',
+      content: errorContent,
+    },
   },
 });
 
