@@ -1,5 +1,21 @@
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
-import { recoveryEmailConfirmSchema, recoveryEmailRequestSchema } from './admin.schemas.js';
+import { z } from 'zod';
+import {
+  appointAdministratorSchema,
+  recoveryEmailConfirmSchema,
+  recoveryEmailRequestSchema,
+} from './admin.schemas.js';
+
+const appointedResponseSchema = z.object({
+  id: z.string(),
+  person_public: z.object({
+    public_name: z.string().nullable(),
+    phone_number: z.string().nullable(),
+    registered: z.boolean(),
+  }),
+  role: z.enum(['MODERATOR', 'SUPER_ADMIN']),
+  otpauth_uri: z.string(),
+});
 
 const err = (description: string) => ({
   description,
@@ -33,5 +49,25 @@ openApiRegistry.registerPath({
     400: err('VALIDATION_ERROR or OTP_INVALID'),
     401: err('UNAUTHORIZED'),
     429: err('OTP_LOCKED'),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/administrators',
+  tags: ['admin'],
+  summary: 'Appoint a registered person as administrator (super administrator only)',
+  security: [{ bearerAuth: [] }],
+  request: { body: { content: { 'application/json': { schema: appointAdministratorSchema } } } },
+  responses: {
+    201: {
+      description: 'Appointed; the otpauth_uri is shown only in this response',
+      content: { 'application/json': { schema: appointedResponseSchema } },
+    },
+    400: err('VALIDATION_ERROR'),
+    401: err('UNAUTHORIZED'),
+    403: err('FORBIDDEN'),
+    404: err('NOT_FOUND: a guest or unknown number'),
+    409: err('ALREADY_ADMINISTRATOR'),
   },
 });

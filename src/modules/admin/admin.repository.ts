@@ -1,4 +1,4 @@
-import type { AdminAction, Prisma } from '@prisma/client';
+import type { AdminAction, AdministratorRole, Person, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { newId } from '../../shared/ids.js';
 
@@ -84,6 +84,41 @@ export async function findRegisteredPersonIdByPhone(
   return person?.id ?? null;
 }
 
+/** Finds a registered (non-guest) person by E.164 phone number; null for a guest or unknown number. */
+export async function findRegisteredPersonByPhone(
+  tx: Prisma.TransactionClient,
+  e164: string
+): Promise<Person | null> {
+  return tx.person.findFirst({ where: { phoneNumber: e164, registeredAt: { not: null } } });
+}
+
+/** True when the person has a live administrator row (`removed_at` empty). */
+export async function hasLiveAdministrator(
+  tx: Prisma.TransactionClient,
+  personId: string
+): Promise<boolean> {
+  const count = await tx.administrator.count({ where: { personId, removedAt: null } });
+  return count > 0;
+}
+
+/**
+ * Inserts an administrator row with an already-encrypted two-factor secret. The id is the
+ * client-generated UUIDv7 of the appointment.
+ */
+export async function insertAdministrator(
+  tx: Prisma.TransactionClient,
+  input: { id: string; personId: string; role: AdministratorRole; encryptedTotpSecret: string }
+): Promise<void> {
+  await tx.administrator.create({
+    data: {
+      id: input.id,
+      personId: input.personId,
+      role: input.role,
+      totpSecret: input.encryptedTotpSecret,
+    },
+  });
+}
+
 /**
  * Inserts a SUPER_ADMIN row with an already-encrypted two-factor secret.
  *
@@ -156,4 +191,9 @@ export async function setRecoveryEmail(administratorId: string, email: string): 
     data: { recoveryEmail: email },
   });
   return result.count === 1;
+}
+
+/** Runs `fn` in one transaction so an action and its journal row succeed or fail together. */
+export function inTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  return prisma.$transaction(fn);
 }

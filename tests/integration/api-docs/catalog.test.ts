@@ -51,6 +51,9 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/admin/recovery-email/request');
     expect(paths).toContain('/api/v1/admin/recovery-email/confirm');
 
+    // ADM-009: appointing an administrator
+    expect(paths).toContain('/api/v1/admin/administrators');
+
     // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
     expect(authPaths.sort()).toEqual([

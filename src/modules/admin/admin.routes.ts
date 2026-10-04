@@ -2,10 +2,16 @@ import { Router } from 'express';
 import { adminAuthMiddleware, requireAdminRole } from '../../middleware/admin-auth.js';
 import {
   adminLoginSchema,
+  appointAdministratorSchema,
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
 } from './admin.schemas.js';
-import { adminLogin, confirmRecoveryEmail, requestRecoveryEmail } from './admin.service.js';
+import {
+  adminLogin,
+  appointAdministrator,
+  confirmRecoveryEmail,
+  requestRecoveryEmail,
+} from './admin.service.js';
 
 /** Administration routes, mounted under /api/v1/admin. */
 export const adminRoutes = Router();
@@ -46,6 +52,28 @@ adminRoutes.post(
     const body = recoveryEmailConfirmSchema.parse(req.body);
     confirmRecoveryEmail(req.admin!, body.email, body.code)
       .then(() => res.status(204).end())
+      .catch(next);
+  }
+);
+
+// POST /api/v1/admin/administrators - SUPER_ADMIN only: appoints a registered person; the
+// response is the only place the authenticator URI is ever shown, so it is never cached
+adminRoutes.post(
+  '/administrators',
+  adminAuthMiddleware,
+  requireAdminRole('SUPER_ADMIN'),
+  (req, res, next) => {
+    const body = appointAdministratorSchema.parse(req.body);
+    appointAdministrator(req.admin!, body)
+      .then((view) => {
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(201).json({
+          id: view.id,
+          person_public: view.person_public,
+          role: view.role,
+          otpauth_uri: view.otpauth_uri,
+        });
+      })
       .catch(next);
   }
 );

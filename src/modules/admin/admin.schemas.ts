@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { uuidV7Schema } from '../../shared/ids.js';
+import { normalizeE164 } from '../../shared/phone.js';
 
 /** Body of POST /admin/auth/login: all three fields are required, unknown fields are refused. */
 export const adminLoginSchema = z
@@ -23,3 +25,30 @@ export const recoveryEmailConfirmSchema = z
 
 export type RecoveryEmailRequestInput = z.infer<typeof recoveryEmailRequestSchema>;
 export type RecoveryEmailConfirmInput = z.infer<typeof recoveryEmailConfirmSchema>;
+
+/**
+ * Body of POST /admin/administrators. `id` is the client-generated UUIDv7 of the new
+ * administrator; the phone number is normalized to E.164 here, so the service only sees a valid
+ * one. Only the two administrator roles are accepted; unknown fields are refused.
+ */
+export const appointAdministratorSchema = z
+  .object({
+    id: uuidV7Schema,
+    phone_number: z
+      .string()
+      .min(1)
+      .max(32)
+      .transform((value, ctx) => {
+        const e164 = normalizeE164(value);
+        if (e164 === null) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid phone number' });
+          return z.NEVER;
+        }
+        return e164;
+      }),
+    role: z.enum(['MODERATOR', 'SUPER_ADMIN']),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+export type AppointInput = z.infer<typeof appointAdministratorSchema>;

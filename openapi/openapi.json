@@ -2340,6 +2340,166 @@
         }
       }
     },
+    "/api/v1/admin/administrators": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Appoint a registered person as administrator (super administrator only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "phone_number": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "MODERATOR",
+                      "SUPER_ADMIN"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "id",
+                  "phone_number",
+                  "role",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Appointed; the otpauth_uri is shown only in this response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "person_public": {
+                      "type": "object",
+                      "properties": {
+                        "public_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "phone_number": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "registered": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "public_name",
+                        "phone_number",
+                        "registered"
+                      ]
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "MODERATOR",
+                        "SUPER_ADMIN"
+                      ]
+                    },
+                    "otpauth_uri": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "person_public",
+                    "role",
+                    "otpauth_uri"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: a guest or unknown number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ALREADY_ADMINISTRATOR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [

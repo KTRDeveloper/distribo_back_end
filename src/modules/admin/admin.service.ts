@@ -1,19 +1,29 @@
+import type { Person } from '@prisma/client';
 import { config } from '../../config/index.js';
 import { httpError } from '../../lib/http-error.js';
 import { ADMIN_TOKEN_EXPIRES_IN_SECONDS, signAdminToken } from '../../lib/jwt.js';
 import { logger } from '../../lib/logger.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { checkAndConsume, resetKey } from '../../lib/rate-limit.js';
-import { decryptSecret, verifyTotp } from '../../lib/totp.js';
+import { createTotpSecret, decryptSecret, encryptSecret, verifyTotp } from '../../lib/totp.js';
 import { normalizeE164 } from '../../shared/phone.js';
 import { issueCode, verifyCode } from '../auth/otp.service.js';
-import { findByActivePhone } from '../person/person.repository.js';
+import {
+  findByActivePhone,
+  toPublicPerson,
+  type PublicPerson,
+} from '../person/person.repository.js';
 import {
   findLiveAdministratorByPerson,
   findPersonEmail,
+  findRegisteredPersonByPhone,
+  hasLiveAdministrator,
+  inTransaction,
+  insertAdministrator,
+  recordAdminAction,
   setRecoveryEmail,
 } from './admin.repository.js';
-import type { AdminLoginInput } from './admin.schemas.js';
+import type { AdminLoginInput, AppointInput } from './admin.schemas.js';
 
 const MAX_LOGIN_FAILURES = 5;
 
@@ -156,4 +166,74 @@ export async function confirmRecoveryEmail(
     { event: 'admin_recovery_email_set', personId: admin.personId },
     'Recovery email set'
   );
+}
+
+/** What the super administrator gets back once: the new administrator and the enrolment URI. */
+export interface AppointedView {
+  id: string;
+  person_public: PublicPerson;
+  role: 'MODERATOR' | 'SUPER_ADMIN';
+  /** Holds the plaintext secret; shown only in this response (Q-032). */
+  otpauth_uri: string;
+}
+
+/**
+ * Appoints a registered person as MODERATOR or SUPER_ADMIN (C-29, v5.0.0-8.2.1: the route only
+ * lets super administrators in). The administrator row (secret stored encrypted) and its
+ * `APPOINT_ADMIN` journal row, with the caller as author, the person as target and the reason,
+ * are saved in one transaction (v5.0.0-2.3.3, v5.0.0-16.3.1). The `otpauth://` URI is returned
+ * here and nowhere else, so a repeat of the same request does not replay it: it is refused with
+ * 409 like any second appointment (Q-032).
+ *
+ * A guest and an unknown number give the same 404. The unique index on live administrators
+ * decides a race between two appointments of one person: the loser gets the 409 too.
+ *
+ * @throws 404 NOT_FOUND; 409 ALREADY_ADMINISTRATOR
+ */
+export async function appointAdministrator(
+  admin: AdminContext,
+  input: AppointInput
+): Promise<AppointedView> {
+  const alreadyAdministrator = () =>
+    httpError(409, 'ALREADY_ADMINISTRATOR', 'The person is already an administrator');
+  const { secret, otpauthUri } = createTotpSecret();
+  let person: Person;
+  try {
+    person = await inTransaction(async (tx) => {
+      const found = await findRegisteredPersonByPhone(tx, input.phone_number);
+      if (!found) throw httpError(404, 'NOT_FOUND', 'Person not found');
+      if (await hasLiveAdministrator(tx, found.id)) throw alreadyAdministrator();
+      await insertAdministrator(tx, {
+        id: input.id,
+        personId: found.id,
+        role: input.role,
+        encryptedTotpSecret: encryptSecret(secret),
+      });
+      await recordAdminAction(tx, {
+        administratorId: admin.administratorId,
+        action: 'APPOINT_ADMIN',
+        targetPersonId: found.id,
+        reason: input.reason,
+      });
+      return found;
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code === 'P2002') throw alreadyAdministrator();
+    throw e;
+  }
+  logger.info(
+    {
+      event: 'admin_appointed',
+      administratorId: admin.administratorId,
+      targetPersonId: person.id,
+      role: input.role,
+    },
+    'Administrator appointed'
+  );
+  return {
+    id: input.id,
+    person_public: toPublicPerson(person),
+    role: input.role,
+    otpauth_uri: otpauthUri,
+  };
 }
