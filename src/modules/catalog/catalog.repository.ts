@@ -460,3 +460,18 @@ export async function softDeleteCustomerPrice(
   });
   return result.count === 1;
 }
+
+/**
+ * Reads the live negotiated prices of one relationship, ordered by product, for a copy. The
+ * caller has already selected the relationship through the actor's organization.
+ */
+export async function listLiveCustomerPricesForCopy(
+  tx: Prisma.TransactionClient,
+  relationshipId: string
+): Promise<Array<{ productId: string; price: bigint }>> {
+  return tx.customerPrice.findMany({
+    where: { customerRelationshipId: relationshipId, deletedAt: null },
+    orderBy: { productId: 'asc' },
+    select: { productId: true, price: true },
+  });
+}

@@ -7,6 +7,7 @@ import { requireAbility } from '../../middleware/require-ability.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
   browseCatalogQuerySchema,
+  copyCustomerPricesSchema,
   createProductSchema,
   customerPriceParamsSchema,
   customerPricesParamsSchema,
@@ -17,6 +18,7 @@ import {
 } from './catalog.schemas.js';
 import {
   browseCatalog,
+  copyCustomerPrices,
   createProduct,
   editProduct,
   listCustomerPrices,
@@ -163,6 +165,42 @@ catalogRoutes.delete(
         return removeCustomerPrice(req.actor!, relationshipId, productId);
       })
       .then(() => res.status(204).end())
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/customers/:relationshipId/prices/copy - OWNER or an
+// online MANAGER copies another customer's negotiated prices onto this one; the service answers
+// 404 outside the organization and 403 OWN_RECORD
+catalogRoutes.post(
+  '/customers/:relationshipId/prices/copy',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'CustomerPrice'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const params = customerPricesParamsSchema.safeParse(req.params);
+    if (!params.success) return next(params.error);
+    const parsed = copyCustomerPricesSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    if (parsed.data.from_relationship_id === params.data.relationshipId) {
+      return next(httpError(400, 'VALIDATION_ERROR', 'Source and target must differ'));
+    }
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() => {
+        const { relationshipId } = customerPricesParamsSchema.parse(req.params);
+        return copyCustomerPrices(
+          req.actor!,
+          relationshipId,
+          copyCustomerPricesSchema.parse(req.body)
+        );
+      })
+      .then((view) => res.json(view))
       .catch(next);
   }
 );

@@ -329,3 +329,39 @@ Also in this run: relationship, admin, order, finance, delivery.
 
 **Evidence:** story tests 20/20; full suite 2009/2009, failing: none; typecheck clean; lint 0 errors, 59 warnings (pre-existing)
 <!-- end CAT-009 -->
+
+<!-- begin CAT-010 -->
+## CAT-010 — Manager copies negotiated prices between customers
+
+- Filed: 2026-10-04 16:07 UTC
+- Status: **done**: copy prices route; 15 tests, full suite 2024 green
+- Risk: medium · story: [CAT-010-manager-copies-negotiated-prices-between.md](../modules/catalog/CAT-010-manager-copies-negotiated-prices-between.md)
+- Agent: 64,165 tokens, 25 tool uses, 7 min 39 s
+
+### Agent report
+
+**Summary:** Added POST .../customers/{relationshipId}/prices/copy (service, repository read, schema, route, OpenAPI); all green.
+
+**Decisions:**
+- Same relationship as source and target: 400 VALIDATION_ERROR checked in the pre-idempotency middleware (so the gesture id is not reserved) and again in the service.
+- Source must also be the organization's own; a PENDING relationship can never belong to an organization supplier (DB check), so it already answers 404; the service also maps PENDING to 404 (defensive, not testable).
+- Own-record rule applied to the target only, as the story says.
+- Both relationships are locked in id order, so two opposite copies cannot deadlock.
+- Reused upsertCustomerPrice per source row with a new UUIDv7 row id; one transaction, so a failing row rolls back all.
+- No `price.negotiated_changed` notification on copy: the story does not ask for it.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/copy-prices.test.ts` › OWNER copies, deleted source prices left out: only live prices copy (C-11); passed at once
+- same file › ENDED relationships and empty source: ENDED allowed, empty copies 0 (story Context); passed at once
+- same file › bad body / bad id / missing field does not reserve the id; malformed path 400; no token 401; unknown ids 404 (CONVENTIONS validation and errors); passed at once
+- same file › target of another business 404; other business's manager refused (AB-1, 8.2.2); passed at once
+
+**Other additions:**
+- `listLiveCustomerPricesForCopy` repository read; copy path added to `tests/integration/api-docs/catalog.test.ts` (allowed by conventions); `openapi/openapi.json` regenerated.
+
+**Evidence:** story tests 15/15; full suite 2024/2024, failing: none; typecheck clean; lint 0 errors, 59 warnings (existing)
+
+**Follow-ups:**
+- The customer is not notified of copied prices; confirm if CAT-008/009 notification parity is wanted.
+- per-001 route list left untouched: it lists no customer price routes.
+<!-- end CAT-010 -->

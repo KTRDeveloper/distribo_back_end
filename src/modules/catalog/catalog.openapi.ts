@@ -4,6 +4,7 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import {
   browseCatalogQuerySchema,
   createProductSchema,
+  copyCustomerPricesSchema,
   customerPriceParamsSchema,
   customerPricesParamsSchema,
   editProductSchema,
@@ -233,6 +234,35 @@ openApiRegistry.registerPath({
     403: { description: 'Role not allowed, or OWN_RECORD', content: errorContent },
     404: {
       description: 'No live price, or relationship or product outside the organization',
+      content: errorContent,
+    },
+    409: { description: 'Organization not active', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/copy',
+  tags: ['catalog'],
+  summary: "The owner or an online manager copies one customer's negotiated prices to another",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: customerPricesParamsSchema,
+    body: { content: { 'application/json': { schema: copyCustomerPricesSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The number of prices copied onto the target',
+      content: { 'application/json': { schema: z.object({ copied: z.number().int() }) } },
+    },
+    400: {
+      description: 'Invalid path or body, or the same relationship as source and target',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Role not allowed, or OWN_RECORD', content: errorContent },
+    404: {
+      description: 'Source or target outside the organization, or not a member',
       content: errorContent,
     },
     409: { description: 'Organization not active', content: errorContent },

@@ -128,7 +128,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-007 | done | | GET /organizations/{id}/catalog with own negotiated prices; 1952 tests pass |
 | CAT-008 | done | | PUT negotiated price; non-ACTIVE (ENDED) refused 409; PENDING unreachable for org supplier (DB rule) |
 | CAT-009 | done | | List and delete negotiated prices; 20 story tests, full suite 2009 green |
-| CAT-010 | todo | | |
+| CAT-010 | done | | copy prices route; 15 tests, full suite 2024 green |
 | CAT-011 | todo | | |
 | ORD-001 | done | | orders table, enums, FKs, indexes, triggers; 16 tests |
 | ORD-002 | done | | CHECKs and status trigger on orders; 1510 tests pass |

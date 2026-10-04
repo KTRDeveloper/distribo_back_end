@@ -176,3 +176,19 @@ export type CustomerPriceListItem = {
 
 /** Response of the negotiated price list. */
 export type CustomerPricePage = { items: CustomerPriceListItem[]; next_cursor: string | null };
+
+/**
+ * Strict body of the copy gesture (ASVS v5.0.0-15.3.3): the gesture id and the source
+ * relationship. The target is the path's relationship; the author comes from the session.
+ */
+export const copyCustomerPricesSchema = z
+  .object({
+    id: uuidV7Schema,
+    from_relationship_id: uuidV7Schema,
+  })
+  .strict();
+
+export type CopyCustomerPricesInput = z.infer<typeof copyCustomerPricesSchema>;
+
+/** Response of the copy gesture: how many live prices the target now holds from the source. */
+export type CopyCustomerPricesView = { copied: number };

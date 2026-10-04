@@ -6,6 +6,7 @@ import {
   findOrganizationStatus,
   runInTransaction,
 } from '../organization/organization.repository.js';
+import { newId } from '../../shared/ids.js';
 import { atLeast } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
@@ -17,6 +18,7 @@ import {
   insertProduct,
   listCatalogForCustomer,
   listCustomerPricesOfRelationship,
+  listLiveCustomerPricesForCopy,
   listProductsOfOrganization,
   softDeleteCustomerPrice,
   updateProduct,
@@ -25,6 +27,8 @@ import {
 } from './catalog.repository.js';
 import type {
   BrowseQuery,
+  CopyCustomerPricesInput,
+  CopyCustomerPricesView,
   CatalogPage,
   CreateProductInput,
   CustomerPricePage,
@@ -210,7 +214,7 @@ const PRICE_CHANGED_CONTENT = {
 async function refuseOwnRecord(
   actor: Actor,
   relationship: SupplierRelationshipForPrice,
-  action: 'create' | 'delete'
+  action: 'create' | 'delete' | 'copy'
 ): Promise<void> {
   const customerOrganization = relationship.customerOrganizationId;
   const managesCustomer =
@@ -401,5 +405,58 @@ export async function removeCustomerPrice(
       throw httpError(404, 'NOT_FOUND', 'Not found');
     }
     await notifyPriceChanged(actor, relationship, product.name, tx);
+  });
+}
+
+/**
+ * An owner, or a manager online, copies one customer's negotiated prices onto another.
+ *
+ * The role is decided by the route (`create CustomerPrice`, ASVS v5.0.0-8.2.1). One transaction
+ * (v5.0.0-2.3.3) selects both relationships through the actor's organization (404 outside it,
+ * or for a PENDING one; v5.0.0-8.2.2), refuses the same relationship twice (400) and the
+ * caller's own record as target (403 `OWN_RECORD`), then upserts each live source price onto
+ * the target: an existing live target price is replaced (C-11) and the author is the caller
+ * (C-04). The source is read only. Any failing row aborts the whole copy. The relationships
+ * are locked in id order so two opposite copies cannot deadlock.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param targetRelationshipId - Validated relationship id from the path.
+ * @param input - Validated body: gesture id and the source relationship.
+ * @returns The number of prices copied.
+ * @throws 400 `VALIDATION_ERROR`; 403 `OWN_RECORD`; 404 `NOT_FOUND`; 409
+ * `ORGANIZATION_NOT_ACTIVE`.
+ */
+export async function copyCustomerPrices(
+  actor: Actor,
+  targetRelationshipId: string,
+  input: CopyCustomerPricesInput
+): Promise<CopyCustomerPricesView> {
+  if (input.from_relationship_id === targetRelationshipId) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Source and target must differ');
+  }
+  return runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    const viewer = { personId: actor.personId, organizationId: actor.organizationId };
+    const [firstId, secondId] = [input.from_relationship_id, targetRelationshipId].sort();
+    const first = await findSupplierRelationshipForPrice(tx, viewer, firstId);
+    const second = await findSupplierRelationshipForPrice(tx, viewer, secondId);
+    const source = firstId === input.from_relationship_id ? first : second;
+    const target = firstId === input.from_relationship_id ? second : first;
+    if (!source || !target || source.status === 'PENDING' || target.status === 'PENDING') {
+      throw httpError(404, 'NOT_FOUND', 'Not found');
+    }
+    await refuseOwnRecord(actor, target, 'copy');
+
+    const prices = await listLiveCustomerPricesForCopy(tx, source.id);
+    for (const price of prices) {
+      await upsertCustomerPrice(tx, {
+        id: newId(),
+        relationshipId: target.id,
+        productId: price.productId,
+        price: price.price,
+        setById: actor.personId,
+      });
+    }
+    return { copied: prices.length };
   });
 }
