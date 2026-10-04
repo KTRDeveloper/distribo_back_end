@@ -195,3 +195,31 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - `prisma migrate diff` lists FK on-delete noise for order_lines (as for other tables with the same RESTRICT pattern); not a new drift class.
 - Rule "customer-placed order price never raised afterward" is not in the database; ORD-005 must enforce it.
 <!-- end ORD-004 -->
+
+<!-- begin ORD-005 -->
+## ORD-005 — Order line product and minimum quantity rules
+
+- Filed: 2026-10-04 16:32 UTC
+- Status: **done**: line product, minimum quantity and customer-price trigger (migration 20261004310000)
+- Risk: high · story: [ORD-005-order-line-product-and-minimum-quantity-rules.md](../modules/order/ORD-005-order-line-product-and-minimum-quantity-rules.md)
+- Agent: 38,794 tokens, 10 tool uses, 3 min 24 s
+
+### Agent report
+
+**Summary:** Added trigger order_lines_enforce_rules (migration 20261004310000_ord_005_line_rules) for product, minimum quantity and customer-price rules.
+
+**Decisions:**
+- Unknown order or product: trigger returns NEW and leaves it to the foreign keys (23503), as ORD-003 does.
+- Relationship with a person supplier: any product refused (23514), since a person has no products.
+- Update on a customer order: only `unit_price_applied > reference_price` is refused, so a lowering with author passes (AC-4).
+- Updated the OrderLine comment in schema.prisma: it said ORD-005 routes enforce the no-raise rule; it now describes the trigger.
+
+**Tests added beyond the story:**
+- `line-rules.test.ts` › no minimum on the product: any quantity accepted (AC-2 only covers a product with a minimum); passed at once
+- `line-rules.test.ts` › person-supplier relationship: product refused (C-15, ORD-003 migration comment)
+- `line-rules.test.ts` › customer-order line updatable after product deleted (AC-3); passed at once
+- `line-rules.test.ts` › supplier-order line with a price gap accepted (CM-16, only customer orders limited); passed at once
+- `line-rules.test.ts` › lowered price, then reference lowered below it: refused (C-20, never above reference)
+
+**Evidence:** story tests 16/16; full suite 2089/2089, failing: none; typecheck clean; lint 0 errors, 59 warnings (existing)
+<!-- end ORD-005 -->

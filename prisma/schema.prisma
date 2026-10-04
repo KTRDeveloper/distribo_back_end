@@ -969,7 +969,7 @@ model Order {
 }
 
 // Rules the database enforces on order lines, beyond what this model declares.
-// All come from migration 20261004300000_ord_004_order_lines.
+// Those below come from migration 20261004300000_ord_004_order_lines.
 // - The quantity must be greater than zero. The delivered quantity, when given,
 //   is between zero and the quantity.
 // - The reference price and the applied price are never negative.
@@ -984,8 +984,16 @@ model Order {
 // - The person who set the price must be a registered person, never a guest.
 //   This is checked when the transaction is saved, not row by row.
 // - server_updated_at is set by the database on every change.
-// That the applied price of a customer-placed order is never raised after it
-// was sent is not checked here; the order routes (ORD-005) enforce it.
+// Migration 20261004310000_ord_005_line_rules adds a trigger that reads other tables:
+// - On insert the product must be an ACTIVE, undeleted product of the supplier
+//   organization of the order's relationship, otherwise SQLSTATE 23514. On an
+//   order placed by the CUSTOMER the quantity must also reach the product's
+//   minimum order quantity, when it has one. Neither is re-checked on update, so
+//   a later product change never blocks an old order.
+// - On an order placed by the CUSTOMER the applied price must equal the reference
+//   price on insert, and may later be lowered but never raised above it (the
+//   supplier can only lower it). Lowering needs the price author and time as
+//   above. Supplier-placed orders have no such limit.
 // These are CHECK constraints and triggers, which Prisma cannot express.
 model OrderLine {
   id                String    @id @db.Uuid

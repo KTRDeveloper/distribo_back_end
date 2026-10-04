@@ -134,7 +134,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-002 | done | | CHECKs and status trigger on orders; 1510 tests pass |
 | ORD-003 | done | | BEFORE INSERT trigger orders_creation_guard; 2048/2048 pass |
 | ORD-004 | done | | order_lines table with CHECKs and triggers; 25 tests pass |
-| ORD-005 | todo | | |
+| ORD-005 | done | | line product, minimum quantity and customer-price trigger (migration 20261004310000) |
 | ORD-006 | todo | | |
 | ORD-007 | todo | | |
 | ORD-008 | todo | | |
