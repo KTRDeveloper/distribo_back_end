@@ -1,18 +1,24 @@
 import type { Product } from '@prisma/client';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
-import { assertOrganizationActive } from '../../middleware/load-actor.js';
-import { runInTransaction } from '../organization/organization.repository.js';
+import { assertOrganizationActive, getActiveCollaboration } from '../../middleware/load-actor.js';
+import {
+  findOrganizationStatus,
+  runInTransaction,
+} from '../organization/organization.repository.js';
 import { atLeast } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import {
   countNegotiatedPricesBefore,
   getProductOfOrganization,
   insertProduct,
+  listCatalogForCustomer,
   listProductsOfOrganization,
   updateProduct,
 } from './catalog.repository.js';
 import type {
+  BrowseQuery,
+  CatalogPage,
   CreateProductInput,
   EditProductInput,
   ListProductsQuery,
@@ -129,4 +135,54 @@ export async function listProducts(actor: Actor, query: ListProductsQuery): Prom
   }
   const { rows, nextCursor } = await listProductsOfOrganization(actor.organizationId, query);
   return { items: rows.map(toProductView), next_cursor: nextCursor };
+}
+
+/**
+ * A customer browses a business's catalog with their own prices (CM-11).
+ *
+ * Any signed-in person may browse an ACTIVE organization; a CLOSED, SUSPENDED or unknown one is
+ * a 404. With `as_organization_id` the customer is that organization: the caller must be its
+ * ACTIVE MANAGER or OWNER, else 404 so the organization is never confirmed (ASVS v5.0.0-8.2.2).
+ * The negotiated prices come only from the caller's own live relationship with this supplier
+ * (the organization's with `as_organization_id`); the view lists only customer-safe fields
+ * (v5.0.0-8.2.3, v5.0.0-15.3.1).
+ *
+ * @param personId - Authenticated person, from the token.
+ * @param organizationId - Supplier organization from the path.
+ * @param query - Validated page size, cursor and optional customer organization.
+ * @throws 404 `NOT_FOUND` for an inactive or unknown supplier, or an organization the caller
+ * does not manage.
+ */
+export async function browseCatalog(
+  personId: string,
+  organizationId: string,
+  query: BrowseQuery
+): Promise<CatalogPage> {
+  if ((await findOrganizationStatus(organizationId)) !== 'ACTIVE') {
+    throw httpError(404, 'NOT_FOUND', 'Not found');
+  }
+  if (query.as_organization_id) {
+    const collaboration = await getActiveCollaboration(personId, query.as_organization_id);
+    if (collaboration?.role !== 'MANAGER' && collaboration?.role !== 'OWNER') {
+      throw httpError(404, 'NOT_FOUND', 'Not found');
+    }
+  }
+  const { rows, nextCursor } = await listCatalogForCustomer(
+    organizationId,
+    { personId, asOrganizationId: query.as_organization_id },
+    query
+  );
+  return {
+    items: rows.map(({ product, negotiatedPrice }) => ({
+      id: product.id,
+      name: product.name,
+      unit: product.unit,
+      price: Number(negotiatedPrice ?? product.price),
+      min_order_quantity: product.minOrderQuantity?.toString() ?? null,
+      description: product.description,
+      category: product.category,
+      price_is_negotiated: negotiatedPrice !== null,
+    })),
+    next_cursor: nextCursor,
+  };
 }

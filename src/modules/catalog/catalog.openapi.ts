@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
+  browseCatalogQuerySchema,
   createProductSchema,
   editProductSchema,
   listProductsQuerySchema,
@@ -97,5 +98,45 @@ openApiRegistry.registerPath({
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'Role not allowed', content: errorContent },
     404: { description: 'Product absent or outside the organization', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/catalog',
+  tags: ['catalog'],
+  summary: "A customer browses a business's articles with their own prices",
+  security: [{ bearerAuth: [] }],
+  request: { params: organizationParamsSchema, query: browseCatalogQuerySchema },
+  responses: {
+    200: {
+      description: 'A page of ACTIVE articles and the next cursor',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(
+              z.object({
+                id: z.string().uuid(),
+                name: z.string(),
+                unit: z.string(),
+                price: z.number().int(),
+                min_order_quantity: z.string().nullable(),
+                description: z.string().nullable(),
+                category: z.string().nullable(),
+                price_is_negotiated: z.boolean(),
+              })
+            ),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid query', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    404: {
+      description:
+        'Organization closed, suspended or unknown, or as_organization_id not managed by the caller',
+      content: errorContent,
+    },
   },
 });

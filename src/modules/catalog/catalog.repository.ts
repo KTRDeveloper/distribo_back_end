@@ -2,6 +2,7 @@ import type { Prisma, Product } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { httpError } from '../../lib/http-error.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
 
 const notFound = () => httpError(404, 'NOT_FOUND', 'Not found');
 
@@ -184,6 +185,88 @@ export async function listProductsOfOrganization(
   const last = rows[rows.length - 1];
   return {
     rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.createdAt, id: last.id })
+        : null,
+  };
+}
+
+/**
+ * Lists the ACTIVE, not deleted products of one organization with the prices of the customer's
+ * own live relationship, newest first then by id, one page at a time.
+ *
+ * The customer is either the caller person (no `asOrganizationId`) or that organization, never
+ * both; the relationship is selected by supplier and customer together, so another customer's
+ * negotiated prices are never read (ASVS v5.0.0-8.2.2). Only live rows count: not deleted, not
+ * merged, and `visibleRelationsWhere` gives that definition. Deleted negotiated prices are ignored.
+ *
+ * @param organizationId - Supplier organization, already checked ACTIVE.
+ * @param viewer - The authenticated person, and the organization they were checked to manage.
+ * @throws 400 `VALIDATION_ERROR` when the cursor is malformed.
+ */
+export async function listCatalogForCustomer(
+  organizationId: string,
+  viewer: { personId: string; asOrganizationId?: string },
+  query: { limit: number; cursor?: string }
+): Promise<{
+  rows: Array<{ product: Product; negotiatedPrice: bigint | null }>;
+  nextCursor: string | null;
+}> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const found = await prisma.product.findMany({
+    where: {
+      organizationId,
+      deletedAt: null,
+      status: 'ACTIVE',
+      ...(cursor
+        ? {
+            OR: [
+              { createdAt: { lt: cursor.createdAt } },
+              { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const products = found.slice(0, query.limit);
+
+  const relationship = await prisma.customerRelationship.findFirst({
+    where: {
+      AND: [
+        visibleRelationsWhere({
+          personId: viewer.personId,
+          organizationIds: viewer.asOrganizationId ? [viewer.asOrganizationId] : [],
+        }),
+        { supplierOrganizationId: organizationId },
+        viewer.asOrganizationId
+          ? { customerOrganizationId: viewer.asOrganizationId }
+          : { customerPersonId: viewer.personId },
+      ],
+    },
+    select: { id: true },
+  });
+  const negotiated =
+    relationship && products.length > 0
+      ? await prisma.customerPrice.findMany({
+          where: {
+            customerRelationshipId: relationship.id,
+            productId: { in: products.map((product) => product.id) },
+            deletedAt: null,
+          },
+          select: { productId: true, price: true },
+        })
+      : [];
+  const priceByProduct = new Map(negotiated.map((row) => [row.productId, row.price]));
+
+  const last = products[products.length - 1];
+  return {
+    rows: products.map((product) => ({
+      product,
+      negotiatedPrice: priceByProduct.get(product.id) ?? null,
+    })),
     nextCursor:
       found.length > query.limit && last
         ? encodeCursor({ createdAt: last.createdAt, id: last.id })

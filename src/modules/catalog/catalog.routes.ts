@@ -1,19 +1,35 @@
 import { Router } from 'express';
+import { httpError } from '../../lib/http-error.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
+  browseCatalogQuerySchema,
   createProductSchema,
   editProductSchema,
   listProductsQuerySchema,
 } from './catalog.schemas.js';
-import { createProduct, editProduct, listProducts } from './catalog.service.js';
+import { browseCatalog, createProduct, editProduct, listProducts } from './catalog.service.js';
 import './catalog.openapi.js';
 
 /** Catalog routes of one organization, mounted at `/organizations/:organizationId`. */
 export const catalogRoutes = Router({ mergeParams: true });
+
+// GET /api/v1/organizations/:organizationId/catalog - any signed-in person browses an ACTIVE
+// business with their own prices; the organization in the path is the supplier, not the caller's
+catalogRoutes.get('/catalog', authMiddleware, (req, res, next) => {
+  Promise.resolve()
+    .then(() => {
+      const personId = req.user?.id;
+      if (!personId) throw httpError(401, 'UNAUTHORIZED', 'Authentication required');
+      const organizationId = uuidV7Schema.parse(req.params.organizationId);
+      return browseCatalog(personId, organizationId, browseCatalogQuerySchema.parse(req.query));
+    })
+    .then((page) => res.json(page))
+    .catch(next);
+});
 
 // GET /api/v1/organizations/:organizationId/products - SELLER and above list the articles;
 // the service answers 403 for a DRIVER

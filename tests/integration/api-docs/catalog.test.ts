@@ -88,6 +88,9 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/organizations/{organizationId}/products');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/products/{productId}');
 
+    // CAT-007: the customer's catalog route
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/catalog');
+
     // ADM-007: the recovery email routes
     expect(paths).toContain('/api/v1/admin/recovery-email/request');
     expect(paths).toContain('/api/v1/admin/recovery-email/confirm');

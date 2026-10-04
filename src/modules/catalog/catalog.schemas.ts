@@ -94,3 +94,28 @@ export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;
 
 /** Response of the product list. */
 export type ProductPage = { items: ProductView[]; next_cursor: string | null };
+
+/**
+ * Strict query of the customer's catalog (ASVS v5.0.0-2.2.1): page size, cursor and the
+ * optional organization the caller buys for. Unknown keys are rejected.
+ */
+export const browseCatalogQuerySchema = paginationQuerySchema
+  .extend({ as_organization_id: uuidV7Schema.optional() })
+  .strict();
+
+export type BrowseQuery = z.infer<typeof browseCatalogQuerySchema>;
+
+/** One article as a customer sees it: the caller's own price, nothing of the supplier side. */
+export type CatalogItemView = {
+  id: string;
+  name: string;
+  unit: string;
+  price: number;
+  min_order_quantity: string | null;
+  description: string | null;
+  category: string | null;
+  price_is_negotiated: boolean;
+};
+
+/** Response of the customer's catalog. */
+export type CatalogPage = { items: CatalogItemView[]; next_cursor: string | null };

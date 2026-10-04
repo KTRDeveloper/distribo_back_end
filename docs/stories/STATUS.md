@@ -125,7 +125,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-004 | done | | POST /products implemented; 34 story tests, full suite 1877 pass |
 | CAT-005 | done | | PATCH product edit/retire, 28 tests green |
 | CAT-006 | done | | GET products list with filters, cursor paging, openapi for product routes |
-| CAT-007 | todo | | |
+| CAT-007 | done | | GET /organizations/{id}/catalog with own negotiated prices; 1952 tests pass |
 | CAT-008 | todo | | |
 | CAT-009 | todo | | |
 | CAT-010 | todo | | |
