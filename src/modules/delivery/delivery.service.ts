@@ -9,18 +9,29 @@ import {
   insertDepartedDelivery,
   isActiveCollaborator,
   listOwnDeliveries,
+  listOwnerAndManagerIds,
   listToDeliverOrders,
+  lockDeliveryToFail,
   lockOrderToAssign,
   markDeparted,
+  markFailed,
   reassignDelivery,
   runInTransaction,
 } from './delivery.repository.js';
-import type { AssignDeliveryInput, DepartInput, MineQuery, PageQuery } from './delivery.schemas.js';
+import type {
+  AssignDeliveryInput,
+  DepartInput,
+  FailDeliveryInput,
+  MineQuery,
+  PageQuery,
+} from './delivery.schemas.js';
 import {
   projectDelivery,
   projectDeliveryForDriver,
+  projectFailedDelivery,
   projectOrderForDriver,
   type DeliveryView,
+  type FailedDeliveryView,
   type MyDeliveryItem,
   type ToDeliverItem,
 } from './delivery.views.js';
@@ -205,5 +216,67 @@ export function departWithOrder(
       );
     }
     return { delivery: projectDelivery(delivery), order_status: 'IN_DELIVERY' };
+  });
+}
+
+const FAILED_CONTENT = {
+  FR: 'Une livraison a échoué.',
+  EN: 'A delivery failed.',
+} as const;
+
+/**
+ * The assigned DRIVER, or any MANAGER or OWNER, reports a delivery in progress as failed (DLV-006,
+ * C-21, CM-12). One transaction (v5.0.0-2.3.3): the order of the delivery, found through the
+ * caller's organization, is locked, so a parallel failure or arrival waits (v5.0.0-2.3.4). A
+ * delivery of another business, or of another driver when the caller is a DRIVER, is 404, never
+ * confirming it exists (v5.0.0-8.2.2). A delivery that is not departed, or already arrived or
+ * failed, is refused (v5.0.0-2.3.1). The delivery gets `failed_at` and the reason, the order goes
+ * back from IN_DELIVERY to CONFIRMED by a conditional update, and the owner and managers are
+ * notified `delivery.failed`. Any refusal rolls everything back. Replays with the same `id` are
+ * answered by `idempotent()`.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked `fail_delivery`.
+ * @param deliveryId - Delivery from the path.
+ * @param input - Validated body: gesture id and trimmed reason.
+ * @returns The failed delivery and the new order status.
+ * @throws 404 `NOT_FOUND` (delivery outside the business, or of another driver); 409
+ * `INVALID_TRANSITION` (not departed, already arrived or failed, or order not IN_DELIVERY).
+ */
+export function failDelivery(
+  actor: Actor,
+  deliveryId: string,
+  input: FailDeliveryInput
+): Promise<{ delivery: FailedDeliveryView; order_status: 'CONFIRMED' }> {
+  return runInTransaction(async (tx) => {
+    const found = await lockDeliveryToFail(tx, deliveryId, actor.organizationId);
+    const mayFailAny = actor.role === 'MANAGER' || actor.role === 'OWNER';
+    if (!found || (!mayFailAny && found.assignedToId !== actor.personId)) {
+      throw httpError(404, 'NOT_FOUND', 'Delivery not found.');
+    }
+    if (found.departedAt === null || found.arrivedAt !== null || found.failedAt !== null) {
+      throw httpError(409, 'INVALID_TRANSITION', 'The delivery is not in progress.');
+    }
+
+    await transitionOrder(tx, found.orderId, 'CONFIRMED', {
+      personId: actor.personId,
+      party: 'SUPPLIER',
+    });
+    const delivery = await markFailed(tx, found.id, new Date(), input.reason);
+    if (!delivery) throw httpError(409, 'INVALID_TRANSITION', 'The delivery is not in progress.');
+
+    for (const recipientId of await listOwnerAndManagerIds(tx, actor.organizationId)) {
+      const language = await recipientLanguage(recipientId, tx);
+      await notify(
+        {
+          recipientId,
+          organizationId: actor.organizationId,
+          sourceEvent: 'delivery.failed',
+          content: language === 'EN' ? FAILED_CONTENT.EN : FAILED_CONTENT.FR,
+          related: { type: 'order', id: found.orderId },
+        },
+        tx
+      );
+    }
+    return { delivery: projectFailedDelivery(delivery), order_status: 'CONFIRMED' };
   });
 }

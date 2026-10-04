@@ -86,3 +86,17 @@ export function projectDelivery(delivery: Delivery): DeliveryView {
     departed_at: iso(delivery.departedAt),
   };
 }
+
+export type FailedDeliveryView = DeliveryView & {
+  failed_at: string | null;
+  failure_reason: string | null;
+};
+
+/** The delivery fields the driver sees after reporting a failure, listed one by one (v5.0.0-15.3.1). */
+export function projectFailedDelivery(delivery: Delivery): FailedDeliveryView {
+  return {
+    ...projectDelivery(delivery),
+    failed_at: iso(delivery.failedAt),
+    failure_reason: delivery.failureReason,
+  };
+}

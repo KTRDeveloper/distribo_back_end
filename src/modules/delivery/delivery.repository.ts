@@ -259,3 +259,90 @@ export async function findRegisteredCustomerRecipient(
   });
   return person ? recipientId : null;
 }
+
+/** The fields of a delivery the failure gesture checks, read under the order lock. */
+export type DeliveryToFail = {
+  id: string;
+  orderId: string;
+  assignedToId: string;
+  departedAt: Date | null;
+  arrivedAt: Date | null;
+  failedAt: Date | null;
+};
+
+/**
+ * Locks the order of a delivery, then reads the delivery, until the transaction ends, so a parallel
+ * failure, arrival or departure of the same order waits for this one (v5.0.0-2.3.4). The delivery
+ * is selected through the relationship of the caller's organization, never through an organization
+ * sent by the client, so a delivery of another business is simply not found (v5.0.0-8.2.2).
+ *
+ * @returns the delivery, or null when it is absent, deleted or outside the supplier
+ */
+export async function lockDeliveryToFail(
+  tx: Prisma.TransactionClient,
+  deliveryId: string,
+  supplierOrganizationId: string
+): Promise<DeliveryToFail | null> {
+  const owned = await tx.$queryRaw<Array<{ order_id: string }>>`
+    SELECT o.id AS order_id
+    FROM deliveries d
+    JOIN orders o ON o.id = d.order_id
+    JOIN customer_relationships r ON r.id = o.customer_relationship_id
+    WHERE d.id = ${deliveryId}::uuid
+      AND r.supplier_organization_id = ${supplierOrganizationId}::uuid
+      AND d.deleted_at IS NULL
+      AND o.deleted_at IS NULL
+    FOR UPDATE OF o
+  `;
+  if (!owned[0]) return null;
+  return tx.delivery.findFirst({
+    where: { id: deliveryId, deletedAt: null },
+    select: {
+      id: true,
+      orderId: true,
+      assignedToId: true,
+      departedAt: true,
+      arrivedAt: true,
+      failedAt: true,
+    },
+  });
+}
+
+/**
+ * Marks a delivery in progress as failed, conditionally on it being neither arrived nor failed
+ * (v5.0.0-2.3.1).
+ *
+ * @returns the delivery after the update, or null when it was no longer in progress
+ */
+export async function markFailed(
+  tx: Prisma.TransactionClient,
+  id: string,
+  failedAt: Date,
+  failureReason: string
+): Promise<Delivery | null> {
+  const { count } = await tx.delivery.updateMany({
+    where: { id, arrivedAt: null, failedAt: null, deletedAt: null },
+    data: { failedAt, failureReason },
+  });
+  if (count !== 1) return null;
+  return tx.delivery.findUniqueOrThrow({ where: { id } });
+}
+
+/** Lists the registered people holding an ACTIVE OWNER or MANAGER role in the business. */
+export async function listOwnerAndManagerIds(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<string[]> {
+  const found = await tx.collaboration.findMany({
+    where: {
+      organizationId,
+      role: { in: ['OWNER', 'MANAGER'] },
+      status: 'ACTIVE',
+      deletedAt: null,
+      person: { registeredAt: { not: null } },
+    },
+    select: { personId: true },
+    orderBy: { personId: 'asc' },
+  });
+  return found.map((collaboration) => collaboration.personId);
+}

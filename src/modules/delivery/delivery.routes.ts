@@ -6,13 +6,16 @@ import { requireAbility } from '../../middleware/require-ability.js';
 import {
   assignDeliverySchema,
   assignParamSchema,
+  deliveryParamSchema,
   departSchema,
+  failDeliverySchema,
   mineQuerySchema,
   toDeliverQuerySchema,
 } from './delivery.schemas.js';
 import {
   assignDelivery,
   departWithOrder,
+  failDelivery,
   listMyDeliveries,
   listToDeliver,
 } from './delivery.service.js';
@@ -91,6 +94,36 @@ deliveryRoutes.post(
       req.actor!,
       assignParamSchema.parse({ orderId: req.params.orderId }).orderId,
       departSchema.parse(req.body)
+    )
+      .then((result) => res.status(200).json(result))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/deliveries/:deliveryId/fail - the assigned DRIVER (or a
+// MANAGER or OWNER) reports a delivery in progress as failed with a reason; the order returns to
+// CONFIRMED. The delivery is selected through the caller's organization, and by assignee for a
+// DRIVER: another's is 404. Delivery state and order checks are the service's.
+deliveryRoutes.post(
+  '/deliveries/:deliveryId/fail',
+  authMiddleware,
+  loadActor,
+  requireAbility('fail_delivery', 'Order'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = deliveryParamSchema.safeParse({ deliveryId: req.params.deliveryId });
+    if (!params.success) return next(params.error);
+    const parsed = failDeliverySchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    failDelivery(
+      req.actor!,
+      deliveryParamSchema.parse({ deliveryId: req.params.deliveryId }).deliveryId,
+      failDeliverySchema.parse(req.body)
     )
       .then((result) => res.status(200).json(result))
       .catch(next);

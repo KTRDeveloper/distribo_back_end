@@ -202,6 +202,8 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/organizations/{organizationId}/orders/{orderId}/assign');
     // DLV-005: the driver departs with an order
     expect(paths).toContain('/api/v1/organizations/{organizationId}/orders/{orderId}/depart');
+    // DLV-006: the driver reports a failed delivery
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/deliveries/{deliveryId}/fail');
 
     // SYNC-006: the pull route
     expect(paths).toContain('/api/v1/sync/pull');

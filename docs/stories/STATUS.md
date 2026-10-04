@@ -176,7 +176,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-003 | done | | Driver to-deliver pool and own deliveries; tests green |
 | DLV-004 | done | | assign route, reassign before departure, 25 tests |
 | DLV-005 | done | | depart route, 21 tests; full suite 2757 green |
-| DLV-006 | todo | | |
+| DLV-006 | done | | POST deliveries/{id}/fail, 23 story tests, full suite green |
 | DLV-007 | todo | | |
 | DLV-008 | todo | | |
 | DLV-009 | todo | | |

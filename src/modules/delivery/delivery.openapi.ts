@@ -3,6 +3,7 @@ import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
   assignDeliverySchema,
+  failDeliverySchema,
   departSchema,
   mineQuerySchema,
   toDeliverQuerySchema,
@@ -165,6 +166,50 @@ openApiRegistry.registerPath({
     409: {
       description:
         'ASSIGNED_TO_OTHER, DELIVERY_IN_PROGRESS (already on the road), INVALID_TRANSITION (not CONFIRMED) or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/deliveries/{deliveryId}/fail',
+  tags: ['delivery'],
+  summary: 'A driver reports a delivery as failed; the order goes back to CONFIRMED (DLV-006)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, deliveryId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: failDeliverySchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The failed delivery and the new order status',
+      content: {
+        'application/json': {
+          schema: z.object({
+            delivery: z.object({
+              id: z.string().uuid(),
+              order_id: z.string().uuid(),
+              assigned_to_id: z.string().uuid(),
+              departed_at: z.string().datetime().nullable(),
+              failed_at: z.string().datetime().nullable(),
+              failure_reason: z.string().nullable(),
+            }),
+            order_status: z.literal('CONFIRMED'),
+          }),
+        },
+      },
+    },
+    400: { description: 'VALIDATION_ERROR (body or path)', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not report a failed delivery', content: errorContent },
+    404: {
+      description: 'Not a member, delivery outside the business, or assigned to another driver',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'INVALID_TRANSITION (not departed, already arrived or failed) or conflicting gesture id',
       content: errorContent,
     },
   },

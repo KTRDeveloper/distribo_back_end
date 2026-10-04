@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
+import { TEXT_MAX } from '../../shared/limits.js';
 import { paginationQuerySchema } from '../../shared/pagination.js';
 
 /** Strict query of the to-deliver pool: `limit` and `cursor` only (ASVS v5.0.0-2.2.1). */
@@ -37,3 +38,16 @@ export type AssignDeliveryInput = z.infer<typeof assignDeliverySchema>;
 export const departSchema = z.object({ id: uuidV7Schema }).strict();
 
 export type DepartInput = z.infer<typeof departSchema>;
+
+/** Path of the fail gesture: the delivery id is a UUID, so a malformed one never reaches the database. */
+export const deliveryParamSchema = z.object({ deliveryId: uuidV7Schema }).strict();
+
+/**
+ * Strict body of the fail gesture (DLV-006): the gesture id and a reason of 1 to 2000 characters.
+ * Delivery, driver and times are never accepted (ASVS v5.0.0-15.3.3).
+ */
+export const failDeliverySchema = z
+  .object({ id: uuidV7Schema, reason: z.string().trim().min(1).max(TEXT_MAX) })
+  .strict();
+
+export type FailDeliveryInput = z.infer<typeof failDeliverySchema>;

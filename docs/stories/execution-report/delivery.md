@@ -235,3 +235,30 @@ Also in this run: relationship, admin, catalog, order, finance.
 **Follow-ups:**
 - Confirm the takeover rule (`assigned_to_id` becomes the manager or owner) when DLV-006 and DLV-007 read the delivery's driver.
 <!-- end DLV-005 -->
+
+<!-- begin DLV-006 -->
+## DLV-006 — Driver reports a failed delivery
+
+- Filed: 2026-10-04 23:16 UTC
+- Status: **done**: POST deliveries/{id}/fail, 23 story tests, full suite green
+- Risk: medium · story: [DLV-006-driver-reports-a-failed-delivery.md](../modules/delivery/DLV-006-driver-reports-a-failed-delivery.md)
+- Agent: 66,336 tokens, 18 tool uses, 5 min 23 s
+
+### Agent report
+
+**Summary:** Added POST /deliveries/{deliveryId}/fail (route, schema, service, repository, openapi); all green.
+
+**Decisions:**
+- Delivery not yet departed (assigned only): 409 INVALID_TRANSITION, since "in progress" for a failure means on the road.
+- Order locked first (via the delivery's supplier join), then the delivery is read, so parallel fail/arrive/depart serialize.
+- Owner and every manager are notified, including the caller if they are one (literal reading of the story).
+- Response `delivery` extends the DeliveryView with `failed_at` and `failure_reason` (new FailedDeliveryView).
+- Reason is trimmed; whitespace-only is 400.
+- Catalog test got the new path (counts as listed); per-001 has no route list, so unchanged.
+
+**Tests added beyond the story:**
+- `fail.test.ts` › parallel failures: one 200, one 409, notified once (race, v5.0.0-2.3.4)
+- `fail.test.ts` › MANAGER/OWNER may fail another driver's delivery; notification to owner and managers; not-departed delivery 409; 2000-char boundary; foreign business 404 (story Context and CONFIRM rules); passed at once for the boundary cases
+
+**Evidence:** story tests 23/23; full suite 2780/2780, failing: none; typecheck clean; lint 0 errors, 65 warnings (pre-existing security/detect-non-literal-fs-filename)
+<!-- end DLV-006 -->
