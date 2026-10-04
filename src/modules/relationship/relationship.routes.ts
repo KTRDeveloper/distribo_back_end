@@ -4,12 +4,19 @@ import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
+  addCounterSchema,
   addCustomerSchema,
   customerParamsSchema,
   editCustomerSchema,
   listCustomersQuerySchema,
 } from './relationship.schemas.js';
-import { addCustomer, editCustomer, getCustomer, listCustomers } from './relationship.service.js';
+import {
+  addCounter,
+  addCustomer,
+  editCustomer,
+  getCustomer,
+  listCustomers,
+} from './relationship.service.js';
 import './relationship.openapi.js';
 
 /** Relationship routes of one organization, mounted at `/organizations/:organizationId`. */
@@ -77,6 +84,27 @@ relationshipRoutes.patch(
         )
       )
       .then((customer) => res.json(customer))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/counters - a manager adds a named counter; 201.
+// The service checks the rules table with the subject `{ counter: true }` (ACC-002) and the rank.
+relationshipRoutes.post(
+  '/counters',
+  authMiddleware,
+  loadActor,
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = addCounterSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    addCounter(req.actor!, addCounterSchema.parse(req.body))
+      .then((counter) => res.status(201).json(counter))
       .catch(next);
   }
 );

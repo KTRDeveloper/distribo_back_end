@@ -104,7 +104,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-008 | done | | GET customers list with filters, keyset paging, supplier view |
 | REL-009 | done | | GET customer by id; 8 tests, full suite 1569 green |
 | REL-010 | done | | PATCH customers/:id; per-field ability check, 21 tests |
-| REL-011 | todo | | |
+| REL-011 | done | | POST /counters; SELLER blocked by an extra MANAGER rank check |
 | REL-012 | todo | | |
 | REL-013 | todo | | |
 | REL-014 | done | | Reassignments journal table, contestation partial unique index, immutable; 12 tests |

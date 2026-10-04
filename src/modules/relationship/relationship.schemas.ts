@@ -58,3 +58,17 @@ export const editCustomerSchema = z
   .refine((body) => Object.keys(body).length > 0, { message: 'At least one field is required' });
 
 export type EditCustomerInput = z.infer<typeof editCustomerSchema>;
+
+/**
+ * Strict body of the add-counter gesture: exactly two writable fields (ASVS v5.0.0-15.3.3).
+ * The credit limit (always 0 for a counter, C-10), status, author and organization are set by
+ * the server and rejected as unknown keys (CWE-915).
+ */
+export const addCounterSchema = z
+  .object({
+    id: uuidV7Schema,
+    customer_label: z.string().trim().min(1).max(LABEL_MAX),
+  })
+  .strict();
+
+export type AddCounterInput = z.infer<typeof addCounterSchema>;

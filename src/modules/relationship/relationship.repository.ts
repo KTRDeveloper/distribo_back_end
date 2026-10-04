@@ -33,6 +33,41 @@ export function createCounter(
 }
 
 /**
+ * Takes a row lock on the organization until the transaction ends, so two concurrent writes that
+ * check-then-insert for one organization (the counter label rule has no database index) run one
+ * after the other.
+ */
+export async function lockOrganization(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<void> {
+  await tx.$queryRaw`SELECT "id" FROM "organizations" WHERE "id" = ${organizationId}::uuid FOR UPDATE`;
+}
+
+/**
+ * Tells whether a live counter of the organization already carries this label. Deleted and merged
+ * rows do not count. The label is compared exactly, after the trim done by the schema.
+ */
+export async function counterLabelExists(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  label: string
+): Promise<boolean> {
+  const found = await tx.customerRelationship.findFirst({
+    where: {
+      supplierOrganizationId: organizationId,
+      customerPersonId: null,
+      customerOrganizationId: null,
+      customerLabel: label,
+      deletedAt: null,
+      mergedIntoId: null,
+    },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
+/**
  * Finds the live relationship of a supplier organization with a customer person or organization.
  *
  * Deleted and merged rows are ignored (C-07). The caller passes exactly one customer id.

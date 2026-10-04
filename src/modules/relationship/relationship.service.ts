@@ -6,17 +6,22 @@ import { findOrCreateByPhone } from '../person/person.repository.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { atLeast } from '../../shared/access/roles.js';
+import { subject } from '@casl/ability';
 import { abilityFor } from '../../shared/access/ability.js';
 import type {
+  AddCounterInput,
   AddCustomerInput,
   EditCustomerInput,
   ListCustomersQuery,
 } from './relationship.schemas.js';
 import {
+  counterLabelExists,
+  createCounter,
   ensureCustomerRelationship,
   findSupplierRelationship,
   findWithParties,
   listSupplierRelationships,
+  lockOrganization,
   updateSupplierFields,
 } from './relationship.repository.js';
 import { projectForSupplier, type SupplierRelationshipView } from './relationship.visibility.js';
@@ -178,4 +183,58 @@ export async function editCustomer(
   });
   if (!row) throw httpError(404, 'NOT_FOUND', 'Customer not found');
   return projectForSupplier(row);
+}
+
+const ADD_COUNTER_CONTEXT = { onServer: false, online: true, daysSinceSync: 0 } as const;
+
+/**
+ * A manager adds a named counter to the actor's organization.
+ *
+ * Two checks decide access (ASVS v5.0.0-8.2.1, deny by default): the rules table with the subject
+ * `{ counter: true }` (ACC-002, Q-029) and a MANAGER rank. The rank check stays because the
+ * SELLER rule `create CustomerRelationship` carries no condition and would also match a counter.
+ * One transaction: the organization must be ACTIVE and is locked, so two concurrent adds of one
+ * label cannot both pass the uniqueness check. The counter has no customer, limit 0 (C-06, C-10).
+ * The organization, the caller and the role come from the loaded actor, never from the body.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param input - Validated body: gesture id and label.
+ * @throws 403 `FORBIDDEN`; 409 `ORGANIZATION_NOT_ACTIVE`; 409 `COUNTER_LABEL_TAKEN`.
+ */
+export async function addCounter(
+  actor: Actor,
+  input: AddCounterInput
+): Promise<SupplierRelationshipView> {
+  const allowed =
+    atLeast(actor.role, 'MANAGER') &&
+    abilityFor(actor.role, ADD_COUNTER_CONTEXT).can(
+      'create',
+      subject('CustomerRelationship', { counter: true })
+    );
+  if (!allowed) {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'create',
+        subjectType: 'CustomerRelationship',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+
+  return runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    await lockOrganization(tx, actor.organizationId);
+    if (await counterLabelExists(tx, actor.organizationId, input.customer_label)) {
+      throw httpError(409, 'COUNTER_LABEL_TAKEN', 'A counter with this label already exists');
+    }
+    const counter = await createCounter(tx, {
+      supplierOrganizationId: actor.organizationId,
+      label: input.customer_label,
+      createdById: actor.personId,
+    });
+    return projectForSupplier(await findWithParties(tx, counter.id));
+  });
 }

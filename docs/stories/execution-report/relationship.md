@@ -442,6 +442,40 @@ Also in this run: admin, catalog, order, finance, delivery.
 **Evidence:** story tests 21/21; full suite 1590/1590, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
 <!-- end REL-010 -->
 
+<!-- begin REL-011 -->
+## REL-011 — Manager adds a counter
+
+- Filed: 2026-10-04 14:12 UTC
+- Status: **done**: POST /counters; SELLER blocked by an extra MANAGER rank check
+- Risk: medium · story: [REL-011-manager-adds-a-counter.md](../modules/relationship/REL-011-manager-adds-a-counter.md)
+- Agent: 53,939 tokens, 17 tool uses, 3 min 33 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/{id}/counters (schema, service, repository, route, OpenAPI); all 19 story tests pass.
+
+**Decisions:**
+- SELLER refusal: the ACC rule `create CustomerRelationship` for SELLER has no condition, so it also matches subject `{counter: true}`; the service therefore checks `atLeast(MANAGER)` in addition to the ability, to get the 403 the story requires.
+- Label uniqueness: no DB index exists, so the service checks inside the transaction with an exact match after trim, ignoring deleted/merged rows; the default counter's label counts too.
+- Concurrency: the organization row is locked `FOR UPDATE` before the check, so two concurrent adds of one label give 201 and 409.
+
+**Tests added beyond the story:**
+- `add-counter.test.ts` › keeps one counter when two managers add the same label at once: race on the label rule (transaction/race rule); passed once the lock was in
+- `add-counter.test.ts` › allows the same label in another organization / the label of a deleted counter again: scope of the uniqueness (AC-2 wording "counter of one organization"; passed at once)
+- `add-counter.test.ts` › CLOSED organization 409, OWNER 201, 404 for a manager of another business (fail-closed and tenant scope)
+- `add-counter.test.ts` › blank / over-long label, missing id, phone_number in body: 400 (strict schema, v5.0.0-15.3.3)
+
+**Other additions:**
+- `catalog.test.ts`: the new path (required by the project rule).
+- `lockOrganization`, `counterLabelExists` in the repository.
+
+**Evidence:** story tests 19/19; full suite 1609/1609, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+
+**Follow-ups:**
+- ACC-002 SELLER `create CustomerRelationship` rule lacks a `counter: false` condition; the rank check masks it here but other callers of the ability could be misled.
+- A 409 COUNTER_LABEL_TAKEN is not replayed specially; idempotency behavior for 4xx follows the existing middleware.
+<!-- end REL-011 -->
+
 <!-- begin REL-014 -->
 ## REL-014 — Reassignment journal table
 

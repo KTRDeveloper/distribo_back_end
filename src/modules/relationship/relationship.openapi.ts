@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
+  addCounterSchema,
   addCustomerSchema,
   customerParamsSchema,
   editCustomerSchema,
@@ -137,6 +138,32 @@ openApiRegistry.registerPath({
     403: { description: 'The role cannot update a field sent', content: errorContent },
     404: {
       description: 'Not found, deleted, of another business, or not a member',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/counters',
+  tags: ['relationship'],
+  summary: 'Add a named counter to the organization (MANAGER and above)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema,
+    body: { content: { 'application/json': { schema: addCounterSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The new counter: no customer, credit limit 0',
+      content: { 'application/json': { schema: supplierRelationshipViewSchema } },
+    },
+    400: { description: 'Invalid body', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role cannot add counters', content: errorContent },
+    404: { description: 'Not found or not a member', content: errorContent },
+    409: {
+      description: 'COUNTER_LABEL_TAKEN, organization not active or conflicting gesture id',
       content: errorContent,
     },
   },
