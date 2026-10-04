@@ -126,7 +126,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-005 | done | | PATCH product edit/retire, 28 tests green |
 | CAT-006 | done | | GET products list with filters, cursor paging, openapi for product routes |
 | CAT-007 | done | | GET /organizations/{id}/catalog with own negotiated prices; 1952 tests pass |
-| CAT-008 | todo | | |
+| CAT-008 | done | | PUT negotiated price; non-ACTIVE (ENDED) refused 409; PENDING unreachable for org supplier (DB rule) |
 | CAT-009 | todo | | |
 | CAT-010 | todo | | |
 | CAT-011 | todo | | |

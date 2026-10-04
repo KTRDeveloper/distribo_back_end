@@ -273,3 +273,85 @@ export async function listCatalogForCustomer(
         : null,
   };
 }
+
+/** A relationship of the supplier organization, as `setCustomerPrice` needs it. */
+export type SupplierRelationshipForPrice = {
+  id: string;
+  status: 'PENDING' | 'ACTIVE' | 'ENDED';
+  customerPersonId: string | null;
+  customerOrganizationId: string | null;
+  customerPersonRegistered: boolean;
+};
+
+/**
+ * Selects and locks one relationship through the visibility predicate AND the supplier
+ * organization together, so another business's relationship is never found (ASVS v5.0.0-8.2.2).
+ * The row lock serializes two price writes on the same customer for the transaction's length.
+ *
+ * @returns The relationship, or null when it is absent or outside the organization.
+ */
+export async function findSupplierRelationshipForPrice(
+  tx: Prisma.TransactionClient,
+  viewer: { personId: string; organizationId: string },
+  relationshipId: string
+): Promise<SupplierRelationshipForPrice | null> {
+  const found = await tx.customerRelationship.findFirst({
+    where: {
+      AND: [
+        visibleRelationsWhere({
+          personId: viewer.personId,
+          organizationIds: [viewer.organizationId],
+        }),
+        { supplierOrganizationId: viewer.organizationId },
+        { id: relationshipId },
+      ],
+    },
+    select: {
+      id: true,
+      status: true,
+      customerPersonId: true,
+      customerOrganizationId: true,
+      customerPerson: { select: { registeredAt: true } },
+    },
+  });
+  if (!found) return null;
+  await tx.$queryRaw`SELECT "id" FROM "customer_relationships" WHERE "id" = ${found.id}::uuid FOR UPDATE`;
+  return {
+    id: found.id,
+    status: found.status,
+    customerPersonId: found.customerPersonId,
+    customerOrganizationId: found.customerOrganizationId,
+    customerPersonRegistered: found.customerPerson?.registeredAt != null,
+  };
+}
+
+/**
+ * Creates the live negotiated price of a relationship and product, or replaces the one that
+ * exists (the last writer wins), in a single statement. The partial unique index of C-11
+ * arbitrates a race, so no second live row can appear. `set_at` is the server time.
+ *
+ * @param data - Row id for a creation (kept row id on a replace), relationship, product,
+ * price and author, all validated by the service.
+ */
+export async function upsertCustomerPrice(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    relationshipId: string;
+    productId: string;
+    price: bigint;
+    setById: string;
+  }
+): Promise<{ productId: string; price: bigint; setById: string; setAt: Date }> {
+  const rows = await tx.$queryRaw<
+    Array<{ product_id: string; price: bigint; set_by_id: string; set_at: Date }>
+  >`
+    INSERT INTO "customer_prices" ("id", "customer_relationship_id", "product_id", "price", "set_by_id", "set_at")
+    VALUES (${data.id}::uuid, ${data.relationshipId}::uuid, ${data.productId}::uuid, ${data.price}::bigint, ${data.setById}::uuid, clock_timestamp())
+    ON CONFLICT ("customer_relationship_id", "product_id") WHERE "deleted_at" IS NULL
+    DO UPDATE SET "price" = EXCLUDED."price", "set_by_id" = EXCLUDED."set_by_id", "set_at" = clock_timestamp()
+    RETURNING "product_id", "price", "set_by_id", "set_at"`;
+  const row = rows[0];
+  if (!row) throw new Error('Customer price upsert returned no row');
+  return { productId: row.product_id, price: row.price, setById: row.set_by_id, setAt: row.set_at };
+}

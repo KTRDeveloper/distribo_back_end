@@ -263,3 +263,38 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Follow-ups:**
 - Confirm whether an ENDED relationship should still show its negotiated prices.
 <!-- end CAT-007 -->
+
+<!-- begin CAT-008 -->
+## CAT-008 — Owner or manager sets a negotiated price
+
+- Filed: 2026-10-04 15:50 UTC
+- Status: **done**: PUT negotiated price; non-ACTIVE (ENDED) refused 409; PENDING unreachable for org supplier (DB rule)
+- Risk: high · story: [CAT-008-owner-or-manager-sets-a-negotiated-price.md](../modules/catalog/CAT-008-owner-or-manager-sets-a-negotiated-price.md)
+- Agent: 90,218 tokens, 28 tool uses, 5 min 54 s
+
+### Agent report
+
+**Summary:** PUT negotiated price route, service, repository upsert, schema, OpenAPI done; all green.
+
+**Decisions:**
+- PENDING row of AC-5: unreachable, the database allows PENDING only when the supplier is a person, so an organization's relationship is never PENDING (a pending invitation answers 404). I refuse any status other than ACTIVE with 409 `RELATIONSHIP_NOT_ACTIVE` (as `setCreditLimit` does), which makes ENDED testable; the PENDING row is tested as 404.
+- OWN_RECORD: applied to OWNER too (the story gives no owner exemption, unlike credit limit): caller is the customer person, or an ACTIVE MANAGER/OWNER of the customer organization.
+- Check order: relationship 404, product 404, OWN_RECORD 403, status 409.
+- Replace: one atomic `INSERT ... ON CONFLICT (relationship, product) WHERE deleted_at IS NULL DO UPDATE` (raw, parameterized) on top of a row lock on the relationship; row id and gesture id stay separate on a replace.
+- Notification only for a registered customer person (FR/EN by language); nothing for an organization customer (story silent).
+
+**Tests added beyond the story:**
+- `set-customer-price.test.ts` › repeat with same id: first response replayed, one row, one notification (idempotent rule); passed at once
+- same file › two simultaneous prices leave one live row (C-11, last writer wins); passed at once
+- same file › guest customer: no notification, price stored (AC-4 "registered"); a refused request does not reserve the gesture id; deleted price does not block a new live one; INACTIVE product accepted (AC "any status")
+- same file › supplier owner who manages the customer org is refused OWN_RECORD; foreign org path 404; unauthenticated 401
+
+**Other additions:**
+- `openapi/openapi.json` regenerated; CAT-008 path added to `tests/integration/api-docs/catalog.test.ts`. `per-001.test.ts` holds no route list, so untouched.
+
+**Evidence:** story tests 37/37; full suite 1989/1989, failing: none; typecheck clean; lint 0 errors, 59 warnings (none new in src)
+
+**Follow-ups:**
+- Confirm the AC-5 PENDING row should read 404 (rule unreachable) and that ENDED should be 409.
+- An id reused across pairs would hit the primary key and give a 500; not mapped.
+<!-- end CAT-008 -->

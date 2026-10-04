@@ -4,8 +4,10 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import {
   browseCatalogQuerySchema,
   createProductSchema,
+  customerPriceParamsSchema,
   editProductSchema,
   listProductsQuerySchema,
+  setCustomerPriceSchema,
 } from './catalog.schemas.js';
 
 const organizationParamsSchema = z.object({ organizationId: uuidV7Schema });
@@ -136,6 +138,44 @@ openApiRegistry.registerPath({
     404: {
       description:
         'Organization closed, suspended or unknown, or as_organization_id not managed by the caller',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'put',
+  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{productId}',
+  tags: ['catalog'],
+  summary: "The owner or an online manager sets a customer's negotiated price for an article",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: customerPriceParamsSchema,
+    body: { content: { 'application/json': { schema: setCustomerPriceSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The live negotiated price, created or replaced',
+      content: {
+        'application/json': {
+          schema: z.object({
+            product_id: z.string().uuid(),
+            price: z.number().int(),
+            set_by_id: z.string().uuid(),
+            set_at: z.string().datetime(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid path or body', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Role not allowed, or OWN_RECORD', content: errorContent },
+    404: {
+      description: 'Relationship or product outside the organization, or not a member',
+      content: errorContent,
+    },
+    409: {
+      description: 'Relationship not active, or organization not active',
       content: errorContent,
     },
   },

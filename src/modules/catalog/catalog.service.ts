@@ -8,22 +8,27 @@ import {
 } from '../organization/organization.repository.js';
 import { atLeast } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
+import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   countNegotiatedPricesBefore,
+  findSupplierRelationshipForPrice,
   getProductOfOrganization,
   insertProduct,
   listCatalogForCustomer,
   listProductsOfOrganization,
   updateProduct,
+  upsertCustomerPrice,
 } from './catalog.repository.js';
 import type {
   BrowseQuery,
   CatalogPage,
   CreateProductInput,
+  CustomerPriceView,
   EditProductInput,
   ListProductsQuery,
   ProductPage,
   ProductView,
+  SetCustomerPriceInput,
 } from './catalog.schemas.js';
 
 /** Builds the closed product view from an explicit field list. */
@@ -185,4 +190,102 @@ export async function browseCatalog(
     })),
     next_cursor: nextCursor,
   };
+}
+
+const PRICE_CHANGED_CONTENT = {
+  FR: (article: string) => `Votre prix negocie pour ${article} a change.`,
+  EN: (article: string) => `Your negotiated price for ${article} has changed.`,
+};
+
+/**
+ * An owner, or a manager online, sets the negotiated price of one customer for one article.
+ *
+ * The role is decided by the route (`create CustomerPrice`, ASVS v5.0.0-8.2.1). One transaction
+ * then selects the relationship through the visibility predicate and the actor's organization
+ * (404 outside it) and the product through the same organization (404 when it is another
+ * business's, any status; v5.0.0-8.2.2), and refuses, in order: the caller's own record (403
+ * `OWN_RECORD`: the caller is the customer person, or manages the customer organization, owner
+ * included) and a relationship that is not ACTIVE (409 `RELATIONSHIP_NOT_ACTIVE`). A live price
+ * for the pair is replaced, else one is created (C-11); the author is the caller (C-04) and the
+ * time is the server's. A registered customer person is notified `price.negotiated_changed` in
+ * the same transaction. A price above the article's price is stored as is.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param productId - Validated product id from the path.
+ * @param input - Validated body: gesture id and the price in XAF.
+ * @throws 403 `OWN_RECORD`; 404 `NOT_FOUND`; 409 `RELATIONSHIP_NOT_ACTIVE` or
+ * `ORGANIZATION_NOT_ACTIVE`.
+ */
+export async function setCustomerPrice(
+  actor: Actor,
+  relationshipId: string,
+  productId: string,
+  input: SetCustomerPriceInput
+): Promise<CustomerPriceView> {
+  return runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    const relationship = await findSupplierRelationshipForPrice(
+      tx,
+      { personId: actor.personId, organizationId: actor.organizationId },
+      relationshipId
+    );
+    if (!relationship) throw httpError(404, 'NOT_FOUND', 'Not found');
+    const product = await getProductOfOrganization(tx, actor.organizationId, productId);
+
+    const ownPerson = relationship.customerPersonId === actor.personId;
+    const customerOrganization = relationship.customerOrganizationId;
+    const managesCustomer =
+      customerOrganization !== null &&
+      ['MANAGER', 'OWNER'].includes(
+        (await getActiveCollaboration(actor.personId, customerOrganization))?.role ?? ''
+      );
+    if (ownPerson || managesCustomer) {
+      logger.warn(
+        {
+          event: 'own_record_refused',
+          personId: actor.personId,
+          action: 'create',
+          subjectType: 'CustomerPrice',
+        },
+        'Permission refused'
+      );
+      throw httpError(403, 'OWN_RECORD', 'Not allowed on your own record');
+    }
+    if (relationship.status !== 'ACTIVE') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'The relationship is not active');
+    }
+
+    const saved = await upsertCustomerPrice(tx, {
+      id: input.id,
+      relationshipId: relationship.id,
+      productId: product.id,
+      price: BigInt(input.price),
+      setById: actor.personId,
+    });
+
+    if (relationship.customerPersonId !== null && relationship.customerPersonRegistered) {
+      const language = await recipientLanguage(relationship.customerPersonId, tx);
+      await notify(
+        {
+          recipientId: relationship.customerPersonId,
+          organizationId: actor.organizationId,
+          sourceEvent: 'price.negotiated_changed',
+          content:
+            language === 'EN'
+              ? PRICE_CHANGED_CONTENT.EN(product.name)
+              : PRICE_CHANGED_CONTENT.FR(product.name),
+          related: { type: 'customer_relationship', id: relationship.id },
+        },
+        tx
+      );
+    }
+
+    return {
+      product_id: saved.productId,
+      price: Number(saved.price),
+      set_by_id: saved.setById,
+      set_at: saved.setAt.toISOString(),
+    };
+  });
 }

@@ -119,3 +119,32 @@ export type CatalogItemView = {
 
 /** Response of the customer's catalog. */
 export type CatalogPage = { items: CatalogItemView[]; next_cursor: string | null };
+
+/** Path of the negotiated price gesture: supplier organization, customer relationship, article. */
+export const customerPriceParamsSchema = z.object({
+  organizationId: uuidV7Schema,
+  relationshipId: uuidV7Schema,
+  productId: uuidV7Schema,
+});
+
+/**
+ * Strict body of the negotiated price gesture (ASVS v5.0.0-15.3.3): the gesture id and a whole
+ * XAF price of at least 1. The author, the time and the product come from the session and the
+ * path, never from the body (CWE-915).
+ */
+export const setCustomerPriceSchema = z
+  .object({
+    id: uuidV7Schema,
+    price: z.number().int().safe().min(1),
+  })
+  .strict();
+
+export type SetCustomerPriceInput = z.infer<typeof setCustomerPriceSchema>;
+
+/** Closed response of the negotiated price gesture. */
+export type CustomerPriceView = {
+  product_id: string;
+  price: number;
+  set_by_id: string;
+  set_at: string;
+};

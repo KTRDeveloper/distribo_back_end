@@ -8,10 +8,18 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import {
   browseCatalogQuerySchema,
   createProductSchema,
+  customerPriceParamsSchema,
   editProductSchema,
   listProductsQuerySchema,
+  setCustomerPriceSchema,
 } from './catalog.schemas.js';
-import { browseCatalog, createProduct, editProduct, listProducts } from './catalog.service.js';
+import {
+  browseCatalog,
+  createProduct,
+  editProduct,
+  listProducts,
+  setCustomerPrice,
+} from './catalog.service.js';
 import './catalog.openapi.js';
 
 /** Catalog routes of one organization, mounted at `/organizations/:organizationId`. */
@@ -77,5 +85,39 @@ catalogRoutes.patch(
       .then((view) => res.json(view))
       .catch(next);
     return undefined;
+  }
+);
+
+// PUT /api/v1/organizations/:organizationId/customers/:relationshipId/prices/:productId - OWNER or
+// an online MANAGER sets one customer's own price for an article; the service answers 404 outside
+// the organization, 403 OWN_RECORD and 409 for a relationship that is not active
+catalogRoutes.put(
+  '/customers/:relationshipId/prices/:productId',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'CustomerPrice'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const params = customerPriceParamsSchema.safeParse(req.params);
+    if (!params.success) return next(params.error);
+    const parsed = setCustomerPriceSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() => {
+        const { relationshipId, productId } = customerPriceParamsSchema.parse(req.params);
+        return setCustomerPrice(
+          req.actor!,
+          relationshipId,
+          productId,
+          setCustomerPriceSchema.parse(req.body)
+        );
+      })
+      .then((view) => res.json(view))
+      .catch(next);
   }
 );
