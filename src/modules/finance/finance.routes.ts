@@ -15,6 +15,9 @@ import {
   paymentParamSchema,
   recordExpenseSchema,
   recordHandoverSchema,
+  handoverParamSchema,
+  cancelHandoverSchema,
+  disputeHandoverSchema,
   recordPaymentSchema,
   returnSchema,
   reverseEntrySchema,
@@ -26,6 +29,8 @@ import {
   recordCreditNote,
   recordExpense,
   recordHandover,
+  cancelHandover,
+  disputeHandover,
   recordOpeningBalance,
   recordPayment,
   recordRefund,
@@ -299,6 +304,62 @@ financeRoutes.post(
   (req, res, next) => {
     recordHandover(req.actor!, recordHandoverSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/handovers/:handoverId/cancel - a MANAGER online or the
+// OWNER cancels a handover noted by mistake. The rules table grants `cancel Handover` to nobody
+// below MANAGER; the handover is reached only through the caller's own organization, which the
+// service checks (404 outside it).
+financeRoutes.post(
+  '/handovers/:handoverId/cancel',
+  authMiddleware,
+  loadActor,
+  requireAbility('cancel', 'Handover'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = handoverParamSchema.safeParse({ handoverId: req.params.handoverId });
+    if (!params.success) return next(params.error);
+    const parsed = cancelHandoverSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    cancelHandover(
+      req.actor!,
+      handoverParamSchema.parse({ handoverId: req.params.handoverId }).handoverId
+    )
+      .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/handovers/:handoverId/dispute - the remitter of a
+// handover says the noted amount is wrong. Any ACTIVE collaborator reaches the service, which
+// answers 404 unless the caller is that handover's `from_person_id`; no amount changes.
+financeRoutes.post(
+  '/handovers/:handoverId/dispute',
+  authMiddleware,
+  loadActor,
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = handoverParamSchema.safeParse({ handoverId: req.params.handoverId });
+    if (!params.success) return next(params.error);
+    const parsed = disputeHandoverSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    const handoverId = handoverParamSchema.parse({
+      handoverId: req.params.handoverId,
+    }).handoverId;
+    disputeHandover(req.actor!, handoverId, disputeHandoverSchema.parse(req.body))
+      .then(() => res.status(200).json({ handover_id: handoverId, disputed: true }))
       .catch(next);
   }
 );

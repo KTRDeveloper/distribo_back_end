@@ -10,6 +10,9 @@ import {
   paymentParamSchema,
   recordExpenseSchema,
   recordHandoverSchema,
+  handoverParamSchema,
+  cancelHandoverSchema,
+  disputeHandoverSchema,
   recordPaymentSchema,
   returnSchema,
   reverseEntrySchema,
@@ -290,6 +293,58 @@ openApiRegistry.registerPath({
             amount: z.number().int(),
             occurred_at: z.string().datetime(),
           }),
+        },
+      },
+    },
+    ...gestureErrors,
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/handovers/{handoverId}/cancel',
+  tags: ['finance'],
+  summary: 'Cancel a handover, restoring both held-money caches (MANAGER and above)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema.merge(handoverParamSchema),
+    body: { content: { 'application/json': { schema: cancelHandoverSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The cancelled handover',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string().uuid(),
+            from_person_id: z.string().uuid(),
+            to_person_id: z.string().uuid(),
+            amount: z.number().int(),
+            occurred_at: z.string().datetime(),
+          }),
+        },
+      },
+    },
+    ...gestureErrors,
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/handovers/{handoverId}/dispute',
+  tags: ['finance'],
+  summary: 'The remitter disputes the noted amount: the owner is notified, no amount changes',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema.merge(handoverParamSchema),
+    body: { content: { 'application/json': { schema: disputeHandoverSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The dispute was recorded and the owner notified',
+      content: {
+        'application/json': {
+          schema: z.object({ handover_id: z.string().uuid(), disputed: z.literal(true) }),
         },
       },
     },

@@ -2,8 +2,10 @@ import type { LedgerEntry, LedgerEntryKind, Prisma } from '@prisma/client';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { atLeast } from '../../shared/access/roles.js';
+import { TEXT_MAX } from '../../shared/limits.js';
 import type { Actor } from '../../types/express.js';
 import {
+  findActiveOwnerId,
   findCollaboration,
   findOrganizationStatus,
   runInTransaction,
@@ -19,12 +21,18 @@ import type {
   OpeningBalanceInput,
   PaymentInput,
   RecordExpenseInput,
+  DisputeHandoverInput,
   RecordHandoverInput,
   ReturnInput,
   ReverseEntryInput,
 } from './finance.schemas.js';
 import { listLedgerPage } from './finance.repository.js';
-import { cancelExpenseInTx, recordExpenseInTx, recordHandoverInTx } from './held-money.js';
+import {
+  cancelExpenseInTx,
+  cancelHandoverInTx,
+  recordExpenseInTx,
+  recordHandoverInTx,
+} from './held-money.js';
 import { appendLedgerEntry, reverseLedgerEntry } from './ledger.service.js';
 
 /** A ledger entry as the recorder sees it: an explicit field list, money in whole XAF. */
@@ -690,6 +698,116 @@ export function recordHandover(actor: Actor, input: RecordHandoverInput): Promis
       amount: Number(handover.amount),
       occurred_at: handover.occurredAt,
     };
+  });
+}
+
+/**
+ * A MANAGER online or the OWNER cancels a handover noted by mistake (FIN-016, C-27, CM-17): the
+ * remitter's held money rises and the receiver's falls by the amount, the row stays, marked
+ * cancelled. The route checked the rules table (`cancel` Handover, ASVS v5.0.0-8.2.1). One
+ * transaction (v5.0.0-2.3.3): `cancelHandoverInTx` cancels with a conditional update and restores
+ * both caches, so of two parallel cancels exactly one succeeds. The handover is looked up only
+ * inside the caller's organization: another business's handover is 404 like an unknown id
+ * (v5.0.0-8.2.2).
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked the role.
+ * @param handoverId - Handover to cancel, from the path.
+ * @returns The cancelled handover.
+ * @throws 404 `NOT_FOUND`; 409 `ALREADY_CANCELLED`.
+ */
+export function cancelHandover(actor: Actor, handoverId: string): Promise<HandoverView> {
+  return runInTransaction(async (tx) => {
+    const handover = await cancelHandoverInTx(tx, {
+      handoverId,
+      organizationId: actor.organizationId,
+      cancelledById: actor.personId,
+    });
+    if (!handover) {
+      const existing = await tx.handover.findFirst({
+        where: { id: handoverId, organizationId: actor.organizationId, deletedAt: null },
+        select: { cancelledAt: true },
+      });
+      if (existing?.cancelledAt) {
+        throw httpError(409, 'ALREADY_CANCELLED', 'Handover already cancelled');
+      }
+      throw httpError(404, 'NOT_FOUND', 'Not found');
+    }
+
+    return {
+      id: handover.id,
+      from_person_id: handover.fromPersonId,
+      to_person_id: handover.toPersonId,
+      amount: Number(handover.amount),
+      occurred_at: handover.occurredAt,
+    };
+  });
+}
+
+const HANDOVER_DISPUTED_CONTENT = {
+  FR: (remitter: string, amount: number) =>
+    `${remitter} conteste le montant de ${amount} noté pour sa remise d'argent.`,
+  EN: (remitter: string, amount: number) =>
+    `${remitter} disputes the amount of ${amount} noted for their handover.`,
+};
+
+/**
+ * The remitter says the noted amount is wrong (FIN-016): the organization's ACTIVE OWNER gets a
+ * `handover.disputed` notification naming the handover, the amount and the remitter, in the
+ * owner's language; no amount or row changes, resolving it is a phone call. Only the remitter
+ * (`from_person_id`) of a handover of the caller's own organization may dispute: anyone else, a
+ * foreign handover or an unknown id is the same 404, so an ID is never confirmed (ASVS
+ * v5.0.0-8.2.2). The route's `idempotent()` makes a repeated gesture id notify once. The dispute
+ * is logged at `warn` with ids only (v5.0.0-16.3.1, CWE-778). The comment, when given, is appended
+ * to the notification, cut to fit the notification limit; it is never logged.
+ *
+ * @param actor - Person and organization from `loadActor`; any ACTIVE collaborator may reach here.
+ * @param handoverId - Handover from the path.
+ * @param input - Validated body.
+ * @throws 404 `NOT_FOUND` (not the remitter, other business, unknown id or no active owner).
+ */
+export function disputeHandover(
+  actor: Actor,
+  handoverId: string,
+  input: DisputeHandoverInput
+): Promise<void> {
+  return runInTransaction(async (tx) => {
+    const handover = await tx.handover.findFirst({
+      where: {
+        id: handoverId,
+        organizationId: actor.organizationId,
+        fromPersonId: actor.personId,
+        deletedAt: null,
+      },
+    });
+    if (!handover) throw httpError(404, 'NOT_FOUND', 'Not found');
+
+    const ownerId = await findActiveOwnerId(tx, actor.organizationId);
+    if (!ownerId) throw httpError(404, 'NOT_FOUND', 'Not found');
+
+    const remitterName = (await findPersonName(tx, actor.personId)) ?? '';
+    const language = await recipientLanguage(ownerId, tx);
+    const base = HANDOVER_DISPUTED_CONTENT[language](remitterName, Number(handover.amount));
+    const content = input.comment ? `${base} ${input.comment}`.slice(0, TEXT_MAX) : base;
+    await notify(
+      {
+        recipientId: ownerId,
+        organizationId: actor.organizationId,
+        sourceEvent: 'handover.disputed',
+        content,
+        related: { type: 'handover', id: handover.id },
+      },
+      tx
+    );
+
+    logger.warn(
+      {
+        event: 'handover_disputed',
+        personId: actor.personId,
+        organizationId: actor.organizationId,
+        handoverId: handover.id,
+      },
+      'Handover disputed'
+    );
   });
 }
 

@@ -140,6 +140,12 @@ describe('GET /docs/openapi.json', () => {
     // FIN-015: recording a handover received
     expect(paths).toContain('/api/v1/organizations/{organizationId}/handovers');
 
+    // FIN-016: cancelling and disputing a handover
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/handovers/{handoverId}/cancel');
+    expect(paths).toContain(
+      '/api/v1/organizations/{organizationId}/handovers/{handoverId}/dispute'
+    );
+
     // ORD-010: the organization purchase route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases');
 

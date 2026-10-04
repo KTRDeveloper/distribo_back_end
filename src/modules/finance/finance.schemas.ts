@@ -148,3 +148,27 @@ export const recordHandoverSchema = z
   .strict();
 
 export type RecordHandoverInput = z.infer<typeof recordHandoverSchema>;
+
+/** Path of the cancel and dispute handover gestures: a malformed id never reaches the database. */
+export const handoverParamSchema = z.object({ handoverId: uuidV7Schema }).strict();
+
+/**
+ * Strict body of the cancel-handover gesture (FIN-016): the gesture id only. The canceller and the
+ * time are set by the server, never accepted (ASVS v5.0.0-15.3.3, CWE-915).
+ */
+export const cancelHandoverSchema = z.object({ id: uuidV7Schema }).strict();
+
+export type CancelHandoverInput = z.infer<typeof cancelHandoverSchema>;
+
+/**
+ * Strict body of the dispute-handover gesture (FIN-016): the gesture id and an optional comment of
+ * up to 2000 characters. The remitter is the caller, never a body field.
+ */
+export const disputeHandoverSchema = z
+  .object({
+    id: uuidV7Schema,
+    comment: z.string().trim().min(1).max(TEXT_MAX).optional(),
+  })
+  .strict();
+
+export type DisputeHandoverInput = z.infer<typeof disputeHandoverSchema>;

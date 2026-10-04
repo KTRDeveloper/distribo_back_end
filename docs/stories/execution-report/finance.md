@@ -565,3 +565,37 @@ Also in this run: relationship, admin, catalog, order, delivery.
 **Follow-ups:**
 - sync/pull-identity.test.ts failed once under full-suite load; looks timing-related, unrelated to this story.
 <!-- end FIN-015 -->
+
+<!-- begin FIN-016 -->
+## FIN-016 — Cancel a handover and dispute the noted amount
+
+- Filed: 2026-10-04 22:32 UTC
+- Status: **done**: Cancel and dispute handover routes; full suite 2672 pass
+- Risk: high · story: [FIN-016-cancel-a-handover-and-dispute-the-noted-amount.md](../modules/finance/FIN-016-cancel-a-handover-and-dispute-the-noted-amount.md)
+- Agent: 61,027 tokens, 19 tool uses, 5 min 11 s
+
+### Agent report
+
+**Summary:** Added handover cancel (MANAGER/OWNER) and dispute (remitter only) routes, schemas, service, held-money helper, OpenAPI paths.
+
+**Decisions:**
+- Dispute success response: 200 `{handover_id, disputed: true}`, because `idempotent()` replays only a stored JSON body (an empty 204 would replay as 409).
+- Dispute comment: appended to the owner's notification and cut to the 2000-character notification limit; never logged. The story does not say where the comment goes.
+- Dispute notifies the organization's ACTIVE OWNER (also when the owner is the receiver); no active owner gives 404.
+- Cancel and dispute do not check organization status, and a cancelled handover can still be disputed: the story is silent, so I followed cancel-expense and added no rule.
+
+**Tests added beyond the story:**
+- `handover-cancel-dispute.test.ts` › former-owner automatic handover cancel: only the remitter cache moves when from = to (C-27); passed at once
+- same file › concurrent double cancel: exactly one 200 and one 409, restored once (CWE-362, as FIN-013); passed at once
+- same file › rollback when a cache cannot be restored: cancellation undone (ASVS 2.3.3); passed at once
+- same file › dispute by owner, manager and seller who are not the remitter: 404 (AC-3, v5.0.0-8.2.2); passed at once
+- same file › comment over 2000 characters refused (story limit); no comment accepted; unknown fields and bad path id refused
+
+**Other additions:**
+- Two paths added to `tests/integration/api-docs/catalog.test.ts`, as the story rule requires. `per-001.test.ts` has no finance route list, so I left it unchanged.
+
+**Evidence:** story tests 18/18; full suite 2672/2672, failing: none; typecheck clean; lint 0 errors, 64 warnings (existing)
+
+**Follow-ups:**
+- Confirm whether a cancelled handover should be disputable, and whether cancel should require an ACTIVE organization.
+<!-- end FIN-016 -->
