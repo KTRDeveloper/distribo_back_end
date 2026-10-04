@@ -383,6 +383,39 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - The same order id sent by two different people hits the primary key (500); the story gives no code for it.
 <!-- end ORD-009 -->
 
+<!-- begin ORD-010 -->
+## ORD-010 — Organization manager orders from a supplier
+
+- Filed: 2026-10-04 19:36 UTC
+- Status: **done**: Organization purchase route POST /organizations/{id}/purchases; all tests pass
+- Risk: high · story: [ORD-010-organization-manager-orders-from-a-supplier.md](../modules/order/ORD-010-organization-manager-orders-from-a-supplier.md)
+- Agent: 66,986 tokens, 26 tool uses, 5 min 26 s
+
+### Agent report
+
+**Summary:** Added POST /api/v1/organizations/{organizationId}/purchases; the business becomes the customer of the relationship, sharing one code path with ORD-009.
+
+**Decisions:**
+- Shared `placeOrderFor` in order.service.ts: `placeOrder` (person) and new `placePurchase` (organization) both call it; ORD-009 behavior unchanged.
+- `placePurchaseSchema` is an alias of `placeOrderSchema` ("body of ORD-009"); `customer_organization_id` in the body stays rejected (400).
+- Check order: loadActor (404 non-member), requireAbility `order_from_supplier` (403), body validation, same-org supplier (400), calling org ACTIVE (409), then the ORD-009 checks. Roles above MANAGER (OWNER) may order, since the rule covers them.
+- Created `order.openapi.ts` (not in the story's file list): conventions require every route in its module's .openapi.ts, and ORD-009's route has none; I documented only the new path.
+- Added the openapi import to `scripts/generate-openapi.ts`: the generate-script test compares its paths with the live ones.
+
+**Tests added beyond the story:**
+- `place-purchase.test.ts` › OWNER orders and the business relationship is reused: one relationship per business, OWNER inherits the rule (ACC-005 rule table); passed at once
+- `place-purchase.test.ts` › SUSPENDED calling organization 409, body naming `customer_organization_id` 400, unauthenticated 401, repeat with same id returns first response: fail-closed paths and idempotency (CONVENTIONS Errors, Project rules); passed at once
+
+**Other additions:**
+- `tests/integration/api-docs/catalog.test.ts`: added the new path to the route list (CONVENTIONS rule).
+- `openapi/openapi.json` regenerated (git-ignored).
+
+**Evidence:** story tests 15/15; full suite 2312/2312, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- The ORD-009 route `POST /api/v1/orders` is still missing from the OpenAPI document.
+<!-- end ORD-010 -->
+
 <!-- begin ORD-018 -->
 ## ORD-018 — Closing a business refuses its pending orders
 

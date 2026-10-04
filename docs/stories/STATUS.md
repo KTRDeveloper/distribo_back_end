@@ -139,7 +139,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-007 | done | | Pure order calculations and supplier/customer views; 14 unit tests, full suite 2103 pass |
 | ORD-008 | done | | transitionOrder with conditional update, viaSync delivery-wins; 23 tests |
 | ORD-009 | done | | POST /api/v1/orders; 35 story tests + full suite green |
-| ORD-010 | todo | | |
+| ORD-010 | done | | Organization purchase route POST /organizations/{id}/purchases; all tests pass |
 | ORD-011 | todo | | |
 | ORD-012 | todo | | |
 | ORD-013 | todo | | |

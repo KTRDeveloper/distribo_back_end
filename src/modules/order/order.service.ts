@@ -75,31 +75,34 @@ async function notifyTeam(
 }
 
 /**
- * A customer places an order with a business (CM-11): a PENDING order whose prices, labels,
- * amounts and total are all computed on the server. Relationship, order, lines and notifications
- * are one transaction (ASVS v5.0.0-2.3.3); any refusal stores nothing.
- *
- * The customer is the caller, never a field of the body (v5.0.0-8.2.2). The relationship is found
- * or created ACTIVE with credit limit 0; it must be ACTIVE (C-14), as must the supplier
- * organization. Replays with the same `id` are answered by the `idempotent()` middleware.
- *
- * @param customer - The caller, from the session.
- * @param input - Validated body: ids, optional address, date and note, and 1 to 100 lines.
- * @throws 404 `NOT_FOUND` (business or product); 409 `ORGANIZATION_NOT_ACTIVE`;
- * 409 `RELATIONSHIP_NOT_ACTIVE`; 400 `VALIDATION_ERROR` (quantity below the minimum).
+ * Shared body of the two place-order gestures. The customer side of the relationship is the
+ * calling organization when `customer.organizationId` is set, else the calling person; the
+ * person who enters the order is always `customer.personId`.
  */
-export function placeOrder(
+function placeOrderFor(
   customer: { personId: string; organizationId?: string },
   input: PlaceOrderInput
 ): Promise<CustomerOrderView> {
   return runInTransaction(async (tx) => {
+    if (customer.organizationId !== undefined) {
+      await assertOrganizationActive(customer.organizationId, tx);
+    }
     await assertOrganizationActive(input.supplier_organization_id, tx);
 
-    const { relationship } = await ensureCustomerRelationship(tx, {
-      supplierOrganizationId: input.supplier_organization_id,
-      customerPersonId: customer.personId,
-      createdById: customer.personId,
-    });
+    const { relationship } = await ensureCustomerRelationship(
+      tx,
+      customer.organizationId !== undefined
+        ? {
+            supplierOrganizationId: input.supplier_organization_id,
+            customerOrganizationId: customer.organizationId,
+            createdById: customer.personId,
+          }
+        : {
+            supplierOrganizationId: input.supplier_organization_id,
+            customerPersonId: customer.personId,
+            createdById: customer.personId,
+          }
+    );
     if (relationship.status !== 'ACTIVE') {
       throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'Relationship is not active');
     }
@@ -132,4 +135,50 @@ export function placeOrder(
     order.lines.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
     return projectOrderForCustomer(order);
   });
+}
+
+/**
+ * A customer places an order with a business (CM-11): a PENDING order whose prices, labels,
+ * amounts and total are all computed on the server. Relationship, order, lines and notifications
+ * are one transaction (ASVS v5.0.0-2.3.3); any refusal stores nothing.
+ *
+ * The customer is the caller, never a field of the body (v5.0.0-8.2.2). The relationship is found
+ * or created ACTIVE with credit limit 0; it must be ACTIVE (C-14), as must the supplier
+ * organization. Replays with the same `id` are answered by the `idempotent()` middleware.
+ *
+ * @param customer - The caller, from the session.
+ * @param input - Validated body: ids, optional address, date and note, and 1 to 100 lines.
+ * @throws 404 `NOT_FOUND` (business or product); 409 `ORGANIZATION_NOT_ACTIVE`;
+ * 409 `RELATIONSHIP_NOT_ACTIVE`; 400 `VALIDATION_ERROR` (quantity below the minimum).
+ */
+export function placeOrder(
+  customer: { personId: string },
+  input: PlaceOrderInput
+): Promise<CustomerOrderView> {
+  return placeOrderFor({ personId: customer.personId }, input);
+}
+
+/**
+ * A MANAGER or OWNER orders on behalf of their business (ORD-010): same rules, prices and
+ * notifications as `placeOrder`, but the customer of the relationship is the calling organization,
+ * never the manager's personal relationship. The route has already checked the
+ * `order_from_supplier` rule. The organization comes from the loaded actor (v5.0.0-8.2.2); the
+ * supplier must be another organization and the calling organization must be ACTIVE.
+ *
+ * @param actor - Person and organization from `loadActor`.
+ * @param input - Same validated body as `placeOrder`.
+ * @throws 400 `VALIDATION_ERROR` when the supplier is the calling organization; 409
+ * `ORGANIZATION_NOT_ACTIVE` when the calling organization is not ACTIVE; otherwise the errors of
+ * `placeOrder`.
+ */
+export function placePurchase(
+  actor: { personId: string; organizationId: string },
+  input: PlaceOrderInput
+): Promise<CustomerOrderView> {
+  if (input.supplier_organization_id === actor.organizationId) {
+    return Promise.reject(
+      httpError(400, 'VALIDATION_ERROR', 'An organization cannot order from itself')
+    );
+  }
+  return placeOrderFor({ personId: actor.personId, organizationId: actor.organizationId }, input);
 }

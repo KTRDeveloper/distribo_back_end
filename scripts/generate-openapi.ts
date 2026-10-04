@@ -15,6 +15,7 @@ import '../src/modules/notification/notification.openapi.js';
 import '../src/modules/organization/organization.openapi.js';
 import '../src/modules/relationship/relationship.openapi.js';
 import '../src/modules/catalog/catalog.openapi.js';
+import '../src/modules/order/order.openapi.js';
 import '../src/modules/remote-config/remote-config.openapi.js';
 import '../src/modules/sync/sync.openapi.js';
 import '../src/modules/privacy/privacy.openapi.js';

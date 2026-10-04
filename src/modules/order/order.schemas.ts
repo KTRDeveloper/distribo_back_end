@@ -62,3 +62,6 @@ export const placeOrderSchema = z
   });
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;
+
+/** Body of the organization purchase (ORD-010): the same strict body as a person's order. */
+export const placePurchaseSchema = placeOrderSchema;
