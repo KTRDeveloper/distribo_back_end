@@ -1,14 +1,15 @@
 import { redis } from './redis.js';
 
 /**
- * Minimal Redis-backed fixed-window rate limiter. Only relies on GET/SET
- * (with TTL) so it works against any ioredis-compatible client, including
- * lightweight test doubles that don't implement INCR/pipelines.
+ * Minimal Redis-backed rate limiter. A client with `eval` (ioredis) consumes in
+ * one atomic Lua script; a client with only GET/SET (lightweight test doubles
+ * that don't implement scripts) falls back to a read-then-write that is not atomic.
  */
 export interface RateLimitClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, mode: 'EX', ttlSeconds: number): Promise<unknown>;
   del?(key: string): Promise<unknown>;
+  eval?(script: string, numKeys: number, ...args: Array<string | number>): Promise<unknown>;
 }
 
 export interface RateLimitResult {
@@ -17,9 +18,21 @@ export interface RateLimitResult {
 }
 
 /**
+ * Refuse without touching the key once `limit` is reached; otherwise count one
+ * and restart the window. Returns `{allowed, count}`.
+ */
+const CONSUME_SCRIPT = `
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+if current >= tonumber(ARGV[1]) then return {0, current} end
+local count = redis.call('INCR', KEYS[1])
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+return {1, count}
+`;
+
+/**
  * Check whether `key` is still within `limit` for the current window, and
- * consume one unit if so. Not perfectly atomic (read-then-write), which is
- * an acceptable tradeoff for OTP request/verify throttling at this scale.
+ * consume one unit if so. Atomic when the client supports `eval`, so parallel
+ * callers cannot all pass the same stale count.
  */
 export async function checkAndConsume(
   key: string,
@@ -27,6 +40,16 @@ export async function checkAndConsume(
   windowSeconds: number,
   client: RateLimitClient = redis
 ): Promise<RateLimitResult> {
+  if (client.eval) {
+    const reply = await client.eval(CONSUME_SCRIPT, 1, key, limit, windowSeconds);
+    if (!Array.isArray(reply) || reply.length !== 2) {
+      throw new Error('Unexpected rate-limit script reply');
+    }
+    const [allowed, count] = reply as [number, number];
+    return allowed === 1
+      ? { allowed: true, remaining: limit - count }
+      : { allowed: false, remaining: 0 };
+  }
   const current = await client.get(key);
   const count = current ? parseInt(current, 10) : 0;
 

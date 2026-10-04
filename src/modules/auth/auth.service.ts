@@ -3,7 +3,7 @@ import { httpError } from '../../lib/http-error.js';
 import { normalizeE164 } from '../../shared/phone.js';
 import { findByActivePhone, findByVerifiedEmail } from '../person/person.repository.js';
 import { hashPassword, validatePasswordRules, verifyPassword } from '../../lib/password.js';
-import { checkAndConsume, getCount, resetKey } from '../../lib/rate-limit.js';
+import { checkAndConsume, resetKey } from '../../lib/rate-limit.js';
 import { config } from '../../config/index.js';
 import { logger } from '../../lib/logger.js';
 import { enqueueOtpDelivery } from '../../lib/otp-delivery-queue.js';
@@ -222,6 +222,21 @@ function getDummyHash(): Promise<string> {
 }
 
 /**
+ * Take one attempt from `key` before the password is checked, so parallel requests
+ * cannot all pass a stale count (v5.0.0-6.3.1). The counter is atomic in Redis; the
+ * caller resets the key on success.
+ *
+ * @throws 429 LOGIN_LOCKED once MAX_LOGIN_FAILURES attempts are taken
+ */
+async function takeAttempt(key: string, event: string, personId?: string): Promise<void> {
+  const slot = await checkAndConsume(key, MAX_LOGIN_FAILURES, config.auth.loginLockMinutes * 60);
+  if (!slot.allowed) {
+    logger.warn({ event, ...(personId ? { personId } : {}) }, 'Attempts locked');
+    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
+  }
+}
+
+/**
  * First login step (CM-05, C-33): check number and password, then send a LOGIN code;
  * the password alone never opens a session (v5.0.0-6.3.3). Five failures per number
  * lock it for `loginLockMinutes` (v5.0.0-6.3.1). Every failing credential case does the
@@ -239,16 +254,12 @@ export async function requestLogin(
   const phone = normalizeE164(input.phone_number ?? '');
   if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
   const key = `login:fail:${phone}`;
-  if ((await getCount(key)) >= MAX_LOGIN_FAILURES) {
-    logger.warn({ event: 'login_locked' }, 'Login locked');
-    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
-  }
+  await takeAttempt(key, 'login_locked');
 
   const holder = await findByActivePhone(phone);
   const hash = holder?.registeredAt && holder.passwordHash ? holder.passwordHash : null;
   const ok = await verifyPassword(hash ?? (await getDummyHash()), input.password);
   if (!ok || hash === null || !holder) {
-    await checkAndConsume(key, Number.MAX_SAFE_INTEGER, config.auth.loginLockMinutes * 60);
     logger.warn(
       { event: 'login_failed', ...(holder ? { personId: holder.id } : {}) },
       'Login failed'
@@ -290,16 +301,12 @@ async function requestLoginByEmail(
 ): Promise<{ sent: true; channel: 'EMAIL'; expires_in: number }> {
   const email = rawEmail.trim().toLowerCase();
   const key = `login:fail:email:${email}`;
-  if ((await getCount(key)) >= MAX_LOGIN_FAILURES) {
-    logger.warn({ event: 'login_locked' }, 'Login locked');
-    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
-  }
+  await takeAttempt(key, 'login_locked');
   const found = await findByVerifiedEmail(email);
   const holder = found && found.phoneNumber === null ? found : null;
   const hash = holder?.registeredAt && holder.passwordHash ? holder.passwordHash : null;
   const ok = await verifyPassword(hash ?? (await getDummyHash()), password);
   if (!ok || hash === null || !holder) {
-    await checkAndConsume(key, Number.MAX_SAFE_INTEGER, config.auth.loginLockMinutes * 60);
     logger.warn(
       { event: 'login_failed', ...(found ? { personId: found.id } : {}) },
       'Login failed'
@@ -560,10 +567,12 @@ export async function confirmPasswordReset(input: PasswordResetConfirmInput): Pr
   if (!target || (viaEmail && !holder.emailVerifiedAt)) throw invalid();
   const r = await verifyCode({ target, purpose: 'PASSWORD_RESET', code: input.code });
   if (r.personId !== holder.id) throw invalid();
-  if (!(await updatePasswordHash(holder.id, await hashPassword(input.new_password)))) {
-    throw invalid();
-  }
-  await revokeSessions(holder.id, 'PASSWORD_RESET');
+  const newHash = await hashPassword(input.new_password);
+  // One transaction: a failed revocation must not leave the new password with sessions live.
+  await inTransaction(async (tx) => {
+    if (!(await updatePasswordHash(holder.id, newHash, tx))) throw invalid();
+    await revokeSessions(holder.id, 'PASSWORD_RESET', { tx });
+  });
   await resetKey(`login:fail:${phone}`);
   logger.info({ event: 'password_reset', personId: holder.id }, 'Password reset');
 }
@@ -581,14 +590,10 @@ export async function changePassword(
   input: { current_password: string; new_password: string }
 ): Promise<void> {
   const key = `pwchange:${personId}`;
-  if ((await getCount(key)) >= MAX_LOGIN_FAILURES) {
-    logger.warn({ event: 'password_change_locked', personId }, 'Password change locked');
-    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
-  }
+  await takeAttempt(key, 'password_change_locked', personId);
   const hash = await findPasswordHash(personId);
   const ok = await verifyPassword(hash ?? (await getDummyHash()), input.current_password);
   if (!ok || hash === null) {
-    await checkAndConsume(key, Number.MAX_SAFE_INTEGER, config.auth.loginLockMinutes * 60);
     logger.warn({ event: 'password_change_failed', personId }, 'Password change failed');
     throw httpError(401, 'INVALID_CREDENTIALS', 'Invalid credentials');
   }
