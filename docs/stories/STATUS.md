@@ -102,7 +102,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-006 | done | | Counter created in the org transaction; 1519 tests pass |
 | REL-007 | done | | POST /organizations/:id/customers; 23 story tests, full suite 1542 pass |
 | REL-008 | done | | GET customers list with filters, keyset paging, supplier view |
-| REL-009 | todo | | |
+| REL-009 | done | | GET customer by id; 8 tests, full suite 1569 green |
 | REL-010 | todo | | |
 | REL-011 | todo | | |
 | REL-012 | todo | | |

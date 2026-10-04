@@ -171,3 +171,31 @@ export async function listSupplierRelationships(
         : null,
   };
 }
+
+/**
+ * Finds one relationship of the organization as supplier by id, through the visibility predicate
+ * (v5.0.0-8.2.2): id and visibility are matched in the same query, so another business's row is
+ * indistinguishable from an absent one. Deleted and merged rows never match.
+ *
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param id - Relationship id from the path.
+ * @returns The row with the customer parties loaded, or null.
+ */
+export function findSupplierRelationship(
+  viewer: { personId: string; organizationId: string },
+  id: string
+) {
+  return prisma.customerRelationship.findFirst({
+    where: {
+      AND: [
+        visibleRelationsWhere({
+          personId: viewer.personId,
+          organizationIds: [viewer.organizationId],
+        }),
+        { supplierOrganizationId: viewer.organizationId },
+        { id },
+      ],
+    },
+    include: { customerPerson: true, customerOrganization: true },
+  });
+}

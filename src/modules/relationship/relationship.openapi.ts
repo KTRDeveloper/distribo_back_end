@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
-import { addCustomerSchema, listCustomersQuerySchema } from './relationship.schemas.js';
+import {
+  addCustomerSchema,
+  customerParamsSchema,
+  listCustomersQuerySchema,
+} from './relationship.schemas.js';
 
 const organizationParamsSchema = z.object({ organizationId: uuidV7Schema });
 
@@ -87,5 +91,27 @@ openApiRegistry.registerPath({
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'A DRIVER cannot list customers', content: errorContent },
     404: { description: 'Not found or not a member', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}',
+  tags: ['relationship'],
+  summary: 'Open one customer of the organization, supplier view (SELLER and above)',
+  security: [{ bearerAuth: [] }],
+  request: { params: organizationParamsSchema.merge(customerParamsSchema) },
+  responses: {
+    200: {
+      description: 'The supplier-side relationship view',
+      content: { 'application/json': { schema: supplierRelationshipViewSchema } },
+    },
+    400: { description: 'Malformed relationship id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'A DRIVER cannot open customers', content: errorContent },
+    404: {
+      description: 'Not found, deleted, of another business, or not a member',
+      content: errorContent,
+    },
   },
 });

@@ -35,3 +35,9 @@ export const listCustomersQuerySchema = paginationQuerySchema
   .strict();
 
 export type ListCustomersQuery = z.infer<typeof listCustomersQuerySchema>;
+
+/**
+ * Path of one customer: the relationship id must be a UUIDv7, else 400. Not strict because the
+ * merged route params also carry `organizationId`, which `loadActor` already validated.
+ */
+export const customerParamsSchema = z.object({ relationshipId: uuidV7Schema });

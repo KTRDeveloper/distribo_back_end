@@ -3,8 +3,12 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
-import { addCustomerSchema, listCustomersQuerySchema } from './relationship.schemas.js';
-import { addCustomer, listCustomers } from './relationship.service.js';
+import {
+  addCustomerSchema,
+  customerParamsSchema,
+  listCustomersQuerySchema,
+} from './relationship.schemas.js';
+import { addCustomer, getCustomer, listCustomers } from './relationship.service.js';
 import './relationship.openapi.js';
 
 /** Relationship routes of one organization, mounted at `/organizations/:organizationId`. */
@@ -40,3 +44,17 @@ relationshipRoutes.get('/customers', authMiddleware, loadActor, (req, res, next)
     .then((page) => res.json(page))
     .catch(next);
 });
+
+// GET /api/v1/organizations/:organizationId/customers/:relationshipId - SELLER and above open one
+// customer (supplier view); the service answers 403 for a DRIVER and 404 outside the organization
+relationshipRoutes.get(
+  '/customers/:relationshipId',
+  authMiddleware,
+  loadActor,
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() => getCustomer(req.actor!, customerParamsSchema.parse(req.params).relationshipId))
+      .then((customer) => res.json(customer))
+      .catch(next);
+  }
+);

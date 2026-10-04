@@ -9,6 +9,7 @@ import { atLeast } from '../../shared/access/roles.js';
 import type { AddCustomerInput, ListCustomersQuery } from './relationship.schemas.js';
 import {
   ensureCustomerRelationship,
+  findSupplierRelationship,
   findWithParties,
   listSupplierRelationships,
 } from './relationship.repository.js';
@@ -68,6 +69,21 @@ export function addCustomer(
   });
 }
 
+/** Refuses a role below SELLER with a logged 403 (deny by default, v5.0.0-8.2.1). */
+function assertSellerOrAbove(actor: Actor, action: string): void {
+  if (atLeast(actor.role, 'SELLER')) return;
+  logger.warn(
+    {
+      event: 'permission_refused',
+      personId: actor.personId,
+      action,
+      subjectType: 'CustomerRelationship',
+    },
+    'Permission refused'
+  );
+  throw httpError(403, 'FORBIDDEN', 'Permission denied');
+}
+
 /**
  * A SELLER or above lists the organization's customers and counters, newest first.
  *
@@ -84,19 +100,31 @@ export async function listCustomers(
   actor: Actor,
   query: ListCustomersQuery
 ): Promise<{ items: SupplierRelationshipView[]; next_cursor: string | null }> {
-  if (!atLeast(actor.role, 'SELLER')) {
-    logger.warn(
-      {
-        event: 'permission_refused',
-        personId: actor.personId,
-        action: 'list',
-        subjectType: 'CustomerRelationship',
-      },
-      'Permission refused'
-    );
-    throw httpError(403, 'FORBIDDEN', 'Permission denied');
-  }
+  assertSellerOrAbove(actor, 'list');
 
   const { rows, nextCursor } = await listSupplierRelationships(actor, query);
   return { items: rows.map(projectForSupplier), next_cursor: nextCursor };
+}
+
+/**
+ * A SELLER or above opens one customer of the actor's organization (supplier view).
+ *
+ * The row is selected by id and the visibility predicate together, narrowed to the actor's
+ * organization as supplier (v5.0.0-8.2.2): an id of another business, a deleted or a merged
+ * relationship answers 404 and never confirms the id exists. The projection omits
+ * `supplier_label` (CM-19, v5.0.0-15.3.1).
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @throws 403 `FORBIDDEN` for a DRIVER; 404 `NOT_FOUND` when no visible relationship matches.
+ */
+export async function getCustomer(
+  actor: Actor,
+  relationshipId: string
+): Promise<SupplierRelationshipView> {
+  assertSellerOrAbove(actor, 'read');
+
+  const row = await findSupplierRelationship(actor, relationshipId);
+  if (!row) throw httpError(404, 'NOT_FOUND', 'Customer not found');
+  return projectForSupplier(row);
 }

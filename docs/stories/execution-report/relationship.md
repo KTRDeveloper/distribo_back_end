@@ -389,6 +389,34 @@ Also in this run: admin, catalog, order, finance, delivery.
 - per-001 route list only covers auth paths, so nothing to add there.
 <!-- end REL-008 -->
 
+<!-- begin REL-009 -->
+## REL-009 — Seller opens one customer
+
+- Filed: 2026-10-04 14:05 UTC
+- Status: **done**: GET customer by id; 8 tests, full suite 1569 green
+- Risk: medium · story: [REL-009-seller-opens-one-customer.md](../modules/relationship/REL-009-seller-opens-one-customer.md)
+- Agent: 36,232 tokens, 12 tool uses, 3 min 11 s
+
+### Agent report
+
+**Summary:** Added GET /organizations/{organizationId}/customers/{relationshipId} (SELLER+, supplier view), 404 outside the supplier org, 400 on a non-UUIDv7 id, 403 for a DRIVER.
+
+**Decisions:**
+- Role check: extracted `assertSellerOrAbove` in the service, shared by listCustomers and getCustomer (same logged 403); behavior of list unchanged.
+- Lookup: `findSupplierRelationship` selects by id, visibility predicate and supplier org in one query, so another business's id gives 404.
+- Param schema is not strict: merged route params carry organizationId, already validated by loadActor.
+
+**Tests added beyond the story:**
+- `get-customer.test.ts` › unknown id answers 404: absent id indistinguishable from foreign (AC-2); passed at once after the route existed
+- `get-customer.test.ts` › OWNER can open: role above SELLER allowed (story: SELLER and above)
+- `get-customer.test.ts` › relationship of B where A is the customer, read under A's path, 404: A must read only as supplier (AB-1, CM-19)
+
+**Other additions:**
+- Path added to `tests/integration/api-docs/catalog.test.ts` (convention); per-001 has no organization routes listed, so unchanged.
+
+**Evidence:** story tests 8/8; full suite 1569/1569, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing)
+<!-- end REL-009 -->
+
 <!-- begin REL-014 -->
 ## REL-014 — Reassignment journal table
 

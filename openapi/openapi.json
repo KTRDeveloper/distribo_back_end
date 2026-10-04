@@ -7230,6 +7230,239 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/customers/{relationshipId}": {
+      "get": {
+        "tags": [
+          "relationship"
+        ],
+        "summary": "Open one customer of the organization, supplier view (SELLER and above)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "relationshipId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The supplier-side relationship view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "ACTIVE",
+                        "ENDED"
+                      ]
+                    },
+                    "customer": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "PERSON"
+                              ]
+                            },
+                            "person": {
+                              "type": "object",
+                              "properties": {
+                                "public_name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "phone_number": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "registered": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "public_name",
+                                "phone_number",
+                                "registered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "person"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "ORGANIZATION"
+                              ]
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "name"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "customer_label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "supplier_notes": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "delivery_address": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "credit_limit": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "credit_limit_set_by_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "credit_limit_set_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "balance": {
+                      "type": "integer"
+                    },
+                    "ended_by_party": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "SUPPLIER",
+                        "CUSTOMER"
+                      ]
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "customer",
+                    "customer_label",
+                    "supplier_notes",
+                    "delivery_address",
+                    "credit_limit",
+                    "credit_limit_set_by_id",
+                    "credit_limit_set_at",
+                    "balance",
+                    "ended_by_party",
+                    "created_at"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed relationship id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A DRIVER cannot open customers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, deleted, of another business, or not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/remote-config": {
       "post": {
         "tags": [
