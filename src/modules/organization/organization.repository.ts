@@ -552,6 +552,20 @@ export async function insertSubscription(
   }
 }
 
+/**
+ * Ends the organization's ACTIVE subscription: status EXPIRED and `ends_at` = `now`. The row is
+ * kept as history. One conditional update, so two concurrent ends cannot both succeed.
+ *
+ * @returns true when a row was ended, false when none was ACTIVE.
+ */
+export async function endActiveSubscription(organizationId: string, now: Date): Promise<boolean> {
+  const result = await prisma.subscription.updateMany({
+    where: { organizationId, status: 'ACTIVE' },
+    data: { status: 'EXPIRED', endsAt: now },
+  });
+  return result.count > 0;
+}
+
 /** Reads the organization's ACTIVE subscription, or null. */
 export async function findActiveSubscription(organizationId: string): Promise<Subscription | null> {
   return prisma.subscription.findFirst({ where: { organizationId, status: 'ACTIVE' } });

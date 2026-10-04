@@ -268,6 +268,25 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/organizations/{organizationId}/subscription',
+  tags: ['organization'],
+  summary: 'The owner ends the ACTIVE subscription',
+  security: [{ bearerAuth: [] }],
+  request: { params: organizationIdParamsSchema },
+  responses: {
+    204: { description: 'Ended (EXPIRED, ends_at now); no body' },
+    400: { description: 'Malformed id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: {
+      description: 'No ACTIVE subscription, not found or not a member',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/collaborations',
   tags: ['organization'],

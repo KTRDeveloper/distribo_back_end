@@ -20,6 +20,7 @@ import {
   createOrganization,
   declineInvitation,
   getOrganizationDetails,
+  endSubscription,
   getSubscription,
   inviteCollaborator,
   listMyInvitations,
@@ -161,6 +162,19 @@ organizationRoutes.get('/:organizationId/subscription', loadActor, (req, res, ne
     .then((view) => res.json(view))
     .catch(next);
 });
+
+// DELETE /api/v1/organizations/:organizationId/subscription - the owner ends the ACTIVE one; the
+// body is never read
+organizationRoutes.delete(
+  '/:organizationId/subscription',
+  loadActor,
+  requireAbility('manage', 'Subscription'),
+  (req, res, next) => {
+    endSubscription(req.actor!)
+      .then(() => res.status(204).end())
+      .catch(next);
+  }
+);
 
 /** Invitation routes, mounted at `/collaborations`; the caller is always the invited person. */
 export const collaborationRoutes = Router();

@@ -11,6 +11,7 @@ import {
 } from '../person/person.repository.js';
 import {
   activateInvitation,
+  endActiveSubscription,
   expireLapsedSubscriptions,
   findActiveSubscription,
   findActiveOwnerId,
@@ -448,6 +449,21 @@ export async function startSubscription(
     });
   });
   return toSubscriptionView(row);
+}
+
+/**
+ * Ends the organization's ACTIVE subscription so it falls back to the free plan. The row becomes
+ * EXPIRED with `ends_at` = now and stays as history.
+ *
+ * The organization comes from the loaded actor (ASVS v5.0.0-8.2.1); the owner check is done by the
+ * route's `manage Subscription` guard.
+ *
+ * @param actor - Owner loaded from the path.
+ * @throws 404 `NOT_FOUND` when no ACTIVE subscription exists.
+ */
+export async function endSubscription(actor: Actor): Promise<void> {
+  const ended = await endActiveSubscription(actor.organizationId, new Date());
+  if (!ended) throw httpError(404, 'NOT_FOUND', 'Not found');
 }
 
 /**
