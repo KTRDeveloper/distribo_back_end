@@ -165,3 +165,33 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Follow-ups:**
 - I edited the migration after a first run, so I dropped the trigger and re-applied the migration on the test DB by hand (docker exec); other local DBs that applied the first version need the same.
 <!-- end ORD-003 -->
+
+<!-- begin ORD-004 -->
+## ORD-004 — Order lines table
+
+- Filed: 2026-10-04 16:28 UTC
+- Status: **done**: order_lines table with CHECKs and triggers; 25 tests pass
+- Risk: high · story: [ORD-004-order-lines-table.md](../modules/order/ORD-004-order-lines-table.md)
+- Agent: 46,480 tokens, 14 tool uses, 3 min 52 s
+
+### Agent report
+
+**Summary:** Created `order_lines` (migration 20261004300000_ord_004_order_lines, Prisma model with plain-language rules comment) with the amount, quantity and price-gap CHECKs and the two triggers.
+
+**Decisions:**
+- "customer orders" test row: the story lists no database rule tying lines to the order's placed_by_party, so the test checks that on a CUSTOMER order an equal price is accepted and any gap without author is refused (23514); "never raised afterward" is left to ORD-005 (noted in the schema comment).
+- Foreign keys use ON DELETE RESTRICT, like the sibling tables; price_set_by_id stays RESTRICT (SET NULL would break the gap-author CHECK).
+- Gap/author CHECK also forces price_set_by_id and price_set_at to be both set or both empty, which is the "set if and only if" reading of C-20.
+
+**Tests added beyond the story:**
+- `order-line-table.test.ts` › rejects an amount that no longer matches after an update: an UPDATE of quantity alone is refused (C-20); passed at once (CHECK covers updates)
+- `order-line-table.test.ts` › rejects a guest as the price author with 23514: C-04 deferred registered-person guard; passed at once once the trigger existed
+- `order-line-table.test.ts` › negative prices, negative delivered_quantity, author without time or time without author, author on equal price: the story's CHECKs; passed at once
+- `order-line-table.test.ts` › rejects an unknown price author with 23503: AC-4 FK on price_set_by_id
+
+**Evidence:** story tests 25/25; full suite 2073/2073, failing: none; typecheck clean; lint 0 errors, 59 warnings (pre-existing)
+
+**Follow-ups:**
+- `prisma migrate diff` lists FK on-delete noise for order_lines (as for other tables with the same RESTRICT pattern); not a new drift class.
+- Rule "customer-placed order price never raised afterward" is not in the database; ORD-005 must enforce it.
+<!-- end ORD-004 -->

@@ -315,9 +315,10 @@ model Person {
 
   customerPricesSet CustomerPrice[] @relation("CustomerPriceSetBy")
 
-  ordersEntered   Order[] @relation("OrderEnteredBy")
-  ordersDelivered Order[] @relation("OrderDeliveredBy")
-  ordersCancelled Order[] @relation("OrderCancelledBy")
+  ordersEntered    Order[]     @relation("OrderEnteredBy")
+  ordersDelivered  Order[]     @relation("OrderDeliveredBy")
+  ordersCancelled  Order[]     @relation("OrderCancelledBy")
+  orderLinesPriced OrderLine[] @relation("OrderLinePriceSetBy")
 
   deliveriesAssigned Delivery[] @relation("DeliveryAssignedTo")
 
@@ -851,6 +852,7 @@ model Product {
 
   organization   Organization    @relation(fields: [organizationId], references: [id])
   customerPrices CustomerPrice[]
+  orderLines     OrderLine[]
 
   @@index([organizationId])
   @@map("products")
@@ -958,11 +960,55 @@ model Order {
   childOrders          Order[]              @relation("OrderParent")
   ledgerEntries        LedgerEntry[]
   deliveries           Delivery[]
+  lines                OrderLine[]
 
   @@index([customerRelationshipId])
   @@index([status])
   @@index([deliveredById, deliveredAt])
   @@map("orders")
+}
+
+// Rules the database enforces on order lines, beyond what this model declares.
+// All come from migration 20261004300000_ord_004_order_lines.
+// - The quantity must be greater than zero. The delivered quantity, when given,
+//   is between zero and the quantity.
+// - The reference price and the applied price are never negative.
+// - The amount is worked out as quantity times applied price in whole francs,
+//   half a franc rounded up. When a delivered quantity exists it replaces the
+//   ordered quantity in that calculation. The database refuses any other amount
+//   (SQLSTATE 23514), so code must compute it (lineAmount) and also send a new
+//   amount whenever it changes a quantity or a price.
+// - price_set_by_id and price_set_at are both filled exactly when the applied
+//   price differs from the reference price, and both empty otherwise. A price
+//   change without its author, or an author without a price change, is refused.
+// - The person who set the price must be a registered person, never a guest.
+//   This is checked when the transaction is saved, not row by row.
+// - server_updated_at is set by the database on every change.
+// That the applied price of a customer-placed order is never raised after it
+// was sent is not checked here; the order routes (ORD-005) enforce it.
+// These are CHECK constraints and triggers, which Prisma cannot express.
+model OrderLine {
+  id                String    @id @db.Uuid
+  orderId           String    @map("order_id") @db.Uuid
+  productId         String    @map("product_id") @db.Uuid
+  labelApplied      String    @map("label_applied")
+  quantity          Decimal   @db.Decimal(12, 3)
+  deliveredQuantity Decimal?  @map("delivered_quantity") @db.Decimal(12, 3)
+  referencePrice    BigInt    @map("reference_price")
+  unitPriceApplied  BigInt    @map("unit_price_applied")
+  amount            BigInt
+  priceSetById      String?   @map("price_set_by_id") @db.Uuid
+  priceSetAt        DateTime? @map("price_set_at") @db.Timestamptz
+  serverUpdatedAt   DateTime  @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+
+  order      Order   @relation(fields: [orderId], references: [id])
+  product    Product @relation(fields: [productId], references: [id])
+  priceSetBy Person? @relation("OrderLinePriceSetBy", fields: [priceSetById], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_lines")
 }
 
 // Rules the database enforces on the ledger, beyond what this model declares.

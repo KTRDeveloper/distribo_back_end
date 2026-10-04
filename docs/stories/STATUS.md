@@ -133,7 +133,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-001 | done | | orders table, enums, FKs, indexes, triggers; 16 tests |
 | ORD-002 | done | | CHECKs and status trigger on orders; 1510 tests pass |
 | ORD-003 | done | | BEFORE INSERT trigger orders_creation_guard; 2048/2048 pass |
-| ORD-004 | todo | | |
+| ORD-004 | done | | order_lines table with CHECKs and triggers; 25 tests pass |
 | ORD-005 | todo | | |
 | ORD-006 | todo | | |
 | ORD-007 | todo | | |
