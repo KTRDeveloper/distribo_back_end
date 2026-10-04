@@ -88,3 +88,73 @@ export async function listLedgerPage(
     { isolationLevel: 'RepeatableRead' }
   );
 }
+
+/** One cached total that differs from the sum of its entries; amounts are decimal strings of integer XAF. */
+export type ReconcileRow = { id: string; expected: string; actual: string };
+
+/**
+ * Reads, in one repeatable-read transaction (ASVS v5.0.0-2.3.3), every live relationship whose
+ * `balance` differs from the sum of its entries' `balance_effect`, and every live collaboration
+ * whose `amount_held` differs from the sum of the money it should hold (CM-17, C-37). Both reads
+ * see the same snapshot, so a payment committing in between cannot make a clean cache look wrong.
+ *
+ * Held money of a collaboration, in the supplier organization of each entry's relationship:
+ * PAYMENT +amount and REFUND -amount for the person who recorded the entry, a reversal counting the
+ * other way for the person the original entry counted for; minus live expenses as payer; minus live
+ * handovers as remitter; plus live handovers as receiver, unless remitter and receiver are the same
+ * person (the former owner's automatic handover), which only subtracts.
+ */
+export function findCacheMismatches(): Promise<{
+  balances: ReconcileRow[];
+  held: ReconcileRow[];
+}> {
+  return prisma.$transaction(
+    async (tx) => {
+      const balances = await tx.$queryRaw<ReconcileRow[]>`
+        SELECT cr.id::text AS id,
+               COALESCE(SUM(le.balance_effect), 0)::text AS expected,
+               cr.balance::text AS actual
+        FROM customer_relationships cr
+        LEFT JOIN ledger_entries le ON le.customer_relationship_id = cr.id
+        WHERE cr.deleted_at IS NULL
+        GROUP BY cr.id, cr.balance
+        HAVING cr.balance <> COALESCE(SUM(le.balance_effect), 0)
+        ORDER BY cr.id
+      `;
+      const held = await tx.$queryRaw<ReconcileRow[]>`
+        WITH moves AS (
+          SELECT COALESCE(orig.recorded_by_id, le.recorded_by_id) AS person_id,
+                 cr.supplier_organization_id AS organization_id,
+                 CASE WHEN le.kind = 'PAYMENT' THEN le.amount ELSE -le.amount END
+                   * CASE WHEN le.reverses_entry_id IS NULL THEN 1 ELSE -1 END AS delta
+          FROM ledger_entries le
+          JOIN customer_relationships cr ON cr.id = le.customer_relationship_id
+          LEFT JOIN ledger_entries orig ON orig.id = le.reverses_entry_id
+          WHERE le.kind IN ('PAYMENT', 'REFUND') AND cr.supplier_organization_id IS NOT NULL
+          UNION ALL
+          SELECT paid_by_id, organization_id, -amount
+          FROM expenses WHERE cancelled_at IS NULL
+          UNION ALL
+          SELECT from_person_id, organization_id, -amount
+          FROM handovers WHERE cancelled_at IS NULL
+          UNION ALL
+          SELECT to_person_id, organization_id, amount
+          FROM handovers WHERE cancelled_at IS NULL AND to_person_id <> from_person_id
+        ),
+        totals AS (
+          SELECT person_id, organization_id, SUM(delta) AS expected
+          FROM moves GROUP BY person_id, organization_id
+        )
+        SELECT c.id::text AS id,
+               COALESCE(t.expected, 0)::text AS expected,
+               c.amount_held::text AS actual
+        FROM collaborations c
+        LEFT JOIN totals t ON t.person_id = c.person_id AND t.organization_id = c.organization_id
+        WHERE c.deleted_at IS NULL AND c.amount_held <> COALESCE(t.expected, 0)
+        ORDER BY c.id
+      `;
+      return { balances, held };
+    },
+    { isolationLevel: 'RepeatableRead' }
+  );
+}

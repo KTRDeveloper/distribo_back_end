@@ -168,7 +168,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-015 | done | | POST handovers + recordHandoverInTx; 14 story tests, full suite green |
 | FIN-016 | done | | Cancel and dispute handover routes; full suite 2672 pass |
 | FIN-017 | done | | Former owner's held money handed over in the transfer transaction; sync pull tests flaky on timing, unrelated |
-| FIN-018 | todo | | |
+| FIN-018 | done | | reconcile service + job:reconcile script, 7 tests pass, full suite 2686/2686 |
 | FIN-019 | todo | | |
 | FIN-020 | todo | | |
 | DLV-001 | done | | deliveries table, triggers and tests green |

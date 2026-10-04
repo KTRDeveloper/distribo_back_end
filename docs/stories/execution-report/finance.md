@@ -632,3 +632,36 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - finance `contracts.md` does not list `handOverFormerOwnerMoneyInTx`, which organization.service now imports; a human should add it (stories folder is read-only for me).
 - sync pull tests are flaky on timestamps and should be looked at separately.
 <!-- end FIN-017 -->
+
+<!-- begin FIN-018 -->
+## FIN-018 — Nightly check of balances and held money
+
+- Filed: 2026-10-04 22:52 UTC
+- Status: **done**: reconcile service + job:reconcile script, 7 tests pass, full suite 2686/2686
+- Risk: medium · story: [FIN-018-nightly-check-of-balances-and-held-money.md](../modules/finance/FIN-018-nightly-check-of-balances-and-held-money.md)
+- Agent: 59,613 tokens, 20 tool uses, 5 min 19 s
+
+### Agent report
+
+**Summary:** Nightly reconcile service, `job:reconcile` script and `reconcile_mismatch_total` counter added; all tests pass.
+
+**Decisions:**
+- SQL lives in `finance.repository.ts` (`findCacheMismatches`, not listed in the story): CONVENTIONS makes the repository the only prisma caller.
+- Reversal entries count for the person the original entry counted for (original's `recorded_by_id`), as `reverseEntry` passes `heldById`; the story's "the person recorded" would misattribute a reversal by another person.
+- Logging and counting sit in the job (`runReconcileJob`), the service only reads; counter label `event`; the log also carries expected, actual and difference (ids and amounts of caches, no names).
+- Balance check covers relationships with `deleted_at IS NULL`; held check covers collaborations with `deleted_at IS NULL` (the only ones `addAmountHeld` updates).
+- Exit codes: 0 clean, 1 mismatch, 2 if the check itself fails (logged `reconcile_failed`), so a broken check is never read as clean.
+
+**Tests added beyond the story:**
+- `tests/integration/finance/reconcile.test.ts` › ignores deleted relationships for the balance check: a deleted relationship is not "live" (story balance-check text); passed at once
+- `tests/integration/finance/reconcile.test.ts` › logs each mismatch at error with a fixed event and ids, and counts it: fixed event names, no names in logs, counter (story logging paragraph, ASVS 16.3.3); passed at once
+
+**Other additions:**
+- `finance.repository.ts` › `findCacheMismatches`: one repeatable-read transaction for both checks (ASVS 2.3.3).
+- Script entry runs only when the file is the process entry, so the test imports `runReconcileJob` without side effects.
+
+**Evidence:** story tests 7/7; full suite 2686/2686, failing: none; typecheck clean; lint 0 errors, 64 warnings (existing security/detect-* warnings)
+
+**Follow-ups:**
+- Scheduling is left to deployment (Q-010); alerting on `reconcile_mismatch_total` is not configured.
+<!-- end FIN-018 -->

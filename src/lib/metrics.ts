@@ -69,6 +69,12 @@ export const otpDailyCapReachedTotal = new client.Counter({
   help: 'Times the global daily OTP sending cap was reached',
 });
 
+export const reconcileMismatchTotal = new client.Counter({
+  name: 'reconcile_mismatch_total',
+  help: 'Cached balances and held amounts that differ from the sum of their entries',
+  labelNames: ['event'],
+});
+
 /**
  * Get metrics in Prometheus format
  */
