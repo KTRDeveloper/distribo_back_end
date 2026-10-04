@@ -102,3 +102,31 @@ Also in this run: relationship, admin, catalog, order, delivery.
 **Follow-ups:**
 - DELETE/TRUNCATE on expenses by distribo_app is not revoked; confirm whether Expense should be append-only at privilege level (not in story or C-27).
 <!-- end FIN-011 -->
+
+<!-- begin FIN-014 -->
+## FIN-014 — Handovers table
+
+- Filed: 2026-10-04 10:41 UTC
+- Status: **done**: handovers table, party-role and cancel-once triggers; 33 tests pass
+- Risk: medium · story: [FIN-014-handovers-table.md](../modules/finance/FIN-014-handovers-table.md)
+- Agent: 41,058 tokens, 16 tool uses, 12 min 52 s
+
+### Agent report
+
+**Summary:** Added the handovers table (migration 20261004250000_fin_014_handovers), Prisma model with rules comment, and the integration test file.
+
+**Decisions:**
+- Receiver check ignores deleted_at: story says only ACTIVE OWNER or MANAGER status; sender check likewise counts any row, as for expenses.
+- Sender/receiver checks live in one BEFORE INSERT trigger that steps aside on NULL or unknown organization so 23502/23503 are reported by the native checks (same pattern as FIN-011).
+
+**Tests added beyond the story:**
+- `handover-table.test.ts` › receiver is a DRIVER / owner of another org / never collaborated: receiver scope per organization (C-27); passed at once with the implementation
+- `handover-table.test.ts` › guest as sender/receiver/canceller rejected: C-04
+- `handover-table.test.ts` › refuses to change amount/sender/receiver/org/occurred_at/deleted_at: never-edit rule (C-27)
+- `handover-table.test.ts` › app account insert to a driver: AB-1 through the application role
+
+**Evidence:** story tests 33/33; full suite 1421/1421, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+
+**Follow-ups:**
+- Tests were written first and failed (33/33) before the migration existed.
+<!-- end FIN-014 -->

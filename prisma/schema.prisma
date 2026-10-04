@@ -325,6 +325,10 @@ model Person {
   expensesRecorded  Expense[] @relation("ExpenseRecordedBy")
   expensesCancelled Expense[] @relation("ExpenseCancelledBy")
 
+  handoversSent      Handover[] @relation("HandoverFrom")
+  handoversReceived  Handover[] @relation("HandoverTo")
+  handoversCancelled Handover[] @relation("HandoverCancelledBy")
+
   administrators Administrator[]
 
   adminActionsAsTarget AdminAction[] @relation("AdminActionTargetPerson")
@@ -389,8 +393,9 @@ model Organization {
   collaborations Collaboration[]
   subscriptions  Subscription[]
 
-  products Product[]
-  expenses Expense[]
+  products  Product[]
+  expenses  Expense[]
+  handovers Handover[]
 
   suppliedRelationships CustomerRelationship[] @relation("RelationshipSupplierOrganization")
   customerRelationships CustomerRelationship[] @relation("RelationshipCustomerOrganization")
@@ -1002,4 +1007,48 @@ model Expense {
   @@index([organizationId, occurredAt(sort: Desc)])
   @@index([paidById])
   @@map("expenses")
+}
+
+// Rules the database enforces on handovers (money passing from one
+// collaborator to another), beyond what this model declares. All come from
+// migration 20261004250000_fin_014_handovers.
+// - The amount is always above zero.
+// - The sender must have a membership in the organization, active or not,
+//   deleted or not (someone who has left can still hand over money).
+// - The receiver must have an ACTIVE membership as OWNER or MANAGER in the
+//   organization. Both are checked on every insert.
+// - Sender and receiver may be the same person: this is the former owner's
+//   automatic handover. The routes refuse it for ordinary handovers; the
+//   database does not.
+// - The sender, receiver and the person who cancelled must be registered
+//   people, never guests. This is checked when the transaction is saved, not
+//   row by row.
+// - cancelled_at and cancelled_by_id are both filled in or both empty.
+// - A handover is never edited. The only change allowed is to cancel it, once,
+//   by filling in cancelled_at and cancelled_by_id together; any other change
+//   (including a second cancellation or removing one) is refused. Code must
+//   never try to correct a handover: cancel it and record a new one.
+// - server_updated_at is set by the database on every change.
+// Routes and who may record or cancel a handover come later (FIN-015, FIN-016).
+model Handover {
+  id              String    @id @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  fromPersonId    String    @map("from_person_id") @db.Uuid
+  toPersonId      String    @map("to_person_id") @db.Uuid
+  amount          BigInt
+  occurredAt      DateTime  @map("occurred_at") @db.Timestamptz
+  cancelledAt     DateTime? @map("cancelled_at") @db.Timestamptz
+  cancelledById   String?   @map("cancelled_by_id") @db.Uuid
+  serverUpdatedAt DateTime  @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  fromPerson   Person       @relation("HandoverFrom", fields: [fromPersonId], references: [id])
+  toPerson     Person       @relation("HandoverTo", fields: [toPersonId], references: [id])
+  cancelledBy  Person?      @relation("HandoverCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([organizationId, occurredAt(sort: Desc)])
+  @@index([fromPersonId])
+  @@index([toPersonId])
+  @@map("handovers")
 }
