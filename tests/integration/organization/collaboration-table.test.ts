@@ -354,6 +354,60 @@ describe('exactly one ACTIVE OWNER', () => {
   });
 });
 
+describe('deleted rows (C-35)', () => {
+  const seedOwnerAndManager = () =>
+    prisma.$transaction(async (tx) => {
+      await insertActiveOwner(tx);
+      await insertCollaboration(tx, {
+        id: MEMBER_COLLAB_ID,
+        personId: MEMBER_ID,
+        role: 'MANAGER',
+        status: 'ACTIVE',
+      });
+    });
+
+  it('accepts a new row for the same person and organization once the earlier one is deleted', async () => {
+    await seedOwnerAndManager();
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`UPDATE collaborations SET deleted_at = now() WHERE id = ${MEMBER_COLLAB_ID}::uuid`;
+      await insertCollaboration(tx, {
+        id: '0199c003-0000-7000-8000-000000000023',
+        personId: MEMBER_ID,
+        role: 'SELLER',
+        status: 'ACTIVE',
+      });
+    });
+    const [{ count }] = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT count(*) AS count FROM collaborations WHERE person_id = ${MEMBER_ID}::uuid
+    `;
+    expect(count).toBe(2n);
+  });
+
+  it('ignores a deleted OWNER row when another collaborator becomes OWNER', async () => {
+    await seedOwnerAndManager();
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`UPDATE collaborations SET deleted_at = now() WHERE id = ${OWNER_COLLAB_ID}::uuid`;
+      await tx.$executeRaw`UPDATE collaborations SET role = 'OWNER' WHERE id = ${MEMBER_COLLAB_ID}::uuid`;
+    });
+    const [row] = await prisma.$queryRaw<Array<{ role: string }>>`
+      SELECT role::text AS role FROM collaborations WHERE id = ${MEMBER_COLLAB_ID}::uuid
+    `;
+    expect(row.role).toBe('OWNER');
+  });
+
+  it('refuses to commit when the only OWNER row is deleted while others remain', async () => {
+    await seedOwnerAndManager();
+    const code = await captureSqlCode(
+      prisma.$executeRaw`UPDATE collaborations SET deleted_at = now() WHERE id = ${OWNER_COLLAB_ID}::uuid`
+    );
+    expect(code).toBeDefined();
+    const [row] = await prisma.$queryRaw<Array<{ deleted_at: Date | null }>>`
+      SELECT deleted_at FROM collaborations WHERE id = ${OWNER_COLLAB_ID}::uuid
+    `;
+    expect(row.deleted_at).toBeNull();
+  });
+});
+
 describe('ownership swap', () => {
   it('commits when one transaction demotes the OWNER and promotes another ACTIVE collaborator', async () => {
     await prisma.$transaction(async (tx) => {

@@ -247,7 +247,6 @@ model Collaboration {
   person       Person       @relation(fields: [personId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
 
-  @@unique([personId, organizationId])
   @@map("collaborations")
 }
 

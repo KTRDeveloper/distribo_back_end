@@ -21,13 +21,15 @@ CREATE TABLE "collaborations" (
         REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
+-- Unique constraints ignore deleted rows (C-35).
 CREATE UNIQUE INDEX "collaborations_person_id_organization_id_key"
-    ON "collaborations"("person_id", "organization_id");
+    ON "collaborations"("person_id", "organization_id")
+    WHERE "deleted_at" IS NULL;
 
 -- At most one ACTIVE OWNER per organization at every statement (C-05, CM-09).
 CREATE UNIQUE INDEX "collaborations_one_active_owner_key"
     ON "collaborations"("organization_id")
-    WHERE "role" = 'OWNER' AND "status" = 'ACTIVE';
+    WHERE "role" = 'OWNER' AND "status" = 'ACTIVE' AND "deleted_at" IS NULL;
 
 CREATE TRIGGER "collaborations_set_server_updated_at"
 BEFORE INSERT OR UPDATE ON "collaborations"
@@ -70,7 +72,8 @@ BEFORE INSERT OR UPDATE ON "collaborations"
 FOR EACH ROW EXECUTE FUNCTION collaborations_check_row();
 
 -- When a transaction ends, an organization with any collaboration has exactly
--- one ACTIVE OWNER (C-05, CM-09). Checked per touched organization.
+-- one ACTIVE OWNER (C-05, CM-09). Checked per touched organization; deleted
+-- rows are ignored (C-35).
 CREATE FUNCTION collaborations_check_one_owner()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -89,10 +92,14 @@ BEGIN
       END
     ) AS t(o)
   LOOP
-    IF EXISTS (SELECT 1 FROM public.collaborations WHERE organization_id = org_id)
+    IF EXISTS (
+        SELECT 1 FROM public.collaborations
+        WHERE organization_id = org_id AND deleted_at IS NULL
+      )
       AND (
         SELECT count(*) FROM public.collaborations
         WHERE organization_id = org_id AND role = 'OWNER' AND status = 'ACTIVE'
+          AND deleted_at IS NULL
       ) <> 1
     THEN
       RAISE EXCEPTION 'an organization with collaborations needs exactly one ACTIVE OWNER'
