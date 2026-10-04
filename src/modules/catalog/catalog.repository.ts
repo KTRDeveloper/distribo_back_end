@@ -60,3 +60,26 @@ export async function getActiveProduct(
   if (!product) throw notFound();
   return product;
 }
+
+/**
+ * Inserts a product of the organization. `price_updated_at` and `created_at` come from the
+ * database defaults, never from the caller (C-13).
+ *
+ * @param tx - Transaction client of the gesture.
+ * @param data - Values already validated by the service.
+ */
+export async function insertProduct(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    organizationId: string;
+    name: string;
+    unit: string;
+    price: bigint;
+    minOrderQuantity: string | null;
+    description: string | null;
+    category: string | null;
+  }
+): Promise<Product> {
+  return tx.product.create({ data });
+}

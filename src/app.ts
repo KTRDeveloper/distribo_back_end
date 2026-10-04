@@ -95,6 +95,7 @@ import {
   supplierInvitationRoutes,
   supplierRoutes,
 } from './modules/relationship/relationship.routes.js';
+import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
@@ -129,6 +130,7 @@ v1Router.use('/people/me/attachments', attachmentsRoutes);
 v1Router.use('/people', personRoutes);
 v1Router.use('/organizations', organizationRoutes);
 v1Router.use('/organizations/:organizationId', relationshipRoutes);
+v1Router.use('/organizations/:organizationId', catalogRoutes);
 v1Router.use('/suppliers', supplierRoutes);
 v1Router.use('/supplier-invitations', supplierInvitationRoutes);
 v1Router.use('/collaborations', collaborationRoutes);

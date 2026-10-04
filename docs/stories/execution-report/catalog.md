@@ -140,3 +140,32 @@ Also in this run: relationship, admin, order, finance, delivery.
 
 **Evidence:** story tests 13/13; full suite 1843/1843, failing: none; typecheck clean; lint 0 errors, 58 warnings (pre-existing)
 <!-- end CAT-003 -->
+
+<!-- begin CAT-004 -->
+## CAT-004 — Manager creates a product
+
+- Filed: 2026-10-04 15:23 UTC
+- Status: **done**: POST /products implemented; 34 story tests, full suite 1877 pass
+- Risk: medium · story: [CAT-004-manager-creates-a-product.md](../modules/catalog/CAT-004-manager-creates-a-product.md)
+- Agent: 55,433 tokens, 16 tool uses, 4 min 4 s
+
+### Agent report
+
+**Summary:** POST /organizations/:organizationId/products implemented (routes, schemas, service, repository insert, app mount); all green.
+
+**Decisions:**
+- Route order: loadActor, requireAbility('create','Product'), strict validation, idempotent(), service; same pattern as organization/relationship routes.
+- `min_order_quantity` returned as a decimal string ("2.5"); the schema transforms input to a canonical string, rejects <= 0, > 3 decimals and above numeric(12,3) max (999999999.999) so the DB never overflows into a 500.
+- `price` must be a safe integer (>= 1); `price` in the view is a JSON number (as credit_limit elsewhere).
+- name, unit and category are trimmed; mounted catalogRoutes at the same `/organizations/:organizationId` prefix as relationshipRoutes.
+- No catalog.test.ts / per-001 additions: OpenAPI registration is out of scope (CAT-006), adding paths would fail.
+
+**Tests added beyond the story:**
+- `create-product.test.ts` › limits rows (name 100, unit 101, category 101, description 2001, price negative/string, min_order_quantity negative/too large/strings): boundaries of Q-027 and C-13; passed once implemented, written first
+- `create-product.test.ts` › AB-2 unknown field and 401 without token: strict schema and deny by default (ASVS 15.3.3, 8.2.1)
+
+**Evidence:** story tests 34/34; full suite 1877/1877, failing: none; typecheck clean; lint 0 errors, 58 warnings (pre-existing, none in catalog)
+
+**Follow-ups:**
+- A product id already used (primary key collision, another person) surfaces as a 500, like the organization create gesture; no story defines a code for it.
+<!-- end CAT-004 -->
