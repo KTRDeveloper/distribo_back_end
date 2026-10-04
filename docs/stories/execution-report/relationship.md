@@ -6,6 +6,17 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 05:36 UTC: `/implement-stories REL-002`
+
+| story | status | commit | note |
+|---|---|---|---|
+| REL-002 Party and pair rules in the database | blocked | 30104ba | Migration done, party-rules tests green; REL-001 test relationship-table.test.ts 'rejects an unknown merged_into_id with 23503 and accepts an existing one' fails (merged_into_id with deleted_at null gives 23514 before the FK check; second insert has no customer or label). Story lists no test to update: may it be updated (add deleted_at and a label)? |
+
+- Stash: `REL-002 blocked: partial changes` (stash@{0}); the test database was reset.
+- The run completed: its one story ran.
+- Unexpected: the agent's hand-back held its whole report before the `REL-002 blocked` line, instead of that line alone; its report file existed and is the one filed.
+- Next: answer REL-002's question (list `relationship-table.test.ts` under the story's "Tests to update", or approve the change), then `git stash pop` and `/implement-stories REL-002`; or `/implement-stories next:N`, which skips REL-002's dependents.
+
 ### Run 2026-10-04 04:48 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
