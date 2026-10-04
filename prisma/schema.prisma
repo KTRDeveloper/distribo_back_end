@@ -253,6 +253,10 @@ model Person {
   createdRelationships    CustomerRelationship[] @relation("RelationshipCreatedBy")
   creditLimitChanges      CreditLimitChange[]
 
+  reassignmentsFrom CustomerRelationshipReassignment[] @relation("ReassignmentPreviousPerson")
+  reassignmentsTo   CustomerRelationshipReassignment[] @relation("ReassignmentNewPerson")
+  reassignmentsMade CustomerRelationshipReassignment[] @relation("ReassignmentAuthor")
+
   @@map("people")
 }
 
@@ -418,15 +422,16 @@ model CustomerRelationship {
   serverUpdatedAt        DateTime           @default(now()) @map("server_updated_at") @db.Timestamptz
   deletedAt              DateTime?          @map("deleted_at") @db.Timestamptz
 
-  supplierOrganization Organization?          @relation("RelationshipSupplierOrganization", fields: [supplierOrganizationId], references: [id])
-  supplierPerson       Person?                @relation("RelationshipSupplierPerson", fields: [supplierPersonId], references: [id])
-  customerPerson       Person?                @relation("RelationshipCustomerPerson", fields: [customerPersonId], references: [id])
-  customerOrganization Organization?          @relation("RelationshipCustomerOrganization", fields: [customerOrganizationId], references: [id])
-  creditLimitSetBy     Person?                @relation("RelationshipCreditLimitSetBy", fields: [creditLimitSetById], references: [id])
-  createdBy            Person                 @relation("RelationshipCreatedBy", fields: [createdById], references: [id])
-  mergedInto           CustomerRelationship?  @relation("RelationshipMergedInto", fields: [mergedIntoId], references: [id])
-  mergedDuplicates     CustomerRelationship[] @relation("RelationshipMergedInto")
+  supplierOrganization Organization?                      @relation("RelationshipSupplierOrganization", fields: [supplierOrganizationId], references: [id])
+  supplierPerson       Person?                            @relation("RelationshipSupplierPerson", fields: [supplierPersonId], references: [id])
+  customerPerson       Person?                            @relation("RelationshipCustomerPerson", fields: [customerPersonId], references: [id])
+  customerOrganization Organization?                      @relation("RelationshipCustomerOrganization", fields: [customerOrganizationId], references: [id])
+  creditLimitSetBy     Person?                            @relation("RelationshipCreditLimitSetBy", fields: [creditLimitSetById], references: [id])
+  createdBy            Person                             @relation("RelationshipCreatedBy", fields: [createdById], references: [id])
+  mergedInto           CustomerRelationship?              @relation("RelationshipMergedInto", fields: [mergedIntoId], references: [id])
+  mergedDuplicates     CustomerRelationship[]             @relation("RelationshipMergedInto")
   creditLimitChanges   CreditLimitChange[]
+  reassignments        CustomerRelationshipReassignment[]
 
   @@index([supplierOrganizationId])
   @@index([supplierPersonId])
@@ -458,6 +463,40 @@ model CreditLimitChange {
 
   @@index([customerRelationshipId])
   @@map("credit_limit_changes")
+}
+
+// Rules the database enforces on the journal of customer changes on a
+// relationship, beyond what this model declares. All come from migration
+// 20261004160000_rel_014_reassignments.
+// - The journal can only grow: the application can add and read entries but
+//   never change, delete or empty them.
+// - The person who made the change must be a registered person, never a guest.
+//   This is checked when the transaction is saved, not row by row.
+// - A contestation is an entry where the person who made the change is the
+//   previous person themselves. A relationship accepts only one contestation
+//   per previous person; corrections by anyone else are not limited. This is a
+//   partial unique index that Prisma cannot express, so code must not rely on a
+//   Prisma unique lookup; catch the unique violation (23505) instead.
+// - server_updated_at is set by the database on every change.
+// The rule that the new person has no relationship with the same supplier is
+// checked by the code that writes entries (REL-023, REL-024), not here.
+model CustomerRelationshipReassignment {
+  id                     String   @id @db.Uuid
+  customerRelationshipId String   @map("customer_relationship_id") @db.Uuid
+  previousPersonId       String   @map("previous_person_id") @db.Uuid
+  newPersonId            String   @map("new_person_id") @db.Uuid
+  reassignedById         String   @map("reassigned_by_id") @db.Uuid
+  reason                 String?  @db.Text
+  reassignedAt           DateTime @default(now()) @map("reassigned_at") @db.Timestamptz
+  serverUpdatedAt        DateTime @default(now()) @map("server_updated_at") @db.Timestamptz
+
+  customerRelationship CustomerRelationship @relation(fields: [customerRelationshipId], references: [id])
+  previousPerson       Person               @relation("ReassignmentPreviousPerson", fields: [previousPersonId], references: [id])
+  newPerson            Person               @relation("ReassignmentNewPerson", fields: [newPersonId], references: [id])
+  reassignedBy         Person               @relation("ReassignmentAuthor", fields: [reassignedById], references: [id])
+
+  @@index([customerRelationshipId])
+  @@map("customer_relationship_reassignments")
 }
 
 // Rules the database enforces on one-time codes, beyond what this model

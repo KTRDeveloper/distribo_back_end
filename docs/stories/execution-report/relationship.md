@@ -238,3 +238,32 @@ Also in this run: admin, catalog, order, finance, delivery.
 - `projectForDriver` falls back to `customer_label` (supplier-private) for counters; confirm that is wanted.
 - relationship `contracts.md` should list these four exports when REL maintainers update it (stories folder not editable by me).
 <!-- end REL-005 -->
+
+<!-- begin REL-014 -->
+## REL-014 — Reassignment journal table
+
+- Filed: 2026-10-04 06:22 UTC
+- Status: **done**: Reassignments journal table, contestation partial unique index, immutable; 12 tests
+- Risk: medium · story: [REL-014-reassignment-journal-table.md](../modules/relationship/REL-014-reassignment-journal-table.md)
+- Agent: 41,031 tokens, 16 tool uses, 6 min 45 s
+
+### Agent report
+
+**Summary:** Added customer_relationship_reassignments (migration + Prisma model), append-only for distribo_app, with the partial unique contestation index.
+
+**Decisions:**
+- Rule "new person has no relationship with the same supplier" (C-12): not enforced in the table; story AC and Out of scope leave it to the writers (REL-023/024). Noted in the schema comment.
+- Index and FK names truncated to Postgres' 63-char form in the migration so `prisma migrate diff` shows no drift.
+- Defined `reason` as TEXT and `reassigned_at` default now(), like set_at in REL-003.
+
+**Tests added beyond the story:**
+- `reassignment-table.test.ts` › accepts an empty reason: reason is nullable (story field list); passed at once
+- `reassignment-table.test.ts` › accepts several corrections / a contestation after a correction / one contestation per relationship and previous person: index is partial and scoped (C-12); passed at once
+- `reassignment-table.test.ts` › rejects missing previous person, author or time with 23502 (AC-4 required list); passed at once
+- TRUNCATE also checked as 42501 (REVOKE covers it, C-39)
+
+**Evidence:** story tests 12/12; full suite 1061/1061, failing: none; typecheck clean; lint 0 errors, 44 warnings (pre-existing)
+
+**Follow-ups:**
+- I edited the migration's constraint names after applying it to the local test DB, then renamed them there with ALTER (prisma migrate reset was refused by the safety guard). A fresh DB was verified from scratch; set-aside/test-DB reset will make it consistent.
+<!-- end REL-014 -->
