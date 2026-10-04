@@ -76,7 +76,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-014 | done | | DELETE subscription: ACTIVE row EXPIRED with ends_at now, 404 if none, owner only; 889 tests pass |
 | ORG-015 | done | | Transfer ownership route; idempotency replay before ability check; 908 tests pass |
 | ORG-016 | done | | POST /organizations/{id}/close in one transaction; 14 tests, full suite 922 pass |
-| ORG-017 | todo | | |
+| ORG-017 | done | | POST reopen: CLOSED to ACTIVE only; 931 tests pass |
 | ORG-018 | todo | | |
 | ORG-019 | todo | | |
 | ADM-001 | todo | | |

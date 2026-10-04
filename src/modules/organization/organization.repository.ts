@@ -632,6 +632,20 @@ export async function closeActiveOrganization(
 }
 
 /**
+ * Moves a CLOSED, non-deleted organization back to ACTIVE. One conditional update, so a SUSPENDED
+ * (moderation) or ACTIVE organization matches nothing and a suspension is never lifted here (CM-10).
+ *
+ * @returns true when the organization was CLOSED and is now ACTIVE.
+ */
+export async function reopenClosedOrganization(organizationId: string): Promise<boolean> {
+  const result = await prisma.organization.updateMany({
+    where: { id: organizationId, status: 'CLOSED', deletedAt: null },
+    data: { status: 'ACTIVE' },
+  });
+  return result.count > 0;
+}
+
+/**
  * Turns every non-OWNER ACTIVE or INVITED collaboration of the organization into REVOKED and clears
  * its public-contact flag; `amount_held` is not written (CM-09, CM-10). ACTIVE rows are revoked in
  * their own statement so the caller knows whose rights ended (scope bump and notification).

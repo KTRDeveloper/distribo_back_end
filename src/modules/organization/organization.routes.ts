@@ -20,6 +20,7 @@ import {
   acceptInvitation,
   changeRole,
   closeOrganization,
+  reopenOrganization,
   createOrganization,
   declineInvitation,
   getOrganizationDetails,
@@ -219,6 +220,26 @@ organizationRoutes.post(
   idempotent(),
   (req, res, next) => {
     closeOrganization(req.actor!, closeOrganizationSchema.parse(req.body))
+      .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/reopen - the owner reopens a CLOSED business; needs
+// the network (`reopen`). The body is the same strict `{ id }` gesture body as `close`.
+organizationRoutes.post(
+  '/:organizationId/reopen',
+  loadActor,
+  requireAbility('reopen', 'Organization'),
+  (req, _res, next) => {
+    const parsed = closeOrganizationSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    reopenOrganization(req.actor!)
       .then((view) => res.status(200).json(view))
       .catch(next);
   }

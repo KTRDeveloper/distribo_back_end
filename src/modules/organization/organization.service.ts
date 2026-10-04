@@ -12,6 +12,7 @@ import {
 import {
   activateInvitation,
   closeActiveOrganization,
+  reopenClosedOrganization,
   demoteOwner,
   endActiveSubscription,
   expireLapsedSubscriptions,
@@ -522,6 +523,34 @@ export async function closeOrganization(
     'Organization closed'
   );
   return { status: 'CLOSED' };
+}
+
+/**
+ * The owner reopens a closed business (CM-10). Only CLOSED becomes ACTIVE, in one conditional
+ * update: a moderation suspension is never lifted here. The revoked team and the expired
+ * subscription are not restored; the owner invites and subscribes again. The organization comes
+ * from the loaded actor, never from the body (ASVS v5.0.0-8.2.1).
+ *
+ * @param actor - Owner loaded from the path and checked for `reopen Organization`.
+ * @returns The new status.
+ * @throws 409 `ORGANIZATION_NOT_CLOSED` when ACTIVE or SUSPENDED; 404 `NOT_FOUND` when absent.
+ */
+export async function reopenOrganization(actor: Actor): Promise<{ status: 'ACTIVE' }> {
+  if (!(await reopenClosedOrganization(actor.organizationId))) {
+    const status = await findOrganizationStatus(actor.organizationId);
+    if (status === null) throw httpError(404, 'NOT_FOUND', 'Not found');
+    throw httpError(409, 'ORGANIZATION_NOT_CLOSED', 'Organization is not closed');
+  }
+
+  logger.warn(
+    {
+      event: 'organization_reopened',
+      organizationId: actor.organizationId,
+      ownerId: actor.personId,
+    },
+    'Organization reopened'
+  );
+  return { status: 'ACTIVE' };
 }
 
 /**

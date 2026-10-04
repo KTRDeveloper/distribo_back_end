@@ -346,6 +346,32 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/reopen',
+  tags: ['organization'],
+  summary: 'The owner reopens a closed business; the team and subscription are not restored',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationIdParamsSchema,
+    body: { content: { 'application/json': { schema: closeOrganizationSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The organization is ACTIVE',
+      content: { 'application/json': { schema: z.object({ status: z.literal('ACTIVE') }) } },
+    },
+    400: { description: 'Malformed id or invalid body', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: { description: 'Not found or not a member', content: errorContent },
+    409: {
+      description: 'Organization not CLOSED, or gesture id still in progress',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/collaborations',
   tags: ['organization'],
