@@ -92,3 +92,32 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - ADM-003 and SYNC-002 must add the FKs for report_id and sync_archive_id and update the schema.prisma comment.
 <!-- end ADM-002 -->
+
+<!-- begin ADM-003 -->
+## ADM-003 — Reports table
+
+- Filed: 2026-10-04 06:45 UTC
+- Status: **done**: reports table, enums, FK admin_actions.report_id; 1109 tests pass
+- Risk: medium · story: [ADM-003-reports-table.md](../modules/admin/ADM-003-reports-table.md)
+- Agent: 40,111 tokens, 13 tool uses, 8 min 28 s
+
+### Agent report
+
+**Summary:** Added `reports` table (enums ReportStatus/ReportDecision, one-target CHECK, registered-reporter and server_updated_at triggers) and FK `admin_actions.report_id` -> reports; schema.prisma updated.
+
+**Decisions:**
+- Migration named `20261004190000_adm_003_reports`; FKs ON DELETE RESTRICT like sibling tables.
+- Added indexes on every FK column of reports and on admin_actions.report_id (the other tables index their FKs).
+- No CHECK tying status/decision/resolved_at/resolved_by_id together: the story does not ask for it; noted in the schema comment as code responsibility (ADM-013).
+
+**Tests added beyond the story:**
+- `tests/integration/admin/report-table.test.ts` › refuses an update that adds a second target: the one-target CHECK also holds on UPDATE (C-28); passed at once
+- same file › rejects a missing reporter, reason, description or status with 23502: Report:required
+- same file › accepts resolved_by_id only for an existing administrator (a non-admin person gives 23503): C-04 / Report:fk
+- same file › refreshes server_updated_at on update: the trigger from the story's Context
+
+**Evidence:** story tests 16/16; full suite 1109/1109, failing: none; typecheck clean; lint 0 errors, 45 warnings (pre-existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- `prisma migrate diff` against the test DB still shows pre-existing drift on `tasks` (accountId vs account_id), unrelated to this story.
+<!-- end ADM-003 -->

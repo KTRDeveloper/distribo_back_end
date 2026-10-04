@@ -163,6 +163,16 @@ enum AdminActionType {
   RECOVER_2FA
 }
 
+enum ReportStatus {
+  PENDING
+  RESOLVED
+}
+
+enum ReportDecision {
+  DISMISSED
+  SUSPENSION
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -276,6 +286,9 @@ model Person {
 
   adminActionsAsTarget AdminAction[] @relation("AdminActionTargetPerson")
 
+  reportsFiled          Report[] @relation("ReportReporter")
+  reportsAsTargetPerson Report[] @relation("ReportTargetPerson")
+
   @@map("people")
 }
 
@@ -337,6 +350,8 @@ model Organization {
   customerRelationships CustomerRelationship[] @relation("RelationshipCustomerOrganization")
 
   adminActionsAsTarget AdminAction[] @relation("AdminActionTargetOrganization")
+
+  reportsAsTarget Report[] @relation("ReportTargetOrganization")
 
   @@map("organizations")
 }
@@ -651,7 +666,8 @@ model Administrator {
 
   person Person @relation(fields: [personId], references: [id])
 
-  actions AdminAction[]
+  actions         AdminAction[]
+  resolvedReports Report[]
 
   @@index([personId])
   @@map("administrators")
@@ -668,8 +684,9 @@ model Administrator {
 // - A sync archive is attached exactly when the action is REPLAY_SYNC, and
 //   only an administrator whose role is SUPER_ADMIN can record a REPLAY_SYNC
 //   (checked on the administrator's role at the time of the insert).
-// - report_id and sync_archive_id are plain columns for now: their foreign keys
-//   to reports and sync archives are added by ADM-003 and SYNC-002.
+// - report_id must point to an existing report (foreign key added by migration
+//   20261004190000_adm_003_reports). sync_archive_id is a plain column for now:
+//   its foreign key to sync archives is added by SYNC-002.
 // - server_updated_at is set by the database on every change.
 model AdminAction {
   id                   String          @id @db.Uuid
@@ -684,11 +701,52 @@ model AdminAction {
   serverUpdatedAt      DateTime        @default(now()) @map("server_updated_at") @db.Timestamptz
 
   administrator      Administrator @relation(fields: [administratorId], references: [id])
+  report             Report?       @relation(fields: [reportId], references: [id])
   targetPerson       Person?       @relation("AdminActionTargetPerson", fields: [targetPersonId], references: [id])
   targetOrganization Organization? @relation("AdminActionTargetOrganization", fields: [targetOrganizationId], references: [id])
 
   @@index([administratorId])
   @@index([targetPersonId])
   @@index([targetOrganizationId])
+  @@index([reportId])
   @@map("admin_actions")
+}
+
+// Rules the database enforces on reports, beyond what this model declares. All
+// come from migration 20261004190000_adm_003_reports.
+// - A report has exactly one target: a person or an organization, never both
+//   and never none. This also holds when an existing report is updated.
+// - The reporter must be a registered person, never a guest. This is checked
+//   when the transaction is saved, not row by row.
+// - resolved_by_id must be an administrator (not just any person).
+// - A new report is PENDING and reported_at is set by the database; the
+//   database does not check that status, decision, resolved_at and
+//   resolved_by_id agree with each other: the resolution code does that.
+// - server_updated_at is set by the database on every change.
+model Report {
+  id                   String          @id @db.Uuid
+  reporterId           String          @map("reporter_id") @db.Uuid
+  targetPersonId       String?         @map("target_person_id") @db.Uuid
+  targetOrganizationId String?         @map("target_organization_id") @db.Uuid
+  reason               String          @db.Text
+  description          String          @db.Text
+  status               ReportStatus    @default(PENDING)
+  reportedAt           DateTime        @default(now()) @map("reported_at") @db.Timestamptz
+  resolvedAt           DateTime?       @map("resolved_at") @db.Timestamptz
+  resolvedById         String?         @map("resolved_by_id") @db.Uuid
+  decision             ReportDecision?
+  serverUpdatedAt      DateTime        @default(now()) @map("server_updated_at") @db.Timestamptz
+
+  reporter           Person         @relation("ReportReporter", fields: [reporterId], references: [id])
+  targetPerson       Person?        @relation("ReportTargetPerson", fields: [targetPersonId], references: [id])
+  targetOrganization Organization?  @relation("ReportTargetOrganization", fields: [targetOrganizationId], references: [id])
+  resolvedBy         Administrator? @relation(fields: [resolvedById], references: [id])
+
+  adminActions AdminAction[]
+
+  @@index([reporterId])
+  @@index([targetPersonId])
+  @@index([targetOrganizationId])
+  @@index([resolvedById])
+  @@map("reports")
 }
