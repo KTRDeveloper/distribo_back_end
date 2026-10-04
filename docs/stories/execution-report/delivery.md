@@ -6,6 +6,16 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 19:09 UTC: `/implement-stories DLV-002`
+
+| story | status | commit | note |
+|---|---|---|---|
+| DLV-002 Delivery state rules in the database | done | 02db210 | CHECKs, partial unique index, driver membership trigger; delivery-table tests updated per amended story |
+
+- Run completed.
+- Resumed from the DLV-002 partial changes (stash popped before the run); the story gained a "Tests to update" section for 4 delivery-table.test.ts fixtures before the run, committed with the story.
+- Next: `/implement-stories next:N`.
+
 ### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
