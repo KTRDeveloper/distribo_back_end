@@ -1,4 +1,5 @@
 import type { AdminAction, Prisma } from '@prisma/client';
+import { prisma } from '../../lib/db.js';
 import { newId } from '../../shared/ids.js';
 
 /** Kinds of administrator action recorded in the journal. */
@@ -98,4 +99,39 @@ export async function insertSuperAdministrator(
     data: { id, personId, role: 'SUPER_ADMIN', totpSecret: encryptedTotpSecret },
   });
   return id;
+}
+
+/** The fields a sign-in or a request check needs from a live administrator. */
+export interface LiveAdministrator {
+  id: string;
+  personId: string;
+  role: 'MODERATOR' | 'SUPER_ADMIN';
+  totpSecret: string;
+}
+
+/**
+ * Finds the person's live administrator row (`removed_at` empty); null when the person was
+ * never appointed or was removed. At most one live row exists per person.
+ */
+export async function findLiveAdministratorByPerson(
+  personId: string
+): Promise<LiveAdministrator | null> {
+  return prisma.administrator.findFirst({
+    where: { personId, removedAt: null },
+    select: { id: true, personId: true, role: true, totpSecret: true },
+  });
+}
+
+/**
+ * Finds a live administrator by id and person together, so a token naming a mismatched pair
+ * finds nothing. Null once the administrator is removed (v5.0.0-7.2.1).
+ */
+export async function findLiveAdministrator(
+  administratorId: string,
+  personId: string
+): Promise<LiveAdministrator | null> {
+  return prisma.administrator.findFirst({
+    where: { id: administratorId, personId, removedAt: null },
+    select: { id: true, personId: true, role: true, totpSecret: true },
+  });
 }

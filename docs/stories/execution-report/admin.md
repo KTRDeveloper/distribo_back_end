@@ -186,3 +186,41 @@ Also in this run: relationship, catalog, order, finance, delivery.
 - tsconfig/lint cover only src and tests, so scripts/ is not type-checked by `npm run typecheck`; only vitest and tsx compile it.
 - Running two `npm test` at once on the shared test DB makes spurious failures (I hit this by accident).
 <!-- end ADM-005 -->
+
+<!-- begin ADM-006 -->
+## ADM-006 — Administrator signs in with password and authenticator code
+
+- Filed: 2026-10-04 07:39 UTC
+- Status: **done**: Admin login, admin JWT and adminAuthMiddleware; 19 tests; OpenAPI left to ADM-015
+- Risk: high · story: [ADM-006-administrator-signs-in-with-password-and.md](../modules/admin/ADM-006-administrator-signs-in-with-password-and.md)
+- Agent: 63,616 tokens, 24 tool uses, 18 min 9 s
+
+### Agent report
+
+**Summary:** Added POST /api/v1/admin/auth/login, admin JWT helpers, adminAuthMiddleware and requireAdminRole; all green.
+
+**Decisions:**
+- Lock key: `admin:<phone>`, taken before any check like AUTH-012, cleared on success; the story names the key, so I used it literally.
+- Invalid phone format: 401 INVALID_CREDENTIALS after one dummy verification, no counter (an arbitrary string would make unbounded keys).
+- Admin token helpers `signAdminToken`/`verifyAdminToken` added to `src/lib/jwt.ts` (fixed 900 s lifetime, not the config value); `req.admin` typed in `src/types/express.d.ts`.
+- adminAuthMiddleware takes the role from the database row, not the token, and looks up (id, person) together; every failure is a 401 UNAUTHORIZED. requireAdminRole answers 403 for a lower role.
+- No admin route exists yet, so AC-4/AC-5 tests mount the middleware on a probe express app; the "normal route" check uses GET /api/v1/auth/devices.
+- Dummy hash is duplicated locally: it is private to auth.service, and a module imports another only through its contracts.
+
+**Tests added beyond the story:**
+- `admin-login.test.ts` › lock counter is `admin:` apart from ordinary login: no cross-lock between the two logins (AC-3 / story Context); passed at once
+- `admin-login.test.ts` › success clears the counter (AUTH-012 pattern); passed at once
+- `admin-login.test.ts` › unknown/missing field gives 400 (Validation convention: strict schemas)
+- `admin-login.test.ts` › forged signature, HS512 and no header answer 401 (v5.0.0-9.1.1)
+- `admin-login.test.ts` › MODERATOR on a SUPER_ADMIN route gets 403 (requireAdminRole contract)
+
+**Other additions:**
+- `findLiveAdministratorByPerson` and `findLiveAdministrator` in `admin.repository.ts` (the only prisma access).
+
+**Evidence:** story tests 19/19; full suite 1150/1150, failing: none; typecheck clean; lint 0 errors, 46 warnings (existing)
+
+**Follow-ups:**
+- No `.openapi.ts` and no catalog/per-001 path entries: story puts OpenAPI in ADM-015. Per-IP limit relies on the global limiter only.
+- Implementation was written before I watched the tests fail (one initial run had only a test-comparison bug).
+- A suspended person's admin token still works until expiry (the middleware re-checks only the administrator, as specified).
+<!-- end ADM-006 -->

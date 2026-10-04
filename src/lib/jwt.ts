@@ -19,6 +19,62 @@ export function signAccessToken(payload: AccessTokenIdentity): string {
   });
 }
 
+/** Lifetime of an administration session: fixed, no refresh token (Q-013). */
+export const ADMIN_TOKEN_EXPIRES_IN_SECONDS = 15 * 60;
+
+/** Identity carried by an administration token. */
+export interface AdminTokenIdentity {
+  personId: string;
+  administratorId: string;
+  role: 'MODERATOR' | 'SUPER_ADMIN';
+}
+
+/**
+ * Sign an administration token (HS256): `{ sub, adm, role, typ: 'admin' }`, valid 15 minutes.
+ * Its `typ` keeps it out of the ordinary routes, as an access token is kept out of admin routes
+ * (v5.0.0-9.2.2).
+ */
+export function signAdminToken(payload: AdminTokenIdentity): string {
+  return jwt.sign(
+    { adm: payload.administratorId, role: payload.role, typ: 'admin' },
+    config.jwt.secret,
+    {
+      algorithm: 'HS256',
+      subject: payload.personId,
+      expiresIn: ADMIN_TOKEN_EXPIRES_IN_SECONDS,
+    }
+  );
+}
+
+/**
+ * Verify an administration token: signature first, HS256 only, then `typ` must be `admin` and
+ * `sub`, `adm` and `role` well formed (v5.0.0-9.1.1, 9.1.2, 9.2.2).
+ * @throws Error when the token is invalid, expired or of the wrong type
+ */
+export function verifyAdminToken(token: string): AdminTokenIdentity {
+  let decoded: string | jwt.JwtPayload;
+  try {
+    decoded = jwt.verify(token, config.jwt.secret, { algorithms: ['HS256'] });
+  } catch {
+    throw new Error('Invalid or expired token');
+  }
+  if (
+    typeof decoded === 'string' ||
+    decoded.typ !== 'admin' ||
+    typeof decoded.sub !== 'string' ||
+    !decoded.sub ||
+    typeof decoded.adm !== 'string' ||
+    !decoded.adm ||
+    typeof decoded.role !== 'string' ||
+    (decoded.role !== 'MODERATOR' && decoded.role !== 'SUPER_ADMIN')
+  ) {
+    throw new Error('Invalid or expired token');
+  }
+  const administratorId: string = decoded.adm;
+  const role: AdminTokenIdentity['role'] = decoded.role;
+  return { personId: decoded.sub, administratorId, role };
+}
+
 /**
  * Transitional shim for callers still using the old signature; the phone number
  * is dropped and a fixed device id is used. Remove once callers move to signAccessToken.

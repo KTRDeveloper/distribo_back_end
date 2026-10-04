@@ -15,6 +15,12 @@ declare global {
         deviceId: string;
       };
       actor?: Actor;
+      /** Set by adminAuthMiddleware: the live administrator behind an admin token. */
+      admin?: {
+        personId: string;
+        administratorId: string;
+        role: 'MODERATOR' | 'SUPER_ADMIN';
+      };
     }
   }
 }
