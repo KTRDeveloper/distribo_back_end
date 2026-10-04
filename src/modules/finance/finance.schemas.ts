@@ -26,3 +26,17 @@ export const recordPaymentSchema = z
   });
 
 export type PaymentInput = z.infer<typeof recordPaymentSchema>;
+
+/**
+ * Strict body of the credit-note gesture (FIN-006): the gesture id, an amount in whole XAF and the
+ * required reason. No mode, kind, recorder or time: the server sets them (ASVS v5.0.0-15.3.3).
+ */
+export const creditNoteSchema = z
+  .object({
+    id: uuidV7Schema,
+    amount: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+    note: z.string().trim().min(1).max(TEXT_MAX),
+  })
+  .strict();
+
+export type CreditNoteInput = z.infer<typeof creditNoteSchema>;

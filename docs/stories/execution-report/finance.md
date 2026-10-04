@@ -239,6 +239,38 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - No `.openapi.ts` for finance exists (FIN-004 did not add one), so the refunds and payments paths are in neither catalog.test.ts nor per-001.test.ts; left as is.
 <!-- end FIN-005 -->
 
+<!-- begin FIN-006 -->
+## FIN-006 — Manager grants a credit note
+
+- Filed: 2026-10-04 21:29 UTC
+- Status: **done**: POST credit-notes; guards shared with refund; 2574 tests pass
+- Risk: high · story: [FIN-006-manager-grants-a-credit-note.md](../modules/finance/FIN-006-manager-grants-a-credit-note.md)
+- Agent: 43,185 tokens, 12 tool uses, 4 min 26 s
+
+### Agent report
+
+**Summary:** Added POST credit-notes route, schema and `recordCreditNote`; credit note lowers the balance, no held money moves.
+
+**Decisions:**
+- Inactive organization: same as refund (only ACTIVE; CLOSED and SUSPENDED give 409 ORGANIZATION_NOT_ACTIVE), from "Same refusals as FIN-005".
+- `note` is trimmed, so a blank note is a 400.
+- No notification sent: the story does not ask for one.
+
+**Tests added beyond the story:**
+- `credit-note.test.ts` › owner grants on own-manager customer: owner exempt from OWN_RECORD (ACC-004, v5.0.0-8.2.1); passed at once after the route existed
+- `credit-note.test.ts` › invalid bodies (blank note, 2001 chars, amount 0 or 1.5, `mode`, `kind`): 400 and nothing stored (strict schema, v5.0.0-15.3.3)
+- `credit-note.test.ts` › CLOSED or SUSPENDED organization: 409 (Context, same as FIN-005)
+- `credit-note.test.ts` › another business's customer: 404 and nothing stored (v5.0.0-8.2.2)
+
+**Other additions:**
+- `lockCustomerForOutflow` in `finance.service.ts`: the refund guards extracted, now shared by `recordRefund` and `recordCreditNote`. Behavior unchanged; refund tests still pass.
+
+**Evidence:** story tests 9/9; full suite 2574/2574, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
+
+**Follow-ups:**
+- No `.openapi.ts` for finance and no catalog/per-001 entries: neither FIN-004, FIN-005 nor this story has them, so I kept the precedent. Convention says each route should be registered.
+<!-- end FIN-006 -->
+
 <!-- begin FIN-011 -->
 ## FIN-011 — Expenses table
 
