@@ -53,3 +53,49 @@ export async function recordAdminAction(
     },
   });
 }
+
+/** Arbitrary constant naming the advisory lock that serializes first-administrator bootstrap. */
+const BOOTSTRAP_LOCK_KEY = 7_265_001;
+
+/**
+ * Takes a transaction-scoped lock so two concurrent bootstraps cannot both see "no live
+ * SUPER_ADMIN" and both insert one (CWE-362). Released when the transaction ends.
+ */
+export async function lockSuperAdminBootstrap(tx: Prisma.TransactionClient): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${BOOTSTRAP_LOCK_KEY})`;
+}
+
+/** True when at least one SUPER_ADMIN row has not been removed. */
+export async function hasLiveSuperAdmin(tx: Prisma.TransactionClient): Promise<boolean> {
+  const count = await tx.administrator.count({ where: { role: 'SUPER_ADMIN', removedAt: null } });
+  return count > 0;
+}
+
+/** Finds a registered (non-guest) person by E.164 phone number; null for a guest or unknown number. */
+export async function findRegisteredPersonIdByPhone(
+  tx: Prisma.TransactionClient,
+  e164: string
+): Promise<string | null> {
+  const person = await tx.person.findFirst({
+    where: { phoneNumber: e164, registeredAt: { not: null } },
+    select: { id: true },
+  });
+  return person?.id ?? null;
+}
+
+/**
+ * Inserts a SUPER_ADMIN row with an already-encrypted two-factor secret.
+ *
+ * @returns The new administrator id (a new UUIDv7).
+ */
+export async function insertSuperAdministrator(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  encryptedTotpSecret: string
+): Promise<string> {
+  const id = newId();
+  await tx.administrator.create({
+    data: { id, personId, role: 'SUPER_ADMIN', totpSecret: encryptedTotpSecret },
+  });
+  return id;
+}

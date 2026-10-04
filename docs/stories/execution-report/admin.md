@@ -153,3 +153,36 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - `npm audit --audit-level=high` reports 35 high / 3 critical, none from otplib (same count before my change); a human should triage the dependency audit.
 <!-- end ADM-004 -->
+
+<!-- begin ADM-005 -->
+## ADM-005 — Create the first super administrator from the command line
+
+- Filed: 2026-10-04 07:21 UTC
+- Status: **done**: createFirstSuperAdmin script + admin:create-super; 9 tests; full suite 1131 pass
+- Risk: high · story: [ADM-005-create-the-first-super-administrator-from-the.md](../modules/admin/ADM-005-create-the-first-super-administrator-from-the.md)
+- Agent: 48,230 tokens, 29 tool uses, 25 min 51 s
+
+### Agent report
+
+**Summary:** Added scripts/create-super-admin.ts (createFirstSuperAdmin + CLI) and the admin:create-super npm script; all tests pass.
+
+**Decisions:**
+- DB access: the script calls new functions in admin.repository.ts (lock, live-SUPER_ADMIN check, registered-person lookup, insert), keeping "repository is the only file that calls prisma".
+- Did not use findOrCreateByPhone: it would create a guest row for an unknown number, breaking "creates nothing" (AC-2); a lookup of registered people is used instead.
+- Concurrency: one transaction with pg_advisory_xact_lock, so two simultaneous bootstraps cannot both succeed.
+- Refusal messages never reveal whether a person exists; nothing is logged, URI goes to stdout only.
+- CLI calls process.exit after main: the Redis client loaded through totp.ts otherwise keeps the process alive forever.
+
+**Tests added beyond the story:**
+- `create-super-admin.test.ts` › a removed SUPER_ADMIN does not count: "live" in the story means removed_at empty; passed at once
+- `create-super-admin.test.ts` › concurrent runs: exactly one SUPER_ADMIN is created (race, AB-1 / CWE-269 / CWE-362)
+
+**Other additions:**
+- Four repository functions in src/modules/admin/admin.repository.ts (see Decisions).
+
+**Evidence:** story tests 9/9; full suite 1131/1131, failing: none; typecheck clean; lint 0 errors, 45 warnings (pre-existing)
+
+**Follow-ups:**
+- tsconfig/lint cover only src and tests, so scripts/ is not type-checked by `npm run typecheck`; only vitest and tsx compile it.
+- Running two `npm test` at once on the shared test DB makes spurious failures (I hit this by accident).
+<!-- end ADM-005 -->

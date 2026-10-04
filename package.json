@@ -21,6 +21,7 @@
     "test:db:setup": "npm run test:db:up && DATABASE_URL=postgresql://postgres:postgres@localhost:5434/test_db npx prisma migrate deploy",
     "test:integration": "npm run test:db:setup && vitest run tests/integration && npm run test:db:down",
     "openapi:generate": "tsx scripts/generate-openapi.ts",
+    "admin:create-super": "tsx scripts/create-super-admin.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
