@@ -100,7 +100,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-004 | done | | credit limit CHECKs + stamp/journal triggers; same author cannot change limit twice (per spec) |
 | REL-005 | done | | visibility predicate and party projections; 24 story tests, full suite 1049 pass |
 | REL-006 | done | | Counter created in the org transaction; 1519 tests pass |
-| REL-007 | todo | | |
+| REL-007 | done | | POST /organizations/:id/customers; 23 story tests, full suite 1542 pass |
 | REL-008 | todo | | |
 | REL-009 | todo | | |
 | REL-010 | todo | | |

@@ -28,3 +28,87 @@ export function createCounter(
     },
   });
 }
+
+/**
+ * Finds the live relationship of a supplier organization with a customer person or organization.
+ *
+ * Deleted and merged rows are ignored (C-07). The caller passes exactly one customer id.
+ */
+function findLive(
+  tx: Prisma.TransactionClient,
+  input: {
+    supplierOrganizationId: string;
+    customerPersonId?: string;
+    customerOrganizationId?: string;
+  }
+): Promise<CustomerRelationship | null> {
+  return tx.customerRelationship.findFirst({
+    where: {
+      supplierOrganizationId: input.supplierOrganizationId,
+      customerPersonId: input.customerPersonId ?? null,
+      customerOrganizationId: input.customerOrganizationId ?? null,
+      deletedAt: null,
+      mergedIntoId: null,
+    },
+  });
+}
+
+/**
+ * Returns the live relationship of a supplier organization with a customer, creating it when
+ * absent: ACTIVE, credit limit 0 (database default, so no `credit_limit_changes` row: creation is
+ * not a limit change, C-10), balance 0.
+ *
+ * The insert uses `ON CONFLICT DO NOTHING` against the pair indexes (C-07), so two concurrent
+ * calls for one pair never abort the caller's transaction: the loser reads the winner's row and
+ * gets `created: false`. Runs on the caller's transaction (ASVS v5.0.0-2.3.3).
+ *
+ * @param tx - Transaction client of the caller.
+ * @param input - Supplier organization, exactly one customer (person or organization) and the
+ * registered person who creates the relationship.
+ * @returns The live relationship and whether this call created it.
+ */
+export async function ensureCustomerRelationship(
+  tx: Prisma.TransactionClient,
+  input: {
+    supplierOrganizationId: string;
+    customerPersonId?: string;
+    customerOrganizationId?: string;
+    createdById: string;
+    customerLabel?: string;
+    deliveryAddress?: string;
+  }
+): Promise<{ relationship: CustomerRelationship; created: boolean }> {
+  const existing = await findLive(tx, input);
+  if (existing) return { relationship: existing, created: false };
+
+  const inserted = await tx.$executeRaw`
+    INSERT INTO "customer_relationships" (
+      "id", "supplier_organization_id", "customer_person_id", "customer_organization_id",
+      "customer_label", "delivery_address", "credit_limit", "status", "created_by_id"
+    )
+    VALUES (
+      ${newId()}::uuid, ${input.supplierOrganizationId}::uuid,
+      ${input.customerPersonId ?? null}::uuid, ${input.customerOrganizationId ?? null}::uuid,
+      ${input.customerLabel ?? null}, ${input.deliveryAddress ?? null}, 0,
+      'ACTIVE'::"RelationshipStatus", ${input.createdById}::uuid
+    )
+    ON CONFLICT DO NOTHING
+  `;
+
+  const relationship = await findLive(tx, input);
+  if (!relationship) {
+    throw new Error('Relationship neither created nor found');
+  }
+  return { relationship, created: inserted === 1 };
+}
+
+/**
+ * Reloads a relationship with its customer person and supplier organization, the parties that
+ * `projectForSupplier` and the customer notification need.
+ */
+export function findWithParties(tx: Prisma.TransactionClient, id: string) {
+  return tx.customerRelationship.findUniqueOrThrow({
+    where: { id },
+    include: { customerPerson: true, supplierOrganization: true },
+  });
+}

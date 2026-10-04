@@ -311,6 +311,37 @@ Also in this run: admin, catalog, order, finance, delivery.
 - Add `createCounter` to relationship contracts.md (I cannot edit the stories folder).
 <!-- end REL-006 -->
 
+<!-- begin REL-007 -->
+## REL-007 — Seller adds a customer by phone number
+
+- Filed: 2026-10-04 13:41 UTC
+- Status: **done**: POST /organizations/:id/customers; 23 story tests, full suite 1542 pass
+- Risk: high · story: [REL-007-seller-adds-a-customer-by-phone-number.md](../modules/relationship/REL-007-seller-adds-a-customer-by-phone-number.md)
+- Agent: 71,752 tokens, 21 tool uses, 4 min 8 s
+
+### Agent report
+
+**Summary:** Added POST /api/v1/organizations/:organizationId/customers (schema, service, routes, repository `ensureCustomerRelationship`), all story ACs and abuse cases green.
+
+**Decisions:**
+- Insert race: raw `INSERT ... ON CONFLICT DO NOTHING` after a live-row lookup, so the partial pair indexes (C-07) never abort the transaction; loser reads the winner's row (200).
+- `credit_limit` written explicitly as 0 in the insert (no CreditLimitChange row, per C-10 comment in schema).
+- Notification content uses the supplier name read via the relationship's own `supplierOrganization` include (no import of the organization repository beyond its contract); `related.type` = `customer_relationship`, `organizationId` = supplier org.
+- Notify only when the relationship is newly created (a repeat adds nothing, AC-3).
+- Router mounted at `/organizations/:organizationId` after `organizationRoutes`; `authMiddleware` set on the route, not router-wide, to leave other paths' behavior untouched.
+- Did not add paths to catalog.test.ts / per-001.test.ts: OpenAPI registration is out of scope (REL-008) and those lists assert OpenAPI paths, so they would fail.
+
+**Tests added beyond the story:**
+- `add-customer.test.ts` › concurrent adds of one number: one 201, one 200, one row (C-07); passed at once
+- `add-customer.test.ts` › does not notify a guest; deleted relationship ignored; same number in two businesses; 401 without token; extra validation rows (empty label, address 2001, missing id, supplier_organization_id in body) (AC-1..4, C-07, AB-1); passed at once
+
+**Evidence:** story tests 23/23; full suite 1542/1542, failing: none; typecheck clean; lint 0 errors, 57 warnings (all pre-existing, none in new files)
+
+**Follow-ups:**
+- REL-008 must register the route in OpenAPI and add it to the catalog.test.ts / per-001.test.ts lists.
+- contracts.md lists `ensureCustomerRelationship` without `customerLabel`/`deliveryAddress` (optional extras I added); stories folder is read-only for me.
+<!-- end REL-007 -->
+
 <!-- begin REL-014 -->
 ## REL-014 — Reassignment journal table
 
