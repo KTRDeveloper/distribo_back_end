@@ -310,6 +310,24 @@ export async function lockDeliveryToFail(
 }
 
 /**
+ * Soft-deletes every delivery of the order that has not started: not departed, not arrived, not
+ * failed, not already deleted (C-22). Runs inside the transaction of the gesture that cancels or
+ * closes the order, so the cleanup and the status change stand or fall together (v5.0.0-2.3.3).
+ *
+ * @returns the number of deliveries removed
+ */
+export async function deleteUnstartedDeliveries(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<number> {
+  const { count } = await tx.delivery.updateMany({
+    where: { orderId, departedAt: null, arrivedAt: null, failedAt: null, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
+  return count;
+}
+
+/**
  * Marks a delivery in progress as failed, conditionally on it being neither arrived nor failed
  * (v5.0.0-2.3.1).
  *

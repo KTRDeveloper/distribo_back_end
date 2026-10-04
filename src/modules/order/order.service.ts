@@ -44,6 +44,7 @@ import type {
   PlaceOrderInput,
   RefuseInput,
 } from './order.schemas.js';
+import { deleteUnstartedDeliveries } from '../delivery/delivery.service.js';
 import { transitionOrder } from './order.state.js';
 import {
   projectOrderForCustomer,
@@ -397,8 +398,9 @@ const CANCELLED_CONTENT = {
  * organization is locked (an order of another business is 404, v5.0.0-8.2.2), then the conditional
  * update of `transitionOrder` (v5.0.0-2.3.1) records the SUPPLIER party, the caller, the time and
  * the reason; IN_DELIVERY, DELIVERED and CANCELLED orders answer 409. The customer is notified
- * `order.status_changed`. The supplier note is untouched. Unstarted deliveries are removed by
- * DLV-010. Replays with the same `id` are answered by `idempotent()`.
+ * `order.status_changed`. The supplier note is untouched. Unstarted deliveries of the order are
+ * removed in the same transaction (DLV-010, C-22). Replays with the same `id` are answered by
+ * `idempotent()`.
  *
  * @param actor - Person, organization and role from `loadActor`; the route checked `cancel Order`.
  * @param orderId - Order from the path.
@@ -424,6 +426,7 @@ export function cancelOrderAsSupplier(
       { personId: actor.personId, party: 'SUPPLIER' },
       { cancellationReason: input.reason }
     );
+    await deleteUnstartedDeliveries(tx, orderId);
 
     const order = await findOrderToAccept(tx, orderId);
     if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
@@ -446,7 +449,8 @@ const CUSTOMER_CANCELLED_CONTENT = {
  * customer is 404, v5.0.0-8.2.2); then the conditional update of `transitionOrder` (v5.0.0-2.3.1)
  * records the CUSTOMER party, the caller, the time and the optional reason. IN_DELIVERY, DELIVERED
  * and CANCELLED orders answer 409. The supplier's OWNER, MANAGERs and SELLERs are notified
- * `order.status_changed`. Replays with the same `id` are answered by `idempotent()`.
+ * `order.status_changed`. Unstarted deliveries of the order are removed in the same transaction
+ * (DLV-010, C-22). Replays with the same `id` are answered by `idempotent()`.
  *
  * @param customer - The caller, from the session; `organizationId` and `role` come from
  * `loadActor` for a purchase, where only a MANAGER or OWNER may cancel.
@@ -480,6 +484,7 @@ export function cancelOrderAsCustomer(
       { personId: customer.personId, party: 'CUSTOMER' },
       { cancellationReason: input.reason }
     );
+    await deleteUnstartedDeliveries(tx, orderId);
 
     const order = await findOrderToAccept(tx, orderId);
     if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');

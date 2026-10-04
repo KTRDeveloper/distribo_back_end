@@ -375,3 +375,31 @@ Also in this run: relationship, admin, catalog, order, finance.
 - order and delivery contracts.md should list `priceEnteredLine` as provided by order and consumed by delivery.
 - A 409 COUNTER_PAYMENT_INCOMPLETE is stored by `idempotent()`: a retry with the same id returns the same 409; a corrected sale needs a new gesture id.
 <!-- end DLV-009 -->
+
+<!-- begin DLV-010 -->
+## DLV-010 — Cancelled or shop-delivered orders drop their unstarted deliveries
+
+- Filed: 2026-10-04 23:54 UTC
+- Status: **done**: unstarted deliveries removed on both cancels and shop delivery
+- Risk: medium · story: [DLV-010-cancelled-or-shop-delivered-orders-drop-their.md](../modules/delivery/DLV-010-cancelled-or-shop-delivered-orders-drop-their.md)
+- Agent: 61,893 tokens, 24 tool uses, 11 min 58 s
+
+### Agent report
+
+**Summary:** Added `deleteUnstartedDeliveries` and called it in the supplier cancel, customer cancel and shop path of `deliverOrder`, after the status change, in the same transaction.
+
+**Decisions:**
+- Service export: re-exported `deleteUnstartedDeliveries` from `delivery.service.ts` so `order.service.ts` imports it through the service, as `delivery/contracts.md` says. This adds an import cycle order.service <-> delivery.service (the other direction already existed); it is safe because both only use each other inside functions.
+- Shop path: the cleanup runs only when the caller is not a DRIVER; a driver's own delivery is closed by `markArrived`.
+- `refuseOrder` (PENDING to CANCELLED) is not touched: a PENDING order has no delivery and the story names three paths.
+
+**Tests added beyond the story:**
+- `tests/integration/delivery/unstarted-cleanup.test.ts` › keeps a failed delivery when the order is delivered in the shop: a failed delivery is not removed by the shop path (AC-3, C-22); passed once implemented
+- same file › does not touch the deliveries of another order: the cleanup is scoped to the one order (C-22)
+- same file › leaves the delivery untouched when a shop delivery is refused: credit refusal rolls back (AC-4)
+
+**Evidence:** story tests 48/48 (3 files); full suite 2851/2851 on the last two runs, failing: none; typecheck clean; lint 0 errors, 67 warnings (existing)
+
+**Follow-ups:**
+- The first full-suite run showed 2 failures that did not repeat in two later runs; I did not capture which tests. Probably a flake under load, worth watching.
+<!-- end DLV-010 -->

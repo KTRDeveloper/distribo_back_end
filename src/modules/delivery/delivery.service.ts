@@ -17,6 +17,7 @@ import {
   insertCounterSaleOrder,
   insertDepartedDelivery,
   insertRestOrder,
+  deleteUnstartedDeliveries,
   isActiveCollaborator,
   listLiveLines,
   listOwnDeliveries,
@@ -303,6 +304,9 @@ export function failDelivery(
   });
 }
 
+// Contract of the module (DLV-010): other modules remove unstarted deliveries through the service.
+export { deleteUnstartedDeliveries };
+
 const DELIVERED_CONTENT = {
   FR: 'Votre commande a été livrée.',
   EN: 'Your order has been delivered.',
@@ -437,6 +441,10 @@ export function deliverOrder(
     );
     if (inProgress && !(await markArrived(tx, inProgress.id, closed.deliveredAt ?? new Date()))) {
       throw httpError(409, 'INVALID_TRANSITION', 'The delivery is not in progress.');
+    }
+    if (!isDriver) {
+      // Shop delivery: a delivery assigned but not departed is moot now (DLV-010, C-22).
+      await deleteUnstartedDeliveries(tx, orderId);
     }
 
     if (input.rest === 'LATER' && shortLines.length > 0) {
