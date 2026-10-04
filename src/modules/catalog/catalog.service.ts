@@ -1,14 +1,24 @@
 import type { Product } from '@prisma/client';
+import { httpError } from '../../lib/http-error.js';
+import { logger } from '../../lib/logger.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { runInTransaction } from '../organization/organization.repository.js';
+import { atLeast } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import {
   countNegotiatedPricesBefore,
   getProductOfOrganization,
   insertProduct,
+  listProductsOfOrganization,
   updateProduct,
 } from './catalog.repository.js';
-import type { CreateProductInput, EditProductInput, ProductView } from './catalog.schemas.js';
+import type {
+  CreateProductInput,
+  EditProductInput,
+  ListProductsQuery,
+  ProductPage,
+  ProductView,
+} from './catalog.schemas.js';
 
 /** Builds the closed product view from an explicit field list. */
 function toProductView(product: Product): ProductView {
@@ -91,4 +101,32 @@ export async function editProduct(
       : 0;
     return { ...toProductView(updated), negotiated_prices_to_review: toReview };
   });
+}
+
+/**
+ * Lists the actor's organization products, newest first: SELLER and above only.
+ *
+ * The organization comes from the loaded actor, never from the query (ASVS v5.0.0-8.2.2), and
+ * the view is built from an explicit field list (v5.0.0-15.3.1). Deleted products are left out.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param query - Validated page size, cursor and filters.
+ * @returns A page of product views and the next cursor.
+ * @throws 403 `FORBIDDEN` for a DRIVER.
+ */
+export async function listProducts(actor: Actor, query: ListProductsQuery): Promise<ProductPage> {
+  if (!atLeast(actor.role, 'SELLER')) {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'list',
+        subjectType: 'Product',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+  const { rows, nextCursor } = await listProductsOfOrganization(actor.organizationId, query);
+  return { items: rows.map(toProductView), next_cursor: nextCursor };
 }

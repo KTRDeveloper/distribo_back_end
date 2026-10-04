@@ -1,0 +1,101 @@
+import { z } from 'zod';
+import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
+import { uuidV7Schema } from '../../shared/ids.js';
+import {
+  createProductSchema,
+  editProductSchema,
+  listProductsQuerySchema,
+} from './catalog.schemas.js';
+
+const organizationParamsSchema = z.object({ organizationId: uuidV7Schema });
+const productParamsSchema = organizationParamsSchema.extend({ productId: uuidV7Schema });
+
+const productViewSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  unit: z.string(),
+  price: z.number().int(),
+  price_updated_at: z.string().datetime(),
+  min_order_quantity: z.string().nullable(),
+  description: z.string().nullable(),
+  category: z.string().nullable(),
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+  created_at: z.string().datetime(),
+});
+
+const errorContent = { 'application/json': { schema: errorResponseSchema } };
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/products',
+  tags: ['catalog'],
+  summary: 'A seller lists the organization articles, newest first',
+  security: [{ bearerAuth: [] }],
+  request: { params: organizationParamsSchema, query: listProductsQuerySchema },
+  responses: {
+    200: {
+      description: 'A page of products and the next cursor',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(productViewSchema),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid query', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'A DRIVER may not list the catalog', content: errorContent },
+    404: { description: 'Not a member of the organization', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/products',
+  tags: ['catalog'],
+  summary: 'The owner or an online manager adds an article',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema,
+    body: { content: { 'application/json': { schema: createProductSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The created product',
+      content: { 'application/json': { schema: productViewSchema } },
+    },
+    400: { description: 'Invalid body', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Role not allowed', content: errorContent },
+    404: { description: 'Not a member of the organization', content: errorContent },
+    409: { description: 'Organization not active or conflicting repeat', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/api/v1/organizations/{organizationId}/products/{productId}',
+  tags: ['catalog'],
+  summary: 'The owner or an online manager edits or retires an article',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: productParamsSchema,
+    body: { content: { 'application/json': { schema: editProductSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The product and the negotiated prices to review after a price change',
+      content: {
+        'application/json': {
+          schema: productViewSchema.extend({ negotiated_prices_to_review: z.number().int() }),
+        },
+      },
+    },
+    400: { description: 'Invalid body', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Role not allowed', content: errorContent },
+    404: { description: 'Product absent or outside the organization', content: errorContent },
+  },
+});

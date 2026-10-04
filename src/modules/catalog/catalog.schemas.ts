@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
 import { NAME_MAX, TEXT_MAX } from '../../shared/limits.js';
 import { parseQuantity } from '../../shared/money.js';
+import { paginationQuerySchema } from '../../shared/pagination.js';
 
 /** Largest quantity `numeric(12,3)` holds, in thousandths. */
 const QUANTITY_MAX_MILLI = 999_999_999_999n;
@@ -75,3 +76,21 @@ export type ProductView = {
   status: string;
   created_at: string;
 };
+
+/**
+ * Strict query of the product list (ASVS v5.0.0-2.2.1): page size and cursor, an optional
+ * status or exact category, and `q`, a name search of 1 to 100 characters. Unknown keys are
+ * rejected.
+ */
+export const listProductsQuerySchema = paginationQuerySchema
+  .extend({
+    status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+    category: z.string().min(1).max(NAME_MAX).optional(),
+    q: z.string().min(1).max(100).optional(),
+  })
+  .strict();
+
+export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;
+
+/** Response of the product list. */
+export type ProductPage = { items: ProductView[]; next_cursor: string | null };

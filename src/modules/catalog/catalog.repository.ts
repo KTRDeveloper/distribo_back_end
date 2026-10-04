@@ -1,5 +1,7 @@
 import type { Prisma, Product } from '@prisma/client';
+import { prisma } from '../../lib/db.js';
 import { httpError } from '../../lib/http-error.js';
+import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 
 const notFound = () => httpError(404, 'NOT_FOUND', 'Not found');
 
@@ -132,4 +134,59 @@ export async function countNegotiatedPricesBefore(
   return tx.customerPrice.count({
     where: { productId, deletedAt: null, setAt: { lt: since } },
   });
+}
+
+/** Escapes `\`, `%` and `_` so a search text is matched literally by a LIKE pattern. */
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/**
+ * Lists the live products of one organization, newest first then by id, one page at a time.
+ *
+ * The organization filter is always applied (ASVS v5.0.0-8.2.2). Every filter value is a
+ * bound parameter through the ORM; `q` matches the name case-insensitively, with `%` and `_`
+ * taken literally (ASVS v5.0.0-1.2.4).
+ *
+ * @throws 400 `VALIDATION_ERROR` when the cursor is malformed.
+ */
+export async function listProductsOfOrganization(
+  organizationId: string,
+  query: {
+    limit: number;
+    cursor?: string;
+    status?: 'ACTIVE' | 'INACTIVE';
+    category?: string;
+    q?: string;
+  }
+): Promise<{ rows: Product[]; nextCursor: string | null }> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const found = await prisma.product.findMany({
+    where: {
+      organizationId,
+      deletedAt: null,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.category ? { category: query.category } : {}),
+      ...(query.q ? { name: { contains: escapeLike(query.q), mode: 'insensitive' as const } } : {}),
+      ...(cursor
+        ? {
+            OR: [
+              { createdAt: { lt: cursor.createdAt } },
+              { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.createdAt, id: last.id })
+        : null,
+  };
 }

@@ -4,11 +4,25 @@ import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import { uuidV7Schema } from '../../shared/ids.js';
-import { createProductSchema, editProductSchema } from './catalog.schemas.js';
-import { createProduct, editProduct } from './catalog.service.js';
+import {
+  createProductSchema,
+  editProductSchema,
+  listProductsQuerySchema,
+} from './catalog.schemas.js';
+import { createProduct, editProduct, listProducts } from './catalog.service.js';
+import './catalog.openapi.js';
 
 /** Catalog routes of one organization, mounted at `/organizations/:organizationId`. */
 export const catalogRoutes = Router({ mergeParams: true });
+
+// GET /api/v1/organizations/:organizationId/products - SELLER and above list the articles;
+// the service answers 403 for a DRIVER
+catalogRoutes.get('/products', authMiddleware, loadActor, (req, res, next) => {
+  Promise.resolve()
+    .then(() => listProducts(req.actor!, listProductsQuerySchema.parse(req.query)))
+    .then((page) => res.json(page))
+    .catch(next);
+});
 
 // POST /api/v1/organizations/:organizationId/products - OWNER or an online MANAGER adds an article
 catalogRoutes.post(

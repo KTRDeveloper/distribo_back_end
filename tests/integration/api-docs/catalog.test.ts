@@ -84,6 +84,10 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/collaborations/{id}/accept');
     expect(paths).toContain('/api/v1/collaborations/{id}/decline');
 
+    // CAT-004, CAT-005, CAT-006: the product routes
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/products');
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/products/{productId}');
+
     // ADM-007: the recovery email routes
     expect(paths).toContain('/api/v1/admin/recovery-email/request');
     expect(paths).toContain('/api/v1/admin/recovery-email/confirm');

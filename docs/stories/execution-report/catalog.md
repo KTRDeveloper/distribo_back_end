@@ -200,3 +200,34 @@ Also in this run: relationship, admin, order, finance, delivery.
 - No `.openapi.ts` for catalog and no entries in api-docs/catalog.test.ts or per-001 route lists (CAT-004 did none either); convention says a route story adds them.
 - Edit is allowed on a SUSPENDED/CLOSED organization; decide whether it should answer 409 like create.
 <!-- end CAT-005 -->
+
+<!-- begin CAT-006 -->
+## CAT-006 — Seller lists the catalog
+
+- Filed: 2026-10-04 15:40 UTC
+- Status: **done**: GET products list with filters, cursor paging, openapi for product routes
+- Risk: low · story: [CAT-006-seller-lists-the-catalog.md](../modules/catalog/CAT-006-seller-lists-the-catalog.md)
+- Agent: 56,533 tokens, 23 tool uses, 8 min 10 s
+
+### Agent report
+
+**Summary:** Added GET /organizations/{id}/products (SELLER and above) with status, category, q filters, cursor paging, and catalog.openapi.ts for the three product routes.
+
+**Decisions:**
+- Role check: done in the service with `atLeast(role, 'SELLER')` and a `permission_refused` warn log, like `listCollaborators`; no read rule exists in the CASL table.
+- Order and cursor: `created_at` desc then `id` asc, with the shared `encodeCursor`/`decodeCursor`.
+- `q`: Prisma `contains` does not escape LIKE wildcards, so the repository escapes `\`, `%`, `_` and `q=%` matches nothing.
+- Deleted products (`deleted_at` set) are not listed; the story is silent, this follows `getProductOfOrganization`.
+
+**Tests added beyond the story:**
+- list-products.test.ts › soft-deleted product is not listed: tenant data hygiene (consistent with CAT-005 reads)
+- list-products.test.ts › invalid query gets 400 (bad status, limit 0 or 101, q over 100, unknown key, bad cursor): strict validation (Errors, Validation sections of CONVENTIONS)
+- list-products.test.ts › q treats LIKE wildcards literally: failed first, fixed with escapeLike
+- list-products.test.ts › OWNER may list; unauthenticated 401; filters combine; q case-insensitive inside the name; closed view keys; passed at once
+
+**Other additions:**
+- `scripts/generate-openapi.ts`: imports catalog.openapi.js, else the generate-script test (live paths vs generated) fails.
+- `tests/integration/api-docs/catalog.test.ts`: the two products paths added. per-001.test.ts lists only auth paths, so nothing added there.
+
+**Evidence:** story tests 21/21; full suite 1926/1926, failing: none; typecheck clean; lint 0 errors (59 pre-existing warnings)
+<!-- end CAT-006 -->
