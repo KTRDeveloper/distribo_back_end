@@ -98,7 +98,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-002 | done | | CHECKs and four partial unique indexes added; REL-001 merged_into_id test updated as listed |
 | REL-003 | done | | credit_limit_changes table, append-only; story tests 8/8, full suite 1025/1025 |
 | REL-004 | blocked | | Story tests pass (20/20), but 2 REL-001 tests in relationship-table.test.ts contradict AC-1/AC-2 (credit_limit default null; set_by_id without set_at) and are not under Tests to update: list them, or say how to proceed |
-| REL-005 | todo | | |
+| REL-005 | done | | visibility predicate and party projections; 24 story tests, full suite 1049 pass |
 | REL-006 | todo | | |
 | REL-007 | todo | | |
 | REL-008 | todo | | |

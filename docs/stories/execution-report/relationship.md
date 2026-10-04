@@ -207,3 +207,34 @@ Also in this run: admin, catalog, order, finance, delivery.
 **Follow-ups:**
 - Add those two REL-001 tests to this story's "Tests to update" (expected: credit_limit 0; insert with set_by_id and set_at together), then rerun; work is uncommitted in the tree (migration 20261004160000_rel_004_credit_limit_rules, schema.prisma, the new test).
 <!-- end REL-004 -->
+
+<!-- begin REL-005 -->
+## REL-005 — Visibility predicate and party projections
+
+- Filed: 2026-10-04 06:15 UTC
+- Status: **done**: visibility predicate and party projections; 24 story tests, full suite 1049 pass
+- Risk: high · story: [REL-005-visibility-predicate-and-party-projections.md](../modules/relationship/REL-005-visibility-predicate-and-party-projections.md)
+- Agent: 38,483 tokens, 10 tool uses, 6 min 12 s
+
+### Agent report
+
+**Summary:** Added the visibility predicate and the three party projections; all tests green.
+
+**Decisions:**
+- View shapes left open: party is `{kind:'PERSON', person: PublicPerson}` or `{kind:'ORGANIZATION', name[, description]}`; null for a counter. Keeps "customer person part" checkable.
+- Money in supplier/customer views is `number` (bigint is not JSON-serializable); driver view was already number.
+- Predicate also matches `customer_organization_id` in organizationIds (the story says "supplier or customer organization").
+- `customer_name` for drivers: person full name, else organization name, else counter `customer_label`, else null.
+- `available_credit` is raw limit minus balance (negative when over the limit); zero limit is a real ceiling.
+- Empty `organizationIds`: org clauses are omitted, not sent as `in: []`.
+- Unit-level projection tests live in the story's integration file (the only test file listed).
+
+**Tests added beyond the story:**
+- `visibility.test.ts` › customer organization member sees row, empty organizationIds, merged row hidden, zero limit, counter/org name fallback, JSON-safe money: edge cases from the story text; passed at once (written with the implementation target known).
+
+**Evidence:** story tests 24/24; full suite 1049/1049, failing: none; typecheck clean; lint 0 errors, 44 warnings (existing)
+
+**Follow-ups:**
+- `projectForDriver` falls back to `customer_label` (supplier-private) for counters; confirm that is wanted.
+- relationship `contracts.md` should list these four exports when REL maintainers update it (stories folder not editable by me).
+<!-- end REL-005 -->
