@@ -14,9 +14,11 @@ import line of CONVENTIONS.md below.
 - Stories: `docs/stories/`; implement them with `/implement-stories`. Generating or syncing stories: the `design-to-user-stories` skill.
 - Design, the source of truth (read-only, about 200 KB): `data-model/modele-donnees-livraisons-v10.md`. Never read it whole: `grep -n` the heading you need, then read only that line range.
 - Decisions: `docs/stories/decisions/`.
+- Execution reports: `docs/stories/execution-report/<module>.md`, one per module, written only by `/implement-stories` through `.../report.mjs`: its runs first, then each story's agent report (decisions, tests and additions beyond the story).
 
 ## Never load these files whole
 - `docs/stories/STATUS.md` and `docs/stories/_meta/order.md`: run `node .claude/skills/implement-stories/scripts/select.mjs <selection>` or `.../set-status.mjs <ID> <status> [note]`, or `grep` the one line you need.
+- `docs/stories/execution-report/*.md`: `grep -n "begin <ID>"` and read from there to the `end <ID>` line.
 - Generated files: `openapi/openapi.json` (`npm run openapi:generate`), `package-lock.json` (`npm ls <package>`), `docs/stories/_meta/*.json`.
 
 ## Database rules outside the Prisma schema
