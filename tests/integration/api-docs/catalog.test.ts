@@ -96,6 +96,11 @@ describe('GET /docs/openapi.json', () => {
       '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{productId}'
     );
 
+    // CAT-009: the negotiated price list route (the delete shares the CAT-008 path)
+    expect(paths).toContain(
+      '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices'
+    );
+
     // ADM-007: the recovery email routes
     expect(paths).toContain('/api/v1/admin/recovery-email/request');
     expect(paths).toContain('/api/v1/admin/recovery-email/confirm');

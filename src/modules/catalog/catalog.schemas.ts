@@ -148,3 +148,31 @@ export type CustomerPriceView = {
   set_by_id: string;
   set_at: string;
 };
+
+/** Path of the negotiated price list: supplier organization and customer relationship. */
+export const customerPricesParamsSchema = z.object({
+  organizationId: uuidV7Schema,
+  relationshipId: uuidV7Schema,
+});
+
+/** Strict query of the negotiated price list: page size and cursor only. */
+export const listCustomerPricesQuerySchema = paginationQuerySchema.strict();
+
+export type ListCustomerPricesQuery = z.infer<typeof listCustomerPricesQuerySchema>;
+
+/**
+ * One live negotiated price as the supplier's staff sees it. `to_review` is true when the
+ * article price changed after the negotiated price was set.
+ */
+export type CustomerPriceListItem = {
+  product_id: string;
+  product_name: string;
+  price: number;
+  product_price: number;
+  set_by_id: string;
+  set_at: string;
+  to_review: boolean;
+};
+
+/** Response of the negotiated price list. */
+export type CustomerPricePage = { items: CustomerPriceListItem[]; next_cursor: string | null };

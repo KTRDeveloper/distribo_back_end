@@ -9,7 +9,9 @@ import {
   browseCatalogQuerySchema,
   createProductSchema,
   customerPriceParamsSchema,
+  customerPricesParamsSchema,
   editProductSchema,
+  listCustomerPricesQuerySchema,
   listProductsQuerySchema,
   setCustomerPriceSchema,
 } from './catalog.schemas.js';
@@ -17,7 +19,9 @@ import {
   browseCatalog,
   createProduct,
   editProduct,
+  listCustomerPrices,
   listProducts,
+  removeCustomerPrice,
   setCustomerPrice,
 } from './catalog.service.js';
 import './catalog.openapi.js';
@@ -118,6 +122,47 @@ catalogRoutes.put(
         );
       })
       .then((view) => res.json(view))
+      .catch(next);
+  }
+);
+
+// GET /api/v1/organizations/:organizationId/customers/:relationshipId/prices - SELLER and above
+// list one customer's negotiated prices with the review flag; the service answers 403 for a
+// DRIVER and 404 outside the organization
+catalogRoutes.get(
+  '/customers/:relationshipId/prices',
+  authMiddleware,
+  loadActor,
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() => {
+        const { relationshipId } = customerPricesParamsSchema.parse(req.params);
+        return listCustomerPrices(
+          req.actor!,
+          relationshipId,
+          listCustomerPricesQuerySchema.parse(req.query)
+        );
+      })
+      .then((page) => res.json(page))
+      .catch(next);
+  }
+);
+
+// DELETE /api/v1/organizations/:organizationId/customers/:relationshipId/prices/:productId -
+// OWNER or an online MANAGER removes a negotiated price. It has no body and so no gesture id: a
+// repeat finds no live price and answers 404.
+catalogRoutes.delete(
+  '/customers/:relationshipId/prices/:productId',
+  authMiddleware,
+  loadActor,
+  requireAbility('delete', 'CustomerPrice'),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() => {
+        const { relationshipId, productId } = customerPriceParamsSchema.parse(req.params);
+        return removeCustomerPrice(req.actor!, relationshipId, productId);
+      })
+      .then(() => res.status(204).end())
       .catch(next);
   }
 );

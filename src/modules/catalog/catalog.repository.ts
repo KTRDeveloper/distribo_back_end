@@ -355,3 +355,108 @@ export async function upsertCustomerPrice(
   if (!row) throw new Error('Customer price upsert returned no row');
   return { productId: row.product_id, price: row.price, setById: row.set_by_id, setAt: row.set_at };
 }
+
+/**
+ * Lists the live negotiated prices of one relationship of the organization, newest `set_at`
+ * first then by id, one page at a time. `set_at` is the ordering key because the table has no
+ * `created_at`.
+ *
+ * The relationship is selected through the visibility predicate AND the supplier organization
+ * together, so another business's prices are never read (ASVS v5.0.0-8.2.2). Deleted prices are
+ * left out; the product comes with the row for its name, price and `price_updated_at`.
+ *
+ * @returns The page, or null when the relationship is absent or outside the organization.
+ * @throws 400 `VALIDATION_ERROR` when the cursor is malformed.
+ */
+export async function listCustomerPricesOfRelationship(
+  viewer: { personId: string; organizationId: string },
+  relationshipId: string,
+  query: { limit: number; cursor?: string }
+): Promise<{
+  rows: Array<{
+    price: bigint;
+    setById: string;
+    setAt: Date;
+    product: { id: string; name: string; price: bigint; priceUpdatedAt: Date };
+    id: string;
+  }>;
+  nextCursor: string | null;
+} | null> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const relationship = await prisma.customerRelationship.findFirst({
+    where: {
+      AND: [
+        visibleRelationsWhere({
+          personId: viewer.personId,
+          organizationIds: [viewer.organizationId],
+        }),
+        { supplierOrganizationId: viewer.organizationId },
+        { id: relationshipId },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!relationship) return null;
+  const found = await prisma.customerPrice.findMany({
+    where: {
+      customerRelationshipId: relationship.id,
+      deletedAt: null,
+      ...(cursor
+        ? {
+            OR: [
+              { setAt: { lt: cursor.createdAt } },
+              { setAt: cursor.createdAt, id: { gt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ setAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+    select: {
+      id: true,
+      price: true,
+      setById: true,
+      setAt: true,
+      product: { select: { id: true, name: true, price: true, priceUpdatedAt: true } },
+    },
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.setAt, id: last.id })
+        : null,
+  };
+}
+
+/** Returns the id of the live negotiated price of a relationship and product, or null. */
+export async function findLiveCustomerPriceId(
+  tx: Prisma.TransactionClient,
+  relationshipId: string,
+  productId: string
+): Promise<string | null> {
+  const row = await tx.customerPrice.findFirst({
+    where: { customerRelationshipId: relationshipId, productId, deletedAt: null },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+}
+
+/**
+ * Marks a negotiated price deleted (soft delete, C-11). Only a still-live row is touched, so a
+ * concurrent second delete changes nothing.
+ *
+ * @returns True when this call deleted the row.
+ */
+export async function softDeleteCustomerPrice(
+  tx: Prisma.TransactionClient,
+  priceId: string
+): Promise<boolean> {
+  const result = await tx.customerPrice.updateMany({
+    where: { id: priceId, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
+  return result.count === 1;
+}

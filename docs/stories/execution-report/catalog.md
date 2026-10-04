@@ -298,3 +298,34 @@ Also in this run: relationship, admin, order, finance, delivery.
 - Confirm the AC-5 PENDING row should read 404 (rule unreachable) and that ENDED should be 409.
 - An id reused across pairs would hit the primary key and give a 500; not mapped.
 <!-- end CAT-008 -->
+
+<!-- begin CAT-009 -->
+## CAT-009 — Owner or manager removes a negotiated price and reads them
+
+- Filed: 2026-10-04 15:59 UTC
+- Status: **done**: List and delete negotiated prices; 20 story tests, full suite 2009 green
+- Risk: medium · story: [CAT-009-owner-or-manager-removes-a-negotiated-price-and.md](../modules/catalog/CAT-009-owner-or-manager-removes-a-negotiated-price-and.md)
+- Agent: 66,383 tokens, 20 tool uses, 8 min 52 s
+
+### Agent report
+
+**Summary:** Added GET list (SELLER+, flagged to_review) and DELETE (owner/online manager, 204, soft delete) of negotiated prices.
+
+**Decisions:**
+- List cursor/order key: `set_at` desc then id (CustomerPrice has no `created_at`; story says "created_at").
+- DELETE has no body, so no gesture id and no `idempotent()`; a repeat answers 404 (no live price).
+- Delete order: relationship 404, product 404, OWN_RECORD 403, live price 404; an ENDED relationship may still lose a price (no 409 rule in the story).
+- Delete also notifies a registered customer `price.negotiated_changed` (same helper as set); org must be ACTIVE (409), as for set.
+- Extracted `refuseOwnRecord` and `notifyPriceChanged` from `setCustomerPrice`, behavior unchanged.
+- Listing own-record prices by a manager is allowed (own-record rule only on delete, per story).
+- per-001 lists only auth paths, so only api-docs/catalog.test.ts got the new list path.
+
+**Tests added beyond the story:**
+- `list-remove-prices.test.ts` › deleted prices and other relationships left out of the list: no leak across relationships (C-11, AB-1); passed at once
+- same file › paginates with limit and cursor, DRIVER 403 / limit 101 / unknown key 400 (Project rules, ASVS 8.2.1)
+- same file › notification to registered customer only, none for guest or refused requests (story Context)
+- same file › repeat delete answers 404, one notification only (A-4 first row, fail closed)
+- same file › AB-1 member of B via path organization A or own org: 404 (ASVS 8.2.2)
+
+**Evidence:** story tests 20/20; full suite 2009/2009, failing: none; typecheck clean; lint 0 errors, 59 warnings (pre-existing)
+<!-- end CAT-009 -->
