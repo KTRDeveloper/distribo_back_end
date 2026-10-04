@@ -627,3 +627,38 @@ Also in this run: admin, catalog, order, finance, delivery.
 
 **Evidence:** story tests 11/11; full suite 1671/1671, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing)
 <!-- end REL-016 -->
+
+<!-- begin REL-017 -->
+## REL-017 — Customer names, ends and reopens a supplier
+
+- Filed: 2026-10-04 14:34 UTC
+- Status: **done**: customer PATCH/end/reopen on /suppliers; 12 story tests, full suite 1683 green
+- Risk: medium · story: [REL-017-customer-names-ends-and-reopens-a-supplier.md](../modules/relationship/REL-017-customer-names-ends-and-reopens-a-supplier.md)
+- Agent: 62,324 tokens, 22 tool uses, 4 min 19 s
+
+### Agent report
+
+**Summary:** Added PATCH /suppliers/{id} and POST /suppliers/{id}/end and /reopen for the customer person; done.
+
+**Decisions:**
+- PATCH has no gesture id and no idempotent(): the story's body is only `{ supplier_label }`, and a repeat writes the same value.
+- End on a non-ACTIVE row answers 409 RELATIONSHIP_NOT_ACTIVE; reopen on a non-ENDED row answers 409 RELATIONSHIP_NOT_ENDED (same codes as the supplier side).
+- Scope is the visibility predicate plus customer_person_id = caller, so a row where the caller is only the supplier person answers 404.
+- Customer-side finders and `findWithSupplier` added to the repository, because the supplier-side reload does not load supplierPerson. `transitionRelationship` now accepts CUSTOMER.
+
+**Tests added beyond the story:**
+- `customer-actions.test.ts` › refuses an empty label and unknown fields: only supplier_label writable, credit_limit untouched (AC-3, CM-19); passed on first implementation
+- `customer-actions.test.ts` › refuses ending a non-ACTIVE / reopening a non-ENDED relationship: 409 codes (C-09)
+- `customer-actions.test.ts` › AB-2 for the supplier-side person and an absent id: 404 (CONVENTIONS: outside scope is 404)
+- `customer-actions.test.ts` › repeat of the same gesture id returns the first response (Project rules, idempotence)
+- `customer-actions.test.ts` › unknown fields in end body (status, ended_by_party): 400 (v5.0.0-15.3.3)
+- `customer-actions.test.ts` › PATCH without session: 401
+
+**Other additions:**
+- Three paths added to the catalog test in tests/integration/api-docs/catalog.test.ts (per-001 only lists auth paths, nothing to add).
+
+**Evidence:** story tests 12/12; full suite 1683/1683, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- Customer-side end/reopen do not notify the supplier; the story does not ask for it.
+<!-- end REL-017 -->

@@ -109,3 +109,14 @@ export const creditLimitChangesQuerySchema = paginationQuerySchema.strict();
 export const endReopenSchema = z.object({ id: uuidV7Schema }).strict();
 
 export type EndReopenInput = z.infer<typeof endReopenSchema>;
+
+/**
+ * Strict body of the customer-side rename: only `supplier_label`, 1 to 100 characters after
+ * trimming (ASVS v5.0.0-15.3.3). `customer_label`, the credit limit and every other field are
+ * rejected as unknown keys, so a customer writes only its own label (CM-19, CWE-915).
+ */
+export const editSupplierSchema = z
+  .object({ supplier_label: z.string().trim().min(1).max(LABEL_MAX) })
+  .strict();
+
+export type EditSupplierInput = z.infer<typeof editSupplierSchema>;

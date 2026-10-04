@@ -13,6 +13,7 @@ import type {
   AddCounterInput,
   AddCustomerInput,
   EditCustomerInput,
+  EditSupplierInput,
   ListCustomersQuery,
   ListSuppliersQuery,
   SetCreditLimitInput,
@@ -22,9 +23,11 @@ import {
   createCounter,
   ensureCustomerRelationship,
   findPersonName,
+  findCustomerRelationshipLocked,
   findSupplierRelationship,
   findSupplierRelationshipLocked,
   findWithParties,
+  findWithSupplier,
   listCreditLimitChangeRows,
   listCustomerRelationships,
   listSupplierRelationships,
@@ -32,6 +35,7 @@ import {
   managesOrganization,
   transitionRelationship,
   updateSupplierFields,
+  updateSupplierLabel,
   writeCreditLimit,
 } from './relationship.repository.js';
 import {
@@ -561,5 +565,104 @@ export async function reopenRelationship(
     });
     if (!changed) throw httpError(409, 'RELATIONSHIP_NOT_ENDED', 'The relationship is not ended');
     return projectForSupplier(await findWithParties(tx, row.id));
+  });
+}
+
+/**
+ * A customer names a supplier: writes `supplier_label` on a relationship of the caller.
+ *
+ * The row is selected by id and by the caller's person id as customer (ASVS v5.0.0-8.2.2): a
+ * relationship of another person, or one where the caller is only the supplier, answers 404.
+ * Only `supplier_label` is writable (v5.0.0-15.3.3); the response is the customer projection, so
+ * `customer_label` and `supplier_notes` never leave (CM-19).
+ *
+ * @param personId - Caller's person id from the session.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param input - Validated body: the label.
+ * @throws 404 `NOT_FOUND`.
+ */
+export async function customerEditSupplier(
+  personId: string,
+  relationshipId: string,
+  input: EditSupplierInput
+): Promise<CustomerRelationshipView> {
+  const row = await updateSupplierLabel(personId, relationshipId, input.supplier_label);
+  if (!row) throw httpError(404, 'NOT_FOUND', 'Supplier not found');
+  return projectForCustomer(row);
+}
+
+/**
+ * A customer leaves a supplier: ACTIVE becomes ENDED with `ended_by_party` CUSTOMER. History,
+ * balance and payments stay untouched.
+ *
+ * One transaction locks the row selected by id and the caller's person id as customer (404
+ * otherwise, v5.0.0-8.2.2), refuses any status but ACTIVE, and writes the change in one
+ * conditional update (v5.0.0-2.3.1, C-09).
+ *
+ * @param personId - Caller's person id from the session.
+ * @param relationshipId - Validated relationship id from the path.
+ * @returns The customer view of the ended relationship.
+ * @throws 404 `NOT_FOUND`; 409 `RELATIONSHIP_NOT_ACTIVE`.
+ */
+export function customerEndRelationship(
+  personId: string,
+  relationshipId: string
+): Promise<CustomerRelationshipView> {
+  return runInTransaction(async (tx) => {
+    const row = await findCustomerRelationshipLocked(tx, personId, relationshipId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Supplier not found');
+    if (row.status !== 'ACTIVE') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'The relationship is not active');
+    }
+
+    const changed = await transitionRelationship(tx, row.id, {
+      from: { status: 'ACTIVE', endedByParty: null },
+      to: { status: 'ENDED', endedByParty: 'CUSTOMER' },
+    });
+    if (!changed) throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'The relationship is not active');
+    logger.warn(
+      { event: 'relationship_ended', relationshipId: row.id, personId },
+      'Relationship ended'
+    );
+    return projectForCustomer(await findWithSupplier(tx, row.id));
+  });
+}
+
+/**
+ * A customer comes back to a supplier they left: ENDED by CUSTOMER becomes ACTIVE with
+ * `ended_by_party` empty. Only the party that closed it may reopen it (C-09): a relationship the
+ * supplier ended (a block) answers 409 and stays ENDED.
+ *
+ * Same scope, lock and conditional update as {@link customerEndRelationship}.
+ *
+ * @param personId - Caller's person id from the session.
+ * @param relationshipId - Validated relationship id from the path.
+ * @returns The customer view of the reopened relationship.
+ * @throws 404 `NOT_FOUND`; 409 `ENDED_BY_OTHER_PARTY` or `RELATIONSHIP_NOT_ENDED`.
+ */
+export function customerReopenRelationship(
+  personId: string,
+  relationshipId: string
+): Promise<CustomerRelationshipView> {
+  return runInTransaction(async (tx) => {
+    const row = await findCustomerRelationshipLocked(tx, personId, relationshipId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Supplier not found');
+    if (row.status !== 'ENDED') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ENDED', 'The relationship is not ended');
+    }
+    if (row.endedByParty !== 'CUSTOMER') {
+      logger.warn(
+        { event: 'reopen_refused', relationshipId: row.id, personId },
+        'Reopen refused: ended by the other party'
+      );
+      throw httpError(409, 'ENDED_BY_OTHER_PARTY', 'The other party ended this relationship');
+    }
+
+    const changed = await transitionRelationship(tx, row.id, {
+      from: { status: 'ENDED', endedByParty: 'CUSTOMER' },
+      to: { status: 'ACTIVE', endedByParty: null },
+    });
+    if (!changed) throw httpError(409, 'RELATIONSHIP_NOT_ENDED', 'The relationship is not ended');
+    return projectForCustomer(await findWithSupplier(tx, row.id));
   });
 }

@@ -484,8 +484,8 @@ export async function transitionRelationship(
   tx: Prisma.TransactionClient,
   id: string,
   transition: {
-    from: { status: 'ACTIVE' | 'ENDED'; endedByParty: 'SUPPLIER' | null };
-    to: { status: 'ACTIVE' | 'ENDED'; endedByParty: 'SUPPLIER' | null };
+    from: { status: 'ACTIVE' | 'ENDED'; endedByParty: 'SUPPLIER' | 'CUSTOMER' | null };
+    to: { status: 'ACTIVE' | 'ENDED'; endedByParty: 'SUPPLIER' | 'CUSTOMER' | null };
   }
 ): Promise<boolean> {
   const { count } = await tx.customerRelationship.updateMany({
@@ -493,4 +493,75 @@ export async function transitionRelationship(
     data: { status: transition.to.status, endedByParty: transition.to.endedByParty },
   });
   return count === 1;
+}
+
+/** Where clause of one relationship of the person as customer person, through the visibility predicate. */
+function customerScope(personId: string, id: string): Prisma.CustomerRelationshipWhereInput {
+  return {
+    AND: [
+      visibleRelationsWhere({ personId, organizationIds: [] }),
+      { customerPersonId: personId },
+      { id },
+    ],
+  };
+}
+
+/**
+ * Updates `supplier_label` of one relationship where the person is the customer person.
+ *
+ * The row is matched by id, visibility and customer person in one conditional update
+ * (v5.0.0-8.2.2), so another person's row, a deleted or a merged one answers null exactly like
+ * an absent id. Only `supplier_label` is written (v5.0.0-15.3.3).
+ *
+ * @param personId - Caller's person id from the session, never from the client.
+ * @param id - Relationship id from the path.
+ * @param supplierLabel - Validated label.
+ * @returns The updated row with the supplier parties loaded, or null when not visible.
+ */
+export function updateSupplierLabel(personId: string, id: string, supplierLabel: string) {
+  return prisma.$transaction(async (tx) => {
+    const found = await tx.customerRelationship.findFirst({
+      where: customerScope(personId, id),
+      select: { id: true },
+    });
+    if (!found) return null;
+    return tx.customerRelationship.update({
+      where: { id: found.id },
+      data: { supplierLabel },
+      include: { supplierPerson: true, supplierOrganization: true },
+    });
+  });
+}
+
+/**
+ * Reads one relationship where the person is the customer person and holds a row lock on it
+ * until the transaction ends, so a concurrent end, reopen or merge waits. The scoped lookup
+ * runs first (v5.0.0-8.2.2): another person's row answers null and is never locked.
+ *
+ * @param tx - Transaction client of the caller.
+ * @param personId - Caller's person id from the session, never from the client.
+ * @param id - Relationship id from the path.
+ * @returns The locked row with the supplier parties loaded, or null.
+ */
+export async function findCustomerRelationshipLocked(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  id: string
+) {
+  const where = customerScope(personId, id);
+  const found = await tx.customerRelationship.findFirst({ where, select: { id: true } });
+  if (!found) return null;
+  await tx.$queryRaw`SELECT "id" FROM "customer_relationships" WHERE "id" = ${found.id}::uuid FOR UPDATE`;
+  return tx.customerRelationship.findFirst({
+    where,
+    include: { supplierPerson: true, supplierOrganization: true },
+  });
+}
+
+/** Reloads a relationship with its supplier parties, the ones `projectForCustomer` needs. */
+export function findWithSupplier(tx: Prisma.TransactionClient, id: string) {
+  return tx.customerRelationship.findUniqueOrThrow({
+    where: { id },
+    include: { supplierPerson: true, supplierOrganization: true },
+  });
 }

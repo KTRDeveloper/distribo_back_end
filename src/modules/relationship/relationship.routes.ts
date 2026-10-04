@@ -9,6 +9,7 @@ import {
   creditLimitChangesQuerySchema,
   customerParamsSchema,
   editCustomerSchema,
+  editSupplierSchema,
   endReopenSchema,
   listCustomersQuerySchema,
   listSuppliersQuerySchema,
@@ -17,6 +18,9 @@ import {
 import {
   addCounter,
   addCustomer,
+  customerEditSupplier,
+  customerEndRelationship,
+  customerReopenRelationship,
   editCustomer,
   endRelationship,
   getCustomer,
@@ -214,3 +218,50 @@ supplierRoutes.get('/', authMiddleware, (req, res, next) => {
     .then((page) => res.json(page))
     .catch(next);
 });
+
+// PATCH /api/v1/suppliers/:relationshipId - the customer names a supplier; the person comes from
+// the session and the service answers 404 outside the caller's own relationships
+supplierRoutes.patch('/:relationshipId', authMiddleware, (req, res, next) => {
+  Promise.resolve()
+    .then(() =>
+      customerEditSupplier(
+        req.user!.id,
+        customerParamsSchema.parse(req.params).relationshipId,
+        editSupplierSchema.parse(req.body)
+      )
+    )
+    .then((supplier) => res.json(supplier))
+    .catch(next);
+});
+
+/** Builds the POST handler of a customer-side end or reopen gesture: same guards, one call. */
+function customerGestureRoute(
+  path: string,
+  gesture: typeof customerEndRelationship | typeof customerReopenRelationship
+) {
+  supplierRoutes.post(
+    path,
+    authMiddleware,
+    // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+    (req, _res, next) => {
+      const parsed = endReopenSchema.safeParse(req.body);
+      if (!parsed.success) return next(parsed.error);
+      req.body = parsed.data;
+      return next();
+    },
+    idempotent(),
+    (req, res, next) => {
+      Promise.resolve()
+        .then(() => gesture(req.user!.id, customerParamsSchema.parse(req.params).relationshipId))
+        .then((supplier) => res.json(supplier))
+        .catch(next);
+    }
+  );
+}
+
+// POST /api/v1/suppliers/:relationshipId/end - the customer leaves a supplier; 409 unless ACTIVE
+customerGestureRoute('/:relationshipId/end', customerEndRelationship);
+
+// POST /api/v1/suppliers/:relationshipId/reopen - the customer comes back; 409 when the supplier
+// ended the relationship
+customerGestureRoute('/:relationshipId/reopen', customerReopenRelationship);

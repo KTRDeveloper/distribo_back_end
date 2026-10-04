@@ -7,6 +7,7 @@ import {
   creditLimitChangesQuerySchema,
   customerParamsSchema,
   editCustomerSchema,
+  editSupplierSchema,
   endReopenSchema,
   listCustomersQuerySchema,
   listSuppliersQuerySchema,
@@ -328,3 +329,65 @@ openApiRegistry.registerPath({
     401: { description: 'Missing or invalid token', content: errorContent },
   },
 });
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/api/v1/suppliers/{relationshipId}',
+  tags: ['relationship'],
+  summary: 'Name a supplier: write my supplier_label (customer only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: customerParamsSchema,
+    body: { content: { 'application/json': { schema: editSupplierSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The updated customer-side relationship view',
+      content: { 'application/json': { schema: customerRelationshipViewSchema } },
+    },
+    400: { description: 'Invalid body or relationship id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    404: {
+      description: 'Not found, deleted, or a relationship of another person',
+      content: errorContent,
+    },
+  },
+});
+
+for (const [action, summary, conflicts] of [
+  [
+    'end',
+    'Leave a supplier as customer (ACTIVE becomes ENDED by the customer)',
+    'RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+  ],
+  [
+    'reopen',
+    'Come back to a supplier the customer left',
+    'ENDED_BY_OTHER_PARTY, RELATIONSHIP_NOT_ENDED or conflicting gesture id',
+  ],
+] as const) {
+  openApiRegistry.registerPath({
+    method: 'post',
+    path: `/api/v1/suppliers/{relationshipId}/${action}`,
+    tags: ['relationship'],
+    summary,
+    security: [{ bearerAuth: [] }],
+    request: {
+      params: customerParamsSchema,
+      body: { content: { 'application/json': { schema: endReopenSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'The updated customer-side relationship view',
+        content: { 'application/json': { schema: customerRelationshipViewSchema } },
+      },
+      400: { description: 'Invalid body or relationship id', content: errorContent },
+      401: { description: 'Missing or invalid token', content: errorContent },
+      404: {
+        description: 'Not found, deleted, or a relationship of another person',
+        content: errorContent,
+      },
+      409: { description: conflicts, content: errorContent },
+    },
+  });
+}
