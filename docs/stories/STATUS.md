@@ -155,7 +155,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-002 | done | | migration 20261004330000 adds sale and reversal triggers plus partial unique index; ledger-table fixtures updated |
 | FIN-003 | done | | appendLedgerEntry and reverseLedgerEntry; addToBalance added to relationship repo; 19 story tests, full suite 2539 pass |
 | FIN-004 | done | | Payment route, 13 tests, full suite green; OpenAPI paths left to FIN-010 |
-| FIN-005 | todo | | |
+| FIN-005 | done | | refund route, 13 tests, full suite green |
 | FIN-006 | todo | | |
 | FIN-007 | todo | | |
 | FIN-008 | todo | | |

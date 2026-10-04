@@ -203,6 +203,42 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - Add the payments path to catalog.test.ts when FIN-010 registers the OpenAPI paths.
 <!-- end FIN-004 -->
 
+<!-- begin FIN-005 -->
+## FIN-005 — Manager returns money to a customer
+
+- Filed: 2026-10-04 21:24 UTC
+- Status: **done**: refund route, 13 tests, full suite green
+- Risk: high · story: [FIN-005-manager-returns-money-to-a-customer.md](../modules/finance/FIN-005-manager-returns-money-to-a-customer.md)
+- Agent: 53,628 tokens, 17 tool uses, 5 min 18 s
+
+### Agent report
+
+**Summary:** Added POST .../customers/{relationshipId}/refunds and `recordRefund`; all tests green.
+
+**Decisions:**
+- Customer notified: only a registered customer person; a business customer or guest gets nothing (the story names no recipient for a business).
+- Organization status: any status but ACTIVE is refused (CLOSED and SUSPENDED), unlike payments, per AC-3.
+- PENDING relationship: 409 `RELATIONSHIP_NOT_ACTIVE` (same code as FIN-004; the story names none). ENDED stays allowed.
+- Own-record rule copied from setCreditLimit (customer person is the caller, or a non-owner manages the customer organization); logged as `own_record_refused`.
+- Reused `recordPaymentSchema`/`PaymentInput` (same limits); route has no SELLER floor, the rules table already refuses SELLER and DRIVER.
+- Notification related entity type is `ledger_entry`; content includes the amount in XAF, FR/EN by recipient language.
+
+**Tests added beyond the story:**
+- `refund.test.ts` › owner refunds with mobile money reference: OWNER allowed, held money of the owner lowered (v5.0.0-8.2.1)
+- `refund.test.ts` › guest customer: refund stored, no notification (AC-2 says "registered")
+- `refund.test.ts` › owner refunds their manager as customer: the OWN_RECORD limit binds managers only (same rule as credit limit)
+- `refund.test.ts` › another business's customer gives 404 and stores nothing (v5.0.0-8.2.2)
+- The SUSPENDED case, the PENDING relationship and the client-set `kind` rejection sit in the story's refusal tests.
+
+**Other additions:**
+- None.
+
+**Evidence:** story tests 13/13; full suite 2565/2565, failing: none; typecheck clean; lint 0 errors, no warning in the finance code
+
+**Follow-ups:**
+- No `.openapi.ts` for finance exists (FIN-004 did not add one), so the refunds and payments paths are in neither catalog.test.ts nor per-001.test.ts; left as is.
+<!-- end FIN-005 -->
+
 <!-- begin FIN-011 -->
 ## FIN-011 — Expenses table
 

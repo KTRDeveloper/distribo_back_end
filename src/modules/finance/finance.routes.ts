@@ -7,7 +7,7 @@ import { logger } from '../../lib/logger.js';
 import { httpError } from '../../lib/http-error.js';
 import { atLeast } from '../../shared/access/roles.js';
 import { paymentParamSchema, recordPaymentSchema } from './finance.schemas.js';
-import { recordPayment } from './finance.service.js';
+import { recordPayment, recordRefund } from './finance.service.js';
 
 /** Finance routes of one organization, mounted at `/organizations/:organizationId`. */
 export const financeRoutes = Router({ mergeParams: true });
@@ -42,6 +42,36 @@ financeRoutes.post(
   idempotent(),
   (req, res, next) => {
     recordPayment(
+      req.actor!,
+      paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
+      recordPaymentSchema.parse(req.body)
+    )
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/customers/:relationshipId/refunds - a MANAGER online
+// or the OWNER gives money back to a customer. The rules table grants `create LedgerEntry kind
+// REFUND` to nobody below MANAGER, so a SELLER or DRIVER is refused there; the organization and
+// the recorder are the caller's, never body fields.
+financeRoutes.post(
+  '/customers/:relationshipId/refunds',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'LedgerEntry', () => ({ kind: 'REFUND' })),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = paymentParamSchema.safeParse({ relationshipId: req.params.relationshipId });
+    if (!params.success) return next(params.error);
+    const parsed = recordPaymentSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    recordRefund(
       req.actor!,
       paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
       recordPaymentSchema.parse(req.body)
