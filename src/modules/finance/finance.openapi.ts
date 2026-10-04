@@ -9,6 +9,7 @@ import {
   openingBalanceSchema,
   paymentParamSchema,
   recordExpenseSchema,
+  recordHandoverSchema,
   recordPaymentSchema,
   returnSchema,
   reverseEntrySchema,
@@ -258,6 +259,36 @@ openApiRegistry.registerPath({
             occurred_at: z.string().datetime(),
             cancelled_at: z.string().datetime().nullable(),
             cancelled_by_id: z.string().uuid().nullable(),
+          }),
+        },
+      },
+    },
+    ...gestureErrors,
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/handovers',
+  tags: ['finance'],
+  summary:
+    "Record money received from a collaborator: their held money falls, the caller's rises (MANAGER and above)",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema,
+    body: { content: { 'application/json': { schema: recordHandoverSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The stored handover',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string().uuid(),
+            from_person_id: z.string().uuid(),
+            to_person_id: z.string().uuid(),
+            amount: z.number().int(),
+            occurred_at: z.string().datetime(),
           }),
         },
       },

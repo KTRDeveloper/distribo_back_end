@@ -14,6 +14,7 @@ import {
   openingBalanceSchema,
   paymentParamSchema,
   recordExpenseSchema,
+  recordHandoverSchema,
   recordPaymentSchema,
   returnSchema,
   reverseEntrySchema,
@@ -24,6 +25,7 @@ import {
   listLedger,
   recordCreditNote,
   recordExpense,
+  recordHandover,
   recordOpeningBalance,
   recordPayment,
   recordRefund,
@@ -274,6 +276,29 @@ financeRoutes.post(
       cancelExpenseParamSchema.parse({ expenseId: req.params.expenseId }).expenseId
     )
       .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/handovers - a MANAGER online or the OWNER records the
+// money received from a collaborator. The rules table grants `create Handover` to nobody below
+// MANAGER; the receiver is the caller and the organization comes from the path, never the body.
+financeRoutes.post(
+  '/handovers',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'Handover'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const parsed = recordHandoverSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    recordHandover(req.actor!, recordHandoverSchema.parse(req.body))
+      .then((view) => res.status(201).json(view))
       .catch(next);
   }
 );

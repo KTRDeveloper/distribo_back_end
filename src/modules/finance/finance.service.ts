@@ -10,6 +10,7 @@ import {
 } from '../organization/organization.repository.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
+  findPersonName,
   findSupplierRelationshipLocked,
   managesOrganization,
 } from '../relationship/relationship.repository.js';
@@ -18,11 +19,12 @@ import type {
   OpeningBalanceInput,
   PaymentInput,
   RecordExpenseInput,
+  RecordHandoverInput,
   ReturnInput,
   ReverseEntryInput,
 } from './finance.schemas.js';
 import { listLedgerPage } from './finance.repository.js';
-import { cancelExpenseInTx, recordExpenseInTx } from './held-money.js';
+import { cancelExpenseInTx, recordExpenseInTx, recordHandoverInTx } from './held-money.js';
 import { appendLedgerEntry, reverseLedgerEntry } from './ledger.service.js';
 
 /** A ledger entry as the recorder sees it: an explicit field list, money in whole XAF. */
@@ -600,6 +602,93 @@ export function cancelExpense(actor: Actor, expenseId: string): Promise<Cancelle
       occurred_at: expense.occurredAt,
       cancelled_at: expense.cancelledAt,
       cancelled_by_id: expense.cancelledById,
+    };
+  });
+}
+
+/** A handover as the recorder sees it: an explicit field list, money in whole XAF. */
+export type HandoverView = {
+  id: string;
+  from_person_id: string;
+  to_person_id: string;
+  amount: number;
+  occurred_at: Date;
+};
+
+const HANDOVER_CONTENT = {
+  FR: (receiver: string, amount: number, remaining: number) =>
+    `${receiver} a noté avoir reçu ${amount} de vous. Il vous reste ${remaining} à remettre.`,
+  EN: (receiver: string, amount: number, remaining: number) =>
+    `${receiver} noted receiving ${amount} from you. You still have ${remaining} to hand over.`,
+};
+
+/**
+ * A MANAGER online or the OWNER records money received from a collaborator (FIN-015, C-27, CM-17):
+ * the remitter's held money falls and the caller's rises. The route checked the rules table
+ * (`create` Handover, ASVS v5.0.0-8.2.1); the receiver is always the caller. One transaction
+ * (v5.0.0-2.3.3): the organization must be ACTIVE; a remitter equal to the caller is a 400; the
+ * remitter must have a collaboration in the caller's own organization, ACTIVE or revoked (a person
+ * of another business, an unknown id or a mere invitee is 404, v5.0.0-8.2.2). `recordHandoverInTx`
+ * inserts the row and moves both amounts in a fixed order. The remitter is then told, in their
+ * language, the noted amount and what they still hold (`handover.recorded`), so a note lower than
+ * what they handed over shows (CWE-778). An amount above what the remitter holds is accepted.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked the role.
+ * @param input - Validated body.
+ * @returns The stored handover.
+ * @throws 400 `VALIDATION_ERROR` (remitter is the caller); 404 `NOT_FOUND` (remitter outside the
+ * organization); 409 `ORGANIZATION_NOT_ACTIVE`.
+ */
+export function recordHandover(actor: Actor, input: RecordHandoverInput): Promise<HandoverView> {
+  return runInTransaction(async (tx) => {
+    const status = await findOrganizationStatus(actor.organizationId, tx);
+    if (status === null) throw httpError(404, 'NOT_FOUND', 'Not found');
+    if (status !== 'ACTIVE') {
+      throw httpError(409, 'ORGANIZATION_NOT_ACTIVE', 'Organization is not active');
+    }
+    if (input.from_person_id === actor.personId) {
+      throw httpError(400, 'VALIDATION_ERROR', 'A handover cannot be from yourself');
+    }
+
+    const remitter = await findCollaboration(tx, input.from_person_id, actor.organizationId);
+    if (!remitter || (remitter.status !== 'ACTIVE' && remitter.status !== 'REVOKED')) {
+      throw httpError(404, 'NOT_FOUND', 'Not found');
+    }
+
+    const handover = await recordHandoverInTx(tx, {
+      id: input.id,
+      organizationId: actor.organizationId,
+      fromPersonId: input.from_person_id,
+      toPersonId: actor.personId,
+      amount: BigInt(input.amount),
+      occurredAt: input.occurred_at ? new Date(input.occurred_at) : new Date(),
+    });
+
+    const after = await findCollaboration(tx, input.from_person_id, actor.organizationId);
+    const receiverName = (await findPersonName(tx, actor.personId)) ?? '';
+    const language = await recipientLanguage(input.from_person_id, tx);
+    const content = HANDOVER_CONTENT[language](
+      receiverName,
+      input.amount,
+      Number(after?.amountHeld ?? 0n)
+    );
+    await notify(
+      {
+        recipientId: input.from_person_id,
+        organizationId: actor.organizationId,
+        sourceEvent: 'handover.recorded',
+        content,
+        related: { type: 'handover', id: handover.id },
+      },
+      tx
+    );
+
+    return {
+      id: handover.id,
+      from_person_id: handover.fromPersonId,
+      to_person_id: handover.toPersonId,
+      amount: Number(handover.amount),
+      occurred_at: handover.occurredAt,
     };
   });
 }

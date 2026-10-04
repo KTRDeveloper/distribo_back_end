@@ -534,3 +534,34 @@ Also in this run: relationship, admin, catalog, order, delivery.
 **Follow-ups:**
 - Tests were written first and failed (33/33) before the migration existed.
 <!-- end FIN-014 -->
+
+<!-- begin FIN-015 -->
+## FIN-015 — Owner or manager records a handover received
+
+- Filed: 2026-10-04 22:27 UTC
+- Status: **done**: POST handovers + recordHandoverInTx; 14 story tests, full suite green
+- Risk: high · story: [FIN-015-owner-or-manager-records-a-handover-received.md](../modules/finance/FIN-015-owner-or-manager-records-a-handover-received.md)
+- Agent: 65,802 tokens, 21 tool uses, 11 min 14 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/{id}/handovers, recordHandoverInTx and the recordHandover service; all green.
+
+**Decisions:**
+- Order of checks: ACTIVE org (409) then from==caller (400) then collaborator lookup (404); matches the expense gesture and AC-4.
+- Cache updates sorted by person id in recordHandoverInTx: fixed order (v5.0.0-2.3.3) so opposite parallel handovers cannot deadlock.
+- Notification in FR and EN by the remitter's language (like balance.increased); `remaining` is read after both updates; related entity type `handover`.
+- Remitter accepted if collaboration ACTIVE or REVOKED (INVITED and other businesses are 404), as in FIN-012.
+- per-001 not edited: it lists no organization routes (catalog.test.ts got the new path).
+
+**Tests added beyond the story:**
+- `record-handover.test.ts` › same person only falls (CM-17); passed at once (the logic came with the first implementation)
+- `record-handover.test.ts` › rollback when a held-money update finds nothing (v5.0.0-2.3.3)
+- `record-handover.test.ts` › CLOSED/SUSPENDED org is 409; former collaborator as remitter; strict body rejects to_person_id/organization_id/cancelled_at; foreign and invited remitter are 404
+- `record-handover.test.ts` › repeated id stores one notification (AC-5)
+
+**Evidence:** story tests 14/14; full suite 2654/2654 (one earlier run had 5 flaky sync/pull-identity failures, green on rerun and alone); typecheck clean; lint 0 errors
+
+**Follow-ups:**
+- sync/pull-identity.test.ts failed once under full-suite load; looks timing-related, unrelated to this story.
+<!-- end FIN-015 -->

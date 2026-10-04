@@ -127,3 +127,24 @@ export const cancelExpenseParamSchema = z.object({ expenseId: uuidV7Schema }).st
 export const cancelExpenseSchema = z.object({ id: uuidV7Schema }).strict();
 
 export type CancelExpenseInput = z.infer<typeof cancelExpenseSchema>;
+
+/**
+ * Strict body of the record-handover gesture (FIN-015): the gesture id, which becomes the handover
+ * id, the remitter, an amount in whole XAF and an optional past `occurred_at`. The receiver is the
+ * caller and the organization comes from the path: neither is accepted here (ASVS v5.0.0-15.3.3,
+ * CWE-915).
+ */
+export const recordHandoverSchema = z
+  .object({
+    id: uuidV7Schema,
+    from_person_id: uuidV7Schema,
+    amount: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+    occurred_at: z
+      .string()
+      .datetime({ offset: true })
+      .refine((value) => Date.parse(value) <= Date.now(), 'occurred_at is in the future')
+      .optional(),
+  })
+  .strict();
+
+export type RecordHandoverInput = z.infer<typeof recordHandoverSchema>;

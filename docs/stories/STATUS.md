@@ -165,7 +165,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-012 | done | | POST /expenses with recordExpenseInTx; 12 story tests + 2 extra pass, full suite 2631 green |
 | FIN-013 | done | | cancel expense route, conditional update + held money restore in one tx |
 | FIN-014 | done | | handovers table, party-role and cancel-once triggers; 33 tests pass |
-| FIN-015 | todo | | |
+| FIN-015 | done | | POST handovers + recordHandoverInTx; 14 story tests, full suite green |
 | FIN-016 | todo | | |
 | FIN-017 | todo | | |
 | FIN-018 | todo | | |
