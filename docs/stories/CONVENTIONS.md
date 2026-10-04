@@ -90,7 +90,7 @@ Allowed URLs; code and stories reference no other:
 - The story's tests and the full suite pass.
 - Lint, SAST, secret and dependency scans are clean.
 - Fixtures contain no real personal data.
-- A risk: high story is reviewed by a human or a stronger model before done.
+- A risk: high story is reviewed by a human or a stronger model before done, unless an agent running Sonnet 5.5 or a more capable model, at effort high or above, implemented it.
 - STATUS.md is updated; docs touched by the story are updated.
 
 ## Agent rules

@@ -27,13 +27,12 @@ With `--plan`, print these lines and stop.
 
 ## Run, one story at a time
 For each `PLAN` line, in order:
-1. Delegate the story to the story-implementer subagent, passing only its path. Never pass other stories: each story gets a fresh context.
+1. Delegate the story to the story-implementer subagent, passing only its path and no model override (its Sonnet, effort high setup is what lets a risk: high story skip review). Never pass other stories: each story gets a fresh context.
 2. Wait until the subagent has finished (it may run in the background) before doing anything else.
 3. Then read only the story's line, with `grep -m1 "| <ID> |" <stories folder>/STATUS.md`:
    - done: commit with the message `<ID>: <title>`, then continue;
-   - in_progress with the note "ready for review" (risk: high): commit, then skip the stories that depend on it;
    - blocked or anything else: stop. With `--keep-going`, continue only with stories that don't depend on it.
 4. Never edit story files or CONVENTIONS.md yourself.
 
 ## Summary
-List the stories implemented, awaiting review, blocked (with their notes) and skipped, and suggest the next command to run.
+List the stories implemented, blocked or stopped (with their status and note) and skipped, and suggest the next command to run.
