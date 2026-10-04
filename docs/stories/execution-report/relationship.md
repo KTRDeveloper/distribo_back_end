@@ -6,6 +6,15 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 04:23 UTC: `/implement-stories next:1`
+
+| story | status | commit | note |
+|---|---|---|---|
+| REL-001 Relationships table | done | 09564ab | customer_relationships table, migration, 14 tests green |
+
+- Completed: the plan held only REL-001; no story was skipped.
+- Next: `/implement-stories next:1`, which selects REL-002 (risk: high, Party and pair rules in the database).
+
 <!-- begin REL-001 -->
 ## REL-001 — Relationships table
 
