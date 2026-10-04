@@ -52,6 +52,9 @@ describe('GET /docs/openapi.json', () => {
       '/api/v1/organizations/{organizationId}/customers/{relationshipId}/credit-limit-changes'
     );
     expect(paths).toContain(
+      '/api/v1/organizations/{organizationId}/customers/{relationshipId}/correct-number'
+    );
+    expect(paths).toContain(
       '/api/v1/organizations/{organizationId}/customers/{relationshipId}/end'
     );
     expect(paths).toContain(

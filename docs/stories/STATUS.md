@@ -117,7 +117,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-021 | done | | list, accept, merge, decline; 27 tests, full suite 1776 green |
 | REL-022 | done | | GET /people/me/attachments; 7 tests, full suite 1783 green |
 | REL-023 | done | | POST /suppliers/{id}/contest; 14 story tests, full suite 1797 green |
-| REL-024 | todo | | |
+| REL-024 | done | | correct-number route, service, 18 tests; full suite 1815 green |
 | REL-025 | todo | | |
 | CAT-001 | done | | products table, price checks and price date trigger; 18 tests, full suite 1305 pass |
 | CAT-002 | done | | customer_prices table, supplier-product trigger, live unique index; 1316 tests pass |

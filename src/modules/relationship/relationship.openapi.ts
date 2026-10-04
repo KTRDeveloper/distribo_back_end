@@ -6,6 +6,7 @@ import {
   addCounterSchema,
   addCustomerSchema,
   contestSchema,
+  correctNumberSchema,
   creditLimitChangesQuerySchema,
   customerParamsSchema,
   editCustomerSchema,
@@ -228,6 +229,39 @@ openApiRegistry.registerPath({
     },
     409: {
       description: 'COUNTER_NO_CREDIT, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/correct-number',
+  tags: ['relationship'],
+  summary: "Point a customer's relationship to the right number (OWNER, or MANAGER online)",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema.merge(customerParamsSchema),
+    body: { content: { 'application/json': { schema: correctNumberSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The supplier-side relationship view with its new customer',
+      content: { 'application/json': { schema: supplierRelationshipViewSchema } },
+    },
+    400: { description: 'Invalid body or relationship id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: {
+      description: "FORBIDDEN for the role, or OWN_RECORD on the caller's own customer record",
+      content: errorContent,
+    },
+    404: {
+      description: 'Not found, deleted, of another business, or not a member',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'RELATIONSHIP_EXISTS, CONFIRMATION_REQUIRED, NOT_A_PERSON_CUSTOMER or conflicting gesture id',
       content: errorContent,
     },
   },

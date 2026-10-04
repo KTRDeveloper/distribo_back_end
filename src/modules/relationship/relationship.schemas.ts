@@ -171,3 +171,20 @@ export const contestSchema = z
   .strict();
 
 export type ContestInput = z.infer<typeof contestSchema>;
+
+/**
+ * Strict body of the correct-number gesture: the gesture id, the right number (E.164, landlines
+ * refused), an optional reason and the confirmation that the supplier means the same customer who
+ * contested (ASVS v5.0.0-15.3.3). The previous person, the journal columns and the author are set by
+ * the server and rejected as unknown keys (CWE-915).
+ */
+export const correctNumberSchema = z
+  .object({
+    id: uuidV7Schema,
+    phone_number: phoneNumberSchema,
+    reason: z.string().trim().min(1).max(TEXT_MAX).optional(),
+    confirm_same_customer: z.boolean().optional(),
+  })
+  .strict();
+
+export type CorrectNumberInput = z.infer<typeof correctNumberSchema>;

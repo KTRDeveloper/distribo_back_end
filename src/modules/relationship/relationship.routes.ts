@@ -8,6 +8,7 @@ import {
   acceptInvitationSchema,
   addCounterSchema,
   contestSchema,
+  correctNumberSchema,
   addCustomerSchema,
   creditLimitChangesQuerySchema,
   customerParamsSchema,
@@ -26,6 +27,7 @@ import {
   addCounter,
   addCustomer,
   contestRelationship,
+  correctCustomerNumber,
   customerEditSupplier,
   customerEndRelationship,
   customerReopenRelationship,
@@ -160,6 +162,35 @@ relationshipRoutes.put(
           req.actor!,
           customerParamsSchema.parse(req.params).relationshipId,
           setCreditLimitSchema.parse(req.body)
+        )
+      )
+      .then((customer) => res.json(customer))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/customers/:relationshipId/correct-number - an owner,
+// or a manager online, points the relationship to the right number; the service checks the rules
+// table (403), the organization scope (404) and the reassignment rules (409, 403 OWN_RECORD)
+relationshipRoutes.post(
+  '/customers/:relationshipId/correct-number',
+  authMiddleware,
+  loadActor,
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = correctNumberSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        correctCustomerNumber(
+          req.actor!,
+          customerParamsSchema.parse(req.params).relationshipId,
+          correctNumberSchema.parse(req.body)
         )
       )
       .then((customer) => res.json(customer))

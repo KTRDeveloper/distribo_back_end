@@ -851,3 +851,38 @@ Also in this run: admin, catalog, order, finance, delivery.
 - idempotent() cannot store a body-less response: other 204 gestures should use the same json({}) trick or the guard should be fixed.
 - REL-024 (supplier restores the number) is not built: the AB-1 tests simulate the restore by a direct update.
 <!-- end REL-023 -->
+
+<!-- begin REL-024 -->
+## REL-024 — Owner or manager corrects a customer's number
+
+- Filed: 2026-10-04 15:08 UTC
+- Status: **done**: correct-number route, service, 18 tests; full suite 1815 green
+- Risk: high · story: [REL-024-owner-or-manager-corrects-a-customer-s-number.md](../modules/relationship/REL-024-owner-or-manager-corrects-a-customer-s-number.md)
+- Agent: 67,729 tokens, 25 tool uses, 4 min 42 s
+
+### Agent report
+
+**Summary:** Added POST .../customers/{relationshipId}/correct-number (schema, route, service, repository, openapi); all green.
+
+**Decisions:**
+- Check order: own record (403 OWN_RECORD) before counter/org shape (409), so a manager of the customer org gets 403 as the story lists; setCreditLimit differs only in order.
+- Target equal to the current customer answers 409 RELATIONSHIP_EXISTS (the live pair already exists).
+- Concurrent pair-index violation (P2002) mapped to 409 RELATIONSHIP_EXISTS through new `repointCustomerPerson` wrapper (contest uses it too).
+- CONFIRMATION_REQUIRED applies when the target has a journal row as contester (hasContested); needs confirm_same_customer true AND a reason.
+- ENDED relationships can be corrected too (story silent); assertOrganizationActive added as in addCustomer.
+
+**Tests added beyond the story:**
+- `correct-number.test.ts` › atomic journal failure: rollback of repoint, scopes, notifications (v5.0.0-2.3.3)
+- `correct-number.test.ts` › unknown number creates guest, no notification (AC-1 "registered new person is notified")
+- `correct-number.test.ts` › another supplier's relationship 404; unknown field/bad body 400; org customer 409; same-number 409 (CONVENTIONS errors; passed at once for 404)
+- `correct-number.test.ts` › AB-1 contest once after restoration: second contest 409 ALREADY_CONTESTED
+
+**Other additions:**
+- catalog.test.ts: new path added (convention). per-001 lists no relationship routes, left unchanged.
+- openapi/openapi.json regenerated.
+
+**Evidence:** story tests 18/18; full suite 1815/1815, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing)
+
+**Follow-ups:**
+- The repoint, journal and bumps log `customer_number_corrected` at warn with ids only.
+<!-- end REL-024 -->

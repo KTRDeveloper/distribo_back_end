@@ -8255,6 +8255,281 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/customers/{relationshipId}/correct-number": {
+      "post": {
+        "tags": [
+          "relationship"
+        ],
+        "summary": "Point a customer's relationship to the right number (OWNER, or MANAGER online)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "relationshipId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "phone_number": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "confirm_same_customer": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "phone_number"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The supplier-side relationship view with its new customer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "ACTIVE",
+                        "ENDED"
+                      ]
+                    },
+                    "customer": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "PERSON"
+                              ]
+                            },
+                            "person": {
+                              "type": "object",
+                              "properties": {
+                                "public_name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "phone_number": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "registered": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "public_name",
+                                "phone_number",
+                                "registered"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "person"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "ORGANIZATION"
+                              ]
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "name"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "customer_label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "supplier_notes": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "delivery_address": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "credit_limit": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "credit_limit_set_by_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "credit_limit_set_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "balance": {
+                      "type": "integer"
+                    },
+                    "ended_by_party": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "SUPPLIER",
+                        "CUSTOMER"
+                      ]
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "customer",
+                    "customer_label",
+                    "supplier_notes",
+                    "delivery_address",
+                    "credit_limit",
+                    "credit_limit_set_by_id",
+                    "credit_limit_set_at",
+                    "balance",
+                    "ended_by_party",
+                    "created_at"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or relationship id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for the role, or OWN_RECORD on the caller's own customer record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found, deleted, of another business, or not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "RELATIONSHIP_EXISTS, CONFIRMATION_REQUIRED, NOT_A_PERSON_CUSTOMER or conflicting gesture id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/customers/{relationshipId}/credit-limit-changes": {
       "get": {
         "tags": [

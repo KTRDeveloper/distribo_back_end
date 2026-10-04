@@ -20,6 +20,7 @@ import type {
   AddCounterInput,
   AddCustomerInput,
   ContestInput,
+  CorrectNumberInput,
   EditCustomerInput,
   EditSupplierInput,
   InviteSupplierInput,
@@ -49,7 +50,7 @@ import {
   insertInvitation,
   insertReassignment,
   listOwnerAndManagerIds,
-  reassignCustomerPerson,
+  repointCustomerPerson,
   listAttachedRelationships,
   listInvitationRows,
   listCreditLimitChangeRows,
@@ -1152,11 +1153,11 @@ export function contestRelationship(
 
     const ghostId = await insertGhostPerson(tx, phoneNumber);
     if (
-      !(await reassignCustomerPerson(tx, {
+      (await repointCustomerPerson(tx, {
         id: row.id,
         fromPersonId: personId,
         toPersonId: ghostId,
-      }))
+      })) !== 'moved'
     ) {
       throw httpError(404, 'NOT_FOUND', 'Supplier not found');
     }
@@ -1188,5 +1189,125 @@ export function contestRelationship(
       { event: 'relationship_contested', relationshipId: row.id, personId },
       'Relationship contested'
     );
+  });
+}
+
+const CORRECT_NUMBER_CONTEXT = { onServer: false, online: true, daysSinceSync: 0 } as const;
+
+/**
+ * An owner, or a manager online, points a customer's relationship to the right number (C-12,
+ * CM-24): the account follows the person who holds that number. Balance, orders and ledger entries
+ * stay on the same relationship.
+ *
+ * The rules table decides first (`reassign`, ASVS v5.0.0-8.2.1). One transaction (v5.0.0-2.3.3)
+ * then locks the row selected by id and the visibility predicate (404 outside the organization,
+ * v5.0.0-8.2.2) and checks, in order: the caller's own record (403 `OWN_RECORD`: below OWNER, the
+ * caller is the customer person or manages the customer organization), a person customer (409
+ * `NOT_A_PERSON_CUSTOMER`), the target having no live relationship with this supplier (409
+ * `RELATIONSHIP_EXISTS`, also when the number is already the customer's) and, when the target
+ * contested this relationship, `confirm_same_customer` with a `reason` (409
+ * `CONFIRMATION_REQUIRED`). It then repoints the customer, appends one journal row authored by the
+ * caller, bumps the scope version of both persons (CM-03) and notifies a registered target
+ * `customer.added`. The moved person may contest once (AB-1), so the journal names who moved it.
+ *
+ * @param actor - Actor loaded from the path; organization, caller and role never come from the body.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param input - Validated body: gesture id, the right number, optional reason and confirmation.
+ * @returns The supplier view of the relationship with its new customer.
+ * @throws 403 `FORBIDDEN` or `OWN_RECORD`; 404 `NOT_FOUND`; 409 `NOT_A_PERSON_CUSTOMER`,
+ * `RELATIONSHIP_EXISTS`, `CONFIRMATION_REQUIRED` or `ORGANIZATION_NOT_ACTIVE`.
+ */
+export async function correctCustomerNumber(
+  actor: Actor,
+  relationshipId: string,
+  input: CorrectNumberInput
+): Promise<SupplierRelationshipView> {
+  if (!abilityFor(actor.role, CORRECT_NUMBER_CONTEXT).can('reassign', 'CustomerRelationship')) {
+    refuse(actor, 'permission_refused');
+  }
+
+  return runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    const row = await findSupplierRelationshipLocked(tx, actor, relationshipId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Customer not found');
+
+    const ownPerson = row.customerPersonId === actor.personId;
+    const managesCustomer =
+      actor.role !== 'OWNER' &&
+      row.customerOrganizationId !== null &&
+      (await managesOrganization(tx, actor.personId, row.customerOrganizationId));
+    if (ownPerson || managesCustomer) refuse(actor, 'own_record_refused');
+    const previousPersonId = row.customerPersonId;
+    if (previousPersonId === null) {
+      throw httpError(409, 'NOT_A_PERSON_CUSTOMER', 'Only a person customer can be corrected');
+    }
+
+    const target = await findOrCreateByPhone(input.phone_number, tx);
+    const taken = (): never => {
+      throw httpError(409, 'RELATIONSHIP_EXISTS', 'This number already has a relationship');
+    };
+    if (
+      await liveRelationshipExists(tx, {
+        supplierOrganizationId: actor.organizationId,
+        customerPersonId: target.id,
+        customerOrganizationId: null,
+      })
+    ) {
+      taken();
+    }
+    if (
+      (await hasContested(tx, row.id, target.id)) &&
+      (input.confirm_same_customer !== true || input.reason === undefined)
+    ) {
+      throw httpError(
+        409,
+        'CONFIRMATION_REQUIRED',
+        'This person contested the relationship: confirm it is the same customer with a reason'
+      );
+    }
+
+    const moved = await repointCustomerPerson(tx, {
+      id: row.id,
+      fromPersonId: previousPersonId,
+      toPersonId: target.id,
+    });
+    if (moved === 'gone') throw httpError(404, 'NOT_FOUND', 'Customer not found');
+    if (moved === 'taken') taken();
+    await insertReassignment(tx, {
+      relationshipId: row.id,
+      previousPersonId,
+      newPersonId: target.id,
+      reassignedById: actor.personId,
+      reason: input.reason ?? null,
+    });
+    await bumpScopeVersion(previousPersonId, tx);
+    await bumpScopeVersion(target.id, tx);
+
+    const updated = await findWithParties(tx, row.id);
+    if (target.registeredAt !== null) {
+      const language = await recipientLanguage(target.id, tx);
+      const name = updated.supplierOrganization?.name ?? '';
+      await notify(
+        {
+          recipientId: target.id,
+          organizationId: actor.organizationId,
+          sourceEvent: 'customer.added',
+          content: language === 'EN' ? ADDED_CONTENT.EN(name) : ADDED_CONTENT.FR(name),
+          related: { type: 'customer_relationship', id: row.id },
+        },
+        tx
+      );
+    }
+    logger.warn(
+      {
+        event: 'customer_number_corrected',
+        relationshipId: row.id,
+        personId: actor.personId,
+        previousPersonId,
+        newPersonId: target.id,
+      },
+      'Customer number corrected'
+    );
+    return projectForSupplier(updated);
   });
 }

@@ -1,4 +1,5 @@
-import type { CustomerRelationship, Prisma, RelationshipStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { CustomerRelationship, RelationshipStatus } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { newId } from '../../shared/ids.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
@@ -1005,4 +1006,25 @@ export async function listOwnerAndManagerIds(
     orderBy: { personId: 'asc' },
   });
   return found.map((collaboration) => collaboration.personId);
+}
+
+/**
+ * Points a locked relationship at another customer person.
+ *
+ * @returns `moved` when one row changed, `gone` when the previous person is no longer the
+ * customer, `taken` when the pair index (C-07) refused the target because a concurrent write made
+ * it a live customer of the same supplier. The caller's transaction is aborted after `taken`.
+ */
+export async function repointCustomerPerson(
+  tx: Prisma.TransactionClient,
+  input: { id: string; fromPersonId: string; toPersonId: string }
+): Promise<'moved' | 'gone' | 'taken'> {
+  try {
+    return (await reassignCustomerPerson(tx, input)) ? 'moved' : 'gone';
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return 'taken';
+    }
+    throw error;
+  }
 }
