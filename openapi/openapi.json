@@ -76,6 +76,72 @@
           "can_delete",
           "blockers"
         ]
+      },
+      "DeleteAccountRequest": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "DeletionBlocked": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "DELETION_BLOCKED"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "blockers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "POSITIVE_BALANCE",
+                        "OWNS_ORGANIZATION"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "label"
+                  ]
+                }
+              },
+              "requestId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "blockers"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
       }
     },
     "parameters": {}
@@ -517,6 +583,72 @@
           },
           "404": {
             "description": "Profile not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "privacy"
+        ],
+        "summary": "Delete the caller account by anonymization",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Account anonymized"
+          },
+          "400": {
+            "description": "Missing or invalid password field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token, or wrong password (INVALID_CREDENTIALS)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A positive balance or an owned organization blocks the deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionBlocked"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many failed password attempts (LOGIN_LOCKED)",
             "content": {
               "application/json": {
                 "schema": {

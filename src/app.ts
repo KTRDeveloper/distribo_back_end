@@ -84,7 +84,7 @@ import { healthRoutes } from './modules/health/health.routes.js';
 import { userRoutes } from './modules/user/user.routes.js';
 import { notificationRoutes } from './modules/notification/notification.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
-import { privacyRoutes } from './modules/privacy/privacy.routes.js';
+import { privacyRoutes, accountRoutes } from './modules/privacy/privacy.routes.js';
 import { personRoutes } from './modules/person/person.routes.js';
 import { syncRoutes } from './modules/sync/sync.routes.js';
 import {
@@ -128,6 +128,7 @@ v1Router.get('/metrics', async (_req, res) => {
 
 v1Router.use('/health', healthRoutes);
 v1Router.use('/users/me/deletion-check', privacyRoutes);
+v1Router.use('/users/me', accountRoutes);
 v1Router.use('/users', userRoutes);
 v1Router.use('/tasks', tasksRoutes);
 v1Router.use('/people/me/attachments', attachmentsRoutes);
