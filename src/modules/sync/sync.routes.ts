@@ -2,14 +2,17 @@ import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.js';
 import { registerCatalogAdapters } from './adapters/catalog.adapter.js';
 import { registerIdentityAdapters } from './adapters/identity.adapter.js';
+import { registerOrderAdapters } from './adapters/order.adapter.js';
 import { registerRelationshipAdapters } from './adapters/relationship.adapter.js';
 import { pullQuerySchema } from './sync.schemas.js';
 import { pullChanges } from './sync.service.js';
 import { buildViewer } from './sync.viewer.js';
+import './sync.openapi.js';
 
 registerIdentityAdapters();
 registerRelationshipAdapters();
 registerCatalogAdapters();
+registerOrderAdapters();
 
 /** Sync routes; all require authentication. */
 export const syncRoutes = Router();

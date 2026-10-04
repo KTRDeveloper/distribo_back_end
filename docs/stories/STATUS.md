@@ -188,7 +188,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-003 | done | | GET /sync/pull and identity adapters; 19 tests pass; no OpenAPI (SYNC-006) |
 | SYNC-004 | done | | customer_relationships and customer_prices pull adapters; suite 2170/2170 |
 | SYNC-005 | done | | products adapter: full catalog for OWNER/MANAGER/SELLER, 3 columns for DRIVER, none for customer |
-| SYNC-006 | todo | | |
+| SYNC-006 | done | | orders, order_lines, deliveries pull adapters; 11 tests green |
 | SYNC-007 | todo | | |
 | SYNC-008 | todo | | |
 | SYNC-009 | todo | | |

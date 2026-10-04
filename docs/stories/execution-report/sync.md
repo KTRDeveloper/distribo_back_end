@@ -164,3 +164,41 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - Driver orders delivered in the last 90 days (SYNC-006 pool) are not counted for product visibility; revisit if SYNC-006 widens the driver order scope.
 <!-- end SYNC-005 -->
+
+<!-- begin SYNC-006 -->
+## SYNC-006 — Pull orders, lines and deliveries
+
+- Filed: 2026-10-04 17:37 UTC
+- Status: **done**: orders, order_lines, deliveries pull adapters; 11 tests green
+- Risk: high · story: [SYNC-006-pull-orders-lines-and-deliveries.md](../modules/sync/SYNC-006-pull-orders-lines-and-deliveries.md)
+- Agent: 74,252 tokens, 24 tool uses, 8 min 57 s
+
+### Agent report
+
+**Summary:** Added orders, order_lines and deliveries pull adapters, wired in sync.routes, plus sync.openapi.ts for GET /sync/pull; done.
+
+**Decisions:**
+- Story text for DRIVER is truncated ("without customer_note of other..."): followed its last clause, every order field except sync_issue (customer_note kept).
+- Driver pool: CONFIRMED needs an address, IN_DELIVERY does not (AC-2 literal); also orders they delivered and orders carrying their own deliveries.
+- Retention clock: DELIVERED by delivered_at, CANCELLED by cancelled_at, 90 days.
+- Lines are sent when the line or its order changed (AC-4); created/updated judged by the order's created_at (lines have none).
+- Deliveries: supplier roles get all of the org, a DRIVER only their own, customers none (story silent, fail closed); no created_at, so first pull = created, later = updated.
+- A person who is the customer of the order gets the customer view first, as in relationships.
+- Timestamps converted to epoch ms over the ORD-007 views; sync.service.ts needed no change.
+
+**Tests added beyond the story:**
+- `pull-orders.test.ts` › owner and manager see price author, seller never (v5.0.0-8.2.3); passed at once
+- `pull-orders.test.ts` › deleted line / soft-deleted order listed by id, never on a first pull (C-35); passed at once
+- `pull-orders.test.ts` › driver: another driver's delivery changes not sent (CM-30); passed at once
+- `pull-orders.test.ts` › customer of B and driver of A see nothing of B (AB-1); passed at once
+
+**Other additions:**
+- `scripts/generate-openapi.ts` imports sync.openapi.js: generate-script test compares its paths with the live doc.
+- `/api/v1/sync/pull` added to catalog.test.ts route list (convention).
+
+**Evidence:** story tests 11/11; full suite 2188/2188, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- An order leaving a driver's scope (taken by another driver) is not re-sent, so the phone keeps the stale row until its own purge.
+- Confirm the truncated DRIVER sentence in the story with its author.
+<!-- end SYNC-006 -->

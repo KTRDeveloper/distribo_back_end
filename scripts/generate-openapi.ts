@@ -16,6 +16,7 @@ import '../src/modules/organization/organization.openapi.js';
 import '../src/modules/relationship/relationship.openapi.js';
 import '../src/modules/catalog/catalog.openapi.js';
 import '../src/modules/remote-config/remote-config.openapi.js';
+import '../src/modules/sync/sync.openapi.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outputPath = resolve(__dirname, '../openapi/openapi.json');
