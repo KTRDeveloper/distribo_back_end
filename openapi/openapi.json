@@ -2813,6 +2813,191 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/collaborators": {
+      "post": {
+        "tags": [
+          "organization"
+        ],
+        "summary": "The owner invites a person by phone number with a role",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "phone_number": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "MANAGER",
+                      "SELLER",
+                      "DRIVER"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "phone_number",
+                  "role"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The INVITED collaboration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "person": {
+                      "type": "object",
+                      "properties": {
+                        "public_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "phone_number": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "registered": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "public_name",
+                        "phone_number",
+                        "registered"
+                      ]
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "MANAGER",
+                        "SELLER",
+                        "DRIVER"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "INVITED"
+                      ]
+                    },
+                    "invited_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "person",
+                    "role",
+                    "status",
+                    "invited_at"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not the owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ALREADY_MEMBER, ORGANIZATION_NOT_ACTIVE or conflicting gesture id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many person lookups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/remote-config": {
       "post": {
         "tags": [

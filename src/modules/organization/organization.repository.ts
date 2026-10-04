@@ -1,4 +1,4 @@
-import type { Collaboration, Prisma } from '@prisma/client';
+import { Prisma, type Collaboration } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { httpError } from '../../lib/http-error.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
@@ -207,4 +207,87 @@ export async function addAmountHeld(
       AND deleted_at IS NULL
   `;
   if (updated === 0) throw httpError(404, 'NOT_FOUND', 'Not found');
+}
+
+/**
+ * Runs `work` in one database transaction so the person, the collaboration and the
+ * notification of one gesture commit or fail together.
+ *
+ * @param work - Callback receiving the transaction client.
+ */
+export function runInTransaction<T>(
+  work: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(work);
+}
+
+/**
+ * Reads the person's non-deleted collaboration in an organization, whatever its status.
+ *
+ * @param tx - Transaction client of the gesture.
+ * @param personId - Invitee.
+ * @param organizationId - Organization from the loaded actor.
+ */
+export function findCollaboration(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  organizationId: string
+): Promise<Collaboration | null> {
+  return tx.collaboration.findFirst({ where: { personId, organizationId, deletedAt: null } });
+}
+
+/**
+ * Inserts an INVITED collaboration that is not a public contact (C-05).
+ *
+ * A concurrent insert for the same person and organization breaks the database uniqueness rule;
+ * it is mapped to the same `ALREADY_MEMBER` answer as a sequential repeat.
+ *
+ * @throws 409 `ALREADY_MEMBER` on a unique violation.
+ */
+export async function insertInvitation(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    personId: string;
+    organizationId: string;
+    role: 'MANAGER' | 'SELLER' | 'DRIVER';
+  }
+): Promise<Collaboration> {
+  try {
+    return await tx.collaboration.create({
+      data: { ...data, status: 'INVITED', isPublicContact: false },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw httpError(409, 'ALREADY_MEMBER', 'Already a member');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Turns a REVOKED collaboration back into an INVITED one with a new role, a fresh `invited_at`
+ * and an empty `accepted_at`. Only a row still REVOKED is updated, so a concurrent acceptance or
+ * invitation is never overwritten.
+ *
+ * @throws 409 `ALREADY_MEMBER` when the row is no longer REVOKED.
+ */
+export async function reinviteRevoked(
+  tx: Prisma.TransactionClient,
+  id: string,
+  role: 'MANAGER' | 'SELLER' | 'DRIVER'
+): Promise<Collaboration> {
+  const updated = await tx.collaboration.updateManyAndReturn({
+    where: { id, status: 'REVOKED', deletedAt: null },
+    data: {
+      status: 'INVITED',
+      role,
+      invitedAt: new Date(),
+      acceptedAt: null,
+      isPublicContact: false,
+    },
+  });
+  const row = updated[0];
+  if (!row) throw httpError(409, 'ALREADY_MEMBER', 'Already a member');
+  return row;
 }

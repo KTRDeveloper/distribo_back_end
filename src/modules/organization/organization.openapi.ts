@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
   createOrganizationSchema,
+  inviteCollaboratorSchema,
   listOrganizationsQuerySchema,
   organizationIdParamsSchema,
 } from './organization.schemas.js';
@@ -86,5 +87,46 @@ openApiRegistry.registerPath({
     },
     401: { description: 'Missing or invalid token', content: errorContent },
     404: { description: 'Not found or not a member', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/collaborators',
+  tags: ['organization'],
+  summary: 'The owner invites a person by phone number with a role',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationIdParamsSchema,
+    body: { content: { 'application/json': { schema: inviteCollaboratorSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The INVITED collaboration',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string().uuid(),
+            person: z.object({
+              public_name: z.string().nullable(),
+              phone_number: z.string().nullable(),
+              registered: z.boolean(),
+            }),
+            role: z.enum(['MANAGER', 'SELLER', 'DRIVER']),
+            status: z.literal('INVITED'),
+            invited_at: z.string().datetime(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid body', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: { description: 'Not found or not a member', content: errorContent },
+    409: {
+      description: 'ALREADY_MEMBER, ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
+      content: errorContent,
+    },
+    429: { description: 'Too many person lookups', content: errorContent },
   },
 });

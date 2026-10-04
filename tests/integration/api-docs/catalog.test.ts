@@ -33,6 +33,7 @@ describe('GET /docs/openapi.json', () => {
 
     expect(paths).toContain('/api/v1/organizations');
     expect(paths).toContain('/api/v1/organizations/{organizationId}');
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/collaborators');
 
     // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
