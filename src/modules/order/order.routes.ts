@@ -8,8 +8,9 @@ import {
   orderIdParamSchema,
   placeOrderSchema,
   placePurchaseSchema,
+  refuseOrderSchema,
 } from './order.schemas.js';
-import { acceptOrder, placeOrder, placePurchase } from './order.service.js';
+import { acceptOrder, placeOrder, placePurchase, refuseOrder } from './order.service.js';
 import './order.openapi.js';
 
 /** Order routes; all require authentication. */
@@ -87,6 +88,35 @@ supplierOrderRoutes.post(
       req.actor!,
       orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
       acceptOrderSchema.parse(req.body)
+    )
+      .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/orders/:orderId/refuse - the supplier cancels a
+// PENDING order with a reason; the organization is the caller's, never a body field. The PENDING
+// condition is the service's (409 when not PENDING), so the route only checks the role.
+supplierOrderRoutes.post(
+  '/orders/:orderId/refuse',
+  authMiddleware,
+  loadActor,
+  requireAbility('refuse', 'Order'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = refuseOrderSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    refuseOrder(
+      req.actor!,
+      orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      refuseOrderSchema.parse(req.body)
     )
       .then((view) => res.status(200).json(view))
       .catch(next);

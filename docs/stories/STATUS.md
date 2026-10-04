@@ -141,7 +141,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-009 | done | | POST /api/v1/orders; 35 story tests + full suite green |
 | ORD-010 | done | | Organization purchase route POST /organizations/{id}/purchases; all tests pass |
 | ORD-011 | done | | accept route, lowers prices, notifies customer; 22 story tests, full suite 2334 green |
-| ORD-012 | todo | | |
+| ORD-012 | done | | Refuse route, service, schema, openapi; 15 tests green |
 | ORD-013 | todo | | |
 | ORD-014 | todo | | |
 | ORD-015 | todo | | |

@@ -18,7 +18,7 @@ import {
   setOrderTotal,
   type NewOrderLine,
 } from './order.repository.js';
-import type { AcceptInput, PlaceOrderInput } from './order.schemas.js';
+import type { AcceptInput, PlaceOrderInput, RefuseInput } from './order.schemas.js';
 import { transitionOrder } from './order.state.js';
 import {
   projectOrderForCustomer,
@@ -195,6 +195,32 @@ export function placePurchase(
   return placeOrderFor({ personId: actor.personId, organizationId: actor.organizationId }, input);
 }
 
+/**
+ * Tells the customer an order changed status (`order.status_changed`), in their language. The
+ * customer notified is the person of the relationship, or, for a business customer, the person who
+ * entered the order; a guest has no account, so nobody is notified.
+ */
+async function notifyCustomerOfStatus(
+  tx: Prisma.TransactionClient,
+  order: { id: string; customerPersonId: string | null; enteredById: string },
+  supplierOrganizationId: string,
+  content: { FR: string; EN: string }
+): Promise<void> {
+  const recipientId = order.customerPersonId ?? order.enteredById;
+  if (!(await isRegisteredPerson(tx, recipientId))) return;
+  const language = await recipientLanguage(recipientId, tx);
+  await notify(
+    {
+      recipientId,
+      organizationId: supplierOrganizationId,
+      sourceEvent: 'order.status_changed',
+      content: language === 'EN' ? content.EN : content.FR,
+      related: { type: 'order', id: order.id },
+    },
+    tx
+  );
+}
+
 const ACCEPTED_CONTENT = {
   FR: 'Votre commande a été acceptée.',
   EN: 'Your order was accepted.',
@@ -272,20 +298,64 @@ export function acceptOrder(
       await setOrderTotal(tx, orderId, order.totalAmount);
     }
 
-    const recipientId = order.customerPersonId ?? order.enteredById;
-    if (await isRegisteredPerson(tx, recipientId)) {
-      const language = await recipientLanguage(recipientId, tx);
-      await notify(
-        {
-          recipientId,
-          organizationId: actor.organizationId,
-          sourceEvent: 'order.status_changed',
-          content: language === 'EN' ? ACCEPTED_CONTENT.EN : ACCEPTED_CONTENT.FR,
-          related: { type: 'order', id: orderId },
-        },
-        tx
+    await notifyCustomerOfStatus(tx, order, actor.organizationId, ACCEPTED_CONTENT);
+
+    return projectOrderForSupplier(order, actor.role);
+  });
+}
+
+const REFUSED_CONTENT = {
+  FR: 'Votre commande a été refusée.',
+  EN: 'Your order was refused.',
+} as const;
+
+/**
+ * The supplier's SELLER, MANAGER or OWNER refuses a PENDING order with a reason (ORD-012, CM-12,
+ * C-16). One transaction (v5.0.0-2.3.3): the order of the caller's organization is locked (an
+ * order of another business is 404, v5.0.0-8.2.2), PENDING becomes CANCELLED by the conditional
+ * update of `transitionOrder` (v5.0.0-2.3.1), which records the SUPPLIER party, the caller, the
+ * time and the reason, and the customer is notified `order.status_changed`. Any refusal rolls
+ * everything back. Replays with the same `id` are answered by `idempotent()`.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked `refuse Order`.
+ * @param orderId - Order from the path.
+ * @param input - Validated body: gesture id and the reason (1 to 2000 characters).
+ * @returns The CANCELLED order, supplier view for the caller's role.
+ * @throws 404 `NOT_FOUND` (order outside the caller's business); 409 `INVALID_TRANSITION`
+ * (not PENDING).
+ */
+export function refuseOrder(
+  actor: Actor,
+  orderId: string,
+  input: RefuseInput
+): Promise<SupplierOrderView> {
+  return runInTransaction(async (tx) => {
+    if (!(await lockSupplierOrder(tx, orderId, actor.organizationId))) {
+      throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    }
+    // Only PENDING can be refused; transitionOrder alone would also let CONFIRMED be cancelled.
+    // The row is locked, so this read cannot go stale before the conditional update below.
+    const before = await findOrderToAccept(tx, orderId);
+    if (!before) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    if (before.status !== 'PENDING') {
+      throw httpError(
+        409,
+        'INVALID_TRANSITION',
+        `Order cannot go from ${before.status} to CANCELLED by a refusal.`
       );
     }
+    await transitionOrder(
+      tx,
+      orderId,
+      'CANCELLED',
+      { personId: actor.personId, party: 'SUPPLIER' },
+      { cancellationReason: input.reason }
+    );
+
+    const order = await findOrderToAccept(tx, orderId);
+    if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+
+    await notifyCustomerOfStatus(tx, order, actor.organizationId, REFUSED_CONTENT);
 
     return projectOrderForSupplier(order, actor.role);
   });

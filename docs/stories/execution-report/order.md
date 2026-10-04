@@ -448,6 +448,34 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - Business-customer notification goes to the person who entered the order; a future story may want all org managers instead.
 <!-- end ORD-011 -->
 
+<!-- begin ORD-012 -->
+## ORD-012 — Supplier refuses an order
+
+- Filed: 2026-10-04 19:47 UTC
+- Status: **done**: Refuse route, service, schema, openapi; 15 tests green
+- Risk: medium · story: [ORD-012-supplier-refuses-an-order.md](../modules/order/ORD-012-supplier-refuses-an-order.md)
+- Agent: 51,336 tokens, 14 tool uses, 4 min 2 s
+
+### Agent report
+
+**Summary:** Added POST .../orders/{orderId}/refuse (route, schema, service `refuseOrder`, OpenAPI); PENDING order becomes CANCELLED by SUPPLIER.
+
+**Decisions:**
+- PENDING-only: `transitionOrder` also allows CONFIRMED to CANCELLED (ORD-016), so `refuseOrder` reads the locked order and throws 409 INVALID_TRANSITION unless PENDING, then calls `transitionOrder`; state.ts untouched.
+- `reason` is trimmed before min(1)/max(2000), so a blank reason is a 400.
+- Extracted `notifyCustomerOfStatus` from `acceptOrder` and reused it for both (same recipient rule); accept tests still pass.
+
+**Tests added beyond the story:**
+- `refuse-order.test.ts` › blank reason, unknown field, exactly 2000 characters: boundary and strict body (AC-2, ASVS 15.3.3); passed at once after implementation
+- `refuse-order.test.ts` › CANCELLED order 409, malformed id 400, no token 401, non-member 404 (CM-12, CONVENTIONS errors)
+- `refuse-order.test.ts` › two parallel refusals: exactly one 200 and one 409, one notification (v5.0.0-2.3.1)
+
+**Other additions:**
+- ORD-012 path entry in `tests/integration/api-docs/catalog.test.ts` (convention); per-001 has no order route list, nothing added.
+
+**Evidence:** story tests 15/15; full suite 2349/2349, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+<!-- end ORD-012 -->
+
 <!-- begin ORD-018 -->
 ## ORD-018 — Closing a business refuses its pending orders
 

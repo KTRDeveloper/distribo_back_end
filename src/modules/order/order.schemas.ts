@@ -99,3 +99,13 @@ export const acceptOrderSchema = z
   );
 
 export type AcceptInput = z.infer<typeof acceptOrderSchema>;
+
+/**
+ * Strict body of the refuse gesture (ORD-012): the gesture id and a reason of 1 to 2000 characters
+ * once trimmed. Status, party, author and time are set by the server (ASVS v5.0.0-15.3.3).
+ */
+export const refuseOrderSchema = z
+  .object({ id: uuidV7Schema, reason: z.string().trim().min(1).max(TEXT_MAX) })
+  .strict();
+
+export type RefuseInput = z.infer<typeof refuseOrderSchema>;
