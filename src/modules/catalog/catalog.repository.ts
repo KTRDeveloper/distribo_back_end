@@ -83,3 +83,53 @@ export async function insertProduct(
 ): Promise<Product> {
   return tx.product.create({ data });
 }
+
+/**
+ * Returns the live product selected by id and organization together (ASVS v5.0.0-8.2.2).
+ *
+ * @throws 404 NOT_FOUND when the product is absent, deleted or another organization's.
+ */
+export async function getProductOfOrganization(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  productId: string
+): Promise<Product> {
+  const product = await tx.product.findFirst({
+    where: { id: productId, organizationId, deletedAt: null },
+  });
+  if (!product) throw notFound();
+  return product;
+}
+
+/**
+ * Updates the listed fields of a product already loaded for its organization. Never writes
+ * `price_updated_at`: the database moves it only when the price really changes (C-13).
+ *
+ * @param data - Only the fields to change; `undefined` keys are left alone.
+ */
+export async function updateProduct(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  data: {
+    name?: string;
+    unit?: string;
+    price?: bigint;
+    minOrderQuantity?: string | null;
+    description?: string;
+    category?: string;
+    status?: 'ACTIVE' | 'INACTIVE';
+  }
+): Promise<Product> {
+  return tx.product.update({ where: { id: productId }, data });
+}
+
+/** Counts the live negotiated prices of a product set before `since`. */
+export async function countNegotiatedPricesBefore(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  since: Date
+): Promise<number> {
+  return tx.customerPrice.count({
+    where: { productId, deletedAt: null, setAt: { lt: since } },
+  });
+}

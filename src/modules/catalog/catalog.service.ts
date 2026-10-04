@@ -2,8 +2,13 @@ import type { Product } from '@prisma/client';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { runInTransaction } from '../organization/organization.repository.js';
 import type { Actor } from '../../types/express.js';
-import { insertProduct } from './catalog.repository.js';
-import type { CreateProductInput, ProductView } from './catalog.schemas.js';
+import {
+  countNegotiatedPricesBefore,
+  getProductOfOrganization,
+  insertProduct,
+  updateProduct,
+} from './catalog.repository.js';
+import type { CreateProductInput, EditProductInput, ProductView } from './catalog.schemas.js';
 
 /** Builds the closed product view from an explicit field list. */
 function toProductView(product: Product): ProductView {
@@ -47,5 +52,43 @@ export async function createProduct(actor: Actor, input: CreateProductInput): Pr
       category: input.category ?? null,
     });
     return toProductView(product);
+  });
+}
+
+/**
+ * Edits a product of the actor's organization, including its price and its status.
+ *
+ * The role is decided by the route (`update Product`, ASVS v5.0.0-8.2.1); the product is
+ * selected by id and organization together, so another business's product is a 404
+ * (v5.0.0-8.2.2). `price_updated_at` moves in the database only when the price changes (C-13);
+ * then `negotiated_prices_to_review` counts the live negotiated prices set before that moment,
+ * else it is 0. INACTIVE removes the article from sale; frozen order lines are untouched.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param productId - Product from the path.
+ * @param input - Validated body, at least one field.
+ * @throws 404 `NOT_FOUND` when the product is absent, deleted or another organization's.
+ */
+export async function editProduct(
+  actor: Actor,
+  productId: string,
+  input: EditProductInput
+): Promise<ProductView & { negotiated_prices_to_review: number }> {
+  return runInTransaction(async (tx) => {
+    const before = await getProductOfOrganization(tx, actor.organizationId, productId);
+    const updated = await updateProduct(tx, before.id, {
+      name: input.name,
+      unit: input.unit,
+      price: input.price === undefined ? undefined : BigInt(input.price),
+      minOrderQuantity: input.min_order_quantity,
+      description: input.description,
+      category: input.category,
+      status: input.status,
+    });
+    const priceChanged = updated.price !== before.price;
+    const toReview = priceChanged
+      ? await countNegotiatedPricesBefore(tx, updated.id, updated.priceUpdatedAt)
+      : 0;
+    return { ...toProductView(updated), negotiated_prices_to_review: toReview };
   });
 }

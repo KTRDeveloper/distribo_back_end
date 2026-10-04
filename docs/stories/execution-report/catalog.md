@@ -169,3 +169,34 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Follow-ups:**
 - A product id already used (primary key collision, another person) surfaces as a 500, like the organization create gesture; no story defines a code for it.
 <!-- end CAT-004 -->
+
+<!-- begin CAT-005 -->
+## CAT-005 — Manager edits and retires a product
+
+- Filed: 2026-10-04 15:31 UTC
+- Status: **done**: PATCH product edit/retire, 28 tests green
+- Risk: medium · story: [CAT-005-manager-edits-and-retires-a-product.md](../modules/catalog/CAT-005-manager-edits-and-retires-a-product.md)
+- Agent: 44,135 tokens, 15 tool uses, 7 min 40 s
+
+### Agent report
+
+**Summary:** Added PATCH /organizations/:id/products/:productId (edit, price, retire/restore) with negotiated_prices_to_review.
+
+**Decisions:**
+- No `idempotent()` middleware and no body `id`: the path carries the product and a repeat sets the same values; the story lists no gesture id.
+- "Price changed" is decided by comparing old and new price; price_updated_at itself is moved only by the DB trigger (never written by code).
+- Count = live (deleted_at null) customer prices with set_at strictly before the new price_updated_at.
+- Only min_order_quantity accepts null; other fields are non-null with the create limits. Malformed productId gives 400.
+- No assertOrganizationActive on edit (create has it): story silent, so not invented.
+
+**Tests added beyond the story:**
+- `edit-product.test.ts` › deleted negotiated price not counted (inside AC-2 test): live-only count (story text "live negotiated prices")
+- `edit-product.test.ts` › price sent unchanged keeps price_updated_at, 0 to review: "0 when the price did not change"; passed at once
+- `edit-product.test.ts` › unknown / soft-deleted product 404, non-member 404, no token 401, OWNER 200 (CONVENTIONS errors, ACC rule)
+
+**Evidence:** story tests 28/28; full suite 1905/1905, failing: none; typecheck clean; lint 0 errors, 59 warnings (pre-existing)
+
+**Follow-ups:**
+- No `.openapi.ts` for catalog and no entries in api-docs/catalog.test.ts or per-001 route lists (CAT-004 did none either); convention says a route story adds them.
+- Edit is allowed on a SUSPENDED/CLOSED organization; decide whether it should answer 409 like create.
+<!-- end CAT-005 -->

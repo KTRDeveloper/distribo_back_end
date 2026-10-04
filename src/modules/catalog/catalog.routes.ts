@@ -3,8 +3,9 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
-import { createProductSchema } from './catalog.schemas.js';
-import { createProduct } from './catalog.service.js';
+import { uuidV7Schema } from '../../shared/ids.js';
+import { createProductSchema, editProductSchema } from './catalog.schemas.js';
+import { createProduct, editProduct } from './catalog.service.js';
 
 /** Catalog routes of one organization, mounted at `/organizations/:organizationId`. */
 export const catalogRoutes = Router({ mergeParams: true });
@@ -27,5 +28,24 @@ catalogRoutes.post(
     createProduct(req.actor!, createProductSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
       .catch(next);
+  }
+);
+
+// PATCH /api/v1/organizations/:organizationId/products/:productId - OWNER or an online MANAGER
+// edits or retires an article. Repeating it sets the same values, so it needs no gesture id.
+catalogRoutes.patch(
+  '/products/:productId',
+  authMiddleware,
+  loadActor,
+  requireAbility('update', 'Product'),
+  (req, res, next) => {
+    const productId = uuidV7Schema.safeParse(req.params.productId);
+    if (!productId.success) return next(productId.error);
+    const parsed = editProductSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    editProduct(req.actor!, productId.data, parsed.data)
+      .then((view) => res.json(view))
+      .catch(next);
+    return undefined;
   }
 );
