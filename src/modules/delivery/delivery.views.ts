@@ -69,3 +69,20 @@ export function projectDeliveryForDriver(delivery: DeliveryForDriver): MyDeliver
     failure_reason: delivery.failureReason,
   };
 }
+
+export type DeliveryView = {
+  id: string;
+  order_id: string;
+  assigned_to_id: string;
+  departed_at: string | null;
+};
+
+/** The delivery fields the manager sees after assigning, listed one by one (v5.0.0-15.3.1). */
+export function projectDelivery(delivery: Delivery): DeliveryView {
+  return {
+    id: delivery.id,
+    order_id: delivery.orderId,
+    assigned_to_id: delivery.assignedToId,
+    departed_at: iso(delivery.departedAt),
+  };
+}

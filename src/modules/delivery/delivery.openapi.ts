@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
-import { mineQuerySchema, toDeliverQuerySchema } from './delivery.schemas.js';
+import { assignDeliverySchema, mineQuerySchema, toDeliverQuerySchema } from './delivery.schemas.js';
 
 const errorContent = { 'application/json': { schema: errorResponseSchema } };
 
@@ -78,5 +78,47 @@ openApiRegistry.registerPath({
       content: { 'application/json': { schema: pageSchema(myDeliveryItemSchema) } },
     },
     ...commonErrors,
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/orders/{orderId}/assign',
+  tags: ['delivery'],
+  summary: 'A manager assigns a CONFIRMED order to a driver (DLV-004)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: assignDeliverySchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The delivery, assigned or reassigned before departure',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string().uuid(),
+            order_id: z.string().uuid(),
+            assigned_to_id: z.string().uuid(),
+            departed_at: z.string().datetime().nullable(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'VALIDATION_ERROR (body, or the order has no delivery address)',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not assign deliveries', content: errorContent },
+    404: {
+      description: 'Not a member, order outside the business, or driver not an ACTIVE collaborator',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'DELIVERY_IN_PROGRESS (already departed), INVALID_TRANSITION (not CONFIRMED) or conflicting gesture id',
+      content: errorContent,
+    },
   },
 });

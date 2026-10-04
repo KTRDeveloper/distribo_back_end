@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Delivery, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
@@ -129,4 +129,88 @@ export async function listOwnDeliveries(
         ? encodeCursor({ createdAt: last.order.createdAt, id: last.id })
         : null,
   };
+}
+
+/** Runs the writes of one gesture in a single transaction. */
+export function runInTransaction<T>(
+  work: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(work);
+}
+
+/**
+ * Locks one order of the supplier organization until the transaction ends, so two parallel
+ * assignments of the same order wait for each other (v5.0.0-2.3.4), and returns the fields the
+ * assignment checks. The order is selected through the relationship of the caller's organization,
+ * never through an organization sent by the client (v5.0.0-8.2.2).
+ *
+ * @returns the order status and applied address, or null when the order is outside the supplier
+ */
+export async function lockOrderToAssign(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  supplierOrganizationId: string
+): Promise<{ status: string; deliveryAddress: string | null } | null> {
+  const rows = await tx.$queryRaw<
+    Array<{ status: string; delivery_address_applied: string | null }>
+  >`
+    SELECT o.status::text AS status, o.delivery_address_applied
+    FROM orders o
+    JOIN customer_relationships r ON r.id = o.customer_relationship_id
+    WHERE o.id = ${orderId}::uuid
+      AND r.supplier_organization_id = ${supplierOrganizationId}::uuid
+      AND o.deleted_at IS NULL
+    FOR UPDATE OF o
+  `;
+  const row = rows[0];
+  return row ? { status: row.status, deliveryAddress: row.delivery_address_applied } : null;
+}
+
+/** The delivery of the order in progress (neither arrived nor failed, not deleted), if any. */
+export function findDeliveryInProgress(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<Delivery | null> {
+  return tx.delivery.findFirst({
+    where: { orderId, arrivedAt: null, failedAt: null, deletedAt: null },
+  });
+}
+
+/**
+ * Tells whether the person is an ACTIVE collaborator of the organization, whatever the role, and a
+ * registered person (a guest has no account to notify).
+ */
+export async function isActiveCollaborator(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  organizationId: string
+): Promise<boolean> {
+  const found = await tx.collaboration.findFirst({
+    where: {
+      personId,
+      organizationId,
+      status: 'ACTIVE',
+      deletedAt: null,
+      person: { is: { registeredAt: { not: null } } },
+    },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
+/** Inserts a delivery for the order, not departed. */
+export function insertDelivery(
+  tx: Prisma.TransactionClient,
+  data: { id: string; orderId: string; assignedToId: string }
+): Promise<Delivery> {
+  return tx.delivery.create({ data });
+}
+
+/** Gives a not-yet-departed delivery to another driver (same row). */
+export function reassignDelivery(
+  tx: Prisma.TransactionClient,
+  id: string,
+  assignedToId: string
+): Promise<Delivery> {
+  return tx.delivery.update({ where: { id }, data: { assignedToId } });
 }

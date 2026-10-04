@@ -168,3 +168,35 @@ Also in this run: relationship, admin, catalog, order, finance.
 **Follow-ups:**
 - Orders already assigned to a driver stay in the pool until they leave CONFIRMED; confirm this is intended for DLV-004.
 <!-- end DLV-003 -->
+
+<!-- begin DLV-004 -->
+## DLV-004 — Manager assigns an order to a driver
+
+- Filed: 2026-10-04 20:45 UTC
+- Status: **done**: assign route, reassign before departure, 25 tests
+- Risk: medium · story: [DLV-004-manager-assigns-an-order-to-a-driver.md](../modules/delivery/DLV-004-manager-assigns-an-order-to-a-driver.md)
+- Agent: 66,922 tokens, 24 tool uses, 5 min 29 s
+
+### Agent report
+
+**Summary:** POST .../orders/{orderId}/assign implemented (assign, reassign on the same row, refusals, idempotent repeat); done.
+
+**Decisions:**
+- Check order inside one tx after locking the order row: 404 order, 409 DELIVERY_IN_PROGRESS (departed), 409 INVALID_TRANSITION, 400 no address, 404 driver. Departed check comes before status so a departed delivery always answers DELIVERY_IN_PROGRESS.
+- "Delivery in progress" = not arrived, not failed, not deleted; after a failed one a new delivery row is created (one per attempt).
+- Driver = ACTIVE collaborator of the caller's org, any role, registered person; otherwise 404.
+- Notification `delivery.assigned` related to the order (type `order`); the previous driver is not notified on reassign (story silent).
+- Route uses requireAbility('assign','Delivery') so OWNER also passes (role hierarchy); strict validation before idempotent().
+- delivery.schemas.ts already existed: modified, not created.
+
+**Tests added beyond the story:**
+- `tests/integration/delivery/assign.test.ts` › OWNER assigns, any-role collaborator, PENDING/IN_DELIVERY orders, revoked/invited/other-org driver, other-business order, other-org member 404, strict-body 400s, 401, new delivery after a failed one (C-21, CONVENTIONS errors/scope); passed at once after implementation
+
+**Other additions:**
+- catalog.test.ts: assign path entry (CONVENTIONS rule). Added `projectDelivery` view and repository helpers (lockOrderToAssign etc.).
+
+**Evidence:** story tests 25/25; full suite 2504/2504, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- A client gesture id equal to an existing delivery id of another order would surface as 500 (primary key); not mapped.
+<!-- end DLV-004 -->

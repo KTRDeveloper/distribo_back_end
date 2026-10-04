@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { uuidV7Schema } from '../../shared/ids.js';
 import { paginationQuerySchema } from '../../shared/pagination.js';
 
 /** Strict query of the to-deliver pool: `limit` and `cursor` only (ASVS v5.0.0-2.2.1). */
@@ -15,3 +16,16 @@ export const mineQuerySchema = paginationQuerySchema
   .strict();
 
 export type MineQuery = z.infer<typeof mineQuerySchema>;
+
+/** Path of the assign gesture: the order id is a UUID, so a malformed one never reaches the database. */
+export const assignParamSchema = z.object({ orderId: uuidV7Schema }).strict();
+
+/**
+ * Strict body of the assign gesture (DLV-004): the gesture id, which becomes the delivery id, and
+ * the driver. Order, organization, status and times are never accepted (ASVS v5.0.0-15.3.3).
+ */
+export const assignDeliverySchema = z
+  .object({ id: uuidV7Schema, driver_person_id: uuidV7Schema })
+  .strict();
+
+export type AssignDeliveryInput = z.infer<typeof assignDeliverySchema>;
