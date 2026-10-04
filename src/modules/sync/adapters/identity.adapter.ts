@@ -12,7 +12,7 @@ function organizationIdsOf(viewer: Viewer): string[] {
 }
 
 /** Identity tables are read-only from a phone for now: every pushed line is forbidden (fail closed). */
-function refuseEveryLine(change: TableChange): LineOutcome[] {
+export function refuseEveryLine(change: TableChange): LineOutcome[] {
   return [...change.created, ...change.updated]
     .map((row) => (typeof row['id'] === 'string' ? row['id'] : ''))
     .concat(change.deleted)

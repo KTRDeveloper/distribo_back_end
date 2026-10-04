@@ -102,3 +102,37 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 - A member who leaves an organization is not told by `deleted`: its rows just stop appearing (spec has no rule); SYNC-008 resync may need it.
 - Revoked or invited team members' names and phones reach sellers; confirm this is wanted (online list is OWNER/MANAGER only).
 <!-- end SYNC-003 -->
+
+<!-- begin SYNC-004 -->
+## SYNC-004 — Pull relationships and negotiated prices
+
+- Filed: 2026-10-04 17:20 UTC
+- Status: **done**: customer_relationships and customer_prices pull adapters; suite 2170/2170
+- Risk: high · story: [SYNC-004-pull-relationships-and-negotiated-prices.md](../modules/sync/SYNC-004-pull-relationships-and-negotiated-prices.md)
+- Agent: 73,069 tokens, 26 tool uses, 6 min 0 s
+
+### Agent report
+
+**Summary:** Added the customer_relationships and customer_prices pull adapters (read-only), registered in sync.routes.ts; all green.
+
+**Decisions:**
+- Driver scope "CONFIRMED order with an address or a delivery of theirs": read as CONFIRMED order with a delivery address (an order to deliver, any driver of the org) OR a delivery assigned to this driver (matches design 9.6 "orders to deliver, their deliveries and the customers concerned").
+- Driver `customer_label`: filled from projectForDriver.customer_name, so it is the customer person's name (else org name, else the counter label), not the raw customer_label.
+- A person who is the customer of a row always gets the customer view, even if also OWNER/MANAGER/SELLER of the supplier (judge-self rule, design 10.1).
+- Merged rows go to `deleted` even if deleted_at were empty; on incremental pull the driver also learns the ids of gone rows of their org.
+- Row ids added to rows (supplier_organization_id, customer_person_id, customer_organization_id, supplier_person_id on the customer view); prices send id, relationship, product, price, set_at, server_updated_at (no set_by_id).
+- Pushes to both tables are refused like identity (refuseEveryLine now exported from identity.adapter.ts).
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-relationships.test.ts` › collaborator who is also the customer: guards the customer-view rule (CM-19, design 10.1); passed at once
+- same file › incremental balance update, driver merged duplicate, deleted price, driver sees only orders to deliver: C-35 / AC-5 / AC-2; passed at once
+
+**Other additions:**
+- `src/modules/sync/sync.routes.ts`: registers the adapters (where identity ones are registered); sync.service.ts needed no change.
+
+**Evidence:** story tests 12/12 (6 story rows plus extras); full suite 2170/2170, failing: none; typecheck clean; lint 0 errors (62 existing warnings)
+
+**Follow-ups:**
+- Driver relationships appear only while an order is CONFIRMED (per story); an IN_DELIVERY order without own delivery or address would drop the customer on a later resync. A relationship leaving a driver's scope is not sent in `deleted`.
+- Customer-organization side (organization as customer) is not synced, per story text.
+<!-- end SYNC-004 -->
