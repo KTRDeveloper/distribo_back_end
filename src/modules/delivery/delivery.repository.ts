@@ -505,3 +505,47 @@ export async function markArrived(
   });
   return count === 1;
 }
+
+/** A line of a counter sale: priced by the caller, delivered in full (quantity = delivered). */
+export type CounterSaleLine = {
+  id: string;
+  productId: string;
+  labelApplied: string;
+  quantity: string;
+  deliveredQuantity: string;
+  referencePrice: bigint;
+  unitPriceApplied: bigint;
+  amount: bigint;
+  priceSetById?: string;
+  priceSetAt?: Date;
+};
+
+/**
+ * Inserts the CONFIRMED order of a counter sale with its lines already fully delivered (DLV-009).
+ * Placed by the SUPPLIER party, no delivery address, no delivery cost; the caller computes every
+ * amount and the database checks the total at commit (ORD-006). The caller then moves the order to
+ * DELIVERED with `transitionOrder`, so the state machine stays the only writer of the status.
+ */
+export function insertCounterSaleOrder(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    customerRelationshipId: string;
+    enteredById: string;
+    totalAmount: bigint;
+    lines: CounterSaleLine[];
+  }
+): Promise<{ id: string }> {
+  const { lines, ...order } = data;
+  return tx.order.create({
+    data: {
+      ...order,
+      placedByParty: 'SUPPLIER',
+      status: 'CONFIRMED',
+      deliveryAddressApplied: null,
+      deliveryCost: 0n,
+      lines: { create: lines },
+    },
+    select: { id: true },
+  });
+}

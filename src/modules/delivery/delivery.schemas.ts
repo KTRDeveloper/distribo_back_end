@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
 import { TEXT_MAX } from '../../shared/limits.js';
 import { paginationQuerySchema } from '../../shared/pagination.js';
+import { enterOrderLineSchema, ORDER_LINES_MAX } from '../order/order.schemas.js';
 
 /** Strict query of the to-deliver pool: `limit` and `cursor` only (ASVS v5.0.0-2.2.1). */
 export const toDeliverQuerySchema = paginationQuerySchema.strict();
@@ -126,3 +127,42 @@ export const deliverSchema = z
   });
 
 export type DeliverInput = z.infer<typeof deliverSchema>;
+
+/**
+ * Strict body of the counter-sale gesture (DLV-009): the gesture id, the ids of the SALE and the
+ * PAYMENT entries, the lines as in ORD-013 (the price is the server's unless a seller sets a gap),
+ * the amount collected and its mode. The sale amount, the total, the status, the recorder and the
+ * delivery are never accepted (CM-13; ASVS v5.0.0-2.2.1, v5.0.0-15.3.3). Whether the collected
+ * amount equals the total depends on the prices and is the service's check (C-26).
+ */
+export const counterSaleSchema = z
+  .object({
+    id: uuidV7Schema,
+    sale_entry_id: uuidV7Schema,
+    payment_entry_id: uuidV7Schema,
+    lines: z.array(enterOrderLineSchema).min(1).max(ORDER_LINES_MAX),
+    collected_amount: z.number().int().min(0).max(COLLECTED_MAX),
+    mode: z.enum(['CASH', 'MOBILE_MONEY']),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.lines.map((line) => line.id)).size !== value.lines.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lines'],
+        message: 'A line can be listed once',
+      });
+    }
+    if (value.payment_entry_id === value.sale_entry_id) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['payment_entry_id'],
+        message: 'Must differ from sale_entry_id',
+      });
+    }
+  });
+
+export type CounterSaleInput = z.infer<typeof counterSaleSchema>;
+
+/** Path of the counter-sale gesture: the relationship id is a UUID (never reaches the database malformed). */
+export const counterParamSchema = z.object({ relationshipId: uuidV7Schema }).strict();

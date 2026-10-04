@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
+import { supplierOrderViewSchema } from '../order/order.openapi.js';
 import {
   assignDeliverySchema,
+  counterSaleSchema,
   deliverSchema,
   failDeliverySchema,
   departSchema,
@@ -270,6 +272,46 @@ openApiRegistry.registerPath({
     409: {
       description:
         'INVALID_TRANSITION (status does not fit the role), CREDIT_INSUFFICIENT (details.min_collect) or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/counters/{relationshipId}/sales',
+  tags: ['delivery'],
+  summary:
+    'A seller sells at a counter: the order is created, delivered and paid at once (DLV-009)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, relationshipId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: counterSaleSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The DELIVERED order (supplier view), the SALE and the PAYMENT of its total',
+      content: {
+        'application/json': {
+          schema: z.object({
+            order: supplierOrderViewSchema,
+            sale: deliveredEntrySchema,
+            payment: deliveredEntrySchema,
+          }),
+        },
+      },
+    },
+    400: { description: 'VALIDATION_ERROR (body or path)', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not sell at a counter', content: errorContent },
+    404: {
+      description:
+        "Not a member, not a counter of the business, or product not ACTIVE or not the business's",
+      content: errorContent,
+    },
+    409: {
+      description:
+        'COUNTER_PAYMENT_INCOMPLETE (collected amount differs from the total), RELATIONSHIP_NOT_ACTIVE, ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
       content: errorContent,
     },
   },

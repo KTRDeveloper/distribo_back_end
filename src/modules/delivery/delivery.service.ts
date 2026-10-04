@@ -1,15 +1,20 @@
+import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { httpError } from '../../lib/http-error.js';
 import type { Actor } from '../../types/express.js';
 import { newId } from '../../shared/ids.js';
 import { parseQuantity } from '../../shared/money.js';
 import { appendLedgerEntry } from '../finance/ledger.service.js';
 import { lineAmountOf, orderTotal } from '../order/order.calculations.js';
+import { priceEnteredLine } from '../order/order.service.js';
+import { projectOrderForSupplier, type SupplierOrderView } from '../order/order.views.js';
+import { findSupplierRelationshipLocked } from '../relationship/relationship.repository.js';
 import { transitionOrder } from '../order/order.state.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   findDeliveryInProgress,
   findRegisteredCustomerRecipient,
   insertDelivery,
+  insertCounterSaleOrder,
   insertDepartedDelivery,
   insertRestOrder,
   isActiveCollaborator,
@@ -31,6 +36,7 @@ import {
 } from './delivery.repository.js';
 import type {
   AssignDeliveryInput,
+  CounterSaleInput,
   DeliverInput,
   DepartInput,
   FailDeliveryInput,
@@ -509,6 +515,119 @@ export function deliverOrder(
       order: projectDeliveredOrder(closed),
       sale: projectDeliveredEntry(sale),
       payment: payment ? projectDeliveredEntry(payment) : null,
+    };
+  });
+}
+
+export type CounterSaleResult = {
+  order: SupplierOrderView;
+  sale: DeliveredEntryView;
+  payment: DeliveredEntryView;
+};
+
+/**
+ * A SELLER, MANAGER or OWNER sells at a counter in one gesture (DLV-009, C-26, CM-13): the order
+ * is created CONFIRMED with the gesture `id` (placed by the SUPPLIER, lines priced as `enterOrder`), delivered at once
+ * (DELIVERED by the caller, no delivery address, no delivery row) and paid, writing the SALE and
+ * the PAYMENT of the same amount. One transaction (v5.0.0-2.3.3): the relationship is found through
+ * the visibility predicate and locked (another business's counter is 404, v5.0.0-8.2.1), so two
+ * sales on one counter cannot interleave their balance changes (v5.0.0-2.3.4). A relationship with
+ * a customer is not a counter and is 404. The total is computed on the server and the amount the
+ * phone says it collected must equal it exactly: a counter has no credit and no arrears (C-26), so
+ * any other amount is refused before anything is written (v5.0.0-2.2.1). Replays with the same
+ * `id` are answered by `idempotent()`.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked `create Order`.
+ * @param relationshipId - Counter from the path.
+ * @param input - Validated body: ids, lines, collected amount and mode.
+ * @returns The DELIVERED order (supplier view for the caller's role), the SALE and the PAYMENT.
+ * @throws 404 `NOT_FOUND` (not a counter of the business, product not ACTIVE or not the
+ * business's); 409 `COUNTER_PAYMENT_INCOMPLETE`, `RELATIONSHIP_NOT_ACTIVE`,
+ * `ORGANIZATION_NOT_ACTIVE`.
+ */
+export function sellAtCounter(
+  actor: Actor,
+  relationshipId: string,
+  input: CounterSaleInput
+): Promise<CounterSaleResult> {
+  return runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    const relationship = await findSupplierRelationshipLocked(
+      tx,
+      { personId: actor.personId, organizationId: actor.organizationId },
+      relationshipId
+    );
+    if (
+      !relationship ||
+      relationship.customerPersonId !== null ||
+      relationship.customerOrganizationId !== null
+    ) {
+      throw httpError(404, 'NOT_FOUND', 'Counter not found.');
+    }
+    if (relationship.status !== 'ACTIVE') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'Relationship is not active');
+    }
+
+    const now = new Date();
+    const priced = [];
+    for (const line of input.lines) {
+      priced.push(await priceEnteredLine(tx, actor, relationship.id, line, now));
+    }
+    const total = orderTotal(
+      priced.map((line) => line.amount),
+      0n
+    );
+    if (BigInt(input.collected_amount) !== total) {
+      throw httpError(
+        409,
+        'COUNTER_PAYMENT_INCOMPLETE',
+        'A counter sale must be paid in full, for the exact total.'
+      );
+    }
+
+    const created = await insertCounterSaleOrder(tx, {
+      id: input.id,
+      customerRelationshipId: relationship.id,
+      enteredById: actor.personId,
+      totalAmount: total,
+      lines: priced.map((line) => ({ ...line, deliveredQuantity: line.quantity })),
+    });
+    const closed = await transitionOrder(tx, created.id, 'DELIVERED', {
+      personId: actor.personId,
+      party: 'SUPPLIER',
+    });
+
+    const occurredAt = new Date();
+    const sale = await appendLedgerEntry(tx, {
+      id: input.sale_entry_id,
+      relationshipId: relationship.id,
+      kind: 'SALE',
+      amount: closed.totalAmount,
+      orderId: created.id,
+      recordedById: actor.personId,
+      organizationId: actor.organizationId,
+      occurredAt,
+    });
+    const payment = await appendLedgerEntry(tx, {
+      id: input.payment_entry_id,
+      relationshipId: relationship.id,
+      kind: 'PAYMENT',
+      amount: closed.totalAmount,
+      mode: input.mode,
+      orderId: created.id,
+      recordedById: actor.personId,
+      organizationId: actor.organizationId,
+      occurredAt,
+    });
+
+    // Lines come back in the request order, so the answer mirrors what was sent.
+    const position = new Map(input.lines.map((line, index) => [line.id, index]));
+    const lines = await listLiveLines(tx, created.id);
+    lines.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+    return {
+      order: projectOrderForSupplier({ ...closed, lines }, actor.role),
+      sale: projectDeliveredEntry(sale),
+      payment: projectDeliveredEntry(payment),
     };
   });
 }

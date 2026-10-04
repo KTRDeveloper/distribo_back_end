@@ -6,6 +6,8 @@ import { requireAbility } from '../../middleware/require-ability.js';
 import {
   assignDeliverySchema,
   assignParamSchema,
+  counterParamSchema,
+  counterSaleSchema,
   deliverSchema,
   deliveryParamSchema,
   departSchema,
@@ -20,6 +22,7 @@ import {
   failDelivery,
   listMyDeliveries,
   listToDeliver,
+  sellAtCounter,
 } from './delivery.service.js';
 import './delivery.openapi.js';
 
@@ -158,6 +161,37 @@ deliveryRoutes.post(
       deliverSchema.parse(req.body)
     )
       .then((result) => res.status(200).json(result))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/counters/:relationshipId/sales - a SELLER (or above)
+// sells at a counter: the order is created, delivered and paid at once. The caller is the seller,
+// the price and the sale amount are computed by the server, and the collected amount must equal
+// the total, never body-defined amounts. Counter scope, payment and atomicity are the service's.
+deliveryRoutes.post(
+  '/counters/:relationshipId/sales',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'Order'),
+  requireAbility('deliver', 'Order'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = counterParamSchema.safeParse({ relationshipId: req.params.relationshipId });
+    if (!params.success) return next(params.error);
+    const parsed = counterSaleSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    sellAtCounter(
+      req.actor!,
+      counterParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
+      counterSaleSchema.parse(req.body)
+    )
+      .then((result) => res.status(201).json(result))
       .catch(next);
   }
 );

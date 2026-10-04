@@ -179,7 +179,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-006 | done | | POST deliveries/{id}/fail, 23 story tests, full suite green |
 | DLV-007 | done | | deliver route, credit rule under relationship lock; error details support added to httpError |
 | DLV-008 | done | | Partial delivery with LATER child order / ABANDON; 48/48 story tests, full suite green |
-| DLV-009 | todo | | |
+| DLV-009 | done | | counter sale route, 15 tests, full suite green |
 | DLV-010 | todo | | |
 | DLV-011 | todo | | |
 | DLV-012 | todo | | |

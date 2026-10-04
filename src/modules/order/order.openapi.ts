@@ -119,7 +119,7 @@ openApiRegistry.registerPath({
 });
 
 /** Supplier-side order view (`projectOrderForSupplier`); the price author goes to OWNER and MANAGER only. */
-const supplierOrderViewSchema = customerOrderViewSchema.extend({
+export const supplierOrderViewSchema = customerOrderViewSchema.extend({
   entered_by_id: z.string().uuid(),
   delivered_by_id: z.string().uuid().nullable(),
   cancelled_by_id: z.string().uuid().nullable(),

@@ -507,9 +507,10 @@ export function cancelOrderAsCustomer(
  * Prices one line a seller enters (C-15): the product must be an ACTIVE product of the supplier
  * (404 otherwise) and the reference price comes from the database. The minimum order quantity does
  * not apply to a seller. The applied price defaults to the reference; a different one (any price
- * from 0 up) is a gap whose author is the caller and whose time is `now` (C-20).
+ * from 0 up) is a gap whose author is the caller and whose time is `now` (C-20). Shared by
+ * `enterOrder` and the counter sale (DLV-009), so both price a line the same way.
  */
-async function priceEnteredLine(
+export async function priceEnteredLine(
   tx: Prisma.TransactionClient,
   actor: Actor,
   relationshipId: string,

@@ -136,7 +136,7 @@ export type CancelAsCustomerInput = z.infer<typeof cancelOrderAsCustomerSchema>;
  * One line entered by a seller: ids, a quantity and, optionally, a price from 0 up. The reference
  * price, the label and the amount are never accepted (ASVS v5.0.0-15.3.3, CWE-915).
  */
-const enterOrderLineSchema = z
+export const enterOrderLineSchema = z
   .object({
     id: uuidV7Schema,
     product_id: uuidV7Schema,
