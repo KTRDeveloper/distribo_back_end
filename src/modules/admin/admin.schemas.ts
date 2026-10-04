@@ -97,3 +97,17 @@ export type ListReportsQuery = z.infer<typeof listReportsQuerySchema>;
 
 /** Path parameter of GET /admin/reports/{reportId}: the report id. */
 export const reportIdParamsSchema = z.object({ reportId: uuidV7Schema }).strict();
+
+/**
+ * Body of POST /admin/reports/{reportId}/resolve: the moderator's decision and the reason kept
+ * in the journal (1 to 2000 characters once trimmed). Status, resolver and time are set by the
+ * server (v5.0.0-15.3.3); unknown fields are refused.
+ */
+export const resolveReportSchema = z
+  .object({
+    decision: z.enum(['DISMISSED', 'SUSPENSION']),
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict();
+
+export type ResolveReportInput = z.infer<typeof resolveReportSchema>;

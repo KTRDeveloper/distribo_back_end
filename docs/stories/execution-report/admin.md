@@ -427,3 +427,39 @@ Also in this run: relationship, catalog, order, finance, delivery.
 
 **Evidence:** story tests 13/13; full suite 1234/1234, failing: none; typecheck clean; lint 0 errors, 46 warnings (none new in this story's files)
 <!-- end ADM-012 -->
+
+<!-- begin ADM-013 -->
+## ADM-013 — Administrator resolves a report
+
+- Filed: 2026-10-04 09:03 UTC
+- Status: **done**: resolve report: dismiss/suspend person or org, atomic, 16 tests
+- Risk: high · story: [ADM-013-administrator-resolves-a-report.md](../modules/admin/ADM-013-administrator-resolves-a-report.md)
+- Agent: 68,187 tokens, 24 tool uses, 10 min 21 s
+
+### Agent report
+
+**Summary:** Added POST /api/v1/admin/reports/{reportId}/resolve (dismiss, or suspend a person or organization) in one transaction.
+
+**Decisions:**
+- Notification content: FR/EN by recipient language via `recipientLanguage`, related = the report; the story gave no text.
+- Already SUSPENDED target: every step runs again (sessions revoked, scope_version +1, notice sent); the story only says the status stays and the decision is recorded.
+- Organization with no active owner: suspended and journaled, no notice (nothing to notify).
+- TARGET_ANONYMIZED applies only to SUSPENSION; a DISMISSED decision on an anonymized target is allowed.
+- Order of checks: 404, then ALREADY_RESOLVED, then TARGET_ANONYMIZED. The report is claimed by a conditional update on PENDING.
+- A CLOSED organization is also set to SUSPENDED (story says "sets status to SUSPENDED"); worth a look.
+
+**Tests added beyond the story:**
+- `resolve-report.test.ts` › two parallel resolutions: exactly one 200 and one 409, one journal row (AC-4 ALREADY_RESOLVED, CWE-362); passed at once
+- `resolve-report.test.ts` › already SUSPENDED target stays suspended, decision recorded (story Context); passed at once
+- `resolve-report.test.ts` › reason over 2000 chars and unknown field give 400 (Context limit, CONVENTIONS strict schemas)
+- `resolve-report.test.ts` › no token gives 401 (CONVENTIONS deny by default)
+
+**Other additions:**
+- `tests/integration/api-docs/catalog.test.ts`: new path line (CONVENTIONS rule).
+- AC-5 test makes the journal insert fail with a temporary DB trigger, dropped in `finally`.
+
+**Evidence:** story tests 16/16; full suite 1250/1250, failing: none; typecheck clean; lint 0 errors, 48 warnings (existing)
+
+**Follow-ups:**
+- `npm run lint` prettier check reports 19 unrelated existing files with style issues; not touched.
+<!-- end ADM-013 -->

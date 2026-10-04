@@ -8,6 +8,8 @@ import { checkAndConsume, resetKey } from '../../lib/rate-limit.js';
 import { createTotpSecret, decryptSecret, encryptSecret, verifyTotp } from '../../lib/totp.js';
 import { normalizeE164 } from '../../shared/phone.js';
 import { issueCode, verifyCode } from '../auth/otp.service.js';
+import { revokeSessions } from '../auth/session.service.js';
+import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   findByActivePhone,
   toPublicPerson,
@@ -15,6 +17,11 @@ import {
 } from '../person/person.repository.js';
 import {
   countOtherLiveSuperAdmins,
+  findActiveOwnerId,
+  findReportRowTx,
+  markReportResolved,
+  suspendOrganization,
+  suspendPerson,
   findLiveAdministratorById,
   findLiveAdministratorByPerson,
   findPersonEmail,
@@ -40,6 +47,7 @@ import type {
   CreateReportInput,
   ListReportsQuery,
   RemoveInput,
+  ResolveReportInput,
 } from './admin.schemas.js';
 
 const MAX_LOGIN_FAILURES = 5;
@@ -423,5 +431,125 @@ export async function listReports(
 export async function getReport(reportId: string): Promise<AdminReportView> {
   const row = await findReportRow(reportId);
   if (!row) throw httpError(404, 'NOT_FOUND', 'Report not found');
+  return toAdminReportView(row);
+}
+
+const SUSPENDED_CONTENT = {
+  FR: 'Votre compte a été suspendu à la suite d\u2019un signalement.',
+  EN: 'Your account has been suspended following a report.',
+};
+const ORG_SUSPENDED_CONTENT = {
+  FR: (name: string) =>
+    `L\u2019organisation ${name} a été suspendue à la suite d\u2019un signalement.`,
+  EN: (name: string) => `The organization ${name} has been suspended following a report.`,
+};
+
+/**
+ * Resolves a PENDING report (CM-33, C-28; v5.0.0-8.2.1: the route only lets live moderators in).
+ * DISMISSED writes a `DISMISS_REPORT` journal row. SUSPENSION sets the target SUSPENDED (a
+ * person also loses every session, reason ACCOUNT_SUSPENDED, and `scope_version` rises) and
+ * writes a `SUSPEND` row naming the report, then notifies the person or the organization's
+ * owner. All of it is one transaction (v5.0.0-2.3.3), so a failed journal insert leaves the
+ * report, the target and the sessions untouched (v5.0.0-16.3.1).
+ *
+ * The report is claimed by a conditional update on PENDING, so of two parallel resolutions one
+ * gets 409 (CWE-362). A target already SUSPENDED stays so and the decision is still recorded.
+ *
+ * @throws 404 NOT_FOUND; 409 ALREADY_RESOLVED; 409 TARGET_ANONYMIZED (SUSPENSION of an
+ * anonymized person)
+ */
+export async function resolveReport(
+  admin: AdminContext,
+  reportId: string,
+  input: ResolveReportInput
+): Promise<AdminReportView> {
+  const row = await inTransaction(async (tx) => {
+    const report = await findReportRowTx(tx, reportId);
+    if (!report) throw httpError(404, 'NOT_FOUND', 'Report not found');
+    if (report.status !== 'PENDING') {
+      throw httpError(409, 'ALREADY_RESOLVED', 'The report is already resolved');
+    }
+    if (input.decision === 'SUSPENSION' && report.targetPerson?.status === 'ANONYMIZED') {
+      throw httpError(409, 'TARGET_ANONYMIZED', 'The target is anonymized');
+    }
+    if (
+      !(await markReportResolved(tx, reportId, {
+        decision: input.decision,
+        administratorId: admin.administratorId,
+      }))
+    ) {
+      throw httpError(409, 'ALREADY_RESOLVED', 'The report is already resolved');
+    }
+
+    if (input.decision === 'DISMISSED') {
+      await recordAdminAction(tx, {
+        administratorId: admin.administratorId,
+        action: 'DISMISS_REPORT',
+        targetPersonId: report.targetPersonId,
+        targetOrganizationId: report.targetOrganizationId,
+        reportId,
+        reason: input.reason,
+      });
+    } else if (report.targetPersonId !== null) {
+      await suspendPerson(tx, report.targetPersonId);
+      await revokeSessions(report.targetPersonId, 'ACCOUNT_SUSPENDED', { tx });
+      await recordAdminAction(tx, {
+        administratorId: admin.administratorId,
+        action: 'SUSPEND',
+        targetPersonId: report.targetPersonId,
+        reportId,
+        reason: input.reason,
+      });
+      const language = await recipientLanguage(report.targetPersonId, tx);
+      await notify(
+        {
+          recipientId: report.targetPersonId,
+          sourceEvent: 'account.suspended',
+          content: SUSPENDED_CONTENT[language],
+          related: { type: 'report', id: reportId },
+        },
+        tx
+      );
+    } else if (report.targetOrganizationId !== null && report.targetOrganization) {
+      const organizationId = report.targetOrganizationId;
+      await suspendOrganization(tx, organizationId);
+      await recordAdminAction(tx, {
+        administratorId: admin.administratorId,
+        action: 'SUSPEND',
+        targetOrganizationId: organizationId,
+        reportId,
+        reason: input.reason,
+      });
+      const ownerId = await findActiveOwnerId(tx, organizationId);
+      if (ownerId !== null) {
+        const language = await recipientLanguage(ownerId, tx);
+        await notify(
+          {
+            recipientId: ownerId,
+            organizationId,
+            sourceEvent: 'account.suspended',
+            content: ORG_SUSPENDED_CONTENT[language](report.targetOrganization.name),
+            related: { type: 'report', id: reportId },
+          },
+          tx
+        );
+      }
+    } else {
+      throw new Error('Report has no target (C-28)');
+    }
+
+    const updated = await findReportRowTx(tx, reportId);
+    if (!updated) throw httpError(404, 'NOT_FOUND', 'Report not found');
+    return updated;
+  });
+  logger.info(
+    {
+      event: 'report_resolved',
+      administratorId: admin.administratorId,
+      reportId,
+      decision: input.decision,
+    },
+    'Report resolved'
+  );
   return toAdminReportView(row);
 }

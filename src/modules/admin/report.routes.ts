@@ -6,8 +6,9 @@ import {
   createReportSchema,
   listReportsQuerySchema,
   reportIdParamsSchema,
+  resolveReportSchema,
 } from './admin.schemas.js';
-import { createReport, getReport, listReports } from './admin.service.js';
+import { createReport, getReport, listReports, resolveReport } from './admin.service.js';
 import './admin.openapi.js';
 
 /** Report routes, mounted under /api/v1/reports; any signed-in person may report. */
@@ -50,6 +51,15 @@ adminReportRoutes.get('/', (req, res, next) => {
 adminReportRoutes.get('/:reportId', (req, res, next) => {
   const { reportId } = reportIdParamsSchema.parse(req.params);
   getReport(reportId)
+    .then((view) => res.status(200).json(view))
+    .catch(next);
+});
+
+// POST /api/v1/admin/reports/{reportId}/resolve - dismiss the report or suspend its target
+adminReportRoutes.post('/:reportId/resolve', (req, res, next) => {
+  const { reportId } = reportIdParamsSchema.parse(req.params);
+  const body = resolveReportSchema.parse(req.body);
+  resolveReport(req.admin!, reportId, body)
     .then((view) => res.status(200).json(view))
     .catch(next);
 });

@@ -357,3 +357,63 @@ export async function listReportRows(
 export function findReportRow(reportId: string): Promise<ReportRow | null> {
   return prisma.report.findUnique({ where: { id: reportId }, include: reportInclude });
 }
+
+/** One report with its reporter and target, read inside a transaction. */
+export function findReportRowTx(
+  tx: Prisma.TransactionClient,
+  reportId: string
+): Promise<ReportRow | null> {
+  return tx.report.findUnique({ where: { id: reportId }, include: reportInclude });
+}
+
+/**
+ * Marks a PENDING report RESOLVED with the decision, the resolving administrator and now.
+ * The condition on PENDING makes the change atomic: of two parallel resolutions only one
+ * updates a row (CWE-362).
+ *
+ * @returns false when the report was no longer PENDING (nothing changed).
+ */
+export async function markReportResolved(
+  tx: Prisma.TransactionClient,
+  reportId: string,
+  input: { decision: 'DISMISSED' | 'SUSPENSION'; administratorId: string }
+): Promise<boolean> {
+  const result = await tx.report.updateMany({
+    where: { id: reportId, status: 'PENDING' },
+    data: {
+      status: 'RESOLVED',
+      decision: input.decision,
+      resolvedById: input.administratorId,
+      resolvedAt: new Date(),
+    },
+  });
+  return result.count === 1;
+}
+
+/** Sets a person SUSPENDED and bumps `scope_version` so the change reaches their devices. */
+export async function suspendPerson(tx: Prisma.TransactionClient, personId: string): Promise<void> {
+  await tx.person.update({
+    where: { id: personId },
+    data: { status: 'SUSPENDED', scopeVersion: { increment: 1 } },
+  });
+}
+
+/** Sets an organization SUSPENDED. */
+export async function suspendOrganization(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<void> {
+  await tx.organization.update({ where: { id: organizationId }, data: { status: 'SUSPENDED' } });
+}
+
+/** The person id of the organization's active owner, or null when it has none. */
+export async function findActiveOwnerId(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<string | null> {
+  const owner = await tx.collaboration.findFirst({
+    where: { organizationId, role: 'OWNER', status: 'ACTIVE', deletedAt: null },
+    select: { personId: true },
+  });
+  return owner?.personId ?? null;
+}

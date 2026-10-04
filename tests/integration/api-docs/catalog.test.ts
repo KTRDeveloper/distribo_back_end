@@ -64,6 +64,9 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/admin/reports');
     expect(paths).toContain('/api/v1/admin/reports/{reportId}');
 
+    // ADM-013: a moderator resolves a report
+    expect(paths).toContain('/api/v1/admin/reports/{reportId}/resolve');
+
     // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
     expect(authPaths.sort()).toEqual([

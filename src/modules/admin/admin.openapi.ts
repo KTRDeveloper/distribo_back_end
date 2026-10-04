@@ -9,6 +9,7 @@ import {
   recoveryEmailRequestSchema,
   removeAdministratorSchema,
   reportIdParamsSchema,
+  resolveReportSchema,
 } from './admin.schemas.js';
 
 const appointedResponseSchema = z.object({
@@ -185,5 +186,27 @@ openApiRegistry.registerPath({
     400: err('VALIDATION_ERROR'),
     401: err('UNAUTHORIZED'),
     404: err('NOT_FOUND'),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/reports/{reportId}/resolve',
+  tags: ['admin'],
+  summary: 'Dismiss a report or suspend its target (admin token only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: reportIdParamsSchema,
+    body: { content: { 'application/json': { schema: resolveReportSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The resolved report',
+      content: { 'application/json': { schema: adminReportSchema } },
+    },
+    400: err('VALIDATION_ERROR'),
+    401: err('UNAUTHORIZED'),
+    404: err('NOT_FOUND'),
+    409: err('ALREADY_RESOLVED or TARGET_ANONYMIZED'),
   },
 });
