@@ -64,3 +64,41 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 - Question: that existing test inserts REPLAY_SYNC with a non-existent ARCHIVE_ID and expects success; AC-4 makes that impossible. Fix needs the test to insert a sync_archives row first (needs person+device). I did not touch it (rule: never modify tests not listed). Allow it, or add "Tests to update" to the story.
 - Work left uncommitted in the working tree (migration, schema, new test).
 <!-- end SYNC-002 -->
+
+<!-- begin SYNC-003 -->
+## SYNC-003 — Pull endpoint and identity tables
+
+- Filed: 2026-10-04 17:14 UTC
+- Status: **done**: GET /sync/pull and identity adapters; 19 tests pass; no OpenAPI (SYNC-006)
+- Risk: high · story: [SYNC-003-pull-endpoint-and-identity-tables.md](../modules/sync/SYNC-003-pull-endpoint-and-identity-tables.md)
+- Agent: 73,423 tokens, 29 tool uses, 8 min 40 s
+
+### Agent report
+
+**Summary:** Added GET /api/v1/sync/pull, the pull service and the organizations, collaborations and people adapters; done.
+
+**Decisions:**
+- OpenAPI and catalog.test/per-001 route lists: not touched; the story's Implementation and Out of scope leave them to SYNC-006 (its Adds creates sync.openapi.ts), though "Adds" here names the file.
+- `amount_held`: key absent (not null) on rows the viewer may not see; a phone must not read a hidden value as 0.
+- Collaborations has no `created_at`: `invited_at` decides created vs updated.
+- Collaborations rows sent for every non-deleted status (REVOKED, INVITED too), so a phone sees a status change; literal reading of "rows of those organizations".
+- Organization row sent without `deleted_at` (tombstones go in `deleted`), with `server_updated_at`.
+- people: also sent when the collaboration or relationship that makes them visible was created after the last pull; no dates in the row. Relationship visibility uses `visibleRelationsWhere`.
+- Identity adapters' `push` returns `forbidden` (`SYNC_TABLE_READ_ONLY`) for every line until a push story defines it (fail closed).
+- Pull reads run in one REPEATABLE READ transaction (`withPullSnapshot` in sync.repository.ts); `timestamp` read before it.
+- Empty or absent `last_pulled_at` = first pull; `0` is a real epoch; at most 15 digits; future time refused.
+- New shared helper `sync.changes.ts` (classifyChanges) for the next adapters.
+
+**Tests added beyond the story:**
+- `pull-identity.test.ts` › deleted collaboration listed by id; person who just became visible is sent; OWNER sees all amount_held; no-membership person gets only themselves; revoked member loses the organization; unknown query param / repeated param / 1.5 / 1e3 / 16 digits refused; 401 without token (AC-2, AC-3, AC-5, v5.0.0-8.2.2, C-35); all passed at once except the people-link case, which drove the refinement.
+
+**Other additions:**
+- `withPullSnapshot` in `sync.repository.ts` and `sync.changes.ts`: keep prisma in the repository and share the created/updated/deleted split.
+
+**Evidence:** story tests 19/19; full suite 2158/2158, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
+
+**Follow-ups:**
+- Tests were written after the code (one red seen on the people case), not strictly red-first.
+- A member who leaves an organization is not told by `deleted`: its rows just stop appearing (spec has no rule); SYNC-008 resync may need it.
+- Revoked or invited team members' names and phones reach sellers; confirm this is wanted (online list is OWNER/MANAGER only).
+<!-- end SYNC-003 -->

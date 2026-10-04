@@ -85,6 +85,7 @@ import { userRoutes } from './modules/user/user.routes.js';
 import { notificationRoutes } from './modules/notification/notification.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import { personRoutes } from './modules/person/person.routes.js';
+import { syncRoutes } from './modules/sync/sync.routes.js';
 import {
   collaborationRoutes,
   organizationRoutes,
@@ -128,6 +129,7 @@ v1Router.use('/users', userRoutes);
 v1Router.use('/tasks', tasksRoutes);
 v1Router.use('/people/me/attachments', attachmentsRoutes);
 v1Router.use('/people', personRoutes);
+v1Router.use('/sync', syncRoutes);
 v1Router.use('/organizations', organizationRoutes);
 v1Router.use('/organizations/:organizationId', relationshipRoutes);
 v1Router.use('/organizations/:organizationId', catalogRoutes);
