@@ -3,6 +3,7 @@ import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
   acceptOrderSchema,
+  editOrderSchema,
   enterOrderSchema,
   placePurchaseSchema,
   refuseOrderSchema,
@@ -168,6 +169,39 @@ openApiRegistry.registerPath({
     409: {
       description:
         'USE_COUNTER_SALE, RELATIONSHIP_NOT_ACTIVE, ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/api/v1/organizations/{organizationId}/orders/{orderId}',
+  tags: ['order'],
+  summary: 'A seller edits a CONFIRMED order the business entered (ORD-014)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: editOrderSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The edited order, supplier view',
+      content: { 'application/json': { schema: supplierOrderViewSchema } },
+    },
+    400: {
+      description: 'Invalid body (no field, lines, prices, unknown fields)',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not edit orders', content: errorContent },
+    404: {
+      description: 'Not a member, order outside the business, or product not ACTIVE',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'ORDER_FROZEN (not CONFIRMED or placed by the customer), ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
       content: errorContent,
     },
   },

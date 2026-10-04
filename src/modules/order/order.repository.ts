@@ -280,3 +280,56 @@ export async function isRegisteredPerson(
   });
   return person !== null;
 }
+
+/**
+ * Writes the edited columns of an order and its recomputed total in one update (ORD-014). Only the
+ * listed keys are written; a key left out keeps its value. The caller has already checked that the
+ * order is CONFIRMED and placed by the supplier, under the row lock.
+ */
+export async function updateEditableOrderFields(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  data: {
+    deliveryAddressApplied?: string | null;
+    deliveryCost?: bigint;
+    desiredDeliveryDate?: Date | null;
+    customerNote?: string | null;
+    totalAmount: bigint;
+  }
+): Promise<void> {
+  await tx.order.update({ where: { id: orderId }, data });
+}
+
+/**
+ * Tells which of the given line ids already belong to the order, deleted or not, because a line id
+ * is a primary key and cannot be reused (ORD-014).
+ */
+export async function findExistingLineIds(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  lineIds: string[]
+): Promise<string[]> {
+  const found = await tx.orderLine.findMany({
+    where: { orderId, id: { in: lineIds } },
+    select: { id: true },
+  });
+  return found.map((line) => line.id);
+}
+
+/**
+ * Replaces the lines of an order: the undeleted ones get `deleted_at` and the new ones are inserted
+ * (ORD-014). The caller writes the matching total in the same transaction, which the database
+ * checks at commit (ORD-006).
+ */
+export async function replaceOrderLines(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  lines: NewOrderLine[],
+  now: Date
+): Promise<void> {
+  await tx.orderLine.updateMany({
+    where: { orderId, deletedAt: null },
+    data: { deletedAt: now },
+  });
+  await tx.orderLine.createMany({ data: lines.map((line) => ({ ...line, orderId })) });
+}

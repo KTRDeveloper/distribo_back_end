@@ -11,19 +11,23 @@ import {
 import { lineAmountOf, orderTotal } from './order.calculations.js';
 import type { Actor } from '../../types/express.js';
 import {
+  findExistingLineIds,
   findOrderToAccept,
   insertConfirmedOrder,
   insertPendingOrder,
   isRegisteredPerson,
   listOrderTeamIds,
   lockSupplierOrder,
+  replaceOrderLines,
   runInTransaction,
   setLinePrice,
   setOrderTotal,
+  updateEditableOrderFields,
   type NewOrderLine,
 } from './order.repository.js';
 import type {
   AcceptInput,
+  EditOrderInput,
   EnterOrderInput,
   PlaceOrderInput,
   RefuseInput,
@@ -461,5 +465,91 @@ export function enterOrder(actor: Actor, input: EnterOrderInput): Promise<Suppli
     const position = new Map(input.lines.map((line, index) => [line.id, index]));
     order.lines.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
     return projectOrderForSupplier(order, actor.role);
+  });
+}
+
+/**
+ * A SELLER, MANAGER or OWNER corrects an order the business entered, until it leaves for delivery
+ * (ORD-014, C-18). One transaction (v5.0.0-2.3.3): the order of the caller's organization is locked
+ * (another business's order is 404, v5.0.0-8.2.1), then its origin and status are checked before
+ * any change (v5.0.0-2.3.1): only a CONFIRMED order placed by the SUPPLIER can be edited, anything
+ * else is `ORDER_FROZEN`. A `lines` list replaces the old lines (soft-deleted) and is priced as in
+ * `enterOrder`; the total is always recomputed from the lines and the delivery cost on the server
+ * (v5.0.0-15.3.3). A scalar set to `null` is cleared (a null delivery cost means 0). Replays with
+ * the same gesture `id` are answered by `idempotent()`.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked `create Order`.
+ * @param orderId - Order from the path.
+ * @param input - Validated body: gesture id and at least one editable field.
+ * @returns The edited CONFIRMED order, supplier view for the caller's role.
+ * @throws 404 `NOT_FOUND` (order outside the business, product not ACTIVE or not the business's);
+ * 409 `ORDER_FROZEN`, `ORGANIZATION_NOT_ACTIVE`; 400 `VALIDATION_ERROR` (a line id already used by
+ * the order).
+ */
+export function editOrder(
+  actor: Actor,
+  orderId: string,
+  input: EditOrderInput
+): Promise<SupplierOrderView> {
+  return runInTransaction(async (tx) => {
+    if (!(await lockSupplierOrder(tx, orderId, actor.organizationId))) {
+      throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    }
+    await assertOrganizationActive(actor.organizationId, tx);
+    const order = await findOrderToAccept(tx, orderId);
+    if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    if (order.placedByParty !== 'SUPPLIER' || order.status !== 'CONFIRMED') {
+      throw httpError(409, 'ORDER_FROZEN', 'This order can no longer be edited.');
+    }
+
+    const deliveryCost =
+      input.delivery_cost === undefined ? order.deliveryCost : BigInt(input.delivery_cost ?? 0);
+    let amounts = order.lines.map((line) => line.amount);
+    if (input.lines !== undefined) {
+      if (
+        (
+          await findExistingLineIds(
+            tx,
+            orderId,
+            input.lines.map((line) => line.id)
+          )
+        ).length > 0
+      ) {
+        throw httpError(400, 'VALIDATION_ERROR', 'A line id is already used by this order');
+      }
+      const now = new Date();
+      const lines: NewOrderLine[] = [];
+      for (const line of input.lines) {
+        lines.push(await priceEnteredLine(tx, actor, order.customerRelationshipId, line, now));
+      }
+      await replaceOrderLines(tx, orderId, lines, now);
+      amounts = lines.map((line) => line.amount);
+    }
+
+    await updateEditableOrderFields(tx, orderId, {
+      ...(input.delivery_address === undefined
+        ? {}
+        : { deliveryAddressApplied: input.delivery_address }),
+      ...(input.delivery_cost === undefined ? {} : { deliveryCost }),
+      ...(input.desired_delivery_date === undefined
+        ? {}
+        : {
+            desiredDeliveryDate:
+              input.desired_delivery_date === null
+                ? null
+                : new Date(`${input.desired_delivery_date}T00:00:00.000Z`),
+          }),
+      ...(input.customer_note === undefined ? {} : { customerNote: input.customer_note }),
+      totalAmount: orderTotal(amounts, deliveryCost),
+    });
+
+    const edited = await findOrderToAccept(tx, orderId);
+    if (!edited) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    if (input.lines !== undefined) {
+      // Lines come back in the request order, so the answer mirrors what was sent.
+      const position = new Map(input.lines.map((line, index) => [line.id, index]));
+      edited.lines.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+    }
+    return projectOrderForSupplier(edited, actor.role);
   });
 }

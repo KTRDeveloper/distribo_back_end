@@ -5,6 +5,7 @@ import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
   acceptOrderSchema,
+  editOrderSchema,
   enterOrderSchema,
   orderIdParamSchema,
   placeOrderSchema,
@@ -13,6 +14,7 @@ import {
 } from './order.schemas.js';
 import {
   acceptOrder,
+  editOrder,
   enterOrder,
   placeOrder,
   placePurchase,
@@ -146,6 +148,35 @@ supplierOrderRoutes.post(
       req.actor!,
       orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
       refuseOrderSchema.parse(req.body)
+    )
+      .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// PATCH /api/v1/organizations/:organizationId/orders/:orderId - the seller corrects a CONFIRMED
+// order the business entered. Editing is part of entering orders, so the `create Order` rule
+// applies; origin and status are the service's checks (409 ORDER_FROZEN).
+supplierOrderRoutes.patch(
+  '/orders/:orderId',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'Order'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = editOrderSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    editOrder(
+      req.actor!,
+      orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      editOrderSchema.parse(req.body)
     )
       .then((view) => res.status(200).json(view))
       .catch(next);

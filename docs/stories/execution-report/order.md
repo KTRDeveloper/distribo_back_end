@@ -510,6 +510,38 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 16/16; full suite 2365/2365, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
 <!-- end ORD-013 -->
 
+<!-- begin ORD-014 -->
+## ORD-014 — Seller edits an order they entered, before departure
+
+- Filed: 2026-10-04 19:58 UTC
+- Status: **done**: PATCH orders/{orderId}: editOrder, ORDER_FROZEN, lines replaced
+- Risk: high · story: [ORD-014-seller-edits-an-order-they-entered-before.md](../modules/order/ORD-014-seller-edits-an-order-they-entered-before.md)
+- Agent: 77,086 tokens, 23 tool uses, 5 min 53 s
+
+### Agent report
+
+**Summary:** PATCH /organizations/{organizationId}/orders/{orderId} implemented (editOrder), all tests green.
+
+**Decisions:**
+- Ability: `create Order` (like ORD-013); ACC only gives SELLER `update Order` on supplier_note, and no rule covers editing. DRIVER gets 403.
+- Body carries the gesture `id` (project rule, idempotent()); "at least one field" means one besides `id`.
+- Not restricted to the seller who entered the order: story Context only requires placed_by SUPPLIER and CONFIRMED.
+- A new line reusing an id of this order (live or deleted) answers 400 VALIDATION_ERROR (primary key would otherwise give a 500).
+- `delivery_cost: null` means 0; total always recomputed from lines + cost. assertOrganizationActive checked as in enterOrder.
+
+**Tests added beyond the story:**
+- `edit-order.test.ts` › clears nullable fields; min quantity ignored; reused line id 400; DRIVER 403; repeated gesture; price author hidden from SELLER: all follow ORD-013 / project rules; passed at once.
+
+**Other additions:**
+- ORD-014 path assertion in `catalog.test.ts` (convention); `openapi/openapi.json` regenerated.
+
+**Evidence:** story tests 15/15; full suite 2379/2380 on first run (only the lint-gate test failed on a lint error in my test, fixed, rerun green); typecheck clean; lint 0 errors.
+
+**Follow-ups:**
+- I wrote implementation and tests together, so the red phase was not observed.
+- Editing an order whose relationship has since ENDED is not blocked (story silent).
+<!-- end ORD-014 -->
+
 <!-- begin ORD-018 -->
 ## ORD-018 — Closing a business refuses its pending orders
 

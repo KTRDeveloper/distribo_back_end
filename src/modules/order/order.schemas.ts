@@ -145,3 +145,36 @@ export const enterOrderSchema = z
   });
 
 export type EnterOrderInput = z.infer<typeof enterOrderSchema>;
+
+/**
+ * Strict body of the seller's edit-order gesture (ORD-014): the gesture id and at least one of the
+ * editable fields. Each scalar may be `null` to clear it; `lines` is the full replacement list.
+ * Status, party, author, totals and reference prices are never accepted (ASVS v5.0.0-15.3.3).
+ */
+export const editOrderSchema = z
+  .object({
+    id: uuidV7Schema,
+    delivery_address: z.string().trim().min(1).max(TEXT_MAX).nullable().optional(),
+    delivery_cost: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable().optional(),
+    desired_delivery_date: dateSchema.nullable().optional(),
+    customer_note: z.string().max(TEXT_MAX).nullable().optional(),
+    lines: z.array(enterOrderLineSchema).min(1).max(ORDER_LINES_MAX).optional(),
+  })
+  .strict()
+  .refine(
+    (body) =>
+      body.delivery_address !== undefined ||
+      body.delivery_cost !== undefined ||
+      body.desired_delivery_date !== undefined ||
+      body.customer_note !== undefined ||
+      body.lines !== undefined,
+    { message: 'at_least_one_field', path: [] }
+  )
+  .refine(
+    (body) =>
+      body.lines === undefined ||
+      new Set(body.lines.map((line) => line.id)).size === body.lines.length,
+    { message: 'duplicate_line_id', path: ['lines'] }
+  );
+
+export type EditOrderInput = z.infer<typeof editOrderSchema>;
