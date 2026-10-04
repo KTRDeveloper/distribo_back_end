@@ -15,6 +15,7 @@ import type { Actor } from '../../types/express.js';
 import {
   findExistingLineIds,
   findOrderToAccept,
+  findSupplierOrder,
   insertConfirmedOrder,
   insertPendingOrder,
   isRegisteredPerson,
@@ -738,4 +739,33 @@ export async function listOrders(
     items: rows.map((order) => projectOrderForSupplier(order, actor.role)),
     next_cursor: nextCursor,
   };
+}
+
+/**
+ * A SELLER or above opens one order of the organization's customers. The order is selected by its
+ * id through the visibility predicate for the caller's organization (v5.0.0-8.2.2), so another
+ * business's order is a 404; the supplier projection shows the price author only to OWNER and
+ * MANAGER (v5.0.0-15.3.1).
+ *
+ * @param actor - Actor loaded from the path.
+ * @param orderId - Validated order id from the path.
+ * @returns The order, supplier view for the caller's role.
+ * @throws 403 `FORBIDDEN` for a DRIVER; 404 `NOT_FOUND` when the order is not visible.
+ */
+export async function getOrder(actor: Actor, orderId: string): Promise<SupplierOrderView> {
+  if (!atLeast(actor.role, 'SELLER')) {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'read',
+        subjectType: 'Order',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+  const order = await findSupplierOrder(actor, orderId);
+  if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+  return projectOrderForSupplier(order, actor.role);
 }

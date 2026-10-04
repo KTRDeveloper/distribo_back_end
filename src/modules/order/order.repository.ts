@@ -445,3 +445,37 @@ export async function listSupplierOrders(
         : null,
   };
 }
+
+/**
+ * Reads one undeleted order of the organization's customers with its undeleted lines. The query
+ * starts from the visibility predicate for the organization and narrows it to the relationships
+ * where the organization is the supplier, so an order of another business is simply absent
+ * (v5.0.0-8.2.2).
+ *
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param orderId - Order id from the path.
+ * @returns The order with lines, or null when it is not visible to the organization.
+ */
+export function findSupplierOrder(
+  viewer: { personId: string; organizationId: string },
+  orderId: string
+): Promise<OrderWithLines | null> {
+  return prisma.order.findFirst({
+    where: {
+      id: orderId,
+      deletedAt: null,
+      customerRelationship: {
+        is: {
+          AND: [
+            visibleRelationsWhere({
+              personId: viewer.personId,
+              organizationIds: [viewer.organizationId],
+            }),
+            { supplierOrganizationId: viewer.organizationId },
+          ],
+        },
+      },
+    },
+    include: { lines: { where: { deletedAt: null }, orderBy: { id: 'asc' } } },
+  });
+}

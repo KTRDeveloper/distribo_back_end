@@ -334,3 +334,24 @@ openApiRegistry.registerPath({
     404: { description: 'Not a member of the organization', content: errorContent },
   },
 });
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/orders/{orderId}',
+  tags: ['order'],
+  summary: 'A seller opens one order of the business, with lines (ORD-020)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+  },
+  responses: {
+    200: {
+      description: 'The order, supplier view',
+      content: { 'application/json': { schema: supplierOrderViewSchema } },
+    },
+    400: { description: 'The order id is not a UUID', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'A DRIVER may not open orders', content: errorContent },
+    404: { description: 'Not a member or order outside the business', content: errorContent },
+  },
+});

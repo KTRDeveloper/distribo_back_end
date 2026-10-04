@@ -694,3 +694,30 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Follow-ups:**
 - Implementation was written before the first red run of the story tests (tests were run once after both existed).
 <!-- end ORD-019 -->
+
+<!-- begin ORD-020 -->
+## ORD-020 — Seller opens one order
+
+- Filed: 2026-10-04 20:25 UTC
+- Status: **done**: GET order by id, supplier view, 403/404/400 covered
+- Risk: medium · story: [ORD-020-seller-opens-one-order.md](../modules/order/ORD-020-seller-opens-one-order.md)
+- Agent: 43,273 tokens, 15 tool uses, 4 min 13 s
+
+### Agent report
+
+**Summary:** Added GET /organizations/{organizationId}/orders/{orderId} (SELLER and above), supplier projection by role.
+
+**Decisions:**
+- Malformed id is validated in the route before the service, so a DRIVER with a bad id gets 400; a DRIVER with a valid id gets 403 from the service (same pattern as listOrders).
+- Order is read through `findSupplierOrder`: visibility predicate plus supplier = caller's organization, undeleted order and lines, so a foreign order is 404.
+
+**Tests added beyond the story:**
+- `get-order.test.ts` › never returns a deleted line: soft-deleted lines stay hidden (same rule as the list); passed at once
+- `get-order.test.ts` › 404 for a deleted order and an unknown id: absent means 404 (CONVENTIONS errors); passed at once
+- `get-order.test.ts` › member of A asking for an order of B under A's path: 404 (AB-1, both directions); passed at once
+
+**Other additions:**
+- `catalog.test.ts`: ORD-020 GET entry on the existing `orders/{orderId}` path (CONVENTIONS rule). per-001 holds only auth paths, so unchanged.
+
+**Evidence:** story tests 9/9; full suite 2451/2451, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+<!-- end ORD-020 -->

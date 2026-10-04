@@ -22,6 +22,7 @@ import {
   cancelOrderAsSupplier,
   editOrder,
   enterOrder,
+  getOrder,
   listOrders,
   placeOrder,
   placePurchase,
@@ -144,6 +145,17 @@ supplierOrderRoutes.get('/orders', authMiddleware, loadActor, (req, res, next) =
   Promise.resolve()
     .then(() => listOrders(req.actor!, listOrdersQuerySchema.parse(req.query)))
     .then((page) => res.json(page))
+    .catch(next);
+});
+
+// GET /api/v1/organizations/:organizationId/orders/:orderId - SELLER and above open one order of
+// the organization's customers; the service answers 403 for a DRIVER and 404 for an order outside
+// the organization (selected by id and the visibility predicate)
+supplierOrderRoutes.get('/orders/:orderId', authMiddleware, loadActor, (req, res, next) => {
+  const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+  if (!params.success) return next(params.error);
+  getOrder(req.actor!, params.data.orderId)
+    .then((view) => res.json(view))
     .catch(next);
 });
 
