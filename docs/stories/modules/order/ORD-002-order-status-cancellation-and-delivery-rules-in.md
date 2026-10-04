@@ -3,7 +3,7 @@ id: ORD-002
 title: Order status, cancellation and delivery rules in the database
 module: order
 kind: technical
-rev: 1
+rev: 2
 amends: []
 size: S
 risk: high
@@ -95,6 +95,13 @@ Scenario: AB-1 Reviving or altering a finished order (tampering)
 | crafted update | security | AB-1, CWE-841 | revive and edit both refused |
 
 Command: `npx vitest run tests/integration/order/status-rules.test.ts`
+
+### Tests to update
+| existing test | reason | new expectation |
+|---|---|---|
+| tests/integration/order/order-table.test.ts › "accepts every documented status" | it inserts every status with `placed_by_party` SUPPLIER and no cancellation or delivery columns, which C-16, C-17 and C-19 refuse with 23514 | `insertOrder` also takes `deliveredAt`, `cancelledAt` and `cancellationReason`; PENDING is placed by CUSTOMER; DELIVERED sets `delivered_at` and `delivered_by_id`; CANCELLED sets `cancelled_by_party` CUSTOMER, `cancelled_by_id` and `cancelled_at`; each still 1 row |
+| tests/integration/order/order-table.test.ts › "accepts delivered_by_id and cancelled_by_id of a registered person" | it sets both columns on a CONFIRMED order, which C-16 and C-19 refuse with 23514 | two rows: a DELIVERED row with `delivered_by_id` OWNER_ID and `delivered_at`; a CANCELLED row with `cancelled_by_id` CUSTOMER_ID, `cancelled_by_party` CUSTOMER and `cancelled_at`; each 1 row |
+| tests/integration/order/order-table.test.ts › "rejects delivered_by_id and cancelled_by_id of a guest with 23514" | on a CONFIRMED order the new status CHECKs answer 23514 first, so the guest rule is no longer what the test checks | the `delivered_by_id` row is DELIVERED with `delivered_at`; the `cancelled_by_id` row is CANCELLED with `cancelled_by_party` CUSTOMER and `cancelled_at`; still 23514 each, now from the guest rule |
 
 ## Out of scope
 - Applying the steps from routes (ORD-008).

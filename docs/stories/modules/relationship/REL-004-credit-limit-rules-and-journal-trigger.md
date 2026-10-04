@@ -3,7 +3,7 @@ id: REL-004
 title: Credit limit rules and journal trigger
 module: relationship
 kind: technical
-rev: 1
+rev: 2
 amends: []
 size: S
 risk: high
@@ -81,6 +81,13 @@ Scenario: AB-1 Silent limit change (repudiation)
 | silent change | security | AB-1, CWE-778 | update without journal impossible |
 
 Command: `npx vitest run tests/integration/relationship/credit-limit-rules.test.ts`
+
+### Tests to update
+| existing test | reason | new expectation |
+|---|---|---|
+| tests/integration/relationship/relationship-table.test.ts › "applies defaults and uses the expected column types" | it expects `credit_limit` null by default; AC-1 makes the default 0 | `credit_limit` is `0n`; every other expectation unchanged |
+| tests/integration/relationship/relationship-table.test.ts › "accepts credit_limit_set_by_id of a registered person" | it sets `credit_limit_set_by_id` without `credit_limit_set_at`, which the new CHECK refuses with 23514 (AC-2) | `insertRelationship` also takes `creditLimitSetAt`; the row sets both, the author a registered person; still 1 row |
+| tests/integration/relationship/relationship-table.test.ts › "rejects credit_limit_set_by_id of a guest with 23514" | without `credit_limit_set_at` the new pair CHECK answers 23514 first, so the guest rule is no longer what the test checks | the row also sets `credit_limit_set_at`; still 23514, now from the guest rule |
 
 ## Out of scope
 - The route that changes a limit (REL-012).
