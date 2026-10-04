@@ -10,6 +10,7 @@ import {
   collaboratorParamsSchema,
   createOrganizationSchema,
   inviteCollaboratorSchema,
+  listCollaboratorsQuerySchema,
   listInvitationsQuerySchema,
   listOrganizationsQuerySchema,
   lookupOrganizationsQuerySchema,
@@ -28,6 +29,7 @@ import {
   endSubscription,
   getSubscription,
   inviteCollaborator,
+  listCollaborators,
   listMyInvitations,
   listMyOrganizations,
   lookupOrganizations,
@@ -84,6 +86,15 @@ organizationRoutes.get('/lookup', (req, res, next) => {
 organizationRoutes.get('/:organizationId', loadActor, (req, res, next) => {
   getOrganizationDetails(req.actor!)
     .then((view) => res.json(view))
+    .catch(next);
+});
+
+// GET /api/v1/organizations/:organizationId/collaborators - OWNER and MANAGER read the team;
+// the service answers 403 for the other roles
+organizationRoutes.get('/:organizationId/collaborators', loadActor, (req, res, next) => {
+  Promise.resolve()
+    .then(() => listCollaborators(req.actor!, listCollaboratorsQuerySchema.parse(req.query)))
+    .then((page) => res.json(page))
     .catch(next);
 });
 

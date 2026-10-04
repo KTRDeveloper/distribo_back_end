@@ -705,3 +705,48 @@ export function findOrganizationsByPublicNumber(
     take: LOOKUP_RESULT_MAX,
   });
 }
+
+export type TeamRow = Collaboration & { person: Person };
+
+/**
+ * Lists every non-deleted collaboration of the organization, whatever its status (REVOKED rows
+ * stay so that money held by former members remains visible), newest invitation first
+ * (invited_at descending then id), keyset-paged. The organization comes from the loaded actor.
+ *
+ * @param organizationId - Organization from the loaded actor, never from the client.
+ * @param query - Page size and optional opaque cursor.
+ * @returns Rows (at most limit) with their person and the cursor of the next page, or null.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listTeam(
+  organizationId: string,
+  query: { limit: number; cursor?: string }
+): Promise<{ rows: TeamRow[]; nextCursor: string | null }> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const found = await prisma.collaboration.findMany({
+    where: {
+      organizationId,
+      deletedAt: null,
+      ...(cursor
+        ? {
+            OR: [
+              { invitedAt: { lt: cursor.createdAt } },
+              { invitedAt: cursor.createdAt, id: { gt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    include: { person: true },
+    orderBy: [{ invitedAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.invitedAt, id: last.id })
+        : null,
+  };
+}

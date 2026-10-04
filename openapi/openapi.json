@@ -2921,6 +2921,196 @@
       }
     },
     "/api/v1/organizations/{organizationId}/collaborators": {
+      "get": {
+        "tags": [
+          "organization"
+        ],
+        "summary": "The owner or a manager lists the team, REVOKED members included",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of collaborators; amount_held only for the owner and on the own row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "person": {
+                            "type": "object",
+                            "properties": {
+                              "public_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "phone_number": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "registered": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "public_name",
+                              "phone_number",
+                              "registered"
+                            ]
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "OWNER",
+                              "MANAGER",
+                              "SELLER",
+                              "DRIVER"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "INVITED",
+                              "ACTIVE",
+                              "REVOKED"
+                            ]
+                          },
+                          "is_public_contact": {
+                            "type": "boolean"
+                          },
+                          "invited_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "accepted_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "amount_held": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "person",
+                          "role",
+                          "status",
+                          "is_public_contact",
+                          "invited_at",
+                          "accepted_at"
+                        ]
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed id, query or cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is a seller or a driver",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "organization"

@@ -171,3 +171,21 @@ export const lookupOrganizationsQuerySchema = z.object({ phone: phoneNumberSchem
 
 /** One business found by a public number: three fields, no collaborator data (ASVS v5.0.0-15.3.1). */
 export type OrganizationLookupItem = { id: string; name: string; description: string | null };
+
+/** Strict query of the team list: only `limit` and `cursor`. */
+export const listCollaboratorsQuerySchema = paginationQuerySchema.strict();
+
+/**
+ * One row of the team list. `amount_held` exists only for the OWNER caller and for the caller's
+ * own row (ASVS v5.0.0-8.2.3); it is absent, not null, for everyone else.
+ */
+export type CollaboratorItem = {
+  id: string;
+  person: { public_name: string | null; phone_number: string | null; registered: boolean };
+  role: string;
+  status: string;
+  is_public_contact: boolean;
+  invited_at: string;
+  accepted_at: string | null;
+  amount_held?: number;
+};

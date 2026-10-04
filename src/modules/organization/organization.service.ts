@@ -2,6 +2,7 @@ import type { Actor } from '../../types/express.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { checkAndConsume } from '../../lib/rate-limit.js';
+import { atLeast } from '../../shared/access/roles.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
@@ -28,6 +29,7 @@ import {
   insertSubscription,
   listActiveOrganizations,
   listInvitations,
+  listTeam,
   promoteToOwner,
   reinviteRevoked,
   revokeNonOwnerCollaborations,
@@ -41,6 +43,7 @@ import type {
   CloseOrganizationInput,
   CloseOrganizationView,
   CollaborationView,
+  CollaboratorItem,
   CreateOrganizationInput,
   InvitationItem,
   InviteInput,
@@ -684,5 +687,56 @@ export async function lookupOrganizations(
   const found = await findOrganizationsByPublicNumber(phone);
   return {
     items: found.map((o) => ({ id: o.id, name: o.name, description: o.description })),
+  };
+}
+
+/**
+ * Lists the team of the actor's organization, REVOKED members included, newest invitation first.
+ *
+ * Only OWNER and MANAGER may read the list (others get 403). `amount_held` is field-level
+ * restricted: present for the OWNER caller and on the caller's own row, absent elsewhere (ASVS
+ * v5.0.0-8.2.3). The person goes through `toPublicPerson` and every field is listed explicitly,
+ * so no email, language or credential leaves (ASVS v5.0.0-15.3.1).
+ *
+ * @param actor - Actor loaded from the path by `loadActor`.
+ * @param query - Validated page size and cursor.
+ * @returns A page of closed items and the next cursor.
+ * @throws 403 `FORBIDDEN` for a SELLER or a DRIVER.
+ */
+export async function listCollaborators(
+  actor: Actor,
+  query: { limit: number; cursor?: string }
+): Promise<{ items: CollaboratorItem[]; next_cursor: string | null }> {
+  if (!atLeast(actor.role, 'MANAGER')) {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'list',
+        subjectType: 'Team',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+
+  const { rows, nextCursor } = await listTeam(actor.organizationId, query);
+  return {
+    items: rows.map((row) => {
+      const item: CollaboratorItem = {
+        id: row.id,
+        person: toPublicPerson(row.person),
+        role: row.role,
+        status: row.status,
+        is_public_contact: row.isPublicContact,
+        invited_at: row.invitedAt.toISOString(),
+        accepted_at: row.acceptedAt ? row.acceptedAt.toISOString() : null,
+      };
+      if (actor.role === 'OWNER' || row.personId === actor.personId) {
+        item.amount_held = Number(row.amountHeld);
+      }
+      return item;
+    }),
+    next_cursor: nextCursor,
   };
 }

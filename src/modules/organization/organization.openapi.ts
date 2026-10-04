@@ -7,6 +7,7 @@ import {
   collaboratorParamsSchema,
   createOrganizationSchema,
   inviteCollaboratorSchema,
+  listCollaboratorsQuerySchema,
   listInvitationsQuerySchema,
   listOrganizationsQuerySchema,
   lookupOrganizationsQuerySchema,
@@ -135,6 +136,47 @@ openApiRegistry.registerPath({
     },
     400: { description: 'Malformed id', content: errorContent },
     401: { description: 'Missing or invalid token', content: errorContent },
+    404: { description: 'Not found or not a member', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/collaborators',
+  tags: ['organization'],
+  summary: 'The owner or a manager lists the team, REVOKED members included',
+  security: [{ bearerAuth: [] }],
+  request: { params: organizationIdParamsSchema, query: listCollaboratorsQuerySchema },
+  responses: {
+    200: {
+      description: 'A page of collaborators; amount_held only for the owner and on the own row',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(
+              z.object({
+                id: z.string().uuid(),
+                person: z.object({
+                  public_name: z.string().nullable(),
+                  phone_number: z.string().nullable(),
+                  registered: z.boolean(),
+                }),
+                role: roleSchema,
+                status: z.enum(['INVITED', 'ACTIVE', 'REVOKED']),
+                is_public_contact: z.boolean(),
+                invited_at: z.string().datetime(),
+                accepted_at: z.string().datetime().nullable(),
+                amount_held: z.number().int().optional(),
+              })
+            ),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Malformed id, query or cursor', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is a seller or a driver', content: errorContent },
     404: { description: 'Not found or not a member', content: errorContent },
   },
 });
