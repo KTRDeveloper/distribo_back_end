@@ -672,3 +672,36 @@ export async function revokeNonOwnerCollaborations(
 export async function findActiveSubscription(organizationId: string): Promise<Subscription | null> {
   return prisma.subscription.findFirst({ where: { organizationId, status: 'ACTIVE' } });
 }
+
+/** Most businesses one number can return; a person is a public contact of few organizations. */
+const LOOKUP_RESULT_MAX = 50;
+
+/**
+ * Finds the ACTIVE, non-deleted organizations that have an ACTIVE, non-deleted collaborator with
+ * `is_public_contact` whose current number is `e164` (CM-26). Only the person's current number is
+ * compared, so a released number matches nothing. Selects three fields, never collaborator data
+ * (ASVS v5.0.0-15.3.1).
+ *
+ * @param e164 - Normalized E.164 number.
+ */
+export function findOrganizationsByPublicNumber(
+  e164: string
+): Promise<Array<{ id: string; name: string; description: string | null }>> {
+  return prisma.organization.findMany({
+    where: {
+      status: 'ACTIVE',
+      deletedAt: null,
+      collaborations: {
+        some: {
+          status: 'ACTIVE',
+          isPublicContact: true,
+          deletedAt: null,
+          person: { phoneNumber: e164 },
+        },
+      },
+    },
+    select: { id: true, name: true, description: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: LOOKUP_RESULT_MAX,
+  });
+}

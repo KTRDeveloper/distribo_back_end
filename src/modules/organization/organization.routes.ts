@@ -12,6 +12,7 @@ import {
   inviteCollaboratorSchema,
   listInvitationsQuerySchema,
   listOrganizationsQuerySchema,
+  lookupOrganizationsQuerySchema,
   setPublicContactSchema,
   startSubscriptionSchema,
   transferOwnershipSchema,
@@ -29,6 +30,7 @@ import {
   inviteCollaborator,
   listMyInvitations,
   listMyOrganizations,
+  lookupOrganizations,
   revokeCollaborator,
   setPublicContact,
   startSubscription,
@@ -64,6 +66,17 @@ organizationRoutes.get('/', (req, res, next) => {
   Promise.resolve()
     .then(() => listMyOrganizations(req.user!.id, listOrganizationsQuerySchema.parse(req.query)))
     .then((page) => res.json(page))
+    .catch(next);
+});
+
+// GET /api/v1/organizations/lookup?phone= - find businesses by a public number; declared before
+// `/:organizationId` so `lookup` is never read as an id
+organizationRoutes.get('/lookup', (req, res, next) => {
+  Promise.resolve()
+    .then(() =>
+      lookupOrganizations(req.user!.id, lookupOrganizationsQuerySchema.parse(req.query).phone)
+    )
+    .then((result) => res.json(result))
     .catch(next);
 });
 

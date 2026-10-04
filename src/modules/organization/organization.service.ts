@@ -22,6 +22,7 @@ import {
   findCollaborationWithPerson,
   findOrganization,
   findOrganizationStatus,
+  findOrganizationsByPublicNumber,
   insertInvitation,
   insertOrganizationWithOwner,
   insertSubscription,
@@ -44,6 +45,7 @@ import type {
   InvitationItem,
   InviteInput,
   MyOrganizationItem,
+  OrganizationLookupItem,
   OrganizationView,
   StartSubscriptionInput,
   SubscriptionView,
@@ -654,4 +656,33 @@ export async function getSubscription(actor: Actor): Promise<SubscriptionView> {
   const row = await findActiveSubscription(actor.organizationId);
   if (!row) throw httpError(404, 'NOT_FOUND', 'Not found');
   return toSubscriptionView(row);
+}
+
+/**
+ * Finds the businesses that publish `phone` as a public contact number. Consumes the caller's
+ * allowance of the shared `lookup:<personId>` key, the same as the person lookup, so neither can be
+ * used to enumerate numbers (ASVS v5.0.0-2.4.1). A number that is not a public business number
+ * gives an empty list (CM-26).
+ *
+ * @param personId - Authenticated caller.
+ * @param phone - Normalized E.164 number.
+ * @throws 429 `RATE_LIMITED` after 60 lookups in an hour.
+ */
+export async function lookupOrganizations(
+  personId: string,
+  phone: string
+): Promise<{ items: OrganizationLookupItem[] }> {
+  const allowance = await checkAndConsume(
+    `lookup:${personId}`,
+    LOOKUP_LIMIT,
+    LOOKUP_WINDOW_SECONDS
+  );
+  if (!allowance.allowed) {
+    logger.warn({ event: 'lookup_rate_limited', personId }, 'Lookup rate limited');
+    throw httpError(429, 'RATE_LIMITED', 'Too many person lookups');
+  }
+  const found = await findOrganizationsByPublicNumber(phone);
+  return {
+    items: found.map((o) => ({ id: o.id, name: o.name, description: o.description })),
+  };
 }

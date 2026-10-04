@@ -32,6 +32,7 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/remote-config/migrate');
 
     expect(paths).toContain('/api/v1/organizations');
+    expect(paths).toContain('/api/v1/organizations/lookup');
     expect(paths).toContain('/api/v1/organizations/{organizationId}');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/collaborators');
     expect(paths).toContain(

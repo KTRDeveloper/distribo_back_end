@@ -9,6 +9,7 @@ import {
   inviteCollaboratorSchema,
   listInvitationsQuerySchema,
   listOrganizationsQuerySchema,
+  lookupOrganizationsQuerySchema,
   organizationIdParamsSchema,
   organizationScopeParamsSchema,
   setPublicContactSchema,
@@ -87,6 +88,36 @@ openApiRegistry.registerPath({
     },
     400: { description: 'Invalid query', content: errorContent },
     401: { description: 'Missing or invalid token', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/lookup',
+  tags: ['organization'],
+  summary: 'Find businesses by one of their public phone numbers',
+  security: [{ bearerAuth: [] }],
+  request: { query: lookupOrganizationsQuerySchema },
+  responses: {
+    200: {
+      description: 'Active businesses publishing that number; empty when none',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(
+              z.object({
+                id: z.string().uuid(),
+                name: z.string(),
+                description: z.string().nullable(),
+              })
+            ),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid number', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    429: { description: 'Hourly lookup limit reached', content: errorContent },
   },
 });
 

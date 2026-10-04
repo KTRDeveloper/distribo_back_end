@@ -165,3 +165,9 @@ export type SubscriptionView = {
   starts_at: string | null;
   ends_at: string | null;
 };
+
+/** Strict query of the public-number lookup: one phone number, normalized to E.164. */
+export const lookupOrganizationsQuerySchema = z.object({ phone: phoneNumberSchema }).strict();
+
+/** One business found by a public number: three fields, no collaborator data (ASVS v5.0.0-15.3.1). */
+export type OrganizationLookupItem = { id: string; name: string; description: string | null };

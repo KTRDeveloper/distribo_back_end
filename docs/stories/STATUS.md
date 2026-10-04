@@ -77,7 +77,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-015 | done | | Transfer ownership route; idempotency replay before ability check; 908 tests pass |
 | ORG-016 | done | | POST /organizations/{id}/close in one transaction; 14 tests, full suite 922 pass |
 | ORG-017 | done | | POST reopen: CLOSED to ACTIVE only; 931 tests pass |
-| ORG-018 | todo | | |
+| ORG-018 | done | | GET /organizations/lookup, shared lookup limit, 15 tests |
 | ORG-019 | todo | | |
 | ADM-001 | todo | | |
 | ADM-002 | todo | | |
