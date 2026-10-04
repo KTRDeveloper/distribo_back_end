@@ -62,3 +62,33 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - Guest test runs as an auto-committed statement: the driver does not expose the SQLSTATE of a deferred-trigger failure raised at interactive-transaction commit.
 <!-- end ADM-001 -->
+
+<!-- begin ADM-002 -->
+## ADM-002 — Administration journal table
+
+- Filed: 2026-10-04 06:36 UTC
+- Status: **done**: admin_actions table, immutability, REPLAY_SYNC trigger, recordAdminAction
+- Risk: high · story: [ADM-002-administration-journal-table.md](../modules/admin/ADM-002-administration-journal-table.md)
+- Agent: 46,381 tokens, 14 tool uses, 7 min 13 s
+
+### Agent report
+
+**Summary:** Added admin_actions table (CHECKs, FKs, REPLAY_SYNC role trigger, append-only grants), Prisma model and recordAdminAction.
+
+**Decisions:**
+- Prisma enum AdminActionType plus a literal-union type of the same name in admin.repository.ts: matches the story's type signature without importing the Prisma enum.
+- Blank reason (spaces only) also rejected, like the administrators totp_secret check: "reason not empty" read as not blank.
+- REPLAY_SYNC role trigger fires on INSERT and UPDATE and checks only the administrator's role, not removed_at: the story says role only.
+- Exactly-one-target applies to every action, so a REPLAY_SYNC row also needs a target.
+- Wrote migration before the test file, so the tests passed at once: the TDD red step was skipped.
+
+**Tests added beyond the story:**
+- `tests/integration/admin/admin-action-table.test.ts` › organization target accepted, all other actions accepted, blank reason, missing required columns 23502, unknown FKs 23503: AC-1 and AdminAction:required/fk; passed at once
+- same file › application account can still read rows (C-39); passed at once
+- same file › recordAdminAction distinct ids, and rollback of the whole transaction on a violation (fail closed, CONVENTIONS); passed at once
+
+**Evidence:** story tests 18/18; full suite 1093/1093, failing: none; typecheck clean; lint 0 errors, 44 warnings (existing)
+
+**Follow-ups:**
+- ADM-003 and SYNC-002 must add the FKs for report_id and sync_archive_id and update the schema.prisma comment.
+<!-- end ADM-002 -->

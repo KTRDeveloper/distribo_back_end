@@ -153,6 +153,16 @@ enum AdministratorRole {
   MODERATOR
 }
 
+enum AdminActionType {
+  SUSPEND
+  REACTIVATE
+  DISMISS_REPORT
+  APPOINT_ADMIN
+  REMOVE_ADMIN
+  REPLAY_SYNC
+  RECOVER_2FA
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -264,6 +274,8 @@ model Person {
 
   administrators Administrator[]
 
+  adminActionsAsTarget AdminAction[] @relation("AdminActionTargetPerson")
+
   @@map("people")
 }
 
@@ -323,6 +335,8 @@ model Organization {
 
   suppliedRelationships CustomerRelationship[] @relation("RelationshipSupplierOrganization")
   customerRelationships CustomerRelationship[] @relation("RelationshipCustomerOrganization")
+
+  adminActionsAsTarget AdminAction[] @relation("AdminActionTargetOrganization")
 
   @@map("organizations")
 }
@@ -637,6 +651,44 @@ model Administrator {
 
   person Person @relation(fields: [personId], references: [id])
 
+  actions AdminAction[]
+
   @@index([personId])
   @@map("administrators")
+}
+
+// Rules the database enforces on the journal of administrator actions, beyond
+// what this model declares. All come from migration
+// 20261004180000_adm_002_admin_actions.
+// - The journal can only grow: the application can add and read entries but
+//   never change, delete or empty them.
+// - An entry has exactly one target: a person or an organization, never both
+//   and never none.
+// - The reason is required and cannot be empty or only spaces.
+// - A sync archive is attached exactly when the action is REPLAY_SYNC, and
+//   only an administrator whose role is SUPER_ADMIN can record a REPLAY_SYNC
+//   (checked on the administrator's role at the time of the insert).
+// - report_id and sync_archive_id are plain columns for now: their foreign keys
+//   to reports and sync archives are added by ADM-003 and SYNC-002.
+// - server_updated_at is set by the database on every change.
+model AdminAction {
+  id                   String          @id @db.Uuid
+  administratorId      String          @map("administrator_id") @db.Uuid
+  action               AdminActionType
+  targetPersonId       String?         @map("target_person_id") @db.Uuid
+  targetOrganizationId String?         @map("target_organization_id") @db.Uuid
+  reportId             String?         @map("report_id") @db.Uuid
+  syncArchiveId        String?         @map("sync_archive_id") @db.Uuid
+  reason               String          @db.Text
+  occurredAt           DateTime        @default(now()) @map("occurred_at") @db.Timestamptz
+  serverUpdatedAt      DateTime        @default(now()) @map("server_updated_at") @db.Timestamptz
+
+  administrator      Administrator @relation(fields: [administratorId], references: [id])
+  targetPerson       Person?       @relation("AdminActionTargetPerson", fields: [targetPersonId], references: [id])
+  targetOrganization Organization? @relation("AdminActionTargetOrganization", fields: [targetOrganizationId], references: [id])
+
+  @@index([administratorId])
+  @@index([targetPersonId])
+  @@index([targetOrganizationId])
+  @@map("admin_actions")
 }
