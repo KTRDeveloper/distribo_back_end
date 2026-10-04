@@ -6,6 +6,16 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 05:48 UTC: `/implement-stories REL-002`
+
+| story | status | commit | note |
+|---|---|---|---|
+| REL-002 Party and pair rules in the database | done | af5ec1c | CHECKs and four partial unique indexes added; REL-001 merged_into_id test updated as listed |
+
+- Run completed.
+- Resumed REL-002's partial changes from the earlier blocked run (stash popped beforehand); story amended in fbf7d6a to list the REL-001 merged_into_id test under "Tests to update".
+- Next: `/implement-stories next:N`.
+
 ### Run 2026-10-04 05:36 UTC: `/implement-stories REL-002`
 
 | story | status | commit | note |
