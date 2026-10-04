@@ -13,6 +13,7 @@ import {
   activateInvitation,
   findActiveOwnerId,
   findCollaboration,
+  findCollaborationWithPerson,
   findOrganization,
   insertInvitation,
   insertOrganizationWithOwner,
@@ -21,6 +22,7 @@ import {
   reinviteRevoked,
   revokeInvitation,
   runInTransaction,
+  updateRole,
 } from './organization.repository.js';
 import type {
   CollaborationView,
@@ -252,4 +254,68 @@ export async function declineInvitation(personId: string, collaborationId: strin
   if (!(await revokeInvitation(personId, collaborationId))) {
     throw httpError(404, 'NOT_FOUND', 'Not found');
   }
+}
+
+const ROLE_CHANGED_CONTENT = {
+  FR: (organizationName: string, role: string) =>
+    `Votre role dans l'equipe de ${organizationName} est maintenant ${role}.`,
+  EN: (organizationName: string, role: string) =>
+    `Your role in the team of ${organizationName} is now ${role}.`,
+};
+
+/**
+ * The owner changes a collaborator's role. The target is looked up inside the actor's
+ * organization, so another business's row looks absent (ASVS v5.0.0-8.2.1). The OWNER row is
+ * protected (CM-09). An ACTIVE target gets a scope version bump (CM-03) and a notification in the
+ * same transaction; an INVITED target has no rights yet, so only the role is written.
+ *
+ * @param actor - Owner loaded from the path and checked for `manage Collaboration`.
+ * @param collaborationId - Collaboration from the path.
+ * @param role - New role from the validated body; never OWNER.
+ * @returns The closed collaboration view.
+ * @throws 404 `NOT_FOUND` for an unknown, foreign or REVOKED row; 409 `OWNER_PROTECTED`.
+ */
+export async function changeRole(
+  actor: Actor,
+  collaborationId: string,
+  role: 'MANAGER' | 'SELLER' | 'DRIVER'
+): Promise<CollaborationView> {
+  return runInTransaction(async (tx) => {
+    const target = await findCollaborationWithPerson(tx, collaborationId, actor.organizationId);
+    if (!target || target.status === 'REVOKED') throw httpError(404, 'NOT_FOUND', 'Not found');
+    if (target.role === 'OWNER') {
+      throw httpError(409, 'OWNER_PROTECTED', 'The owner role cannot be changed');
+    }
+
+    const updated = await updateRole(tx, collaborationId, actor.organizationId, role);
+    if (!updated) throw httpError(404, 'NOT_FOUND', 'Not found');
+
+    if (updated.status === 'ACTIVE') {
+      await bumpScopeVersion(target.personId, tx);
+      const org = await findOrganization(actor.organizationId);
+      if (!org) throw httpError(404, 'NOT_FOUND', 'Not found');
+      const language = await recipientLanguage(target.personId, tx);
+      await notify(
+        {
+          recipientId: target.personId,
+          organizationId: actor.organizationId,
+          sourceEvent: 'collaboration.role_changed',
+          content:
+            language === 'EN'
+              ? ROLE_CHANGED_CONTENT.EN(org.name, role)
+              : ROLE_CHANGED_CONTENT.FR(org.name, role),
+          related: { type: 'collaboration', id: updated.id },
+        },
+        tx
+      );
+    }
+
+    return {
+      id: updated.id,
+      person: toPublicPerson(target.person),
+      role: updated.role,
+      status: updated.status === 'ACTIVE' ? 'ACTIVE' : 'INVITED',
+      invited_at: updated.invitedAt.toISOString(),
+    };
+  });
 }

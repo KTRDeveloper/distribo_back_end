@@ -1,4 +1,4 @@
-import { Prisma, type Collaboration } from '@prisma/client';
+import { Prisma, type Collaboration, type Person } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { httpError } from '../../lib/http-error.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
@@ -414,4 +414,49 @@ export async function findActiveOwnerId(
     select: { personId: true },
   });
   return owner?.personId ?? null;
+}
+
+/**
+ * Reads a non-deleted collaboration of the organization with its person, whatever its status.
+ * The organization filter makes another business's row look absent (ASVS v5.0.0-8.2.2).
+ *
+ * @param tx - Transaction client of the gesture.
+ * @param collaborationId - Collaboration from the path.
+ * @param organizationId - Organization from the loaded actor, never from the client.
+ */
+export function findCollaborationWithPerson(
+  tx: Prisma.TransactionClient,
+  collaborationId: string,
+  organizationId: string
+): Promise<(Collaboration & { person: Person }) | null> {
+  return tx.collaboration.findFirst({
+    where: { id: collaborationId, organizationId, deletedAt: null },
+    include: { person: true },
+  });
+}
+
+/**
+ * Writes the role of a non-OWNER, non-REVOKED collaboration of the organization. The filter
+ * repeats the checks of the service, so a concurrent revocation or ownership change is never
+ * overwritten. Nothing else is written (ASVS v5.0.0-8.2.3).
+ *
+ * @returns The updated row, or null when nothing matched.
+ */
+export async function updateRole(
+  tx: Prisma.TransactionClient,
+  collaborationId: string,
+  organizationId: string,
+  role: 'MANAGER' | 'SELLER' | 'DRIVER'
+): Promise<Collaboration | null> {
+  const updated = await tx.collaboration.updateManyAndReturn({
+    where: {
+      id: collaborationId,
+      organizationId,
+      deletedAt: null,
+      status: { in: ['ACTIVE', 'INVITED'] },
+      role: { not: 'OWNER' },
+    },
+    data: { role },
+  });
+  return updated[0] ?? null;
 }

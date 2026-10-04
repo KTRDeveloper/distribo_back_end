@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
+  changeRoleSchema,
   collaborationIdParamsSchema,
+  collaboratorParamsSchema,
   createOrganizationSchema,
   inviteCollaboratorSchema,
   listInvitationsQuerySchema,
@@ -131,6 +133,43 @@ openApiRegistry.registerPath({
       content: errorContent,
     },
     429: { description: 'Too many person lookups', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/api/v1/organizations/{organizationId}/collaborators/{collaborationId}',
+  tags: ['organization'],
+  summary: "The owner changes a collaborator's role",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: collaboratorParamsSchema,
+    body: { content: { 'application/json': { schema: changeRoleSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The collaboration with its new role',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string().uuid(),
+            person: z.object({
+              public_name: z.string().nullable(),
+              phone_number: z.string().nullable(),
+              registered: z.boolean(),
+            }),
+            role: z.enum(['MANAGER', 'SELLER', 'DRIVER']),
+            status: z.enum(['INVITED', 'ACTIVE']),
+            invited_at: z.string().datetime(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Malformed id or invalid body', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: { description: 'Not found, REVOKED or not a member', content: errorContent },
+    409: { description: 'OWNER_PROTECTED', content: errorContent },
   },
 });
 

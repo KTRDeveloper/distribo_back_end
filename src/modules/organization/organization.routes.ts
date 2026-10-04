@@ -4,7 +4,9 @@ import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
+  changeRoleSchema,
   collaborationIdParamsSchema,
+  collaboratorParamsSchema,
   createOrganizationSchema,
   inviteCollaboratorSchema,
   listInvitationsQuerySchema,
@@ -12,6 +14,7 @@ import {
 } from './organization.schemas.js';
 import {
   acceptInvitation,
+  changeRole,
   createOrganization,
   declineInvitation,
   getOrganizationDetails,
@@ -75,6 +78,24 @@ organizationRoutes.post(
   (req, res, next) => {
     inviteCollaborator(req.actor!, inviteCollaboratorSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// PATCH /api/v1/organizations/:organizationId/collaborators/:collaborationId - the owner changes a
+// role; `role` is the only writable field and the strict schema refuses everything else
+organizationRoutes.patch(
+  '/:organizationId/collaborators/:collaborationId',
+  loadActor,
+  requireAbility('manage', 'Collaboration'),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() => {
+        const { collaborationId } = collaboratorParamsSchema.parse(req.params);
+        const { role } = changeRoleSchema.parse(req.body);
+        return changeRole(req.actor!, collaborationId, role);
+      })
+      .then((view) => res.json(view))
       .catch(next);
   }
 );

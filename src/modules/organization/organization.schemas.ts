@@ -66,9 +66,24 @@ export type CollaborationView = {
   id: string;
   person: { public_name: string | null; phone_number: string | null; registered: boolean };
   role: string;
-  status: 'INVITED';
+  status: 'INVITED' | 'ACTIVE';
   invited_at: string;
 };
+
+/**
+ * Strict body of the change-role gesture: `role` is the only writable field (ASVS v5.0.0-8.2.3,
+ * v5.0.0-15.3.3). OWNER is not accepted: ownership moves only through a transfer (CM-09).
+ */
+export const changeRoleSchema = z
+  .object({ role: z.enum(['MANAGER', 'SELLER', 'DRIVER']) })
+  .strict();
+
+export type ChangeRoleInput = z.infer<typeof changeRoleSchema>;
+
+/** Path parameters of the change-role route. */
+export const collaboratorParamsSchema = z
+  .object({ organizationId: uuidV7Schema, collaborationId: uuidV7Schema })
+  .strict();
 
 /** Strict query of the invitation list: only the INVITED status, `limit` and `cursor`. */
 export const listInvitationsQuerySchema = paginationQuerySchema
