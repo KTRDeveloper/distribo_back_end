@@ -28,6 +28,7 @@ import {
   listSupplierRelationships,
   lockOrganization,
   managesOrganization,
+  transitionRelationship,
   updateSupplierFields,
   writeCreditLimit,
 } from './relationship.repository.js';
@@ -432,4 +433,105 @@ export async function listCreditLimitChanges(
     })),
     next_cursor: page.nextCursor,
   };
+}
+
+const END_REOPEN_CONTEXT = { onServer: false, online: true, daysSinceSync: 0 } as const;
+
+/** Refuses a caller whose role lacks `end` or `reopen` on a relationship, with a logged 403. */
+function assertMayEndOrReopen(actor: Actor, action: 'end' | 'reopen'): void {
+  if (abilityFor(actor.role, END_REOPEN_CONTEXT).can(action, 'CustomerRelationship')) return;
+  logger.warn(
+    {
+      event: 'permission_refused',
+      personId: actor.personId,
+      action,
+      subjectType: 'CustomerRelationship',
+    },
+    'Permission refused'
+  );
+  throw httpError(403, 'FORBIDDEN', 'Permission denied');
+}
+
+/**
+ * A manager (or owner) ends a customer relationship as supplier: ACTIVE becomes ENDED with
+ * `ended_by_party` SUPPLIER. History, balance and payments stay untouched.
+ *
+ * The rules table decides first (`end`, online only, ASVS v5.0.0-8.2.1). One transaction then locks
+ * the row selected by id and the visibility predicate together (404 outside the organization,
+ * v5.0.0-8.2.2), refuses a counter and any status but ACTIVE, and writes the change in one
+ * conditional update (v5.0.0-2.3.1, C-09).
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @returns The supplier view of the ended relationship.
+ * @throws 403 `FORBIDDEN`; 404 `NOT_FOUND`; 409 `COUNTER_CANNOT_END` or `RELATIONSHIP_NOT_ACTIVE`.
+ */
+export async function endRelationship(
+  actor: Actor,
+  relationshipId: string
+): Promise<SupplierRelationshipView> {
+  assertMayEndOrReopen(actor, 'end');
+
+  return runInTransaction(async (tx) => {
+    const row = await findSupplierRelationshipLocked(tx, actor, relationshipId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Customer not found');
+    if (row.customerPersonId === null && row.customerOrganizationId === null) {
+      throw httpError(409, 'COUNTER_CANNOT_END', 'A counter cannot be ended');
+    }
+    if (row.status !== 'ACTIVE') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'The relationship is not active');
+    }
+
+    const changed = await transitionRelationship(tx, row.id, {
+      from: { status: 'ACTIVE', endedByParty: null },
+      to: { status: 'ENDED', endedByParty: 'SUPPLIER' },
+    });
+    if (!changed) throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'The relationship is not active');
+    logger.warn(
+      { event: 'relationship_ended', relationshipId: row.id, personId: actor.personId },
+      'Relationship ended'
+    );
+    return projectForSupplier(await findWithParties(tx, row.id));
+  });
+}
+
+/**
+ * A manager (or owner) reopens a relationship the supplier ended: ENDED by SUPPLIER becomes ACTIVE
+ * with `ended_by_party` empty. Only the party that closed it may reopen it (C-09): a relationship
+ * ended by the customer answers 409 and stays ENDED.
+ *
+ * Same access checks, lock and conditional update as {@link endRelationship}.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @returns The supplier view of the reopened relationship.
+ * @throws 403 `FORBIDDEN`; 404 `NOT_FOUND`; 409 `ENDED_BY_OTHER_PARTY` or `RELATIONSHIP_NOT_ENDED`.
+ */
+export async function reopenRelationship(
+  actor: Actor,
+  relationshipId: string
+): Promise<SupplierRelationshipView> {
+  assertMayEndOrReopen(actor, 'reopen');
+
+  return runInTransaction(async (tx) => {
+    const row = await findSupplierRelationshipLocked(tx, actor, relationshipId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Customer not found');
+    if (row.status !== 'ENDED') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ENDED', 'The relationship is not ended');
+    }
+    if (row.endedByParty !== 'SUPPLIER') {
+      logger.warn(
+        { event: 'reopen_refused', relationshipId: row.id, personId: actor.personId },
+        'Reopen refused: ended by the other party'
+      );
+      throw httpError(409, 'ENDED_BY_OTHER_PARTY', 'The other party ended this relationship');
+    }
+
+    const changed = await transitionRelationship(tx, row.id, {
+      from: { status: 'ENDED', endedByParty: 'SUPPLIER' },
+      to: { status: 'ACTIVE', endedByParty: null },
+    });
+    if (!changed) throw httpError(409, 'RELATIONSHIP_NOT_ENDED', 'The relationship is not ended');
+    return projectForSupplier(await findWithParties(tx, row.id));
+  });
 }

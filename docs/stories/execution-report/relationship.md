@@ -565,3 +565,38 @@ Also in this run: admin, catalog, order, finance, delivery.
 **Follow-ups:**
 - I edited the migration's constraint names after applying it to the local test DB, then renamed them there with ALTER (prisma migrate reset was refused by the safety guard). A fresh DB was verified from scratch; set-aside/test-DB reset will make it consistent.
 <!-- end REL-014 -->
+
+<!-- begin REL-015 -->
+## REL-015 — Manager ends and reopens a relationship as supplier
+
+- Filed: 2026-10-04 14:26 UTC
+- Status: **done**: end/reopen routes; PENDING unreachable via org scope (404); reopen of non-ended = RELATIONSHIP_NOT_ENDED (unspecified)
+- Risk: medium · story: [REL-015-manager-ends-and-reopens-a-relationship-as.md](../modules/relationship/REL-015-manager-ends-and-reopens-a-relationship-as.md)
+- Agent: 60,606 tokens, 17 tool uses, 4 min 23 s
+
+### Agent report
+
+**Summary:** Added POST end and reopen routes (manager online), service, conditional-update repository transition, schema, OpenAPI; all green.
+
+**Decisions:**
+- Reopening a relationship that is not ENDED: story is silent; chose 409 `RELATIONSHIP_NOT_ENDED` (fail closed, mirrors RELATIONSHIP_NOT_ACTIVE).
+- Ending an already ENDED relationship: 409 `RELATIONSHIP_NOT_ACTIVE`.
+- OWNER may also end/reopen (rules table role inheritance via abilityFor `end`/`reopen`; no seller/driver rule).
+- Transition: row lock + one conditional `updateMany` (status and ended_by_party together, C-09).
+- Shared `endOrReopenRoute` helper in routes to avoid duplicating the two handlers.
+
+**Tests added beyond the story:**
+- `end-reopen-supplier.test.ts` › lets the OWNER end a relationship too: role inheritance (ACC-002); passed at once
+- same › refuses ending an already ended relationship: state guard (AC-3 spirit); passed at once
+- same › refuses reopening a relationship that is not ended: fail closed on unspecified state
+- same › end then reopen round-trips; foreign organization 404; malformed id / extra body field 400 (CONVENTIONS errors)
+
+**Other additions:**
+- Paths added to `tests/integration/api-docs/catalog.test.ts` (convention); per-001 has no relationship route list.
+
+**Evidence:** story tests 16/16; full suite 1660/1660, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing)
+
+**Follow-ups:**
+- AC-3 row "ending a PENDING relationship -> 409" is unreachable by the supplier organization: a PENDING row always has a person as supplier (DB CHECK), so the org-scoped lookup answers 404. The test asserts 404; the service still checks status !== ACTIVE (409) defensively. A human should confirm the intended behavior.
+- RELATIONSHIP_NOT_ENDED is a new code outside the story's Errors list.
+<!-- end REL-015 -->

@@ -91,3 +91,11 @@ export type SetCreditLimitInput = z.infer<typeof setCreditLimitSchema>;
 
 /** Strict query of the credit limit history: `limit` and `cursor` only; any other field is a 400. */
 export const creditLimitChangesQuerySchema = paginationQuerySchema.strict();
+
+/**
+ * Strict body of the end and reopen gestures: only the gesture id (ASVS v5.0.0-15.3.3). Status and
+ * `ended_by_party` are set by the server and rejected as unknown keys (CWE-915).
+ */
+export const endReopenSchema = z.object({ id: uuidV7Schema }).strict();
+
+export type EndReopenInput = z.infer<typeof endReopenSchema>;

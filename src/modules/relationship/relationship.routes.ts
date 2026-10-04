@@ -9,6 +9,7 @@ import {
   creditLimitChangesQuerySchema,
   customerParamsSchema,
   editCustomerSchema,
+  endReopenSchema,
   listCustomersQuerySchema,
   setCreditLimitSchema,
 } from './relationship.schemas.js';
@@ -16,9 +17,11 @@ import {
   addCounter,
   addCustomer,
   editCustomer,
+  endRelationship,
   getCustomer,
   listCreditLimitChanges,
   listCustomers,
+  reopenRelationship,
   setCreditLimit,
 } from './relationship.service.js';
 import './relationship.openapi.js';
@@ -162,3 +165,38 @@ relationshipRoutes.get(
       .catch(next);
   }
 );
+
+/** Builds the POST handler of an end or reopen gesture: same guards, one service call. */
+function endOrReopenRoute(
+  path: string,
+  gesture: typeof endRelationship | typeof reopenRelationship
+) {
+  relationshipRoutes.post(
+    path,
+    authMiddleware,
+    loadActor,
+    // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+    (req, _res, next) => {
+      const parsed = endReopenSchema.safeParse(req.body);
+      if (!parsed.success) return next(parsed.error);
+      req.body = parsed.data;
+      return next();
+    },
+    idempotent(),
+    (req, res, next) => {
+      Promise.resolve()
+        .then(() => gesture(req.actor!, customerParamsSchema.parse(req.params).relationshipId))
+        .then((customer) => res.json(customer))
+        .catch(next);
+    }
+  );
+}
+
+// POST /api/v1/organizations/:organizationId/customers/:relationshipId/end - a manager online ends
+// the relationship as supplier; the service checks the rules table (403), the organization scope
+// (404) and the state (409)
+endOrReopenRoute('/customers/:relationshipId/end', endRelationship);
+
+// POST /api/v1/organizations/:organizationId/customers/:relationshipId/reopen - a manager online
+// reopens a relationship the supplier ended; 409 when the customer ended it
+endOrReopenRoute('/customers/:relationshipId/reopen', reopenRelationship);

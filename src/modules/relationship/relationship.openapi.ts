@@ -7,6 +7,7 @@ import {
   creditLimitChangesQuerySchema,
   customerParamsSchema,
   editCustomerSchema,
+  endReopenSchema,
   listCustomersQuerySchema,
   setCreditLimitSchema,
 } from './relationship.schemas.js';
@@ -241,3 +242,42 @@ openApiRegistry.registerPath({
     },
   },
 });
+
+for (const [action, summary, conflicts] of [
+  [
+    'end',
+    'End a relationship as supplier (MANAGER and above, online)',
+    'COUNTER_CANNOT_END, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+  ],
+  [
+    'reopen',
+    'Reopen a relationship the supplier ended (MANAGER and above, online)',
+    'ENDED_BY_OTHER_PARTY, RELATIONSHIP_NOT_ENDED or conflicting gesture id',
+  ],
+] as const) {
+  openApiRegistry.registerPath({
+    method: 'post',
+    path: `/api/v1/organizations/{organizationId}/customers/{relationshipId}/${action}`,
+    tags: ['relationship'],
+    summary,
+    security: [{ bearerAuth: [] }],
+    request: {
+      params: organizationParamsSchema.merge(customerParamsSchema),
+      body: { content: { 'application/json': { schema: endReopenSchema } } },
+    },
+    responses: {
+      200: {
+        description: 'The updated supplier-side relationship view',
+        content: { 'application/json': { schema: supplierRelationshipViewSchema } },
+      },
+      400: { description: 'Invalid body or relationship id', content: errorContent },
+      401: { description: 'Missing or invalid token', content: errorContent },
+      403: { description: 'A SELLER or DRIVER cannot do this', content: errorContent },
+      404: {
+        description: 'Not found, deleted, of another business, or not a member',
+        content: errorContent,
+      },
+      409: { description: conflicts, content: errorContent },
+    },
+  });
+}

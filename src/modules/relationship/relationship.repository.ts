@@ -421,3 +421,28 @@ export async function listCreditLimitChangeRows(
         : null,
   };
 }
+
+/**
+ * Moves a locked relationship from one status to another in one conditional update, so the
+ * transition only happens if the row is still in the expected state (ASVS v5.0.0-2.3.1). The
+ * status and `ended_by_party` are written together: filled in exactly when ENDED (C-09).
+ *
+ * @param tx - Transaction client of the caller.
+ * @param id - Relationship id, already scoped and locked.
+ * @param transition - Expected current state and the state to write.
+ * @returns True when one row was updated, false when the row was no longer in the expected state.
+ */
+export async function transitionRelationship(
+  tx: Prisma.TransactionClient,
+  id: string,
+  transition: {
+    from: { status: 'ACTIVE' | 'ENDED'; endedByParty: 'SUPPLIER' | null };
+    to: { status: 'ACTIVE' | 'ENDED'; endedByParty: 'SUPPLIER' | null };
+  }
+): Promise<boolean> {
+  const { count } = await tx.customerRelationship.updateMany({
+    where: { id, status: transition.from.status, endedByParty: transition.from.endedByParty },
+    data: { status: transition.to.status, endedByParty: transition.to.endedByParty },
+  });
+  return count === 1;
+}
