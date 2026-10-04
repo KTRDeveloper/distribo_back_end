@@ -365,3 +365,33 @@ Also in this run: relationship, admin, order, finance, delivery.
 - The customer is not notified of copied prices; confirm if CAT-008/009 notification parity is wanted.
 - per-001 route list left untouched: it lists no customer price routes.
 <!-- end CAT-010 -->
+
+<!-- begin CAT-011 -->
+## CAT-011 — Reseller copies a purchased article into their catalog
+
+- Filed: 2026-10-04 16:12 UTC
+- Status: **done**: Copy article endpoint; 15 story tests, full suite green
+- Risk: medium · story: [CAT-011-reseller-copies-a-purchased-article-into-their.md](../modules/catalog/CAT-011-reseller-copies-a-purchased-article-into-their.md)
+- Agent: 52,668 tokens, 18 tool uses, 4 min 54 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/{id}/products/copy (copyProduct service, getProductCopyableBy repository query, strict 3-field schema, OpenAPI path).
+
+**Decisions:**
+- "Live relationship": status ACTIVE, not deleted, not merged, customer_organization_id = caller org; an ENDED or PENDING relationship gives 404.
+- Source check is one query (ACTIVE, not deleted, other org, supplier of caller), so every refusal is the same 404.
+- Route reuses `create Product` ability and the create-product idempotency pattern (validate, then idempotent()).
+- The route lists in per-001 have no catalog entries, so only api-docs/catalog.test.ts got the new path.
+
+**Tests added beyond the story:**
+- `copy-product.test.ts` › deleted source, ended-relationship source, unknown source: 404 (live relationship rule); passed at once
+- `copy-product.test.ts` › unknown fields, missing field, decimal price: 400 (ASVS 15.3.3); passed at once
+- `copy-product.test.ts` › non-member of path organization: 404 (CONVENTIONS scope rule); passed at once
+- `copy-product.test.ts` › repeat with same id returns the first response, one product only (Project rules idempotency); passed at once
+
+**Evidence:** story tests 15/15; full suite 2038/2039 on first run (only quality-gates lint failed on a lint error in my test, fixed, quality-gates and unit tests rerun green); typecheck clean; lint 0 errors, 59 warnings (pre-existing)
+
+**Follow-ups:**
+- openapi/openapi.json regenerated.
+<!-- end CAT-011 -->

@@ -192,3 +192,18 @@ export type CopyCustomerPricesInput = z.infer<typeof copyCustomerPricesSchema>;
 
 /** Response of the copy gesture: how many live prices the target now holds from the source. */
 export type CopyCustomerPricesView = { copied: number };
+
+/**
+ * Strict body of the copy-article gesture (ASVS v5.0.0-15.3.3): the gesture id, the source
+ * article and the caller's own price. Texts come from the source, the organization and the
+ * status from the server (CWE-915).
+ */
+export const copyProductSchema = z
+  .object({
+    id: uuidV7Schema,
+    source_product_id: uuidV7Schema,
+    price: z.number().int().safe().min(1),
+  })
+  .strict();
+
+export type CopyProductInput = z.infer<typeof copyProductSchema>;

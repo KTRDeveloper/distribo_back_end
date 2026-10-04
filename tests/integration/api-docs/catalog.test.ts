@@ -101,6 +101,9 @@ describe('GET /docs/openapi.json', () => {
       '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices'
     );
 
+    // CAT-011: copying a purchased article
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/products/copy');
+
     // CAT-010: copying negotiated prices between customers
     expect(paths).toContain(
       '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/copy'

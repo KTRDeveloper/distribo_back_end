@@ -88,6 +88,40 @@ export async function insertProduct(
 }
 
 /**
+ * Returns an ACTIVE, live product that the buyer organization may copy: it belongs to another
+ * organization that supplies the buyer through a live, ACTIVE relationship where the buyer is
+ * `customer_organization_id` (ASVS v5.0.0-8.2.2).
+ *
+ * @throws 404 NOT_FOUND otherwise, without telling which condition failed.
+ */
+export async function getProductCopyableBy(
+  tx: Prisma.TransactionClient,
+  buyerOrganizationId: string,
+  productId: string
+): Promise<Product> {
+  const product = await tx.product.findFirst({
+    where: {
+      id: productId,
+      status: 'ACTIVE',
+      deletedAt: null,
+      organizationId: { not: buyerOrganizationId },
+      organization: {
+        suppliedRelationships: {
+          some: {
+            customerOrganizationId: buyerOrganizationId,
+            status: 'ACTIVE',
+            deletedAt: null,
+            mergedIntoId: null,
+          },
+        },
+      },
+    },
+  });
+  if (!product) throw notFound();
+  return product;
+}
+
+/**
  * Returns the live product selected by id and organization together (ASVS v5.0.0-8.2.2).
  *
  * @throws 404 NOT_FOUND when the product is absent, deleted or another organization's.

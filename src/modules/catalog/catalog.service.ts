@@ -14,6 +14,7 @@ import {
   countNegotiatedPricesBefore,
   findLiveCustomerPriceId,
   findSupplierRelationshipForPrice,
+  getProductCopyableBy,
   getProductOfOrganization,
   insertProduct,
   listCatalogForCustomer,
@@ -28,6 +29,7 @@ import {
 import type {
   BrowseQuery,
   CopyCustomerPricesInput,
+  CopyProductInput,
   CopyCustomerPricesView,
   CatalogPage,
   CreateProductInput,
@@ -81,6 +83,38 @@ export async function createProduct(actor: Actor, input: CreateProductInput): Pr
       minOrderQuantity: input.min_order_quantity ?? null,
       description: input.description ?? null,
       category: input.category ?? null,
+    });
+    return toProductView(product);
+  });
+}
+
+/**
+ * Copies an article the actor's organization buys into its own catalog, at its own price.
+ *
+ * The role is decided by the route (`create Product`, ASVS v5.0.0-8.2.1). One transaction checks
+ * that the organization is ACTIVE, then reads the source only through a live ACTIVE relationship
+ * where the actor's organization is the customer (404 otherwise, so a competitor's article is
+ * never confirmed; v5.0.0-8.2.2). The copy takes name, unit, description and category, keeps no
+ * link to the source and does not take its minimum order quantity. Status and `price_updated_at`
+ * are set by the server (C-13).
+ *
+ * @param actor - Actor loaded from the path.
+ * @param input - Validated body: gesture id, source article, caller's price in XAF.
+ * @throws 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE`.
+ */
+export async function copyProduct(actor: Actor, input: CopyProductInput): Promise<ProductView> {
+  return runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    const source = await getProductCopyableBy(tx, actor.organizationId, input.source_product_id);
+    const product = await insertProduct(tx, {
+      id: input.id,
+      organizationId: actor.organizationId,
+      name: source.name,
+      unit: source.unit,
+      price: BigInt(input.price),
+      minOrderQuantity: null,
+      description: source.description,
+      category: source.category,
     });
     return toProductView(product);
   });

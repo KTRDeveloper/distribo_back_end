@@ -4,6 +4,7 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import {
   browseCatalogQuerySchema,
   createProductSchema,
+  copyProductSchema,
   copyCustomerPricesSchema,
   customerPriceParamsSchema,
   customerPricesParamsSchema,
@@ -266,5 +267,31 @@ openApiRegistry.registerPath({
       content: errorContent,
     },
     409: { description: 'Organization not active', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/products/copy',
+  tags: ['catalog'],
+  summary: 'The owner or an online manager copies an article they buy into their catalog',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema,
+    body: { content: { 'application/json': { schema: copyProductSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The created product, with no link to the source',
+      content: { 'application/json': { schema: productViewSchema } },
+    },
+    400: { description: 'Invalid body', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Role not allowed', content: errorContent },
+    404: {
+      description: 'Not a member, or the source is not an ACTIVE article of a supplier',
+      content: errorContent,
+    },
+    409: { description: 'Organization not active or conflicting repeat', content: errorContent },
   },
 });

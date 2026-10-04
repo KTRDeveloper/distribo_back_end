@@ -8,6 +8,7 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import {
   browseCatalogQuerySchema,
   copyCustomerPricesSchema,
+  copyProductSchema,
   createProductSchema,
   customerPriceParamsSchema,
   customerPricesParamsSchema,
@@ -19,6 +20,7 @@ import {
 import {
   browseCatalog,
   copyCustomerPrices,
+  copyProduct,
   createProduct,
   editProduct,
   listCustomerPrices,
@@ -70,6 +72,29 @@ catalogRoutes.post(
   idempotent(),
   (req, res, next) => {
     createProduct(req.actor!, createProductSchema.parse(req.body))
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/products/copy - OWNER or an online MANAGER copies an
+// article they buy into their own catalog; the service answers 404 for any source that is not a
+// live supplier's ACTIVE article
+catalogRoutes.post(
+  '/products/copy',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'Product'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = copyProductSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    copyProduct(req.actor!, copyProductSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
       .catch(next);
   }

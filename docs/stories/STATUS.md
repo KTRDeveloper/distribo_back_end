@@ -129,7 +129,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-008 | done | | PUT negotiated price; non-ACTIVE (ENDED) refused 409; PENDING unreachable for org supplier (DB rule) |
 | CAT-009 | done | | List and delete negotiated prices; 20 story tests, full suite 2009 green |
 | CAT-010 | done | | copy prices route; 15 tests, full suite 2024 green |
-| CAT-011 | todo | | |
+| CAT-011 | done | | Copy article endpoint; 15 story tests, full suite green |
 | ORD-001 | done | | orders table, enums, FKs, indexes, triggers; 16 tests |
 | ORD-002 | done | | CHECKs and status trigger on orders; 1510 tests pass |
 | ORD-003 | todo | | |
