@@ -6,6 +6,16 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 18:32 UTC: `/implement-stories ORD-006`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORD-006 Order total equals the sum of its lines | blocked | 87c63f5 | Totals trigger breaks 18 tests in tests/integration/sync/pull-catalog.test.ts (7) and pull-orders.test.ts (11), not under Tests to update; may I change their fixtures (order total + line in one tx)? |
+
+- Stash: `ORD-006 blocked: partial changes` (stash@{0}); it also holds the uncommitted "Tests to update" edit of the ORD-006 story file, made before the run.
+- Run completed: 1 story, blocked on 18 sync tests (pull-catalog, pull-orders) that SYNC-006 added after the story was written and that are not under "Tests to update".
+- Next: `git stash pop`, add the two sync files to the story's "Tests to update", then `/implement-stories ORD-006`.
+
 ### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
