@@ -302,3 +302,32 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 
 **Evidence:** story tests 23/23; full suite 2126/2126 after fixing a lint error in my test (first run 2125/2126, quality-gates lint), failing: none; typecheck clean; lint 0 errors, 60 pre-existing warnings
 <!-- end ORD-008 -->
+
+<!-- begin ORD-018 -->
+## ORD-018 — Closing a business refuses its pending orders
+
+- Filed: 2026-10-04 16:53 UTC
+- Status: **done**: Pending orders refused in the close transaction; customers notified
+- Risk: medium · story: [ORD-018-closing-a-business-refuses-its-pending-orders.md](../modules/order/ORD-018-closing-a-business-refuses-its-pending-orders.md)
+- Agent: 54,634 tokens, 13 tool uses, 3 min 55 s
+
+### Agent report
+
+**Summary:** closeOrganization now refuses every PENDING order of the business in the same transaction and notifies registered customers.
+
+**Decisions:**
+- Added `lockPendingOrders` (SELECT ... FOR UPDATE, raw parameterized SQL) beside `refusePendingOrders` (signature kept, returns count): locks rows and gives the customers to notify, so a parallel confirm cannot slip between read and update.
+- `refusePendingOrders` is one updateMany applying the same fields as `transitionOrder` PENDING to CANCELLED, not a call to it: order.state imports the repository (cycle) and one UPDATE covers the whole business.
+- One `order.status_changed` per refused order (related = the order), so a customer with two pending orders gets two; AC-2 does not say.
+- Guest customers (no registered_at) are refused but not notified, because `notify` rejects guests and would roll the close back.
+- Mismatch between locked and refused counts throws 409 CONFLICT (unreachable while the rows are locked, fail closed).
+
+**Tests added beyond the story:**
+- `close-refuses-pending.test.ts` › pending order of another business is untouched: tenant scope (CONVENTIONS scope rules); passed at once
+- `close-refuses-pending.test.ts` › guest customer refused without notification, close succeeds: guest recipients cannot be notified (notify contract)
+
+**Evidence:** story tests 20/20 (6 new + 14 close); full suite 2132/2132, failing: none; typecheck clean; lint 0 errors, 60 warnings (pre-existing)
+
+**Follow-ups:**
+- order/contracts.md does not list `refusePendingOrders`; organization imports order.repository directly as the story's Implementation says.
+<!-- end ORD-018 -->

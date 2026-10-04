@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js';
 import { checkAndConsume } from '../../lib/rate-limit.js';
 import { atLeast } from '../../shared/access/roles.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
+import { lockPendingOrders, refusePendingOrders } from '../order/order.repository.js';
 import { createCounter } from '../relationship/relationship.repository.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
@@ -486,12 +487,21 @@ const CLOSED_CONTENT = {
     `${organizationName} is closed: your access to the team was removed.`,
 };
 
+const ORDER_REFUSED_CONTENT = {
+  FR: (organizationName: string) =>
+    `Votre commande chez ${organizationName} a ete refusee: commerce ferme.`,
+  EN: (organizationName: string) =>
+    `Your order at ${organizationName} was refused: the business is closed.`,
+};
+
 /**
  * The owner closes the business (CM-10). In one transaction (ASVS v5.0.0-2.3.3) the organization
  * becomes CLOSED (only from ACTIVE), every non-owner ACTIVE or INVITED collaboration becomes
  * REVOKED with `is_public_contact` false, ACTIVE ones get a scope version bump (CM-03) and an
  * `organization.closed` notification, and the ACTIVE subscription becomes EXPIRED with `ends_at`
- * = now. The owner's own collaboration, relations, balances and history are untouched. The
+ * = now. Every PENDING order of the business is refused with the reason "Commerce fermé" (ORD-018)
+ * and each registered customer gets an `order.status_changed` notification; CONFIRMED and later
+ * orders are untouched. The owner's own collaboration, relations, balances and history are untouched. The
  * organization comes from the loaded actor, never from the body (ASVS v5.0.0-8.2.1).
  *
  * @param actor - Owner loaded from the path and checked for `close Organization`.
@@ -511,8 +521,36 @@ export async function closeOrganization(
       throw httpError(409, 'ORGANIZATION_NOT_ACTIVE', 'Organization is not active');
     }
 
+    const pending = await lockPendingOrders(tx, actor.organizationId);
+    if (pending.length > 0) {
+      const refused = await refusePendingOrders(tx, actor.organizationId, actor.personId);
+      if (refused !== pending.length) {
+        throw httpError(409, 'CONFLICT', 'Pending orders changed during the close');
+      }
+    }
+
     const revoked = await revokeNonOwnerCollaborations(tx, actor.organizationId);
-    const org = revoked.length > 0 ? await findOrganization(actor.organizationId) : null;
+    const needsName = revoked.length > 0 || pending.some((p) => p.customerRegistered);
+    const org = needsName ? await findOrganization(actor.organizationId) : null;
+    for (const order of pending) {
+      // A guest customer has no account to notify (notify refuses them); the refusal still stands.
+      if (!order.customerRegistered) continue;
+      const language = await recipientLanguage(order.customerPersonId, tx);
+      await notify(
+        {
+          recipientId: order.customerPersonId,
+          organizationId: actor.organizationId,
+          sourceEvent: 'order.status_changed',
+          content:
+            language === 'EN'
+              ? ORDER_REFUSED_CONTENT.EN(org?.name ?? '')
+              : ORDER_REFUSED_CONTENT.FR(org?.name ?? ''),
+          related: { type: 'order', id: order.orderId },
+        },
+        tx
+      );
+    }
+
     for (const row of revoked) {
       await bumpScopeVersion(row.personId, tx);
       const language = await recipientLanguage(row.personId, tx);

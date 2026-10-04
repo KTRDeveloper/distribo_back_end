@@ -147,7 +147,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-015 | todo | | |
 | ORD-016 | todo | | |
 | ORD-017 | todo | | |
-| ORD-018 | todo | | |
+| ORD-018 | done | | Pending orders refused in the close transaction; customers notified |
 | ORD-019 | todo | | |
 | ORD-020 | todo | | |
 | ORD-021 | todo | | |
