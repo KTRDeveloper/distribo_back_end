@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
 import { LABEL_MAX, TEXT_MAX } from '../../shared/limits.js';
+import { paginationQuerySchema } from '../../shared/pagination.js';
 
 /** Path of the payment gesture: the relationship id is a UUID, so a malformed one never reaches the database. */
 export const paymentParamSchema = z.object({ relationshipId: uuidV7Schema }).strict();
@@ -87,3 +88,8 @@ export const reverseEntrySchema = z
   .strict();
 
 export type ReverseEntryInput = z.infer<typeof reverseEntrySchema>;
+
+/** Strict query of the ledger read (FIN-010): `limit` and `cursor` only; any other field is a 400. */
+export const ledgerQuerySchema = paginationQuerySchema.strict();
+
+export type LedgerQuery = z.infer<typeof ledgerQuerySchema>;

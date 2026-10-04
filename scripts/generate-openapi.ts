@@ -17,6 +17,7 @@ import '../src/modules/relationship/relationship.openapi.js';
 import '../src/modules/catalog/catalog.openapi.js';
 import '../src/modules/order/order.openapi.js';
 import '../src/modules/delivery/delivery.openapi.js';
+import '../src/modules/finance/finance.openapi.js';
 import '../src/modules/remote-config/remote-config.openapi.js';
 import '../src/modules/sync/sync.openapi.js';
 import '../src/modules/privacy/privacy.openapi.js';

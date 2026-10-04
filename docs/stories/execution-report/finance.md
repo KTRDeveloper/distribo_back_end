@@ -367,6 +367,42 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - Flaky sync test seen once under load (customer_prices deleted list); not investigated.
 <!-- end FIN-009 -->
 
+<!-- begin FIN-010 -->
+## FIN-010 — Parties read the ledger of a relationship
+
+- Filed: 2026-10-04 22:00 UTC
+- Status: **done**: 3 ledger read routes, finance.openapi, per-party fields; full suite 2618 green
+- Risk: medium · story: [FIN-010-parties-read-the-ledger-of-a-relationship.md](../modules/finance/FIN-010-parties-read-the-ledger-of-a-relationship.md)
+- Agent: 91,494 tokens, 31 tool uses, 9 min 54 s
+
+### Agent report
+
+**Summary:** Added the three ledger read routes, per-party item fields, finance.openapi.ts (FIN-004 to FIN-010 routes); all green.
+
+**Decisions:**
+- Paging order: occurred_at desc then id asc, cursor = existing encodeCursor with createdAt carrying occurred_at (same as credit-limit-changes precedent).
+- Balance and page read in one RepeatableRead transaction so they agree.
+- recorded_by_id: only the supplier side for OWNER/MANAGER; SELLER, customer person and customer organization never get it; transaction_reference for nobody (not in the item list).
+- Roles checked in the service before lookup (403 logged); the visibility predicate then gives 404 for non-parties.
+- Customer person route is a new `financeSupplierRoutes` router mounted at `/suppliers` after supplierRoutes (no path clash).
+
+**Tests added beyond the story:**
+- `tests/integration/finance/ledger-read.test.ts` › recorded_by_id for OWNER/MANAGER not SELLER: per-party field list (Context, v5.0.0-8.2.3); passed at once only after implementation, written first
+- same file › customer business MANAGER reads / SELLER 403: the org-customer route (Context)
+- same file › each side on its own route: no read through the wrong door (AB-1)
+- same file › 400 on malformed id, unknown query field, bad limit/cursor; 401 without token (CONVENTIONS validation, deny by default)
+
+**Other additions:**
+- `src/modules/finance/finance.repository.ts`: the only file calling prisma for the ledger page (CONVENTIONS layout).
+- `scripts/generate-openapi.ts`: imports finance.openapi so the generate-script test matches the live paths; `openapi/openapi.json` regenerated.
+- `tests/integration/api-docs/catalog.test.ts`: added finance paths (allowed by Project rules); per-001.test.ts has no route list to extend (only /auth paths).
+
+**Evidence:** story tests 11/11; full suite 2618/2618, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- Page and balance reflect occurred_at ms precision in the cursor; entries sharing a microsecond-level timestamp from DB-generated times could skip, as in the existing cursor pattern.
+<!-- end FIN-010 -->
+
 <!-- begin FIN-011 -->
 ## FIN-011 — Expenses table
 

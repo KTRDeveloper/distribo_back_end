@@ -160,7 +160,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-007 | done | | POST opening-balances; reuses refund guards; all tests pass |
 | FIN-008 | done | | POST returns: credit note + refund in one transaction; counter allowed |
 | FIN-009 | done | | POST ledger-entries/:id/reverse; mirror held effect goes to the original recorder (AC-1) |
-| FIN-010 | todo | | |
+| FIN-010 | done | | 3 ledger read routes, finance.openapi, per-party fields; full suite 2618 green |
 | FIN-011 | done | | expenses table, triggers and tests green |
 | FIN-012 | todo | | |
 | FIN-013 | todo | | |

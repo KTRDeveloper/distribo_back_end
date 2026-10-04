@@ -8,6 +8,7 @@ import { httpError } from '../../lib/http-error.js';
 import { atLeast } from '../../shared/access/roles.js';
 import {
   creditNoteSchema,
+  ledgerQuerySchema,
   openingBalanceSchema,
   paymentParamSchema,
   recordPaymentSchema,
@@ -16,6 +17,7 @@ import {
   reverseParamSchema,
 } from './finance.schemas.js';
 import {
+  listLedger,
   recordCreditNote,
   recordOpeningBalance,
   recordPayment,
@@ -23,6 +25,7 @@ import {
   recordReturn,
   reverseEntry,
 } from './finance.service.js';
+import './finance.openapi.js';
 
 /** Finance routes of one organization, mounted at `/organizations/:organizationId`. */
 export const financeRoutes = Router({ mergeParams: true });
@@ -216,3 +219,63 @@ financeRoutes.post(
       .catch(next);
   }
 );
+
+// GET /api/v1/organizations/:organizationId/customers/:relationshipId/ledger - SELLER and above of
+// the supplier read a customer's ledger; the service answers 403 for a DRIVER and 404 outside the
+// organization. recorded_by_id is added for OWNER and MANAGER only.
+financeRoutes.get(
+  '/customers/:relationshipId/ledger',
+  authMiddleware,
+  loadActor,
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        listLedger(
+          { side: 'SUPPLIER', actor: req.actor! },
+          paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
+          ledgerQuerySchema.parse(req.query)
+        )
+      )
+      .then((page) => res.json(page))
+      .catch(next);
+  }
+);
+
+// GET /api/v1/organizations/:organizationId/suppliers/:relationshipId/ledger - a MANAGER or above
+// of a customer business reads its account with a supplier; 403 below MANAGER, 404 when the
+// organization is not the customer. No recorded_by_id.
+financeRoutes.get(
+  '/suppliers/:relationshipId/ledger',
+  authMiddleware,
+  loadActor,
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        listLedger(
+          { side: 'CUSTOMER_ORGANIZATION', actor: req.actor! },
+          paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
+          ledgerQuerySchema.parse(req.query)
+        )
+      )
+      .then((page) => res.json(page))
+      .catch(next);
+  }
+);
+
+/** Finance routes of the signed-in person as customer, mounted at `/suppliers`. */
+export const financeSupplierRoutes = Router();
+
+// GET /api/v1/suppliers/:relationshipId/ledger - the customer person reads their own account; the
+// person comes from the session, and anyone else gets 404. No recorded_by_id.
+financeSupplierRoutes.get('/:relationshipId/ledger', authMiddleware, (req, res, next) => {
+  Promise.resolve()
+    .then(() =>
+      listLedger(
+        { side: 'CUSTOMER_PERSON', personId: req.user!.id },
+        paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
+        ledgerQuerySchema.parse(req.query)
+      )
+    )
+    .then((page) => res.json(page))
+    .catch(next);
+});

@@ -1,6 +1,7 @@
-import type { LedgerEntryKind, Prisma } from '@prisma/client';
+import type { LedgerEntry, LedgerEntryKind, Prisma } from '@prisma/client';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
+import { atLeast } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import {
   findOrganizationStatus,
@@ -18,6 +19,7 @@ import type {
   ReturnInput,
   ReverseEntryInput,
 } from './finance.schemas.js';
+import { listLedgerPage } from './finance.repository.js';
 import { appendLedgerEntry, reverseLedgerEntry } from './ledger.service.js';
 
 /** A ledger entry as the recorder sees it: an explicit field list, money in whole XAF. */
@@ -485,4 +487,102 @@ export function reverseEntry(
       balance: Number(relationship.balance + entry.balanceEffect),
     };
   });
+}
+
+/** The party reading a ledger: the route fixes the side, the identity comes from the session. */
+export type LedgerViewer =
+  | { side: 'SUPPLIER'; actor: Actor }
+  | { side: 'CUSTOMER_ORGANIZATION'; actor: Actor }
+  | { side: 'CUSTOMER_PERSON'; personId: string };
+
+/** A ledger entry as a party reads it: an explicit field list; never `transaction_reference`. */
+export type LedgerItemView = {
+  id: string;
+  kind: LedgerEntryKind;
+  amount: number;
+  balance_effect: number;
+  mode: 'CASH' | 'MOBILE_MONEY' | null;
+  order_id: string | null;
+  reverses_entry_id: string | null;
+  note: string | null;
+  occurred_at: Date;
+  /** Only the supplier's OWNER and MANAGER see who recorded an entry (v5.0.0-8.2.3). */
+  recorded_by_id?: string;
+};
+
+/**
+ * Builds an item from an explicit field list (v5.0.0-8.2.3, CWE-200): `transaction_reference` is
+ * never copied, and the recorder is added for the supplier's OWNER and MANAGER only.
+ */
+function toLedgerItem(row: LedgerEntry, withRecorder: boolean): LedgerItemView {
+  const item: LedgerItemView = {
+    id: row.id,
+    kind: row.kind,
+    amount: Number(row.amount),
+    balance_effect: Number(row.balanceEffect),
+    mode: row.mode,
+    order_id: row.orderId,
+    reverses_entry_id: row.reversesEntryId,
+    note: row.note,
+    occurred_at: row.occurredAt,
+  };
+  if (withRecorder) item.recorded_by_id = row.recordedById;
+  return item;
+}
+
+/** Refuses a role below the floor with a logged 403 (deny by default, v5.0.0-8.2.1). */
+function assertRoleAtLeast(actor: Actor, floor: 'SELLER' | 'MANAGER'): void {
+  if (atLeast(actor.role, floor)) return;
+  logger.warn(
+    {
+      event: 'permission_refused',
+      personId: actor.personId,
+      action: 'read',
+      subjectType: 'LedgerEntry',
+    },
+    'Permission refused'
+  );
+  throw httpError(403, 'FORBIDDEN', 'Permission denied');
+}
+
+/**
+ * A party reads the ledger of a relationship (FIN-010): the current balance and one page of
+ * entries, newest `occurred_at` first. The supplier side needs SELLER or above, a customer
+ * organization needs MANAGER or above (403, checked before any lookup); a customer person needs no
+ * role. The relationship is loaded through the visibility predicate for the viewer's own party, so
+ * anyone who is not a party gets the same 404 as an absent id (v5.0.0-8.2.2). Items use per-party
+ * field lists (v5.0.0-8.2.3): `recorded_by_id` only for the supplier's OWNER and MANAGER, and
+ * `transaction_reference` for nobody.
+ *
+ * @param viewer - Side and identity, set by the route from the session.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param query - Page size and opaque cursor.
+ * @returns The balance, the items and the next cursor or null on the last page.
+ * @throws 403 `FORBIDDEN`; 404 `NOT_FOUND`; 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listLedger(
+  viewer: LedgerViewer,
+  relationshipId: string,
+  query: { limit: number; cursor?: string }
+): Promise<{ balance: number; items: LedgerItemView[]; next_cursor: string | null }> {
+  let identity: { personId: string; organizationId?: string };
+  let withRecorder = false;
+  if (viewer.side === 'SUPPLIER') {
+    assertRoleAtLeast(viewer.actor, 'SELLER');
+    identity = viewer.actor;
+    withRecorder = atLeast(viewer.actor.role, 'MANAGER');
+  } else if (viewer.side === 'CUSTOMER_ORGANIZATION') {
+    assertRoleAtLeast(viewer.actor, 'MANAGER');
+    identity = viewer.actor;
+  } else {
+    identity = { personId: viewer.personId };
+  }
+
+  const page = await listLedgerPage(viewer.side, identity, relationshipId, query);
+  if (!page) throw httpError(404, 'NOT_FOUND', 'Not found');
+  return {
+    balance: Number(page.balance),
+    items: page.rows.map((row) => toLedgerItem(row, withRecorder)),
+    next_cursor: page.nextCursor,
+  };
 }

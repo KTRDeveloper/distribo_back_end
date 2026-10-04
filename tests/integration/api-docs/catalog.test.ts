@@ -110,6 +110,27 @@ describe('GET /docs/openapi.json', () => {
       '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/copy'
     );
 
+    // FIN-004 to FIN-009: the finance gestures; FIN-010: the ledger reads
+    for (const segment of [
+      'payments',
+      'refunds',
+      'credit-notes',
+      'opening-balances',
+      'returns',
+      'ledger',
+    ]) {
+      expect(paths).toContain(
+        `/api/v1/organizations/{organizationId}/customers/{relationshipId}/${segment}`
+      );
+    }
+    expect(paths).toContain(
+      '/api/v1/organizations/{organizationId}/ledger-entries/{entryId}/reverse'
+    );
+    expect(paths).toContain('/api/v1/suppliers/{relationshipId}/ledger');
+    expect(paths).toContain(
+      '/api/v1/organizations/{organizationId}/suppliers/{relationshipId}/ledger'
+    );
+
     // ORD-010: the organization purchase route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases');
 

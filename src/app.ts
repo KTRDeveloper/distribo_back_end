@@ -99,7 +99,7 @@ import {
 } from './modules/relationship/relationship.routes.js';
 import { orderRoutes, purchaseRoutes, supplierOrderRoutes } from './modules/order/order.routes.js';
 import { deliveryRoutes } from './modules/delivery/delivery.routes.js';
-import { financeRoutes } from './modules/finance/finance.routes.js';
+import { financeRoutes, financeSupplierRoutes } from './modules/finance/finance.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
@@ -146,6 +146,7 @@ v1Router.use('/organizations/:organizationId', deliveryRoutes);
 v1Router.use('/organizations/:organizationId', financeRoutes);
 v1Router.use('/orders', orderRoutes);
 v1Router.use('/suppliers', supplierRoutes);
+v1Router.use('/suppliers', financeSupplierRoutes);
 v1Router.use('/supplier-invitations', supplierInvitationRoutes);
 v1Router.use('/collaborations', collaborationRoutes);
 v1Router.use('/auth', authRoutes);
