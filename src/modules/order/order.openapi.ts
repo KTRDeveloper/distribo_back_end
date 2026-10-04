@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
-import { acceptOrderSchema, placePurchaseSchema, refuseOrderSchema } from './order.schemas.js';
+import {
+  acceptOrderSchema,
+  enterOrderSchema,
+  placePurchaseSchema,
+  refuseOrderSchema,
+} from './order.schemas.js';
 
 const errorContent = { 'application/json': { schema: errorResponseSchema } };
 
@@ -133,6 +138,36 @@ openApiRegistry.registerPath({
     404: { description: 'Not a member, or order outside the business', content: errorContent },
     409: {
       description: 'INVALID_TRANSITION (not PENDING) or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/orders',
+  tags: ['order'],
+  summary: 'A seller enters a CONFIRMED order for a customer (ORD-013)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: enterOrderSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The CONFIRMED order, supplier view',
+      content: { 'application/json': { schema: supplierOrderViewSchema } },
+    },
+    400: { description: 'Invalid body (lines, prices, unknown fields)', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not enter orders', content: errorContent },
+    404: {
+      description: 'Not a member, relationship outside the business, or product not ACTIVE',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'USE_COUNTER_SALE, RELATIONSHIP_NOT_ACTIVE, ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
       content: errorContent,
     },
   },

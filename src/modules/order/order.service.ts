@@ -4,11 +4,15 @@ import { httpError } from '../../lib/http-error.js';
 import { parseQuantity } from '../../shared/money.js';
 import { getActiveProduct, getReferencePrice } from '../catalog/catalog.repository.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
-import { ensureCustomerRelationship } from '../relationship/relationship.repository.js';
+import {
+  ensureCustomerRelationship,
+  findSupplierRelationshipLocked,
+} from '../relationship/relationship.repository.js';
 import { lineAmountOf, orderTotal } from './order.calculations.js';
 import type { Actor } from '../../types/express.js';
 import {
   findOrderToAccept,
+  insertConfirmedOrder,
   insertPendingOrder,
   isRegisteredPerson,
   listOrderTeamIds,
@@ -18,7 +22,12 @@ import {
   setOrderTotal,
   type NewOrderLine,
 } from './order.repository.js';
-import type { AcceptInput, PlaceOrderInput, RefuseInput } from './order.schemas.js';
+import type {
+  AcceptInput,
+  EnterOrderInput,
+  PlaceOrderInput,
+  RefuseInput,
+} from './order.schemas.js';
 import { transitionOrder } from './order.state.js';
 import {
   projectOrderForCustomer,
@@ -357,6 +366,100 @@ export function refuseOrder(
 
     await notifyCustomerOfStatus(tx, order, actor.organizationId, REFUSED_CONTENT);
 
+    return projectOrderForSupplier(order, actor.role);
+  });
+}
+
+/**
+ * Prices one line a seller enters (C-15): the product must be an ACTIVE product of the supplier
+ * (404 otherwise) and the reference price comes from the database. The minimum order quantity does
+ * not apply to a seller. The applied price defaults to the reference; a different one (any price
+ * from 0 up) is a gap whose author is the caller and whose time is `now` (C-20).
+ */
+async function priceEnteredLine(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  relationshipId: string,
+  line: EnterOrderInput['lines'][number],
+  now: Date
+): Promise<NewOrderLine> {
+  const product = await getActiveProduct(tx, actor.organizationId, line.product_id);
+  const quantityMilli = parseQuantity(line.quantity);
+  const { price: referencePrice } = await getReferencePrice(tx, relationshipId, product.id);
+  const unitPriceApplied =
+    line.unit_price_applied === undefined ? referencePrice : BigInt(line.unit_price_applied);
+  return {
+    id: line.id,
+    productId: product.id,
+    labelApplied: `${product.name} (${product.unit})`,
+    quantity: line.quantity,
+    referencePrice,
+    unitPriceApplied,
+    amount: lineAmountOf({ quantityMilli, unitPriceApplied }),
+    ...(unitPriceApplied === referencePrice
+      ? {}
+      : { priceSetById: actor.personId, priceSetAt: now }),
+  };
+}
+
+/**
+ * A SELLER, MANAGER or OWNER enters an order for one of the business's customers (ORD-013, C-14,
+ * C-15, C-17): the order is CONFIRMED at once, placed by the SUPPLIER party and entered by the
+ * caller. One transaction (v5.0.0-2.3.3): the relationship is found through the visibility
+ * predicate and locked (another business's relationship is 404, v5.0.0-8.2.1), then every line is
+ * priced on the server (v5.0.0-15.3.3); any refusal stores nothing. Replays with the same `id` are
+ * answered by `idempotent()`.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked `create Order`.
+ * @param input - Validated body: ids, optional address, cost, date and note, and 1 to 100 lines.
+ * @returns The CONFIRMED order, supplier view for the caller's role.
+ * @throws 404 `NOT_FOUND` (relationship outside the business, product not ACTIVE or not the
+ * business's); 409 `USE_COUNTER_SALE` (counter), `RELATIONSHIP_NOT_ACTIVE`,
+ * `ORGANIZATION_NOT_ACTIVE`.
+ */
+export function enterOrder(actor: Actor, input: EnterOrderInput): Promise<SupplierOrderView> {
+  return runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    const relationship = await findSupplierRelationshipLocked(
+      tx,
+      { personId: actor.personId, organizationId: actor.organizationId },
+      input.customer_relationship_id
+    );
+    if (!relationship) throw httpError(404, 'NOT_FOUND', 'Customer not found.');
+    if (relationship.customerPersonId === null && relationship.customerOrganizationId === null) {
+      throw httpError(409, 'USE_COUNTER_SALE', 'Use a counter sale for a counter.');
+    }
+    if (relationship.status !== 'ACTIVE') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'Relationship is not active');
+    }
+
+    const now = new Date();
+    const lines: NewOrderLine[] = [];
+    for (const line of input.lines) {
+      lines.push(await priceEnteredLine(tx, actor, relationship.id, line, now));
+    }
+    const deliveryCost = BigInt(input.delivery_cost ?? 0);
+
+    const order = await insertConfirmedOrder(tx, {
+      id: input.id,
+      customerRelationshipId: relationship.id,
+      enteredById: actor.personId,
+      deliveryAddressApplied: input.delivery_address ?? relationship.deliveryAddress,
+      deliveryCost,
+      desiredDeliveryDate: input.desired_delivery_date
+        ? new Date(`${input.desired_delivery_date}T00:00:00.000Z`)
+        : null,
+      customerNote: input.customer_note ?? null,
+      totalAmount: orderTotal(
+        lines.map((line) => line.amount),
+        deliveryCost
+      ),
+      lines,
+    });
+
+    // Lines come back in the request order, so the answer mirrors what was sent.
+    const position = new Map(input.lines.map((line, index) => [line.id, index]));
+    order.lines.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
     return projectOrderForSupplier(order, actor.role);
   });
 }

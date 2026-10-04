@@ -109,3 +109,39 @@ export const refuseOrderSchema = z
   .strict();
 
 export type RefuseInput = z.infer<typeof refuseOrderSchema>;
+
+/**
+ * One line entered by a seller: ids, a quantity and, optionally, a price from 0 up. The reference
+ * price, the label and the amount are never accepted (ASVS v5.0.0-15.3.3, CWE-915).
+ */
+const enterOrderLineSchema = z
+  .object({
+    id: uuidV7Schema,
+    product_id: uuidV7Schema,
+    quantity: quantitySchema,
+    unit_price_applied: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+  })
+  .strict();
+
+/**
+ * Strict body of the seller's enter-order gesture (ORD-013). Status, party, author, totals and
+ * reference prices are never accepted: the server sets them (ASVS v5.0.0-15.3.3). The supplier is
+ * the caller's organization, from the path.
+ */
+export const enterOrderSchema = z
+  .object({
+    id: uuidV7Schema,
+    customer_relationship_id: uuidV7Schema,
+    delivery_address: z.string().trim().min(1).max(TEXT_MAX).optional(),
+    delivery_cost: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    desired_delivery_date: dateSchema.optional(),
+    customer_note: z.string().max(TEXT_MAX).optional(),
+    lines: z.array(enterOrderLineSchema).min(1).max(ORDER_LINES_MAX),
+  })
+  .strict()
+  .refine((body) => new Set(body.lines.map((line) => line.id)).size === body.lines.length, {
+    message: 'duplicate_line_id',
+    path: ['lines'],
+  });
+
+export type EnterOrderInput = z.infer<typeof enterOrderSchema>;

@@ -5,12 +5,19 @@ import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
   acceptOrderSchema,
+  enterOrderSchema,
   orderIdParamSchema,
   placeOrderSchema,
   placePurchaseSchema,
   refuseOrderSchema,
 } from './order.schemas.js';
-import { acceptOrder, placeOrder, placePurchase, refuseOrder } from './order.service.js';
+import {
+  acceptOrder,
+  enterOrder,
+  placeOrder,
+  placePurchase,
+  refuseOrder,
+} from './order.service.js';
 import './order.openapi.js';
 
 /** Order routes; all require authentication. */
@@ -63,6 +70,28 @@ purchaseRoutes.post(
 
 /** Supplier-side order routes, mounted at `/organizations/:organizationId`. */
 export const supplierOrderRoutes = Router({ mergeParams: true });
+
+// POST /api/v1/organizations/:organizationId/orders - a seller enters a CONFIRMED order for a
+// customer; the supplier is the caller's organization, the prices are the server's
+supplierOrderRoutes.post(
+  '/orders',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'Order'),
+  // Strict validation first, so an invalid body never reserves the idempotency key.
+  (req, _res, next) => {
+    const parsed = enterOrderSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    enterOrder(req.actor!, enterOrderSchema.parse(req.body))
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
 
 // POST /api/v1/organizations/:organizationId/orders/:orderId/accept - the supplier confirms a
 // PENDING order, optionally lowering prices; the organization is the caller's, never a body field.

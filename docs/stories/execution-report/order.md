@@ -476,6 +476,40 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 15/15; full suite 2349/2349, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
 <!-- end ORD-012 -->
 
+<!-- begin ORD-013 -->
+## ORD-013 — Seller enters an order for a customer
+
+- Filed: 2026-10-04 19:52 UTC
+- Status: **done**: POST /orders enterOrder; 16 tests, full suite green
+- Risk: high · story: [ORD-013-seller-enters-an-order-for-a-customer.md](../modules/order/ORD-013-seller-enters-an-order-for-a-customer.md)
+- Agent: 68,575 tokens, 20 tool uses, 5 min 5 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/{id}/orders (enterOrder): CONFIRMED, SUPPLIER-placed order priced server-side, price gaps authored.
+
+**Decisions:**
+- Counter detection: customerPersonId and customerOrganizationId both null (schema comment "no customer = counter"); checked before status.
+- Relationship lookup: `findSupplierRelationshipLocked` (visibility predicate + row lock), so another business's id is 404.
+- Delivery address: body value, else relationship's delivery_address (as place-order does).
+- ENDED row tested for RELATIONSHIP_NOT_ACTIVE; PENDING cannot exist for an organization supplier (schema rule).
+- No notification sent (story does not ask for one).
+
+**Tests added beyond the story:**
+- `enter-order.test.ts` › negotiated price is the reference: CAT-003 reference price used (AC-1); passed at once
+- `enter-order.test.ts` › price above reference, 0, minimum quantity ignored (AC-2 text); passed at once
+- `enter-order.test.ts` › suspended business 409 (C-14 / assertOrganizationActive)
+- `enter-order.test.ts` › negative/fractional delivery cost or price 400 (story: integer at least 0)
+- `enter-order.test.ts` › price author hidden from SELLER view, shown to OWNER (projectOrderForSupplier rule, v5.0.0-8.2.3); passed at once
+- `enter-order.test.ts` › non-member 404 and product of another business 404 (v5.0.0-8.2.2)
+
+**Other additions:**
+- `insertConfirmedOrder` in order.repository.ts; `NewOrderLine` gained optional priceSetById/priceSetAt.
+- OpenAPI path registered; catalog.test.ts route list extended (per-001 list has no order entries, left alone); openapi.json regenerated.
+
+**Evidence:** story tests 16/16; full suite 2365/2365, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
+<!-- end ORD-013 -->
+
 <!-- begin ORD-018 -->
 ## ORD-018 — Closing a business refuses its pending orders
 

@@ -123,6 +123,8 @@ export type NewOrderLine = {
   referencePrice: bigint;
   unitPriceApplied: bigint;
   amount: bigint;
+  priceSetById?: string;
+  priceSetAt?: Date;
 };
 
 /**
@@ -151,6 +153,32 @@ export function insertPendingOrder(
       deliveryCost: 0n,
       lines: { create: lines },
     },
+    include: { lines: true },
+  });
+}
+
+/**
+ * Inserts a CONFIRMED order entered by the supplier's team (ORD-013), with its lines, and returns
+ * it with the lines. Placed by the SUPPLIER party (C-17); the caller computes every amount and the
+ * total is checked by the database at commit (ORD-006).
+ */
+export function insertConfirmedOrder(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    customerRelationshipId: string;
+    enteredById: string;
+    deliveryAddressApplied: string | null;
+    deliveryCost: bigint;
+    desiredDeliveryDate: Date | null;
+    customerNote: string | null;
+    totalAmount: bigint;
+    lines: NewOrderLine[];
+  }
+): Promise<OrderWithLines> {
+  const { lines, ...order } = data;
+  return tx.order.create({
+    data: { ...order, placedByParty: 'SUPPLIER', status: 'CONFIRMED', lines: { create: lines } },
     include: { lines: true },
   });
 }
