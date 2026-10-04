@@ -6,6 +6,21 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 12:26 UTC: `/implement-stories REL-004,ORD-002,ADM-008`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORD-002 Order status, cancellation and delivery rules in the database | done | f62e655 | CHECKs and status trigger on orders; 1510 tests pass |
+
+Also in this run: relationship, admin.
+
+- Run completed: all 3 PLAN stories done, none skipped, no stash.
+- Unexpected: the REL-004 and ORD-002 hand-backs held a summary instead of the one line `<ID> <status>`; STATUS.md agreed (done) in both.
+- REL-004 flags: the same author cannot change a limit twice in a row (spec as written, left for REL-012); an INSERT with a non-zero credit_limit is accepted and not journaled.
+- ORD-002 flags: deleting a person would violate the new CHECKs through ON DELETE SET NULL on cancelled_by_id / delivered_by_id; two integration files in one vitest command once deadlocked on shared fixture IDs.
+- All figures filed from the task notifications.
+- Next: /implement-stories next:N
+
 ### Run 2026-10-04 10:55 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
