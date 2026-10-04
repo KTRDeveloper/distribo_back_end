@@ -153,7 +153,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-021 | done | | 4 customer GET routes, customer projection; suite 2465/2465 |
 | FIN-001 | done | | ledger_entries table, generated balance_effect, append-only grants |
 | FIN-002 | done | | migration 20261004330000 adds sale and reversal triggers plus partial unique index; ledger-table fixtures updated |
-| FIN-003 | todo | | |
+| FIN-003 | done | | appendLedgerEntry and reverseLedgerEntry; addToBalance added to relationship repo; 19 story tests, full suite 2539 pass |
 | FIN-004 | todo | | |
 | FIN-005 | todo | | |
 | FIN-006 | todo | | |

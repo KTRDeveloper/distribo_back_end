@@ -135,6 +135,41 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - The concurrency test was not run without the lock to confirm it would fail without it.
 <!-- end FIN-002 -->
 
+<!-- begin FIN-003 -->
+## FIN-003 — Append a ledger entry and update the caches
+
+- Filed: 2026-10-04 21:13 UTC
+- Status: **done**: appendLedgerEntry and reverseLedgerEntry; addToBalance added to relationship repo; 19 story tests, full suite 2539 pass
+- Risk: high · story: [FIN-003-append-a-ledger-entry-and-update-the-caches.md](../modules/finance/FIN-003-append-a-ledger-entry-and-update-the-caches.md)
+- Agent: 57,504 tokens, 19 tool uses, 10 min 31 s
+
+### Agent report
+
+**Summary:** Added `appendLedgerEntry` and `reverseLedgerEntry` in `ledger.service.ts`: relationship balance first, then the recorder's amount held, in the caller's transaction.
+
+**Decisions:**
+- Reversal held-money owner: the collaboration of `input.recordedById` (the person reversing) in the relationship's supplier organization. FIN-018 counts a reversal under the person who recorded it, so I followed that. The story is silent on it.
+- Mirror entry keeps `order_id` (the story says same order). The FIN-002 sale rule ignores reversals, so the database accepts it.
+- DB access stays in the service through the caller's `tx`; I did not add a repository file the story does not list.
+- Validation (400): amount at most 0, or a mode that does not fit the kind (mode required only for PAYMENT/REFUND). This avoids an opaque 23514 as a 500.
+- Unknown or deleted relationship: pre-check, then 404 NOT_FOUND. Otherwise the foreign key would give a 500.
+
+**Tests added beyond the story:**
+- `ledger-service.test.ts` › input checks (4 cases): invalid amount or mode gives 400 and no write (C-23, Errors line); passed at once
+- `ledger-service.test.ts` › unknown relationship 404, unknown entry to reverse 404 (story Errors line); passed at once
+- `ledger-service.test.ts` › reversal of a REFUND and of a SALE keeps its order and leaves held money alone (AC-2, CM-17); passed at once
+- `ledger-service.test.ts` › "stores the given fields": entry fields are persisted as given
+
+**Other additions:**
+- `addToBalance(tx, id, delta)` in `relationship.repository.ts`: the story and `relationship/contracts.md` say it exists (REL-007), but it was not in the code. I wrote it per the contract: atomic `SET balance = balance + delta`, 404 when no live row.
+
+**Evidence:** story tests 19/19; full suite 2539/2539 on the final run, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
+
+**Follow-ups:**
+- The first full run had 2 failures in a relationship-related test (a serialized response check); two reruns were green. Looks like a flake unrelated to this story; not investigated.
+- `reverseLedgerEntry` targets the entry's original relationship id. An entry written before a merge sits on the now-deleted duplicate, so reversing it gives 404 (`addToBalance` ignores deleted rows). FIN-009 should decide how to handle this.
+<!-- end FIN-003 -->
+
 <!-- begin FIN-011 -->
 ## FIN-011 — Expenses table
 

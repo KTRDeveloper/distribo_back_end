@@ -1132,3 +1132,26 @@ export async function resolveMergedRelation(
   }
   throw new Error('Merge chain too long');
 }
+
+/**
+ * Adds `delta` to a relationship's cached balance with one atomic SQL increment inside the
+ * caller's transaction, so simultaneous operations never lose an update (C-37; ASVS
+ * v5.0.0-2.3.3, v5.0.0-2.3.4). Never read then write. The row lock the update takes also orders
+ * concurrent writers. Callers update this balance first, then the collaborator's amount held.
+ *
+ * @param tx - The caller's transaction; a rollback undoes the increment.
+ * @param relationshipId - A live relationship (resolve a merged id first).
+ * @param delta - Signed amount in XAF to add.
+ * @throws 404 NOT_FOUND when the relationship does not exist or is marked deleted.
+ */
+export async function addToBalance(
+  tx: Prisma.TransactionClient,
+  relationshipId: string,
+  delta: bigint
+): Promise<void> {
+  const updated = await tx.$executeRaw`
+    UPDATE customer_relationships SET balance = balance + ${delta}
+    WHERE id = ${relationshipId}::uuid AND deleted_at IS NULL
+  `;
+  if (updated === 0) throw httpError(404, 'NOT_FOUND', 'Not found');
+}
