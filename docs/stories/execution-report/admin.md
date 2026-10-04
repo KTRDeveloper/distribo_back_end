@@ -121,3 +121,35 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - `prisma migrate diff` against the test DB still shows pre-existing drift on `tasks` (accountId vs account_id), unrelated to this story.
 <!-- end ADM-003 -->
+
+<!-- begin ADM-004 -->
+## ADM-004 — Two-factor codes for administrators
+
+- Filed: 2026-10-04 06:55 UTC
+- Status: **done**: TOTP create/encrypt/verify with atomic replay guard; 13 tests green
+- Risk: high · story: [ADM-004-two-factor-codes-for-administrators.md](../modules/admin/ADM-004-two-factor-codes-for-administrators.md)
+- Agent: 34,749 tokens, 23 tool uses, 9 min 47 s
+
+### Agent report
+
+**Summary:** Added src/lib/totp.ts (create secret, encrypt/decrypt wrappers, verifyTotp with replay guard) and its unit tests; all green.
+
+**Decisions:**
+- otplib was not installed: added `otplib@13.5.0` exact (allowed list); package.json and lockfile changed.
+- `verifyTotp` takes an optional 4th `client` param (default real redis): Redis is globally mocked in tests, so an in-memory fake is injected.
+- Step claimed through `checkAndConsume(key, 1, 90)` only after the code matched: atomic via Lua, a wrong code burns nothing.
+- Window via `epochTolerance: 30`; the matched `timeStep` from otplib names the used-step key.
+- Code format checked (`^\d{6}$`) before any crypto or Redis call; Redis error rejects (fail closed).
+- otpauth label is the fixed word "administrator", so the URI has no personal data.
+
+**Tests added beyond the story:**
+- `tests/unit/admin/totp.test.ts` › stores the used step per administrator for 90 seconds: key format and TTL (story Context)
+- same › does not let one administrator use up the code of another: key scoped by administrator id (story Context); passed at once
+- same › does not consume a step when the code is wrong: wrong guess burns nothing; passed at once
+- same › accepts a code only once when presented in parallel: race on replay guard (AC-3, AB-1); passed at once (atomic path via fake eval)
+
+**Evidence:** story tests 13/13; full suite 1122/1122, failing: none; typecheck clean; lint 0 errors, 45 warnings (existing)
+
+**Follow-ups:**
+- `npm audit --audit-level=high` reports 35 high / 3 critical, none from otplib (same count before my change); a human should triage the dependency audit.
+<!-- end ADM-004 -->

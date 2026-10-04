@@ -82,7 +82,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-001 | done | | administrators table, 14 tests, full suite 1075 pass |
 | ADM-002 | done | | admin_actions table, immutability, REPLAY_SYNC trigger, recordAdminAction |
 | ADM-003 | done | | reports table, enums, FK admin_actions.report_id; 1109 tests pass |
-| ADM-004 | todo | | |
+| ADM-004 | done | | TOTP create/encrypt/verify with atomic replay guard; 13 tests green |
 | ADM-005 | todo | | |
 | ADM-006 | todo | | |
 | ADM-007 | todo | | |
