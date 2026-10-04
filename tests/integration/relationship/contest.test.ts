@@ -171,6 +171,7 @@ describe('POST /api/v1/suppliers/:relationshipId/contest', () => {
         placedByParty: 'SUPPLIER',
         enteredById: OWNER,
         totalAmount: 5000n,
+        deliveryCost: 5000n,
       },
     });
     await prisma.ledgerEntry.create({

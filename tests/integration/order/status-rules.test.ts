@@ -298,7 +298,7 @@ describe('status steps (AC-4, C-18, CM-12)', () => {
   it('leaves a non-frozen order free to change other columns', async () => {
     await insertOrder({ status: 'CONFIRMED' });
     await expect(
-      prisma.$executeRaw`UPDATE orders SET delivery_cost = 500 WHERE id = ${ORDER_ID}::uuid`
+      prisma.$executeRaw`UPDATE orders SET delivery_cost = 500, total_amount = total_amount + 500 WHERE id = ${ORDER_ID}::uuid`
     ).resolves.toBe(1);
   });
 });

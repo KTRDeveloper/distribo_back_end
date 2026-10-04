@@ -113,7 +113,7 @@ beforeEach(async () => {
   `;
   await prisma.$executeRaw`
     INSERT INTO orders (id, customer_relationship_id, placed_by_party, entered_by_id, total_amount)
-    VALUES (${ORDER_ID}::uuid, ${REL_ID}::uuid, 'SUPPLIER', ${OWNER_ID}::uuid, 10000)
+    VALUES (${ORDER_ID}::uuid, ${REL_ID}::uuid, 'SUPPLIER', ${OWNER_ID}::uuid, 0)
   `;
 });
 

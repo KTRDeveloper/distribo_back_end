@@ -927,7 +927,15 @@ model CustomerPrice {
 //   (SQLSTATE 23514). Counters (no customer) are allowed. Only inserts are
 //   checked, so existing orders of a closed business stay editable within the
 //   rules above. (Migration 20261004290000_ord_003_creation_guard)
-// The other rules on creation (ORD-006) are added by a later story.
+// - The total must equal the sum of the amounts of the order's non-deleted lines
+//   plus the delivery cost; an order with no lines must have a total equal to
+//   its delivery cost. A DELIVERED order needs a delivered quantity on every
+//   non-deleted line. The database checks this when the transaction is saved
+//   (not statement by statement), so lines and total may be written in any order
+//   but must agree at commit; otherwise the commit fails with SQLSTATE 23514.
+//   Code must change a line and the total in the same transaction.
+//   (Migration 20261004320000_ord_006_total_check, a deferred constraint trigger
+//   on orders and order_lines.)
 model Order {
   id                     String      @id @db.Uuid
   customerRelationshipId String      @map("customer_relationship_id") @db.Uuid
@@ -994,6 +1002,12 @@ model Order {
 //   price on insert, and may later be lowered but never raised above it (the
 //   supplier can only lower it). Lowering needs the price author and time as
 //   above. Supplier-placed orders have no such limit.
+// Migration 20261004320000_ord_006_total_check: adding, changing, moving or
+// removing a line (and soft-deleting it) re-checks its order's total at commit.
+// The order's total must equal the sum of its non-deleted line amounts plus its
+// delivery cost, so a line change must come with the matching total change in
+// the same transaction (SQLSTATE 23514 otherwise). A DELIVERED order needs a
+// delivered quantity on every non-deleted line.
 // These are CHECK constraints and triggers, which Prisma cannot express.
 model OrderLine {
   id                String    @id @db.Uuid

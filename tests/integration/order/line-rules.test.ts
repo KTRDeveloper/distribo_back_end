@@ -62,13 +62,24 @@ type Line = {
   authoredAt?: Date | null;
 };
 
-/** Inserts a line; defaults make a valid 5 x 3000 line at the reference price. */
-function insertLine(row: Line = {}): Promise<number> {
+/** Moves an order's total by a line amount change, so line and total agree at commit (ORD-006). */
+function moveTotal(orderId: string, delta: bigint) {
+  return prisma.$executeRaw`
+    UPDATE orders SET total_amount = total_amount + ${delta}::bigint WHERE id = ${orderId}::uuid
+  `;
+}
+
+/**
+ * Inserts a line and raises its order's total by the same amount in one
+ * transaction (ORD-006); defaults make a valid 5 x 3000 line at the reference price.
+ */
+async function insertLine(row: Line = {}): Promise<number> {
   const reference = row.reference ?? 3000n;
   const applied = row.applied ?? reference;
   const quantity = row.quantity ?? '5';
   const amount = row.amount ?? 15000n;
-  return prisma.$executeRaw`
+  const [inserted] = await prisma.$transaction([
+    prisma.$executeRaw`
     INSERT INTO order_lines (
       id, order_id, product_id, label_applied, quantity,
       reference_price, unit_price_applied, amount, price_set_by_id, price_set_at
@@ -79,7 +90,10 @@ function insertLine(row: Line = {}): Promise<number> {
       ${reference}::bigint, ${applied}::bigint, ${amount}::bigint,
       ${row.authorId ?? null}::uuid, ${row.authoredAt ?? null}::timestamptz
     )
-  `;
+  `,
+    moveTotal(row.orderId ?? CUSTOMER_ORDER_ID, amount),
+  ]);
+  return inserted;
 }
 
 async function insertOrder(
@@ -211,10 +225,13 @@ describe('later changes do not block (AC-3)', () => {
       WHERE id = ${PRODUCT_ID}::uuid
     `;
     await expect(
-      prisma.$executeRaw`
-        UPDATE order_lines SET delivered_quantity = 4, amount = 12000 WHERE id = ${LINE_ID}::uuid
-      `
-    ).resolves.toBe(1);
+      prisma.$transaction([
+        prisma.$executeRaw`
+          UPDATE order_lines SET delivered_quantity = 4, amount = 12000 WHERE id = ${LINE_ID}::uuid
+        `,
+        moveTotal(SUPPLIER_ORDER_ID, -3000n),
+      ])
+    ).resolves.toEqual([1, 1]);
   });
 
   it('keeps the customer-order line updatable after the product was deleted', async () => {
@@ -223,10 +240,13 @@ describe('later changes do not block (AC-3)', () => {
       UPDATE products SET deleted_at = now() WHERE id = ${PRODUCT_ID}::uuid
     `;
     await expect(
-      prisma.$executeRaw`
-        UPDATE order_lines SET delivered_quantity = 4, amount = 12000 WHERE id = ${LINE_ID}::uuid
-      `
-    ).resolves.toBe(1);
+      prisma.$transaction([
+        prisma.$executeRaw`
+          UPDATE order_lines SET delivered_quantity = 4, amount = 12000 WHERE id = ${LINE_ID}::uuid
+        `,
+        moveTotal(CUSTOMER_ORDER_ID, -3000n),
+      ])
+    ).resolves.toEqual([1, 1]);
   });
 });
 
@@ -265,23 +285,29 @@ describe('customer order prices (AC-4, C-20, CM-16)', () => {
       )
     ).toBe('23514');
     await expect(
+      prisma.$transaction([
+        prisma.$executeRaw`
+          UPDATE order_lines
+          SET unit_price_applied = 2800, amount = 14000,
+              price_set_by_id = ${OWNER_ID}::uuid, price_set_at = now()
+          WHERE id = ${LINE_ID}::uuid
+        `,
+        moveTotal(CUSTOMER_ORDER_ID, -1000n),
+      ])
+    ).resolves.toEqual([1, 1]);
+  });
+
+  it('refuses raising the reference price out from under a lowered price', async () => {
+    await insertLine();
+    await prisma.$transaction([
       prisma.$executeRaw`
         UPDATE order_lines
         SET unit_price_applied = 2800, amount = 14000,
             price_set_by_id = ${OWNER_ID}::uuid, price_set_at = now()
         WHERE id = ${LINE_ID}::uuid
-      `
-    ).resolves.toBe(1);
-  });
-
-  it('refuses raising the reference price out from under a lowered price', async () => {
-    await insertLine();
-    await prisma.$executeRaw`
-      UPDATE order_lines
-      SET unit_price_applied = 2800, amount = 14000,
-          price_set_by_id = ${OWNER_ID}::uuid, price_set_at = now()
-      WHERE id = ${LINE_ID}::uuid
-    `;
+      `,
+      moveTotal(CUSTOMER_ORDER_ID, -1000n),
+    ]);
     expect(
       await captureSqlCode(
         prisma.$executeRaw`

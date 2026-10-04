@@ -98,21 +98,20 @@ async function seedOrderLine(
       customerRelationshipId: REL,
       placedByParty: status === 'PENDING' ? 'CUSTOMER' : 'SUPPLIER',
       enteredById: SELLER,
-      totalAmount: 0n,
+      totalAmount: 37500n,
       status,
       deliveryAddressApplied: address,
-    },
-  });
-  await prisma.orderLine.create({
-    data: {
-      id: `0199e005-0000-7000-8000-0000000003${suffix}`,
-      orderId,
-      productId,
-      labelApplied: 'x',
-      quantity: '3.000',
-      referencePrice: 12500n,
-      unitPriceApplied: 12500n,
-      amount: 37500n,
+      lines: {
+        create: {
+          id: `0199e005-0000-7000-8000-0000000003${suffix}`,
+          productId,
+          labelApplied: 'x',
+          quantity: '3.000',
+          referencePrice: 12500n,
+          unitPriceApplied: 12500n,
+          amount: 37500n,
+        },
+      },
     },
   });
 }

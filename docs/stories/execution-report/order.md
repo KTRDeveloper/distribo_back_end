@@ -261,27 +261,27 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 <!-- begin ORD-006 -->
 ## ORD-006 — Order total equals the sum of its lines
 
-- Filed: 2026-10-04 18:32 UTC
-- Status: **blocked**: Totals trigger breaks 18 tests in tests/integration/sync/pull-catalog.test.ts (7) and pull-orders.test.ts (11), not under Tests to update; may I change their fixtures (order total + line in one tx)?
+- Filed: 2026-10-04 18:46 UTC
+- Status: **done**: Deferred totals/delivered-quantity triggers; 14 story tests, full suite 2234 pass
 - Risk: high · story: [ORD-006-order-total-equals-the-sum-of-its-lines.md](../modules/order/ORD-006-order-total-equals-the-sum-of-its-lines.md)
-- Agent: 59,806 tokens, 21 tool uses, 8 min 21 s
+- Agent: 39,376 tokens, 10 tool uses, 6 min 0 s
 
 ### Agent report
 
-**Summary:** Blocked: migration, schema comments and the 6 listed test files are done, but the new trigger breaks 18 unlisted sync tests.
+**Summary:** Deferred constraint triggers on orders and order_lines (totals and delivered quantities), schema comments, all listed fixtures updated, including the two sync files the amended story now lists.
 
 **Decisions:**
-- Migration was already in the working tree (deferred constraint triggers on orders and order_lines, function checks non-deleted lines); I kept it, its 14 tests pass.
-- Listed tests: fixtures changed so a line and its total move in one statement or transaction (CTE in order-line-table so commit-time SQLSTATE of the guest-author test stays 23514; prisma.$transaction batch in line-rules).
-- Schema comments above Order and OrderLine updated; the "(ORD-006) later story" line removed.
+- Migration, schema comments and the first 6 test files were already in the working tree from the earlier blocked run; I kept them and finished the sync fixtures.
+- pull-orders `seedOrder`: nested `lines: { create }`; new option `freeLine` (prices, amount and total 0) used only for the IN_DELIVERY order, as the story asks.
+- Price-author test: line update and order total update in one `prisma.$transaction`.
 
 **Tests added beyond the story:**
-- `tests/integration/order/total-check.test.ts` (already present, not by me) › removing a line, soft-deleted line, moving a line to another order, no-lines total mismatch: trigger edge cases (AC-2, C-19)
+- `tests/integration/order/total-check.test.ts` › no-lines total mismatch, removing a line, soft-deleted line ignored, moving a line to another order, DELIVERED accepted with quantities: trigger edge cases (AC-2, AC-3, C-19); written before this run, they pass.
 
-**Evidence:** story tests 14/14; full suite 2216/2234, failing: 7 in tests/integration/sync/pull-catalog.test.ts, 11 in tests/integration/sync/pull-orders.test.ts (23514 from the totals check); typecheck clean; lint 0 errors, 62 warnings
+**Evidence:** story tests 14/14; full suite 2234/2234, failing: none; typecheck clean; lint 0 errors, 62 warnings
 
 **Follow-ups:**
-- Question: those two sync files (created by SYNC-006, after this story was written) create orders with lines through prisma.order.create and prisma.orderLine.create without matching totals. They are not under "Tests to update". Allow changing only their fixture data, or amend the story's table?
+- Any later story that writes lines or totals must change both in one transaction (23514 otherwise); ORD-007 and order-creation code must respect it.
 <!-- end ORD-006 -->
 
 <!-- begin ORD-007 -->

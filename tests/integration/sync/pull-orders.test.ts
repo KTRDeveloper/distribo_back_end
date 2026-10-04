@@ -87,6 +87,8 @@ async function seedOrder(
     deliveredById?: string;
     cancelledAt?: Date;
     placedBy?: 'SUPPLIER' | 'CUSTOMER';
+    /** The line is worth 0, so soft-deleting it keeps the order total valid (C-19). */
+    freeLine?: boolean;
   }
 ) {
   const cancelled = data.status === 'CANCELLED';
@@ -96,7 +98,7 @@ async function seedOrder(
       customerRelationshipId: relationshipId,
       placedByParty: data.placedBy ?? (data.status === 'PENDING' ? 'CUSTOMER' : 'SUPPLIER'),
       enteredById: SELLER,
-      totalAmount: 10000n,
+      totalAmount: data.freeLine ? 0n : 10000n,
       status: data.status,
       deliveryAddressApplied: data.address ?? null,
       deliveredAt: data.deliveredAt ?? null,
@@ -109,18 +111,18 @@ async function seedOrder(
       supplierNote: 'note-fournisseur',
       syncIssue: 'issue-interne',
       createdAt: LONG_AGO,
-    },
-  });
-  await prisma.orderLine.create({
-    data: {
-      id: lineOf(id),
-      orderId: id,
-      productId: relationshipId === REL_B ? PRODUCT_B : PRODUCT_A,
-      labelApplied: 'Eau',
-      quantity: 2,
-      referencePrice: 5000n,
-      unitPriceApplied: 5000n,
-      amount: 10000n,
+      lines: {
+        create: {
+          id: lineOf(id),
+          productId: relationshipId === REL_B ? PRODUCT_B : PRODUCT_A,
+          labelApplied: 'Eau',
+          quantity: 2,
+          deliveredQuantity: data.status === 'DELIVERED' ? 2 : null,
+          referencePrice: data.freeLine ? 0n : 5000n,
+          unitPriceApplied: data.freeLine ? 0n : 5000n,
+          amount: data.freeLine ? 0n : 10000n,
+        },
+      },
     },
   });
 }
@@ -186,7 +188,11 @@ describe('GET /api/v1/sync/pull (orders, lines and deliveries)', () => {
     await seedOrder(ORDER.pending, REL_A, { status: 'PENDING' });
     await seedOrder(ORDER.confirmedAddress, REL_A, { status: 'CONFIRMED', address: 'Rue 1' });
     await seedOrder(ORDER.confirmedNoAddress, REL_A, { status: 'CONFIRMED' });
-    await seedOrder(ORDER.inDelivery, REL_A, { status: 'IN_DELIVERY', address: 'Rue 2' });
+    await seedOrder(ORDER.inDelivery, REL_A, {
+      status: 'IN_DELIVERY',
+      address: 'Rue 2',
+      freeLine: true,
+    });
     await seedOrder(ORDER.deliveredRecent, REL_A, {
       status: 'DELIVERED',
       deliveredAt: recent,
@@ -249,10 +255,21 @@ describe('GET /api/v1/sync/pull (orders, lines and deliveries)', () => {
   });
 
   it('owner and manager: the price author on lines, the seller never (AC-1, v5.0.0-8.2.3)', async () => {
-    await prisma.orderLine.update({
-      where: { id: lineOf(ORDER.confirmedAddress) },
-      data: { unitPriceApplied: 4000n, amount: 8000n, priceSetById: OWNER, priceSetAt: new Date() },
-    });
+    await prisma.$transaction([
+      prisma.orderLine.update({
+        where: { id: lineOf(ORDER.confirmedAddress) },
+        data: {
+          unitPriceApplied: 4000n,
+          amount: 8000n,
+          priceSetById: OWNER,
+          priceSetAt: new Date(),
+        },
+      }),
+      prisma.order.update({
+        where: { id: ORDER.confirmedAddress },
+        data: { totalAmount: 8000n },
+      }),
+    ]);
     for (const person of [OWNER, MANAGER]) {
       const lines = bodyOf<PullBody>(await pull(person)).changes['order_lines'].created;
       expect(lines.find((l) => l['id'] === lineOf(ORDER.confirmedAddress))).toMatchObject({

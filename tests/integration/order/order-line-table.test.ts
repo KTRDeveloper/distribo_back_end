@@ -62,7 +62,12 @@ type Line = {
   authoredAt?: Date | null;
 };
 
-/** Inserts an order line; defaults make a valid 2.5 x 3000 line with no price gap. */
+/**
+ * Inserts an order line and raises its order's total by the same amount in one
+ * statement (ORD-006), so line and total agree at commit and a commit-time
+ * refusal keeps its own SQLSTATE; defaults make a valid 2.5 x 3000 line with no
+ * price gap.
+ */
 function insertLine(row: Line = {}): Promise<number> {
   const quantity = row.quantity ?? '2.5';
   const delivered = 'delivered' in row ? row.delivered : null;
@@ -70,17 +75,22 @@ function insertLine(row: Line = {}): Promise<number> {
   const applied = row.applied ?? reference;
   const amount = row.amount ?? 7500n;
   const label = 'label' in row ? row.label : 'Fixture Rice';
+  const orderId = row.orderId ?? ORDER_ID;
   return prisma.$executeRaw`
-    INSERT INTO order_lines (
-      id, order_id, product_id, label_applied, quantity, delivered_quantity,
-      reference_price, unit_price_applied, amount, price_set_by_id, price_set_at
+    WITH inserted AS (
+      INSERT INTO order_lines (
+        id, order_id, product_id, label_applied, quantity, delivered_quantity,
+        reference_price, unit_price_applied, amount, price_set_by_id, price_set_at
+      )
+      VALUES (
+        ${row.id ?? LINE_ID}::uuid, ${orderId}::uuid,
+        ${row.productId ?? PRODUCT_ID}::uuid, ${label}::text, ${quantity}::numeric,
+        ${delivered}::numeric, ${reference}::bigint, ${applied}::bigint, ${amount}::bigint,
+        ${row.authorId ?? null}::uuid, ${row.authoredAt ?? null}::timestamptz
+      )
+      RETURNING id
     )
-    VALUES (
-      ${row.id ?? LINE_ID}::uuid, ${row.orderId ?? ORDER_ID}::uuid,
-      ${row.productId ?? PRODUCT_ID}::uuid, ${label}::text, ${quantity}::numeric,
-      ${delivered}::numeric, ${reference}::bigint, ${applied}::bigint, ${amount}::bigint,
-      ${row.authorId ?? null}::uuid, ${row.authoredAt ?? null}::timestamptz
-    )
+    UPDATE orders SET total_amount = total_amount + ${amount}::bigint WHERE id = ${orderId}::uuid
   `;
 }
 

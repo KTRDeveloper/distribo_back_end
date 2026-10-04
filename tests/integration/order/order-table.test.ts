@@ -174,7 +174,7 @@ describe('orders defaults and types (AC-1, C-01, C-35)', () => {
       `;
     const [before] = await read();
     await new Promise((resolve) => setTimeout(resolve, 20));
-    await prisma.$executeRaw`UPDATE orders SET total_amount = 5 WHERE id = ${ORDER_ID}::uuid`;
+    await prisma.$executeRaw`UPDATE orders SET total_amount = 5, delivery_cost = 5 WHERE id = ${ORDER_ID}::uuid`;
     const [after] = await read();
     expect(after.server_updated_at.getTime()).toBeGreaterThan(before.server_updated_at.getTime());
   });

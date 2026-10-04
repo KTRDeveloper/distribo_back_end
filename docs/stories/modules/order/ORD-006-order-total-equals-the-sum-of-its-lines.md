@@ -55,6 +55,8 @@ Scenario: AB-1 A total that hides a discount (tampering)
 
 ## Implementation
 - Create: `prisma/migrations/<timestamp>_ord_006_total_check/migration.sql`, `tests/integration/order/total-check.test.ts`
+- Update: the comment above `Order` and `OrderLine` in `prisma/schema.prisma` (CLAUDE.md rule), including the line that still says "other rules on creation (ORD-006)"
+- Update: the fixtures of the files under "Tests to update"; only their setup data changes, never what a test asserts
 - Pattern: `tests/integration/order/line-rules.test.ts`
 - Dependencies: `prisma`, `@prisma/client`
 
@@ -72,6 +74,22 @@ Scenario: AB-1 A total that hides a discount (tampering)
 | hidden discount | security | AB-1, CWE-345 | commit refused |
 
 Command: `npx vitest run tests/integration/order/total-check.test.ts`
+
+### Tests to update
+Each of these tests builds orders that break the new rule: an order with a total and no lines, or lines added to an order whose total stays 0, each committed on its own. Change only the setup data. Each test keeps its name and what it asserts, and a refusal it expects must still come from the rule it is about, not from the totals check.
+
+| existing test | reason | new expectation |
+|---|---|---|
+| tests/integration/finance/ledger-table.test.ts › every test (28) | `beforeEach` inserts an order with `total_amount` 10000 and no lines, which the totals check refuses with 23514 | the fixture order has `total_amount` 0 (no lines, `delivery_cost` 0); every test passes unchanged |
+| tests/integration/order/line-rules.test.ts › tests that insert or update a valid line (9: product rule "accepts an ACTIVE product of the supplier"; minimum quantity "CUSTOMER at the minimum", "SUPPLIER below", "accepts any quantity on a product without a minimum"; later changes "updates delivered_quantity after the product became INACTIVE or its minimum rose", "keeps the customer-order line updatable after the product was deleted"; customer order prices "accepts a supplier-order line with a price gap and its author", "refuses a raise above the reference and accepts a lowering", "refuses raising the reference price out from under a lowered price") | `insertOrder` sets `total_amount` 0, so inserting a line, or changing its `amount`, leaves the total wrong at commit (23514) | inserting or updating a line and moving the order's `total_amount` by the same amount happen in one transaction; accepted rows are still accepted, refused rows still refused with the same code |
+| tests/integration/order/order-line-table.test.ts › tests that insert or update a valid line (8: amount rule rows q=2.5, q=10 and q=0.001 accepted=true, "uses the expected column types, defaults and server_updated_at", "rejects an amount that no longer matches after an update"; price gap "accepts a gap with author and time", "accepts an equal price with no author"; customer-placed orders "accepts a line at the reference price and rejects any gap without an author") | same cause: `insertOrder` sets `total_amount` 0 and lines are inserted or updated on their own | same fix as line-rules: the line and the order total change in one transaction; same expectations |
+| tests/integration/order/order-table.test.ts › "moves server_updated_at forward on update" | it updates `total_amount` to 5 on an order without lines | the update sets `total_amount` and `delivery_cost` to 5 together; `server_updated_at` still moves forward |
+| tests/integration/order/status-rules.test.ts › "leaves a non-frozen order free to change other columns" | it sets `delivery_cost` 500 without changing `total_amount` | the same update also raises `total_amount` by 500; still 1 row |
+| tests/integration/relationship/contest.test.ts › "AC-3 keeps balance, orders and ledger entries on the same relationship" | it creates an order with `totalAmount` 5000 and no lines | the order also has `deliveryCost` 5000 (or a total of 0); same assertions |
+| tests/integration/sync/pull-catalog.test.ts › every test (7) | `seedOrderLine` creates an order with `totalAmount` 0, then a line of 37500 in a separate statement, so the order total is wrong at commit (23514) | `seedOrderLine` creates the order with `totalAmount` 37500 and its line in one write (a nested `lines: { create }` or one transaction); every test passes unchanged |
+| tests/integration/sync/pull-orders.test.ts › every test (11) | `seedOrder` creates an order with `totalAmount` 10000 and no line, then its line in a separate statement (23514 at the first commit), and its DELIVERED orders' lines have no `deliveredQuantity` | `seedOrder` creates the order and its line in one write; a DELIVERED order's line has `deliveredQuantity` 2 (amount still 10000); every test passes unchanged, `total_amount` 10000 included |
+| tests/integration/sync/pull-orders.test.ts › "owner and manager: the price author on lines, the seller never (AC-1, v5.0.0-8.2.3)" | it lowers the line amount to 8000 without changing the order total | the same transaction sets the order's `totalAmount` to 8000; same assertions |
+| tests/integration/sync/pull-orders.test.ts › "lines: a deleted line is listed by id on an incremental pull (C-35)" | soft-deleting the order's only line leaves a total of 10000 over no lines; updating the total in the same transaction would put the order in `orders.updated`, which the test asserts is empty | the line it deletes is worth 0 before the first pull: the IN_DELIVERY order is seeded with that line at reference and applied price 0, amount 0, and `totalAmount` 0 (prices may be 0); the soft delete then leaves the total valid without touching the order; same assertions, `orders.updated` still `[]` |
 
 ## Out of scope
 - Computing totals in code (ORD-007).
