@@ -886,3 +886,34 @@ Also in this run: admin, catalog, order, finance, delivery.
 **Follow-ups:**
 - The repoint, journal and bumps log `customer_number_corrected` at warn with ids only.
 <!-- end REL-024 -->
+
+<!-- begin REL-025 -->
+## REL-025 — Merge a duplicate customer record
+
+- Filed: 2026-10-04 15:16 UTC
+- Status: **done**: mergeDuplicateRelation and resolveMergedRelation added; 15 story tests, full suite green
+- Risk: high · story: [REL-025-merge-a-duplicate-customer-record.md](../modules/relationship/REL-025-merge-a-duplicate-customer-record.md)
+- Agent: 56,000 tokens, 16 tool uses, 7 min 53 s
+
+### Agent report
+
+**Summary:** Added mergeDuplicateRelation and resolveMergedRelation to the relationship repository; all tests green.
+
+**Decisions:**
+- Same person: same customer_person_id, or duplicate with no person whose typed number (normalizeE164) equals the kept row person's phone. Two live rows with the same person cannot exist (C-07), so the phone case is the real one.
+- Counter, organization customer, supplier person, absent, deleted or already-merged-elsewhere row, or deleted kept row: all CANNOT_MERGE (fail closed).
+- Repeat on a duplicate already merged into the same kept id returns silently (AC-4 idempotence).
+- Both rows locked in id order (FOR UPDATE) to avoid deadlock on opposite merges; story only required the duplicate.
+- resolveMergedRelation: unknown id returns itself; chain over 5 hops throws a plain Error (500), not CANNOT_MERGE (story silent).
+
+**Tests added beyond the story:**
+- `merge-duplicate.test.ts` › follows a chain of merges / gives up after 5 hops: hop limit (AC-2 "at most 5 hops"); passed at once after implementation
+- `merge-duplicate.test.ts` › refuses an absent row, a deleted duplicate not merged and a deleted kept row: fail closed (CONVENTIONS fail closed)
+- `merge-duplicate.test.ts` › refuses a duplicate whose number is another person number: AB-1 identity join via phone
+- `merge-duplicate.test.ts` › two concurrent merges: race (AC-4, CWE-362); passed at once
+
+**Evidence:** story tests 15/15; full suite 1830/1830, failing: none; typecheck clean; lint 0 errors, 58 warnings (pre-existing)
+
+**Follow-ups:**
+- normalizeE164 only accepts Cameroon mobiles, so a duplicate typed number in another country never matches and is refused.
+<!-- end REL-025 -->

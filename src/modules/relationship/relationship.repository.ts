@@ -1,7 +1,9 @@
 import { Prisma } from '@prisma/client';
 import type { CustomerRelationship, RelationshipStatus } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
+import { httpError } from '../../lib/http-error.js';
 import { newId } from '../../shared/ids.js';
+import { normalizeE164 } from '../../shared/phone.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import type { Role } from '../../shared/access/roles.js';
 import { visibleRelationsWhere } from './relationship.visibility.js';
@@ -1027,4 +1029,106 @@ export async function repointCustomerPerson(
     }
     throw error;
   }
+}
+
+/** Longest chain of merges `resolveMergedRelation` follows before it gives up. */
+const MAX_MERGE_HOPS = 5;
+
+/**
+ * Folds a customer record created twice offline into the first one: the duplicate gets
+ * `deleted_at`, `merged_into_id` = the kept id and an empty `customer_phone_number` (C-06, C-07,
+ * C-35). The kept row keeps all its settings; no ledger entry or order is rewritten.
+ *
+ * Both rows are locked, in id order so two opposite merges cannot deadlock, before anything is
+ * read or written (ASVS v5.0.0-2.3.4); the merge runs on the caller's transaction, so it commits
+ * or rolls back as a whole (v5.0.0-2.3.3). A repeat on a duplicate already merged into the same
+ * kept row changes nothing.
+ *
+ * The rows must be live, share one supplier organization and name the same person: the same
+ * customer person, or a duplicate with no person whose typed number normalizes to the kept row
+ * person's number. A counter, an organization customer, an absent or deleted row, the same row
+ * twice or two different people are refused: merging must never join two identities.
+ *
+ * @param tx - Transaction client of the caller.
+ * @param duplicateId - The record to fold away.
+ * @param keptId - The record that stays live.
+ * @throws 409 `CANNOT_MERGE` when the pair cannot be merged.
+ */
+export async function mergeDuplicateRelation(
+  tx: Prisma.TransactionClient,
+  duplicateId: string,
+  keptId: string
+): Promise<void> {
+  if (duplicateId === keptId) throw cannotMerge();
+
+  await tx.$queryRaw`
+    SELECT "id" FROM "customer_relationships"
+    WHERE "id" IN (${duplicateId}::uuid, ${keptId}::uuid)
+    ORDER BY "id" FOR UPDATE`;
+  const [duplicate, kept] = await Promise.all([
+    tx.customerRelationship.findUnique({ where: { id: duplicateId } }),
+    tx.customerRelationship.findUnique({
+      where: { id: keptId },
+      include: { customerPerson: { select: { phoneNumber: true } } },
+    }),
+  ]);
+  if (!duplicate || !kept) throw cannotMerge();
+  if (duplicate.mergedIntoId === keptId) return;
+  if (duplicate.deletedAt || duplicate.mergedIntoId) throw cannotMerge();
+  if (kept.deletedAt || kept.mergedIntoId) throw cannotMerge();
+  if (duplicate.supplierOrganizationId === null) throw cannotMerge();
+  if (duplicate.supplierOrganizationId !== kept.supplierOrganizationId) throw cannotMerge();
+
+  if (!sameCustomerPerson(duplicate, kept)) throw cannotMerge();
+
+  await tx.customerRelationship.update({
+    where: { id: duplicateId },
+    data: { deletedAt: new Date(), mergedIntoId: keptId, customerPhoneNumber: null },
+  });
+}
+
+/** Tells whether both rows name one customer person (never a counter or an organization). */
+function sameCustomerPerson(
+  duplicate: CustomerRelationship,
+  kept: CustomerRelationship & { customerPerson: { phoneNumber: string | null } | null }
+): boolean {
+  if (kept.customerPersonId === null) return false;
+  if (duplicate.customerPersonId !== null) {
+    return duplicate.customerPersonId === kept.customerPersonId;
+  }
+  if (duplicate.customerOrganizationId !== null || duplicate.customerPhoneNumber === null) {
+    return false;
+  }
+  const typed = normalizeE164(duplicate.customerPhoneNumber);
+  return typed !== null && typed === kept.customerPerson?.phoneNumber;
+}
+
+function cannotMerge() {
+  return httpError(409, 'CANNOT_MERGE', 'These relationships cannot be merged');
+}
+
+/**
+ * Follows `merged_into_id` from a relationship id to the live one, at most 5 hops. An id that is
+ * not merged, or that matches no row, returns itself.
+ *
+ * @param id - A relationship id, possibly of a merged duplicate.
+ * @param tx - Transaction client of the caller; the shared client when absent.
+ * @returns The id of the live relationship.
+ * @throws Error when the chain is longer than 5 hops: a loop or corrupt data must not spin.
+ */
+export async function resolveMergedRelation(
+  id: string,
+  tx?: Prisma.TransactionClient
+): Promise<string> {
+  const client = tx ?? prisma;
+  let current = id;
+  for (let hop = 0; hop <= MAX_MERGE_HOPS; hop += 1) {
+    const row = await client.customerRelationship.findUnique({
+      where: { id: current },
+      select: { mergedIntoId: true },
+    });
+    if (!row?.mergedIntoId) return current;
+    current = row.mergedIntoId;
+  }
+  throw new Error('Merge chain too long');
 }
