@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
+  acceptInvitationSchema,
   addCounterSchema,
   addCustomerSchema,
   creditLimitChangesQuerySchema,
@@ -10,7 +11,9 @@ import {
   editSupplierSchema,
   endReopenSchema,
   inviteSupplierSchema,
+  invitationParamsSchema,
   listCustomersQuerySchema,
+  listInvitationsQuerySchema,
   listSuppliersQuerySchema,
   setCreditLimitSchema,
 } from './relationship.schemas.js';
@@ -524,3 +527,97 @@ for (const [path, params, summary, forbidden] of [
     },
   });
 }
+
+const supplierInvitationViewSchema = z.object({
+  id: z.string().uuid(),
+  supplier_label: z.string().nullable(),
+  customer: z
+    .union([
+      z.object({ kind: z.literal('PERSON'), person: publicPersonSchema }),
+      z.object({ kind: z.literal('ORGANIZATION'), name: z.string() }),
+    ])
+    .nullable(),
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/supplier-invitations',
+  tags: ['relationship'],
+  summary: 'List the PENDING invitations addressed to the caller as supplier',
+  security: [{ bearerAuth: [] }],
+  request: { query: listInvitationsQuerySchema },
+  responses: {
+    200: {
+      description: 'A page of invitations and the next cursor, or null on the last page',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(supplierInvitationViewSchema),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid query or cursor', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/supplier-invitations/{invitationId}/accept',
+  tags: ['relationship'],
+  summary: 'Accept an invitation for an organization the caller manages (MANAGER and above)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: invitationParamsSchema,
+    body: { content: { 'application/json': { schema: acceptInvitationSchema } } },
+  },
+  responses: {
+    200: {
+      description:
+        'The relationship is ACTIVE for the organization, or merged: true when the organization already had a live relationship with that customer',
+      content: {
+        'application/json': {
+          schema: z.object({
+            merged: z.boolean(),
+            relationship: supplierRelationshipViewSchema.optional(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid body or invitation id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The caller only sells for the organization', content: errorContent },
+    404: {
+      description: 'Invitation addressed to someone else, or organization the caller is not in',
+      content: errorContent,
+    },
+    409: {
+      description: 'ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/supplier-invitations/{invitationId}/decline',
+  tags: ['relationship'],
+  summary: 'Decline an invitation: it is deleted and the customer is notified',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: invitationParamsSchema,
+    body: { content: { 'application/json': { schema: endReopenSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The invitation is deleted',
+      content: { 'application/json': { schema: z.object({ declined: z.literal(true) }) } },
+    },
+    400: { description: 'Invalid body or invitation id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    404: { description: 'Invitation addressed to someone else or absent', content: errorContent },
+    409: { description: 'Conflicting gesture id', content: errorContent },
+  },
+});

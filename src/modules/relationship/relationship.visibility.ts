@@ -142,6 +142,21 @@ export function projectForCustomer(row: RelationshipRow): CustomerRelationshipVi
   };
 }
 
+/** An invitation as the invited supplier sees it: the id, the label and the customer's public view. */
+export type SupplierInvitationView = {
+  id: string;
+  supplier_label: string | null;
+  customer: PartyView | null;
+};
+
+/**
+ * Invitation view for the invited person: an explicit field list (v5.0.0-8.2.3); the customer
+ * person goes through `toPublicPerson`, so nothing but the public view leaves.
+ */
+export function projectInvitation(row: RelationshipRow): SupplierInvitationView {
+  return { id: row.id, supplier_label: row.supplierLabel, customer: customerOf(row) };
+}
+
 /**
  * Driver view: the customer's name and the credit still available (limit minus
  * balance, null with no ceiling), never the limit or the balance themselves. The

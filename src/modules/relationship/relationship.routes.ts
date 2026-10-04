@@ -5,6 +5,7 @@ import { loadActor } from '../../middleware/load-actor.js';
 import type { Actor } from '../../types/express.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import {
+  acceptInvitationSchema,
   addCounterSchema,
   addCustomerSchema,
   creditLimitChangesQuerySchema,
@@ -13,22 +14,27 @@ import {
   editSupplierSchema,
   endReopenSchema,
   inviteSupplierSchema,
+  invitationParamsSchema,
   listCustomersQuerySchema,
+  listInvitationsQuerySchema,
   listSuppliersQuerySchema,
   setCreditLimitSchema,
 } from './relationship.schemas.js';
 import {
+  acceptSupplierInvitation,
   addCounter,
   addCustomer,
   customerEditSupplier,
   customerEndRelationship,
   customerReopenRelationship,
+  declineSupplierInvitation,
   editCustomer,
   endRelationship,
   getCustomer,
   inviteSupplier,
   listCreditLimitChanges,
   listCustomers,
+  listSupplierInvitations,
   listSuppliersOfOrganization,
   listSuppliersOfPerson,
   orgEditSupplier,
@@ -352,3 +358,68 @@ customerGestureRoute('/:relationshipId/end', customerEndRelationship);
 // POST /api/v1/suppliers/:relationshipId/reopen - the customer comes back; 409 when the supplier
 // ended the relationship
 customerGestureRoute('/:relationshipId/reopen', customerReopenRelationship);
+
+/** Invitation routes of the signed-in person as invited supplier, mounted at `/supplier-invitations`. */
+export const supplierInvitationRoutes = Router();
+
+// GET /api/v1/supplier-invitations - the PENDING invitations addressed to the caller; the person
+// comes from the session, never from the request
+supplierInvitationRoutes.get('/', authMiddleware, (req, res, next) => {
+  Promise.resolve()
+    .then(() => listSupplierInvitations(req.user!.id, listInvitationsQuerySchema.parse(req.query)))
+    .then((page) => res.json(page))
+    .catch(next);
+});
+
+// POST /api/v1/supplier-invitations/:invitationId/accept - the caller accepts for an organization
+// they manage; 200 with the relationship, or `{ merged: true }` when one already existed
+supplierInvitationRoutes.post(
+  '/:invitationId/accept',
+  authMiddleware,
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = acceptInvitationSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        acceptSupplierInvitation(
+          req.user!.id,
+          invitationParamsSchema.parse(req.params).invitationId,
+          acceptInvitationSchema.parse(req.body).organization_id
+        )
+      )
+      .then((result) => res.json(result))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/supplier-invitations/:invitationId/decline - the caller refuses; the row is
+// deleted and the customer notified
+supplierInvitationRoutes.post(
+  '/:invitationId/decline',
+  authMiddleware,
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = endReopenSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        declineSupplierInvitation(
+          req.user!.id,
+          invitationParamsSchema.parse(req.params).invitationId
+        )
+      )
+      .then(() => res.json({ declined: true }))
+      .catch(next);
+  }
+);

@@ -135,3 +135,25 @@ export const inviteSupplierSchema = z
   .strict();
 
 export type InviteSupplierInput = z.infer<typeof inviteSupplierSchema>;
+
+/** Strict query of the invitation list: `limit` and `cursor` only; any other field is a 400. */
+export const listInvitationsQuerySchema = paginationQuerySchema.strict();
+
+export type ListInvitationsQuery = z.infer<typeof listInvitationsQuerySchema>;
+
+/**
+ * Path of one supplier invitation: the id must be a UUIDv7, else 400. The caller's own scope is
+ * checked by the service, never taken from the path (ASVS v5.0.0-8.2.2).
+ */
+export const invitationParamsSchema = z.object({ invitationId: uuidV7Schema });
+
+/**
+ * Strict body of the accept gesture: the gesture id and the organization the caller answers for
+ * (ASVS v5.0.0-15.3.3). Status, supplier columns and every other field are rejected as unknown
+ * keys (CWE-915); the caller's right on the organization is checked by the service.
+ */
+export const acceptInvitationSchema = z
+  .object({ id: uuidV7Schema, organization_id: uuidV7Schema })
+  .strict();
+
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;

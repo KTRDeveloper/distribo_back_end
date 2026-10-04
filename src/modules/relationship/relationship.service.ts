@@ -20,14 +20,19 @@ import type {
   EditCustomerInput,
   EditSupplierInput,
   InviteSupplierInput,
+  ListInvitationsQuery,
   ListCustomersQuery,
   ListSuppliersQuery,
   SetCreditLimitInput,
 } from './relationship.schemas.js';
 import {
+  acceptInvitationRow,
   counterLabelExists,
   createCounter,
+  deleteInvitationRow,
   ensureCustomerRelationship,
+  findActiveRole,
+  findInvitationLocked,
   findPersonName,
   findCustomerRelationshipLocked,
   findOrganizationSupplierLocked,
@@ -36,10 +41,12 @@ import {
   findWithParties,
   findWithSupplier,
   insertInvitation,
+  listInvitationRows,
   listCreditLimitChangeRows,
   listCustomerRelationships,
   listOrganizationSuppliers,
   listSupplierRelationships,
+  liveRelationshipExists,
   lockOrganization,
   managesOrganization,
   transitionRelationship,
@@ -51,7 +58,9 @@ import {
 import {
   projectForCustomer,
   projectForSupplier,
+  projectInvitation,
   type CustomerRelationshipView,
+  type SupplierInvitationView,
   type SupplierRelationshipView,
 } from './relationship.visibility.js';
 
@@ -896,5 +905,166 @@ export async function inviteSupplier(
       throw httpError(409, 'RELATIONSHIP_EXISTS', 'A relationship with this supplier exists');
     }
     return projectForCustomer(await findWithSupplier(tx, id));
+  });
+}
+
+/**
+ * A person lists the PENDING invitations addressed to them as supplier: newest first, each with
+ * the label and the customer's public view only (v5.0.0-8.2.3). The person comes from the session.
+ *
+ * @param personId - Caller's person id from the session.
+ * @param query - Validated page size and cursor.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listSupplierInvitations(
+  personId: string,
+  query: ListInvitationsQuery
+): Promise<{ items: SupplierInvitationView[]; next_cursor: string | null }> {
+  const { rows, nextCursor } = await listInvitationRows(personId, query);
+  return { items: rows.map(projectInvitation), next_cursor: nextCursor };
+}
+
+const ANSWER_CONTENT = {
+  'supplier.accepted': {
+    FR: (name: string) => `${name} a accepte votre invitation.`,
+    EN: (name: string) => `${name} accepted your invitation.`,
+  },
+  'supplier.declined': {
+    FR: (name: string) => `${name} a refuse votre invitation.`,
+    EN: (name: string) => `${name} declined your invitation.`,
+  },
+} as const;
+
+/**
+ * Tells the customer of an invitation how it was answered, in the recipient's language: the
+ * customer person, or the active owner of the customer organization. Nobody is notified when no
+ * registered recipient exists (a notification never goes to a guest).
+ */
+async function notifyInvitationAnswer(
+  tx: Prisma.TransactionClient,
+  invitation: {
+    id: string;
+    customerPersonId: string | null;
+    customerOrganizationId: string | null;
+    customerPerson?: { registeredAt: Date | null } | null;
+  },
+  event: keyof typeof ANSWER_CONTENT,
+  supplierName: string
+): Promise<void> {
+  let recipientId: string | null = null;
+  if (invitation.customerPersonId !== null) {
+    if (invitation.customerPerson?.registeredAt) recipientId = invitation.customerPersonId;
+  } else if (invitation.customerOrganizationId !== null) {
+    recipientId = await findActiveOwnerId(tx, invitation.customerOrganizationId);
+  }
+  if (recipientId === null) return;
+
+  const language = await recipientLanguage(recipientId, tx);
+  const texts =
+    event === 'supplier.accepted'
+      ? ANSWER_CONTENT['supplier.accepted']
+      : ANSWER_CONTENT['supplier.declined'];
+  const text = language === 'EN' ? texts.EN : texts.FR;
+  await notify(
+    {
+      recipientId,
+      organizationId: invitation.customerOrganizationId ?? undefined,
+      sourceEvent: event,
+      content: text(supplierName),
+      related: { type: 'customer_relationship', id: invitation.id },
+    },
+    tx
+  );
+}
+
+/**
+ * The invited person accepts an invitation for an organization they manage: the supplier person
+ * is replaced by the organization and the status becomes ACTIVE (CM-25, C-08), in one transaction
+ * (ASVS v5.0.0-2.3.3). When the organization already has a live relationship with that customer
+ * the invitation is deleted instead and `merged` is true (C-07).
+ *
+ * The invitation is selected by id and supplier person = caller first (404 otherwise,
+ * v5.0.0-8.2.2), then the caller's active role in the organization: not a member is 404, below
+ * MANAGER is 403 (v5.0.0-8.2.1), then the organization must be ACTIVE. The organization is locked
+ * so two accepts for it run one after the other; the swap is one conditional update. The customer
+ * is notified `supplier.accepted` after a real acceptance, not after a merge.
+ *
+ * @param personId - Caller's person id from the session.
+ * @param invitationId - Validated invitation id from the path.
+ * @param organizationId - Validated organization id from the body.
+ * @returns `merged: true`, or `merged: false` with the supplier view of the new relationship.
+ * @throws 404 `NOT_FOUND`; 403 `FORBIDDEN`; 409 `ORGANIZATION_NOT_ACTIVE`.
+ */
+export function acceptSupplierInvitation(
+  personId: string,
+  invitationId: string,
+  organizationId: string
+): Promise<{ merged: boolean; relationship?: SupplierRelationshipView }> {
+  return runInTransaction(async (tx) => {
+    const invitation = await findInvitationLocked(tx, personId, invitationId);
+    if (!invitation) throw httpError(404, 'NOT_FOUND', 'Invitation not found');
+
+    const role = await findActiveRole(tx, personId, organizationId);
+    if (role === null) throw httpError(404, 'NOT_FOUND', 'Organization not found');
+    if (!atLeast(role, 'MANAGER')) {
+      logger.warn(
+        {
+          event: 'permission_refused',
+          personId,
+          action: 'accept_supplier_invitation',
+          subjectType: 'CustomerRelationship',
+        },
+        'Permission refused'
+      );
+      throw httpError(403, 'FORBIDDEN', 'Permission denied');
+    }
+    await assertOrganizationActive(organizationId, tx);
+    await lockOrganization(tx, organizationId);
+
+    const exists = await liveRelationshipExists(tx, {
+      supplierOrganizationId: organizationId,
+      customerPersonId: invitation.customerPersonId,
+      customerOrganizationId: invitation.customerOrganizationId,
+    });
+    if (exists) {
+      if (!(await deleteInvitationRow(tx, { id: invitation.id, personId }))) {
+        throw httpError(404, 'NOT_FOUND', 'Invitation not found');
+      }
+      return { merged: true };
+    }
+
+    if (!(await acceptInvitationRow(tx, { id: invitation.id, personId, organizationId }))) {
+      throw httpError(404, 'NOT_FOUND', 'Invitation not found');
+    }
+    const row = await findWithParties(tx, invitation.id);
+    await notifyInvitationAnswer(
+      tx,
+      invitation,
+      'supplier.accepted',
+      row.supplierOrganization?.name ?? ''
+    );
+    return { merged: false, relationship: projectForSupplier(row) };
+  });
+}
+
+/**
+ * The invited person declines an invitation: the row is deleted (`deleted_at`) and the customer
+ * is notified `supplier.declined` (CM-25). Selected by id and supplier person = caller, so another
+ * person's invitation answers 404 and is never touched (v5.0.0-8.2.2); one transaction with a
+ * row lock and a conditional update (v5.0.0-2.3.3).
+ *
+ * @param personId - Caller's person id from the session.
+ * @param invitationId - Validated invitation id from the path.
+ * @throws 404 `NOT_FOUND`.
+ */
+export function declineSupplierInvitation(personId: string, invitationId: string): Promise<void> {
+  return runInTransaction(async (tx) => {
+    const invitation = await findInvitationLocked(tx, personId, invitationId);
+    if (!invitation) throw httpError(404, 'NOT_FOUND', 'Invitation not found');
+    if (!(await deleteInvitationRow(tx, { id: invitation.id, personId }))) {
+      throw httpError(404, 'NOT_FOUND', 'Invitation not found');
+    }
+    const name = (await findPersonName(tx, personId)) ?? '';
+    await notifyInvitationAnswer(tx, invitation, 'supplier.declined', name);
   });
 }

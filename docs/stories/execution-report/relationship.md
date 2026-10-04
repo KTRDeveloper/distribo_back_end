@@ -757,3 +757,36 @@ Also in this run: admin, catalog, order, finance, delivery.
 - A person inviting their own number (supplier person = customer person) is not refused: the story and DB rules are silent; ask whether to add a 400/409.
 - A member of the organization inviting a number of their own team is likewise not covered.
 <!-- end REL-020 -->
+
+<!-- begin REL-021 -->
+## REL-021 — Invited supplier accepts or declines
+
+- Filed: 2026-10-04 14:54 UTC
+- Status: **done**: list, accept, merge, decline; 27 tests, full suite 1776 green
+- Risk: high · story: [REL-021-invited-supplier-accepts-or-declines.md](../modules/relationship/REL-021-invited-supplier-accepts-or-declines.md)
+- Agent: 92,903 tokens, 29 tool uses, 5 min 42 s
+
+### Agent report
+
+**Summary:** Added list, accept (with merge) and decline of supplier invitations under /api/v1/supplier-invitations; all green.
+
+**Decisions:**
+- Bodies carry the gesture `id` (accept: `{ id, organization_id }`, decline: `{ id }`): the story lists only `organization_id`, but CONVENTIONS requires a UUIDv7 `id` on online gestures and `idempotent()` needs it.
+- Decline answers 200 `{ declined: true }` (not 204): the idempotency replay needs a JSON body. Accept answers 200 `{ merged:false, relationship }` (supplier view) or `{ merged:true }`.
+- New router `supplierInvitationRoutes` mounted at `/supplier-invitations` in `src/app.ts` (not in the story's file list; the path prefix required it).
+- Check order on accept: invitation (404) then membership (404) then role below MANAGER (403) then organization ACTIVE (409). Role check uses `atLeast(role,'MANAGER')`: no ACC rule exists for this action.
+- No notification on a merge (the customer already has the relationship); `supplier.accepted` only after a real acceptance. Recipient: the customer person, or the active owner of the customer organization.
+
+**Tests added beyond the story:**
+- `supplier-invitations.test.ts` › repeated gesture id (accept and decline): first response replayed, one notification (idempotency convention); passed at once
+- same file › second accept / second decline / decline after accept answer 404 (v5.0.0-8.2.2, AC-5 scope); SUSPENDED organization 409; deleted relationship does not merge (C-07); OWNER may accept; organization customer notifies its owner; unknown body fields 400; 401 without token
+
+**Other additions:**
+- `projectInvitation` in `relationship.visibility.ts` (explicit field list for the list view); catalog.test.ts paths for the three routes (required by project rules).
+
+**Evidence:** story tests 27/27; full suite 1776/1776, failing: none; typecheck clean; lint 0 errors, 59 warnings (all pre-existing)
+
+**Follow-ups:**
+- If the invitation's customer organization is the same organization chosen on accept, the DB check (distinct organizations) aborts the transaction as a 500; no rule in the story gives a coded 409. Needs a decision.
+- A concurrent insert of the same pair by another gesture (addCustomer) could still hit the unique index and 500 (fails closed).
+<!-- end REL-021 -->

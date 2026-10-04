@@ -2,6 +2,7 @@ import type { CustomerRelationship, Prisma, RelationshipStatus } from '@prisma/c
 import { prisma } from '../../lib/db.js';
 import { newId } from '../../shared/ids.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import type { Role } from '../../shared/access/roles.js';
 import { visibleRelationsWhere } from './relationship.visibility.js';
 
 /**
@@ -704,4 +705,171 @@ export async function insertInvitation(
     ON CONFLICT DO NOTHING
   `;
   return inserted === 1 ? id : null;
+}
+
+/** Where clause of one PENDING invitation addressed to the person as supplier person. */
+function invitationScope(personId: string, id?: string): Prisma.CustomerRelationshipWhereInput {
+  return {
+    AND: [
+      visibleRelationsWhere({ personId, organizationIds: [] }),
+      { supplierPersonId: personId, status: 'PENDING' },
+      ...(id === undefined ? [] : [{ id }]),
+    ],
+  };
+}
+
+/**
+ * Lists the PENDING invitations addressed to the person as supplier person, newest first
+ * (created_at descending then id), keyset-paged. Selected through the visibility predicate and the
+ * supplier person (v5.0.0-8.2.2): another person's invitation, a deleted or a merged one never
+ * matches.
+ *
+ * @param personId - Caller's person id from the session, never from the client.
+ * @param query - Page size and opaque cursor.
+ * @returns Rows (at most limit) with the customer parties loaded, and the next cursor or null.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listInvitationRows(
+  personId: string,
+  query: { limit: number; cursor?: string }
+) {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const and: Prisma.CustomerRelationshipWhereInput[] = [invitationScope(personId)];
+  if (cursor) {
+    and.push({
+      OR: [
+        { createdAt: { lt: cursor.createdAt } },
+        { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+      ],
+    });
+  }
+
+  const found = await prisma.customerRelationship.findMany({
+    where: { AND: and },
+    include: { customerPerson: true, customerOrganization: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.createdAt, id: last.id })
+        : null,
+  };
+}
+
+/**
+ * Reads one PENDING invitation addressed to the person and holds a row lock on it until the
+ * transaction ends, so a concurrent accept or decline waits and then finds nothing. Selected by id,
+ * visibility, status and supplier person together (v5.0.0-8.2.2): another person's invitation, an
+ * answered, a deleted or a merged one answers null and is never locked.
+ *
+ * @param tx - Transaction client of the caller.
+ * @param personId - Caller's person id from the session, never from the client.
+ * @param id - Invitation id from the path.
+ * @returns The locked row with the customer parties loaded, or null.
+ */
+export async function findInvitationLocked(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  id: string
+) {
+  const where = invitationScope(personId, id);
+  const found = await tx.customerRelationship.findFirst({ where, select: { id: true } });
+  if (!found) return null;
+  await tx.$queryRaw`SELECT "id" FROM "customer_relationships" WHERE "id" = ${found.id}::uuid FOR UPDATE`;
+  return tx.customerRelationship.findFirst({
+    where,
+    include: { customerPerson: true, customerOrganization: true },
+  });
+}
+
+/** Reads the role of the person in the organization, or null when not an ACTIVE member. */
+export async function findActiveRole(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  organizationId: string
+): Promise<Role | null> {
+  const found = await tx.collaboration.findFirst({
+    where: { personId, organizationId, status: 'ACTIVE', deletedAt: null },
+    select: { role: true },
+  });
+  return found?.role ?? null;
+}
+
+/** Tells whether the organization has a live relationship as supplier with this customer. */
+export async function liveRelationshipExists(
+  tx: Prisma.TransactionClient,
+  input: {
+    supplierOrganizationId: string;
+    customerPersonId: string | null;
+    customerOrganizationId: string | null;
+  }
+): Promise<boolean> {
+  const found = await tx.customerRelationship.findFirst({
+    where: {
+      supplierOrganizationId: input.supplierOrganizationId,
+      customerPersonId: input.customerPersonId,
+      customerOrganizationId: input.customerOrganizationId,
+      deletedAt: null,
+      mergedIntoId: null,
+    },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
+/**
+ * Swaps the supplier of a locked invitation: the supplier person becomes empty, the organization
+ * becomes the supplier and the status ACTIVE, all in one conditional update (ASVS v5.0.0-2.3.3), so
+ * the row changes only if it is still PENDING for that person (CM-25, C-08).
+ *
+ * @returns True when one row was updated, false when the invitation was no longer pending.
+ */
+export async function acceptInvitationRow(
+  tx: Prisma.TransactionClient,
+  input: { id: string; personId: string; organizationId: string }
+): Promise<boolean> {
+  const { count } = await tx.customerRelationship.updateMany({
+    where: {
+      id: input.id,
+      supplierPersonId: input.personId,
+      status: 'PENDING',
+      deletedAt: null,
+      mergedIntoId: null,
+    },
+    data: {
+      supplierPersonId: null,
+      supplierOrganizationId: input.organizationId,
+      status: 'ACTIVE',
+    },
+  });
+  return count === 1;
+}
+
+/**
+ * Deletes a locked invitation (`deleted_at`) in one conditional update: refused, declined or merged
+ * into an existing relationship (CM-25). The row stays PENDING with its supplier person, so C-08
+ * holds. Only the invitation addressed to the person is touched.
+ *
+ * @returns True when one row was updated, false when the invitation was no longer pending.
+ */
+export async function deleteInvitationRow(
+  tx: Prisma.TransactionClient,
+  input: { id: string; personId: string }
+): Promise<boolean> {
+  const { count } = await tx.customerRelationship.updateMany({
+    where: {
+      id: input.id,
+      supplierPersonId: input.personId,
+      status: 'PENDING',
+      deletedAt: null,
+      mergedIntoId: null,
+    },
+    data: { deletedAt: new Date() },
+  });
+  return count === 1;
 }

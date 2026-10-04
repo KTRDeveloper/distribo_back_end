@@ -114,7 +114,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-018 | done | | GET/PATCH /organizations/{id}/suppliers, MANAGER+, customer projection; 23 tests, full suite 1706 green |
 | REL-019 | done | | org end/reopen supplier routes; 19 tests, suite 1725 green |
 | REL-020 | done | | invitations by person and organization, 24 tests, full suite green |
-| REL-021 | todo | | |
+| REL-021 | done | | list, accept, merge, decline; 27 tests, full suite 1776 green |
 | REL-022 | todo | | |
 | REL-023 | todo | | |
 | REL-024 | todo | | |
