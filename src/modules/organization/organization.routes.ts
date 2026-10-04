@@ -13,6 +13,7 @@ import {
   listOrganizationsQuerySchema,
   setPublicContactSchema,
   startSubscriptionSchema,
+  transferOwnershipSchema,
 } from './organization.schemas.js';
 import {
   acceptInvitation,
@@ -28,6 +29,7 @@ import {
   revokeCollaborator,
   setPublicContact,
   startSubscription,
+  transferOwnership,
 } from './organization.service.js';
 import './organization.openapi.js';
 
@@ -172,6 +174,29 @@ organizationRoutes.delete(
   (req, res, next) => {
     endSubscription(req.actor!)
       .then(() => res.status(204).end())
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/transfer-ownership - the owner hands the business to
+// another ACTIVE collaborator; needs the network (`transfer_ownership`)
+organizationRoutes.post(
+  '/:organizationId/transfer-ownership',
+  loadActor,
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = transferOwnershipSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  // Replay comes before the ability check: after a first success the caller is no longer OWNER,
+  // and a repeat must return the first answer, not 403 (AC-5).
+  idempotent(),
+  requireAbility('transfer_ownership', 'Organization'),
+  (req, res, next) => {
+    transferOwnership(req.actor!, transferOwnershipSchema.parse(req.body))
+      .then((view) => res.status(200).json(view))
       .catch(next);
   }
 );

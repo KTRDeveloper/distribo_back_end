@@ -487,6 +487,49 @@ export async function revokeCollaboration(
 }
 
 /**
+ * Turns the person's own ACTIVE OWNER collaboration into MANAGER. Run first in a transfer: the
+ * partial unique index allows one ACTIVE OWNER at every statement, while the deferred check needs
+ * exactly one only at commit. The flag `is_public_contact` is not written (ORG-015).
+ *
+ * @returns True when the row was still the ACTIVE OWNER and was demoted.
+ */
+export async function demoteOwner(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  organizationId: string
+): Promise<boolean> {
+  const result = await tx.collaboration.updateMany({
+    where: { personId, organizationId, role: 'OWNER', status: 'ACTIVE', deletedAt: null },
+    data: { role: 'MANAGER' },
+  });
+  return result.count > 0;
+}
+
+/**
+ * Turns an ACTIVE non-OWNER collaboration of the organization into OWNER. The filter repeats the
+ * service checks, so a concurrent revocation is never overwritten. Nothing else is written.
+ *
+ * @returns True when the row was promoted.
+ */
+export async function promoteToOwner(
+  tx: Prisma.TransactionClient,
+  collaborationId: string,
+  organizationId: string
+): Promise<boolean> {
+  const result = await tx.collaboration.updateMany({
+    where: {
+      id: collaborationId,
+      organizationId,
+      status: 'ACTIVE',
+      role: { not: 'OWNER' },
+      deletedAt: null,
+    },
+    data: { role: 'OWNER' },
+  });
+  return result.count > 0;
+}
+
+/**
  * Writes the public-contact flag of the person's own ACTIVE collaboration. The row is selected by
  * person id and organization id (ASVS v5.0.0-8.2.2); nothing else is written (ASVS v5.0.0-15.3.3).
  * Turning the flag on also requires a current phone number, the same rule the database enforces

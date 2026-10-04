@@ -12,6 +12,7 @@ import {
   organizationScopeParamsSchema,
   setPublicContactSchema,
   startSubscriptionSchema,
+  transferOwnershipSchema,
 } from './organization.schemas.js';
 
 const roleSchema = z.enum(['OWNER', 'MANAGER', 'SELLER', 'DRIVER']);
@@ -283,6 +284,37 @@ openApiRegistry.registerPath({
       description: 'No ACTIVE subscription, not found or not a member',
       content: errorContent,
     },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/transfer-ownership',
+  tags: ['organization'],
+  summary: 'The owner hands the business to another ACTIVE collaborator',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationIdParamsSchema,
+    body: { content: { 'application/json': { schema: transferOwnershipSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The collaboration that is now OWNER',
+      content: {
+        'application/json': { schema: z.object({ new_owner_collaboration_id: z.string().uuid() }) },
+      },
+    },
+    400: {
+      description: 'Malformed id, invalid body or the target is the caller',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: {
+      description: 'Target unknown, in another business, INVITED or REVOKED; or not a member',
+      content: errorContent,
+    },
+    409: { description: 'Gesture id still in progress', content: errorContent },
   },
 });
 

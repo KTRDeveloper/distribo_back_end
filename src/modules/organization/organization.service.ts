@@ -11,6 +11,7 @@ import {
 } from '../person/person.repository.js';
 import {
   activateInvitation,
+  demoteOwner,
   endActiveSubscription,
   expireLapsedSubscriptions,
   findActiveSubscription,
@@ -23,6 +24,7 @@ import {
   insertSubscription,
   listActiveOrganizations,
   listInvitations,
+  promoteToOwner,
   reinviteRevoked,
   revokeCollaboration,
   revokeInvitation,
@@ -39,6 +41,8 @@ import type {
   OrganizationView,
   StartSubscriptionInput,
   SubscriptionView,
+  TransferOwnershipInput,
+  TransferOwnershipView,
 } from './organization.schemas.js';
 
 /**
@@ -373,6 +377,84 @@ export async function revokeCollaborator(actor: Actor, collaborationId: string):
       );
     }
   });
+}
+
+const OWNERSHIP_RECEIVED_CONTENT = {
+  FR: (organizationName: string) => `Vous etes maintenant proprietaire de ${organizationName}.`,
+  EN: (organizationName: string) => `You are now the owner of ${organizationName}.`,
+};
+
+/**
+ * The owner hands the business to another ACTIVE collaborator: the target becomes OWNER and the
+ * caller MANAGER, both scope versions are bumped (CM-03) and the new owner is notified, all in
+ * one transaction so the organization keeps exactly one ACTIVE OWNER (C-05, CM-09; ASVS
+ * v5.0.0-2.3.3). The caller is demoted first because the unique index allows one ACTIVE OWNER at
+ * every statement; the deferred check only needs one at commit. `is_public_contact` and
+ * `amount_held` are untouched (FIN-017 hands the money over). The target is looked up inside the
+ * actor's organization, so another business's row looks absent (ASVS v5.0.0-8.2.1).
+ *
+ * @param actor - Owner loaded from the path and checked for `transfer_ownership Organization`.
+ * @param input - Validated body: gesture id and target collaboration.
+ * @returns The target collaboration id.
+ * @throws 400 `VALIDATION_ERROR` when the target is the caller; 404 `NOT_FOUND` for an unknown,
+ * foreign, INVITED or REVOKED target; 403 `FORBIDDEN` when the caller stopped being OWNER meanwhile.
+ */
+export async function transferOwnership(
+  actor: Actor,
+  input: TransferOwnershipInput
+): Promise<TransferOwnershipView> {
+  const target = await runInTransaction(async (tx) => {
+    const own = await findCollaboration(tx, actor.personId, actor.organizationId);
+    if (own?.status !== 'ACTIVE' || own.role !== 'OWNER') {
+      throw httpError(403, 'FORBIDDEN', 'Permission denied');
+    }
+
+    const row = await findCollaborationWithPerson(tx, input.collaboration_id, actor.organizationId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Not found');
+    if (row.id === own.id) {
+      throw httpError(400, 'VALIDATION_ERROR', 'The new owner must be another collaborator');
+    }
+    if (row.status !== 'ACTIVE') throw httpError(404, 'NOT_FOUND', 'Not found');
+
+    if (!(await demoteOwner(tx, actor.personId, actor.organizationId))) {
+      throw httpError(403, 'FORBIDDEN', 'Permission denied');
+    }
+    if (!(await promoteToOwner(tx, row.id, actor.organizationId))) {
+      throw httpError(404, 'NOT_FOUND', 'Not found');
+    }
+
+    await bumpScopeVersion(actor.personId, tx);
+    await bumpScopeVersion(row.personId, tx);
+
+    const org = await findOrganization(actor.organizationId);
+    if (!org) throw httpError(404, 'NOT_FOUND', 'Not found');
+    const language = await recipientLanguage(row.personId, tx);
+    await notify(
+      {
+        recipientId: row.personId,
+        organizationId: actor.organizationId,
+        sourceEvent: 'ownership.received',
+        content:
+          language === 'EN'
+            ? OWNERSHIP_RECEIVED_CONTENT.EN(org.name)
+            : OWNERSHIP_RECEIVED_CONTENT.FR(org.name),
+        related: { type: 'collaboration', id: row.id },
+      },
+      tx
+    );
+    return row;
+  });
+
+  logger.warn(
+    {
+      event: 'ownership_transferred',
+      organizationId: actor.organizationId,
+      formerOwnerId: actor.personId,
+      newOwnerId: target.personId,
+    },
+    'Ownership transferred'
+  );
+  return { new_owner_collaboration_id: target.id };
 }
 
 /**

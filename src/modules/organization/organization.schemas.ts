@@ -111,6 +111,20 @@ export const setPublicContactSchema = z.object({ is_public_contact: z.boolean() 
 /** Path parameter of the public-contact route. */
 export const organizationScopeParamsSchema = z.object({ organizationId: uuidV7Schema }).strict();
 
+/**
+ * Strict body of the transfer-ownership gesture: the gesture id and the target collaboration are
+ * the only writable fields (ASVS v5.0.0-15.3.3). The caller's own row is never named by the
+ * client: the server reads it from the loaded actor.
+ */
+export const transferOwnershipSchema = z
+  .object({ id: uuidV7Schema, collaboration_id: uuidV7Schema })
+  .strict();
+
+export type TransferOwnershipInput = z.infer<typeof transferOwnershipSchema>;
+
+/** Closed response of the transfer-ownership gesture. */
+export type TransferOwnershipView = { new_owner_collaboration_id: string };
+
 /** Longest accepted plan name; mirrors the other short-name limits. */
 export const PLAN_MAX = 100;
 
