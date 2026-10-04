@@ -115,3 +115,28 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Follow-ups:**
 - Soft-deleted products or relationships are not checked by the trigger; the story does not say they should be.
 <!-- end CAT-002 -->
+
+<!-- begin CAT-003 -->
+## CAT-003 — Reference price and active product lookup
+
+- Filed: 2026-10-04 15:19 UTC
+- Status: **done**: getReferencePrice and getActiveProduct in catalog.repository; 13 tests pass, suite 1843 green
+- Risk: high · story: [CAT-003-reference-price-and-active-product-lookup.md](../modules/catalog/CAT-003-reference-price-and-active-product-lookup.md)
+- Agent: 30,534 tokens, 11 tool uses, 2 min 56 s
+
+### Agent report
+
+**Summary:** Added catalog.repository.ts with getReferencePrice and getActiveProduct; all tests green.
+
+**Decisions:**
+- getReferencePrice on an unknown relationship or product: throws 404 NOT_FOUND (return type is non-null, fail closed).
+- Product must belong to the relationship's supplier org, else 404: stops pricing a foreign product, consistent with CM-11/C-15 and the DB trigger.
+- getReferencePrice does not filter product status or deleted_at: that check is getActiveProduct's job (C-15).
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/reference-price.test.ts` › uses the live price when a deleted one also exists: deleted rows must not mask a live price (partial unique index rule); passed at once
+- same file › throws 404 NOT_FOUND for an unknown product (reference and active): fail-closed path (CONVENTIONS errors); passed at once
+- same file › never returns the price of relationship B for relationship A: both directions in one data set (AB-1); passed at once
+
+**Evidence:** story tests 13/13; full suite 1843/1843, failing: none; typecheck clean; lint 0 errors, 58 warnings (pre-existing)
+<!-- end CAT-003 -->
