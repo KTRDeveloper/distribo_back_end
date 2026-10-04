@@ -3,7 +3,7 @@ id: REL-002
 title: Party and pair rules in the database
 module: relationship
 kind: technical
-rev: 1
+rev: 2
 amends: []
 size: S
 risk: high
@@ -96,6 +96,11 @@ Scenario: AB-1 Crafted duplicate relationship (tampering)
 | crafted duplicate | security | AB-1, CWE-20 | raw second live row → 23505 |
 
 Command: `npx vitest run tests/integration/relationship/party-rules.test.ts`
+
+### Tests to update
+| existing test | reason | new expectation |
+|---|---|---|
+| tests/integration/relationship/relationship-table.test.ts › "rejects an unknown merged_into_id with 23503 and accepts an existing one" | its rows set `merged_into_id` with `deleted_at` null, and its second row has neither customer nor `customer_label`, so the new CHECKs answer 23514 first | `insertRelationship` also takes `deletedAt` and `customerLabel`; both rows set `deleted_at`, the second also sets `customer_label`; still 23503 for the unknown id and 1 row for the existing one |
 
 ## Out of scope
 - Credit limit rules (REL-004).
