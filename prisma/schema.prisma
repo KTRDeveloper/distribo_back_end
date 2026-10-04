@@ -108,6 +108,19 @@ enum OrganizationStatus {
   CLOSED
 }
 
+enum CollaborationRole {
+  OWNER
+  MANAGER
+  SELLER
+  DRIVER
+}
+
+enum CollaborationStatus {
+  INVITED
+  ACTIVE
+  REVOKED
+}
+
 model SystemConfig {
   id               String    @id @default(uuid())
   category         String
@@ -176,6 +189,7 @@ model Person {
   phoneNumberChangeLogs PhoneNumberChangeLog[]
   idempotencyKeys       IdempotencyKey[]
   notifications         Notification[]
+  collaborations        Collaboration[]
 
   @@map("people")
 }
@@ -211,9 +225,30 @@ model Organization {
   serverUpdatedAt DateTime           @default(now()) @map("server_updated_at") @db.Timestamptz
   deletedAt       DateTime?          @map("deleted_at") @db.Timestamptz
 
-  notifications Notification[]
+  notifications  Notification[]
+  collaborations Collaboration[]
 
   @@map("organizations")
+}
+
+model Collaboration {
+  id              String              @id @db.Uuid
+  personId        String              @map("person_id") @db.Uuid
+  organizationId  String              @map("organization_id") @db.Uuid
+  role            CollaborationRole
+  status          CollaborationStatus
+  isPublicContact Boolean             @default(false) @map("is_public_contact")
+  invitedAt       DateTime            @default(now()) @map("invited_at") @db.Timestamptz
+  acceptedAt      DateTime?           @map("accepted_at") @db.Timestamptz
+  amountHeld      BigInt              @default(0) @map("amount_held")
+  serverUpdatedAt DateTime            @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt       DateTime?           @map("deleted_at") @db.Timestamptz
+
+  person       Person       @relation(fields: [personId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([personId, organizationId])
+  @@map("collaborations")
 }
 
 model OtpChallenge {
