@@ -116,24 +116,26 @@ Also in this run: admin, catalog, order, finance, delivery.
 <!-- begin REL-002 -->
 ## REL-002 — Party and pair rules in the database
 
-- Filed: 2026-10-04 05:35 UTC
-- Status: **blocked**: Migration done, party-rules tests green; REL-001 test relationship-table.test.ts 'rejects an unknown merged_into_id with 23503 and accepts an existing one' fails (merged_into_id with deleted_at null gives 23514 before the FK check; second insert has no customer or label). Story lists no test to update: may it be updated (add deleted_at and a label)?
+- Filed: 2026-10-04 05:48 UTC
+- Status: **done**: CHECKs and four partial unique indexes added; REL-001 merged_into_id test updated as listed
 - Risk: high · story: [REL-002-party-and-pair-rules-in-the-database.md](../modules/relationship/REL-002-party-and-pair-rules-in-the-database.md)
-- Agent: 19,978 tokens, 6 tool uses, 29 s
+- Agent: 26,307 tokens, 8 tool uses, 4 min 55 s
 
 ### Agent report
 
-**Summary:** Blocked: migration and party-rules tests are done and green, but the new CHECKs break one existing REL-001 test that the story does not list under "Tests to update".
+**Summary:** Migration with 8 CHECKs and 4 partial unique indexes on customer_relationships, plus schema.prisma comment; REL-001 test updated as listed.
 
 **Decisions:**
-- Did not touch `relationship-table.test.ts`: the Agent rules forbid changing an existing test the story does not list.
-- Kept the story's own rules as written (merged_into_id requires deleted_at, counter requires label), so the REL-001 test conflict is a real consequence of REL-002, not a bug in the migration.
+- Resumed the uncommitted work left by the earlier blocked run (migration, party-rules test, schema comment) after review; kept it.
+- Counter label check uses btrim length > 0: a whitespace-only label counts as empty.
+
+**Tests added beyond the story:**
+- `party-rules.test.ts` › second row accepted when first is deleted/merged per pair type, and different suppliers share a customer: all four indexes are partial and per pair (AC-2, C-07); passed at once with the migration
+- `party-rules.test.ts` › rejects ENDED with a supplier person: status rules interact (C-08, C-09)
+- `party-rules.test.ts` › enforces the rules on update as well as insert; refuses reviving a deleted duplicate: CHECKs and indexes hold on UPDATE (AB-1, v5.0.0-8.2.2)
 
 **Other additions:**
-- Comment block above `CustomerRelationship` in `prisma/schema.prisma` lists the new DB rules (CLAUDE.md rule on non-Prisma constraints).
+- schema.prisma comment above CustomerRelationship lists the new rules (CLAUDE.md database rules)
 
-**Evidence:** `tests/integration/relationship` 46/47 pass; the failing test is `relationship-table.test.ts` > "rejects an unknown merged_into_id with 23503 and accepts an existing one" (gets 23514 instead of 23503). Full suite, typecheck and lint not run, since the story is blocked.
-
-**Follow-ups:**
-- Question for a human: may that REL-001 test be updated? The fix is to set `deletedAt` on the row with `mergedIntoId`, and to give the second insert a customer or a `customer_label`. Alternatively the story could list the test under "Tests to update". Once approved, run typecheck, lint and the full suite, then mark done.
+**Evidence:** story tests 47/47 (relationship folder); full suite 1017/1017, failing: none; typecheck clean; lint 0 errors, 44 warnings (pre-existing security/detect-non-literal-fs-filename)
 <!-- end REL-002 -->

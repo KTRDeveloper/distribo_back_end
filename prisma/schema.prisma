@@ -371,14 +371,29 @@ model Collaboration {
 }
 
 // Rules the database enforces on customer relationships (the commercial link
-// between a supplier and a customer), beyond what this model declares. All
-// come from migration 20261004130000_rel_001_relationships.
+// between a supplier and a customer), beyond what this model declares. The
+// first two come from migration 20261004130000_rel_001_relationships, the rest
+// from 20261004140000_rel_002_party_rules.
 // - The person who created the relationship, and the person who set the credit
 //   limit, must be registered people, never guests. This is checked when the
 //   transaction is saved, not row by row.
 // - server_updated_at is set by the database on every change.
-// Rules about which parties may be filled in, one live relationship per pair,
-// status and credit are added by later stories (REL-002 and REL-004).
+// - A relationship has exactly one supplier (an organization or a person) and
+//   at most one customer (a person or an organization). With no customer it is
+//   a counter, and then customer_label must be filled in. Once the customer
+//   person is known, customer_phone_number must be empty. An organization can
+//   never be both supplier and customer of the same relationship.
+// - Only one live relationship may exist per supplier and customer pair.
+//   Deleted rows and rows merged into another do not count. This is four
+//   partial unique indexes (one per supplier/customer column pair) that Prisma
+//   cannot express, so code must not rely on a Prisma unique lookup; catch the
+//   unique violation (23505) instead. Counters have no customer id, so one
+//   organization may have many.
+// - A row that was merged into another (merged_into_id) must also be deleted.
+// - The status is PENDING exactly when the supplier is a person (an invitation
+//   from a customer); an organization supplier is never PENDING.
+// - ended_by_party is filled in exactly when the status is ENDED.
+// Rules about credit are added by a later story (REL-004).
 model CustomerRelationship {
   id                     String             @id @db.Uuid
   supplierOrganizationId String?            @map("supplier_organization_id") @db.Uuid

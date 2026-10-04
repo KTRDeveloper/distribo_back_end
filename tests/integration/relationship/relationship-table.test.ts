@@ -55,6 +55,8 @@ type Row = {
   createdById?: string | null;
   creditLimitSetById?: string | null;
   mergedIntoId?: string | null;
+  deletedAt?: Date | null;
+  customerLabel?: string | null;
 };
 
 /** Inserts a relationship; omitted status and ended_by_party use the column defaults. */
@@ -65,13 +67,15 @@ function insertRelationship(row: Row = {}): Promise<number> {
   return prisma.$executeRaw`
     INSERT INTO customer_relationships (
       id, supplier_organization_id, customer_person_id, created_by_id,
-      status, ended_by_party, credit_limit_set_by_id, merged_into_id
+      status, ended_by_party, credit_limit_set_by_id, merged_into_id, deleted_at,
+      customer_label
     )
     VALUES (
       ${row.id ?? REL_ID}::uuid, ${supplier}::uuid, ${customer}::uuid, ${createdBy}::uuid,
       COALESCE(${row.status ?? null}::text, 'ACTIVE')::public."RelationshipStatus",
       ${row.endedByParty ?? null}::text::public."RelationshipParty",
-      ${row.creditLimitSetById ?? null}::uuid, ${row.mergedIntoId ?? null}::uuid
+      ${row.creditLimitSetById ?? null}::uuid, ${row.mergedIntoId ?? null}::uuid,
+      ${row.deletedAt ?? null}::timestamptz, ${row.customerLabel ?? null}
     )
   `;
 }
@@ -208,10 +212,19 @@ describe('customer_relationships enums and keys (AC-2)', () => {
   });
 
   it('rejects an unknown merged_into_id with 23503 and accepts an existing one', async () => {
-    expect(await captureSqlCode(insertRelationship({ mergedIntoId: UNKNOWN_ID }))).toBe('23503');
+    const deletedAt = new Date('2026-02-01T00:00:00.000Z');
+    expect(
+      await captureSqlCode(insertRelationship({ mergedIntoId: UNKNOWN_ID, deletedAt }))
+    ).toBe('23503');
     await insertRelationship();
     await expect(
-      insertRelationship({ id: OTHER_REL_ID, customerPersonId: null, mergedIntoId: REL_ID })
+      insertRelationship({
+        id: OTHER_REL_ID,
+        customerPersonId: null,
+        customerLabel: 'Client de passage',
+        mergedIntoId: REL_ID,
+        deletedAt,
+      })
     ).resolves.toBe(1);
   });
 
