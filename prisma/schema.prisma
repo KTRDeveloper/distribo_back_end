@@ -183,6 +183,19 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
+enum OrderParty {
+  CUSTOMER
+  SUPPLIER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  IN_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
 model SystemConfig {
   id               String    @id @default(uuid())
   category         String
@@ -288,6 +301,10 @@ model Person {
   reassignmentsMade CustomerRelationshipReassignment[] @relation("ReassignmentAuthor")
 
   customerPricesSet CustomerPrice[] @relation("CustomerPriceSetBy")
+
+  ordersEntered   Order[] @relation("OrderEnteredBy")
+  ordersDelivered Order[] @relation("OrderDeliveredBy")
+  ordersCancelled Order[] @relation("OrderCancelledBy")
 
   administrators Administrator[]
 
@@ -478,6 +495,7 @@ model CustomerRelationship {
   creditLimitChanges   CreditLimitChange[]
   reassignments        CustomerRelationshipReassignment[]
   customerPrices       CustomerPrice[]
+  orders               Order[]
 
   @@index([supplierOrganizationId])
   @@index([supplierPersonId])
@@ -826,4 +844,52 @@ model CustomerPrice {
   @@index([customerRelationshipId])
   @@index([productId])
   @@map("customer_prices")
+}
+
+// Rules the database enforces on orders (a customer's purchase from a
+// supplier), beyond what this model declares. All come from migration
+// 20261004220000_ord_001_orders.
+// - The person who entered the order, the one who delivered it and the one who
+//   cancelled it must be registered people, never guests. This is checked when
+//   the transaction is saved, not row by row.
+// - server_updated_at is set by the database on every change.
+// - An order can point to a parent order (parent_order_id), for example a
+//   follow-up order; the parent must exist.
+// The rules on status changes, cancellation, delivery and creation are added
+// by later stories (ORD-002, ORD-003, ORD-006), not here.
+model Order {
+  id                     String      @id @db.Uuid
+  customerRelationshipId String      @map("customer_relationship_id") @db.Uuid
+  placedByParty          OrderParty  @map("placed_by_party")
+  enteredById            String      @map("entered_by_id") @db.Uuid
+  deliveryAddressApplied String?     @map("delivery_address_applied")
+  totalAmount            BigInt      @map("total_amount")
+  deliveryCost           BigInt      @default(0) @map("delivery_cost")
+  status                 OrderStatus @default(CONFIRMED)
+  deliveredAt            DateTime?   @map("delivered_at") @db.Timestamptz
+  deliveredById          String?     @map("delivered_by_id") @db.Uuid
+  createdAt              DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  desiredDeliveryDate    DateTime?   @map("desired_delivery_date") @db.Date
+  cancelledByParty       OrderParty? @map("cancelled_by_party")
+  cancelledById          String?     @map("cancelled_by_id") @db.Uuid
+  cancelledAt            DateTime?   @map("cancelled_at") @db.Timestamptz
+  cancellationReason     String?     @map("cancellation_reason") @db.Text
+  parentOrderId          String?     @map("parent_order_id") @db.Uuid
+  customerNote           String?     @map("customer_note") @db.Text
+  supplierNote           String?     @map("supplier_note") @db.Text
+  syncIssue              String?     @map("sync_issue") @db.Text
+  serverUpdatedAt        DateTime    @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt              DateTime?   @map("deleted_at") @db.Timestamptz
+
+  customerRelationship CustomerRelationship @relation(fields: [customerRelationshipId], references: [id])
+  enteredBy            Person               @relation("OrderEnteredBy", fields: [enteredById], references: [id])
+  deliveredBy          Person?              @relation("OrderDeliveredBy", fields: [deliveredById], references: [id])
+  cancelledBy          Person?              @relation("OrderCancelledBy", fields: [cancelledById], references: [id])
+  parentOrder          Order?               @relation("OrderParent", fields: [parentOrderId], references: [id])
+  childOrders          Order[]              @relation("OrderParent")
+
+  @@index([customerRelationshipId])
+  @@index([status])
+  @@index([deliveredById, deliveredAt])
+  @@map("orders")
 }

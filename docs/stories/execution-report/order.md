@@ -39,3 +39,28 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - Nothing unexpected: the agent report and the notification figures both came in.
 - REL-002's migration, test file and schema.prisma comment are left uncommitted in the working tree, waiting for the human decision.
 - Next: decide whether that REL-001 test may be updated (amend REL-002's "Tests to update"), then `/implement-stories REL-002` and `/implement-stories next:100`.
+
+<!-- begin ORD-001 -->
+## ORD-001 — Orders table
+
+- Filed: 2026-10-04 09:55 UTC
+- Status: **done**: orders table, enums, FKs, indexes, triggers; 16 tests
+- Risk: medium · story: [ORD-001-orders-table.md](../modules/order/ORD-001-orders-table.md)
+- Agent: 42,422 tokens, 14 tool uses, 11 min 10 s
+
+### Agent report
+
+**Summary:** Added the `orders` table (model Order, migration 20261004220000_ord_001_orders) with enums, FKs, indexes and triggers.
+
+**Decisions:**
+- Enum names: new `OrderParty` (CUSTOMER/SUPPLIER, used by placed_by_party and cancelled_by_party) and `OrderStatus`; not reusing RelationshipParty to keep modules independent.
+- Invalid enum values are asserted as 22P02 (story says only "rejects").
+- Text columns (notes, reason, sync_issue) use `@db.Text`; FKs keep Prisma defaults (nullable ones ON DELETE SET NULL).
+- Registered-person guard is a deferred constraint trigger (as REL/CAT tables), so the guest check fires at commit.
+
+**Tests added beyond the story:**
+- `tests/integration/order/order-table.test.ts` › accepts every documented status: all 5 status values insertable (Order.status:enum); passed at once
+- same file › delivered_by_id/cancelled_by_id guest rejected 23514 and registered accepted (C-04); null delivery_cost/status 23502 (Order:required); server_updated_at moves on update (C-35); indexes exist
+
+**Evidence:** story tests 16/16; full suite 1332/1332, failing: none; typecheck clean; lint 0 errors, 55 warnings (pre-existing)
+<!-- end ORD-001 -->
