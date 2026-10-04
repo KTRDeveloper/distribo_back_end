@@ -42,3 +42,34 @@ export async function recordExpenseInTx(
   await addAmountHeld(tx, input.paidById, input.organizationId, -input.amount);
   return expense;
 }
+
+/**
+ * Cancels an expense once and gives its amount back to the payer's held money (CM-17, C-27), inside
+ * the caller's transaction (ASVS v5.0.0-2.3.3). The cancellation is one conditional update: it
+ * matches only a live expense of the organization that is not cancelled yet, so two parallel
+ * cancels cannot both succeed and the money is restored once (CWE-362). If the payer's
+ * collaboration cannot take the update, `addAmountHeld` throws 404 and the cancellation rolls back.
+ *
+ * @param tx - The gesture's transaction.
+ * @param input - Expense and organization from the path and the session, canceller from the session.
+ * @returns The cancelled expense, or null when no live, uncancelled expense of the organization matches.
+ * @throws 404 `NOT_FOUND` when the payer's held money cannot be restored.
+ */
+export async function cancelExpenseInTx(
+  tx: Prisma.TransactionClient,
+  input: { expenseId: string; organizationId: string; cancelledById: string }
+): Promise<Expense | null> {
+  const { count } = await tx.expense.updateMany({
+    where: {
+      id: input.expenseId,
+      organizationId: input.organizationId,
+      cancelledAt: null,
+      deletedAt: null,
+    },
+    data: { cancelledAt: new Date(), cancelledById: input.cancelledById },
+  });
+  if (count === 0) return null;
+  const expense = await tx.expense.findUniqueOrThrow({ where: { id: input.expenseId } });
+  await addAmountHeld(tx, expense.paidById, input.organizationId, expense.amount);
+  return expense;
+}

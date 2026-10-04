@@ -116,3 +116,14 @@ export const recordExpenseSchema = z
   .strict();
 
 export type RecordExpenseInput = z.infer<typeof recordExpenseSchema>;
+
+/** Path of the cancel-expense gesture: the expense id is a UUID, so a malformed one never reaches the database. */
+export const cancelExpenseParamSchema = z.object({ expenseId: uuidV7Schema }).strict();
+
+/**
+ * Strict body of the cancel-expense gesture (FIN-013): the gesture id only. The canceller and the
+ * time are set by the server, never accepted (ASVS v5.0.0-15.3.3, CWE-915).
+ */
+export const cancelExpenseSchema = z.object({ id: uuidV7Schema }).strict();
+
+export type CancelExpenseInput = z.infer<typeof cancelExpenseSchema>;

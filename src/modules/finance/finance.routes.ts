@@ -7,6 +7,8 @@ import { logger } from '../../lib/logger.js';
 import { httpError } from '../../lib/http-error.js';
 import { atLeast } from '../../shared/access/roles.js';
 import {
+  cancelExpenseParamSchema,
+  cancelExpenseSchema,
   creditNoteSchema,
   ledgerQuerySchema,
   openingBalanceSchema,
@@ -18,6 +20,7 @@ import {
   reverseParamSchema,
 } from './finance.schemas.js';
 import {
+  cancelExpense,
   listLedger,
   recordCreditNote,
   recordExpense,
@@ -242,6 +245,35 @@ financeRoutes.post(
   (req, res, next) => {
     recordExpense(req.actor!, recordExpenseSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/expenses/:expenseId/cancel - a MANAGER online or the
+// OWNER cancels an expense entered by mistake. The rules table grants `cancel Expense` to nobody
+// below MANAGER, so a SELLER or DRIVER is refused there; the expense is reached only through the
+// caller's own organization, which the service checks (404 outside it).
+financeRoutes.post(
+  '/expenses/:expenseId/cancel',
+  authMiddleware,
+  loadActor,
+  requireAbility('cancel', 'Expense'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = cancelExpenseParamSchema.safeParse({ expenseId: req.params.expenseId });
+    if (!params.success) return next(params.error);
+    const parsed = cancelExpenseSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    cancelExpense(
+      req.actor!,
+      cancelExpenseParamSchema.parse({ expenseId: req.params.expenseId }).expenseId
+    )
+      .then((view) => res.status(200).json(view))
       .catch(next);
   }
 );

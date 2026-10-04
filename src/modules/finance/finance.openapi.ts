@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
+  cancelExpenseParamSchema,
+  cancelExpenseSchema,
   creditNoteSchema,
   ledgerQuerySchema,
   openingBalanceSchema,
@@ -223,6 +225,39 @@ openApiRegistry.registerPath({
             description: z.string().nullable(),
             recorded_by_id: z.string().uuid(),
             occurred_at: z.string().datetime(),
+          }),
+        },
+      },
+    },
+    ...gestureErrors,
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/expenses/{expenseId}/cancel',
+  tags: ['finance'],
+  summary: "Cancel an expense, restoring the payer's held money (MANAGER and above)",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema.merge(cancelExpenseParamSchema),
+    body: { content: { 'application/json': { schema: cancelExpenseSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The expense with cancelled_at and cancelled_by_id set',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string().uuid(),
+            paid_by_id: z.string().uuid(),
+            amount: z.number().int(),
+            category: z.string().nullable(),
+            description: z.string().nullable(),
+            recorded_by_id: z.string().uuid(),
+            occurred_at: z.string().datetime(),
+            cancelled_at: z.string().datetime().nullable(),
+            cancelled_by_id: z.string().uuid().nullable(),
           }),
         },
       },

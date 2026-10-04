@@ -22,7 +22,7 @@ import type {
   ReverseEntryInput,
 } from './finance.schemas.js';
 import { listLedgerPage } from './finance.repository.js';
-import { recordExpenseInTx } from './held-money.js';
+import { cancelExpenseInTx, recordExpenseInTx } from './held-money.js';
 import { appendLedgerEntry, reverseLedgerEntry } from './ledger.service.js';
 
 /** A ledger entry as the recorder sees it: an explicit field list, money in whole XAF. */
@@ -549,6 +549,57 @@ export function recordExpense(actor: Actor, input: RecordExpenseInput): Promise<
       description: expense.description,
       recorded_by_id: expense.recordedById,
       occurred_at: expense.occurredAt,
+    };
+  });
+}
+
+/** A cancelled expense as the canceller sees it: the expense fields plus who cancelled it and when. */
+export type CancelledExpenseView = ExpenseView & {
+  cancelled_at: Date | null;
+  cancelled_by_id: string | null;
+};
+
+/**
+ * A MANAGER online or the OWNER cancels an expense entered by mistake (FIN-013, C-27, CM-17): the
+ * payer's held money goes back up by the amount and the row stays, marked cancelled. The route
+ * checked the rules table (`cancel` Expense, ASVS v5.0.0-8.2.1). One transaction
+ * (v5.0.0-2.3.3): `cancelExpenseInTx` cancels with a conditional update and restores the money, so
+ * of two parallel cancels exactly one succeeds. The expense is looked up only inside the caller's
+ * organization: another business's expense is 404 like an unknown id (v5.0.0-8.2.2).
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked the role.
+ * @param expenseId - Expense to cancel, from the path.
+ * @returns The expense with `cancelled_at` and `cancelled_by_id` set.
+ * @throws 404 `NOT_FOUND`; 409 `ALREADY_CANCELLED`.
+ */
+export function cancelExpense(actor: Actor, expenseId: string): Promise<CancelledExpenseView> {
+  return runInTransaction(async (tx) => {
+    const expense = await cancelExpenseInTx(tx, {
+      expenseId,
+      organizationId: actor.organizationId,
+      cancelledById: actor.personId,
+    });
+    if (!expense) {
+      const existing = await tx.expense.findFirst({
+        where: { id: expenseId, organizationId: actor.organizationId, deletedAt: null },
+        select: { cancelledAt: true },
+      });
+      if (existing?.cancelledAt) {
+        throw httpError(409, 'ALREADY_CANCELLED', 'Expense already cancelled');
+      }
+      throw httpError(404, 'NOT_FOUND', 'Not found');
+    }
+
+    return {
+      id: expense.id,
+      paid_by_id: expense.paidById,
+      amount: Number(expense.amount),
+      category: expense.category,
+      description: expense.description,
+      recorded_by_id: expense.recordedById,
+      occurred_at: expense.occurredAt,
+      cancelled_at: expense.cancelledAt,
+      cancelled_by_id: expense.cancelledById,
     };
   });
 }

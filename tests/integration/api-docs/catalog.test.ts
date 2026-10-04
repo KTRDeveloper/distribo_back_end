@@ -134,6 +134,9 @@ describe('GET /docs/openapi.json', () => {
     // FIN-012: recording an expense
     expect(paths).toContain('/api/v1/organizations/{organizationId}/expenses');
 
+    // FIN-013: cancelling an expense
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/expenses/{expenseId}/cancel');
+
     // ORD-010: the organization purchase route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases');
 

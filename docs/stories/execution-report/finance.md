@@ -473,6 +473,40 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - Prettier reformatted `ledger.service.ts` when run on the module folder. I reverted it.
 <!-- end FIN-012 -->
 
+<!-- begin FIN-013 -->
+## FIN-013 — Manager cancels an expense
+
+- Filed: 2026-10-04 22:16 UTC
+- Status: **done**: cancel expense route, conditional update + held money restore in one tx
+- Risk: medium · story: [FIN-013-manager-cancels-an-expense.md](../modules/finance/FIN-013-manager-cancels-an-expense.md)
+- Agent: 53,085 tokens, 15 tool uses, 4 min 33 s
+
+### Agent report
+
+**Summary:** Added POST .../expenses/{expenseId}/cancel: one conditional update plus held-money restore in one transaction; done.
+
+**Decisions:**
+- Return type: a new `CancelledExpenseView` (ExpenseView plus `cancelled_at`, `cancelled_by_id`) instead of widening `ExpenseView`, so the FIN-012 response keys stay unchanged.
+- Parallel cancels: `updateMany` guarded by `cancelledAt: null` and the organization; count 0 then reads the row to answer 409 `ALREADY_CANCELLED` or 404.
+- Body is `{ id }` through `idempotent()`; a repeat with the same id replays the first 200.
+- No ACTIVE-organization check on cancel (FIN-012 has one): the story does not ask for it.
+
+**Tests added beyond the story:**
+- `cancel-expense.test.ts` › owner cancels: OWNER allowed (v5.0.0-8.2.1); passed at once
+- `cancel-expense.test.ts` › repeated id: first response replayed, money restored once (ACC idempotency); passed at once
+- `cancel-expense.test.ts` › 404 for unknown expense and foreign organization path (v5.0.0-8.2.2)
+- `cancel-expense.test.ts` › malformed path id, missing id, unknown body field give 400 (v5.0.0-15.3.3)
+- `cancel-expense.test.ts` › rollback when payer collaboration is deleted: expense stays uncancelled (v5.0.0-2.3.3)
+
+**Other additions:**
+- `catalog.test.ts` path entry, OpenAPI registration, regenerated `openapi/openapi.json`, one comment line in `schema.prisma` (the "routes come later" note is now stale).
+
+**Evidence:** story tests 9/9; full suite 2640/2640, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
+
+**Follow-ups:**
+- Cancelling in a CLOSED or SUSPENDED organization is allowed; decide whether it should be refused like recording is.
+<!-- end FIN-013 -->
+
 <!-- begin FIN-014 -->
 ## FIN-014 — Handovers table
 
