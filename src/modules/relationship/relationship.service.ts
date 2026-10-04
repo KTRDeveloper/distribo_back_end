@@ -3,8 +3,15 @@ import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import { runInTransaction } from '../organization/organization.repository.js';
 import { findOrCreateByPhone } from '../person/person.repository.js';
-import type { AddCustomerInput } from './relationship.schemas.js';
-import { ensureCustomerRelationship, findWithParties } from './relationship.repository.js';
+import { httpError } from '../../lib/http-error.js';
+import { logger } from '../../lib/logger.js';
+import { atLeast } from '../../shared/access/roles.js';
+import type { AddCustomerInput, ListCustomersQuery } from './relationship.schemas.js';
+import {
+  ensureCustomerRelationship,
+  findWithParties,
+  listSupplierRelationships,
+} from './relationship.repository.js';
 import { projectForSupplier, type SupplierRelationshipView } from './relationship.visibility.js';
 
 const ADDED_CONTENT = {
@@ -59,4 +66,37 @@ export function addCustomer(
 
     return { created, relationship: projectForSupplier(row) };
   });
+}
+
+/**
+ * A SELLER or above lists the organization's customers and counters, newest first.
+ *
+ * The organization comes from the loaded actor; rows go through the visibility predicate and the
+ * supplier projection, so `customer_label` and `supplier_notes` are returned and `supplier_label`
+ * never is (CM-19, v5.0.0-15.3.1).
+ *
+ * @param actor - Actor loaded from the path.
+ * @param query - Validated page size, cursor and filters.
+ * @returns A page of supplier views and the next cursor, or null on the last page.
+ * @throws 403 `FORBIDDEN` for a DRIVER; 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listCustomers(
+  actor: Actor,
+  query: ListCustomersQuery
+): Promise<{ items: SupplierRelationshipView[]; next_cursor: string | null }> {
+  if (!atLeast(actor.role, 'SELLER')) {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'list',
+        subjectType: 'CustomerRelationship',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+
+  const { rows, nextCursor } = await listSupplierRelationships(actor, query);
+  return { items: rows.map(projectForSupplier), next_cursor: nextCursor };
 }

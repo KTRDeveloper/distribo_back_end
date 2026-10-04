@@ -1,5 +1,8 @@
-import type { CustomerRelationship, Prisma } from '@prisma/client';
+import type { CustomerRelationship, Prisma, RelationshipStatus } from '@prisma/client';
+import { prisma } from '../../lib/db.js';
 import { newId } from '../../shared/ids.js';
+import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import { visibleRelationsWhere } from './relationship.visibility.js';
 
 /**
  * Creates a counter: an ACTIVE relationship of an organization with no customer, used by
@@ -111,4 +114,60 @@ export function findWithParties(tx: Prisma.TransactionClient, id: string) {
     where: { id },
     include: { customerPerson: true, supplierOrganization: true },
   });
+}
+
+/**
+ * Lists the organization's relationships as supplier, newest first (created_at descending then
+ * id), keyset-paged. The query starts from the visibility predicate for the organization
+ * (v5.0.0-8.2.2) and narrows it to the rows where the organization is the supplier; deleted and
+ * merged rows never match. A counter is a relationship with no customer person or organization.
+ *
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param query - Page size, opaque cursor and optional status and counter filters.
+ * @returns Rows (at most limit) with the customer parties loaded, and the next cursor or null.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listSupplierRelationships(
+  viewer: { personId: string; organizationId: string },
+  query: { limit: number; cursor?: string; status?: RelationshipStatus; counter?: boolean }
+) {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const and: Prisma.CustomerRelationshipWhereInput[] = [
+    visibleRelationsWhere({
+      personId: viewer.personId,
+      organizationIds: [viewer.organizationId],
+    }),
+    { supplierOrganizationId: viewer.organizationId },
+  ];
+  if (query.status) and.push({ status: query.status });
+  if (query.counter === true) and.push({ customerPersonId: null, customerOrganizationId: null });
+  if (query.counter === false) {
+    and.push({
+      OR: [{ customerPersonId: { not: null } }, { customerOrganizationId: { not: null } }],
+    });
+  }
+  if (cursor) {
+    and.push({
+      OR: [
+        { createdAt: { lt: cursor.createdAt } },
+        { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+      ],
+    });
+  }
+
+  const found = await prisma.customerRelationship.findMany({
+    where: { AND: and },
+    include: { customerPerson: true, customerOrganization: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.createdAt, id: last.id })
+        : null,
+  };
 }

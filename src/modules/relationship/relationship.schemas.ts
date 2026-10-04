@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
 import { LABEL_MAX, TEXT_MAX } from '../../shared/limits.js';
+import { paginationQuerySchema } from '../../shared/pagination.js';
 import { phoneNumberSchema } from '../../shared/phone.js';
 
 /**
@@ -18,3 +19,19 @@ export const addCustomerSchema = z
   .strict();
 
 export type AddCustomerInput = z.infer<typeof addCustomerSchema>;
+
+/**
+ * Strict query of the customer list: `limit`, `cursor`, a status filter and the counter filter.
+ * `counter` accepts only the words `true` and `false`; any other field or value is a 400.
+ */
+export const listCustomersQuerySchema = paginationQuerySchema
+  .extend({
+    status: z.enum(['PENDING', 'ACTIVE', 'ENDED']).optional(),
+    counter: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
+  })
+  .strict();
+
+export type ListCustomersQuery = z.infer<typeof listCustomersQuerySchema>;

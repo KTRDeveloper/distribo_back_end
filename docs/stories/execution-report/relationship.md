@@ -342,6 +342,39 @@ Also in this run: admin, catalog, order, finance, delivery.
 - contracts.md lists `ensureCustomerRelationship` without `customerLabel`/`deliveryAddress` (optional extras I added); stories folder is read-only for me.
 <!-- end REL-007 -->
 
+<!-- begin REL-008 -->
+## REL-008 — Seller lists the customers
+
+- Filed: 2026-10-04 13:47 UTC
+- Status: **done**: GET customers list with filters, keyset paging, supplier view
+- Risk: medium · story: [REL-008-seller-lists-the-customers.md](../modules/relationship/REL-008-seller-lists-the-customers.md)
+- Agent: 63,452 tokens, 21 tool uses, 5 min 54 s
+
+### Agent report
+
+**Summary:** Added GET /organizations/:organizationId/customers (filters, keyset paging, supplier projection) and relationship.openapi.ts.
+
+**Decisions:**
+- DRIVER refusal: service-side `atLeast(role, 'SELLER')` check with 403 and a warn log, like `listCollaborators`; the rules table has no read rule for CustomerRelationship.
+- Counter filter: a counter is a row with no customer person and no customer organization (schema comment); `counter=false` is the opposite.
+- Query starts from `visibleRelationsWhere` AND `supplierOrganizationId = actor org`, so rows where the org is only customer are excluded ("relationships as supplier").
+- Order created_at desc then id asc, as the project rule and the existing keyset helpers.
+
+**Tests added beyond the story:**
+- `list-customers.test.ts` › 400 for unknown field, bad status, bad counter, limit 101, bad cursor: strict query validation (Validation convention); passed at once after implementation
+- `list-customers.test.ts` › leaves out deleted and merged relationships: visibility predicate (v5.0.0-8.2.2)
+- `list-customers.test.ts` › 401 without a token, MANAGER/OWNER can list, status=ENDED returns an ended row, paging has no gap or repeat
+
+**Other additions:**
+- `scripts/generate-openapi.ts`: import of relationship.openapi (generate-script test compares it with the live doc).
+- `tests/integration/api-docs/catalog.test.ts`: the new path (allowed by CONVENTIONS).
+
+**Evidence:** story tests 19/19; full suite 1561/1561, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+
+**Follow-ups:**
+- per-001 route list only covers auth paths, so nothing to add there.
+<!-- end REL-008 -->
+
 <!-- begin REL-014 -->
 ## REL-014 — Reassignment journal table
 
