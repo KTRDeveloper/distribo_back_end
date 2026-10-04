@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
-import { placePurchaseSchema } from './order.schemas.js';
+import { acceptOrderSchema, placePurchaseSchema } from './order.schemas.js';
 
 const errorContent = { 'application/json': { schema: errorResponseSchema } };
 
@@ -61,6 +61,52 @@ openApiRegistry.registerPath({
     404: { description: 'Not a member, unknown supplier or product', content: errorContent },
     409: {
       description: 'ORGANIZATION_NOT_ACTIVE, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+/** Supplier-side order view (`projectOrderForSupplier`); the price author goes to OWNER and MANAGER only. */
+const supplierOrderViewSchema = customerOrderViewSchema.extend({
+  entered_by_id: z.string().uuid(),
+  delivered_by_id: z.string().uuid().nullable(),
+  cancelled_by_id: z.string().uuid().nullable(),
+  sync_issue: z.string().nullable(),
+  lines: z.array(
+    orderLineViewSchema.extend({
+      price_set_by_id: z.string().uuid().nullable().optional(),
+      price_set_at: z.string().datetime().nullable().optional(),
+    })
+  ),
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/orders/{orderId}/accept',
+  tags: ['order'],
+  summary: 'The supplier accepts a PENDING order, lowering prices if agreed (ORD-011)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: acceptOrderSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The CONFIRMED order, supplier view',
+      content: { 'application/json': { schema: supplierOrderViewSchema } },
+    },
+    400: {
+      description: 'VALIDATION_ERROR (body) or PRICE_INCREASE_REFUSED (a price above the current)',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not accept orders', content: errorContent },
+    404: {
+      description: 'Not a member, order outside the business, or a line of another order',
+      content: errorContent,
+    },
+    409: {
+      description: 'INVALID_TRANSITION (not PENDING) or conflicting gesture id',
       content: errorContent,
     },
   },

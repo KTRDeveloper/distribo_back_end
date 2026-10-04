@@ -65,3 +65,37 @@ export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;
 
 /** Body of the organization purchase (ORD-010): the same strict body as a person's order. */
 export const placePurchaseSchema = placeOrderSchema;
+
+/** Path of the accept gesture: the order id is a UUID, so a malformed one never reaches the database. */
+export const orderIdParamSchema = z.object({ orderId: uuidV7Schema }).strict();
+
+/**
+ * One lowered price: a line and a whole-franc price from 0 up. The upper bound is the line's own
+ * current price, checked against the database in the service, not here (ASVS v5.0.0-15.3.3: only
+ * line ids and prices are writable).
+ */
+const linePriceSchema = z
+  .object({
+    line_id: uuidV7Schema,
+    unit_price_applied: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  })
+  .strict();
+
+/**
+ * Strict body of the accept gesture (ORD-011): the gesture id and, optionally, lowered prices for
+ * up to 100 distinct lines. Status, amounts, totals and the price author are never accepted.
+ */
+export const acceptOrderSchema = z
+  .object({
+    id: uuidV7Schema,
+    line_prices: z.array(linePriceSchema).max(ORDER_LINES_MAX).optional(),
+  })
+  .strict()
+  .refine(
+    (body) =>
+      new Set(body.line_prices?.map((line) => line.line_id)).size ===
+      (body.line_prices ?? []).length,
+    { message: 'duplicate_line_id', path: ['line_prices'] }
+  );
+
+export type AcceptInput = z.infer<typeof acceptOrderSchema>;

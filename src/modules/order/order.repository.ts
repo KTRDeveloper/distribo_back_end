@@ -173,3 +173,82 @@ export async function listOrderTeamIds(
   });
   return found.map((collaboration) => collaboration.personId);
 }
+
+/**
+ * Locks one order of a supplier organization until the transaction ends, so a parallel accept,
+ * refusal or cancellation waits for this one (v5.0.0-2.3.4). The supplier is read from the order's
+ * relationship, never from the request, so an order of another business is simply not found
+ * (v5.0.0-8.2.2).
+ *
+ * @param supplierOrganizationId the caller's organization, from the loaded actor
+ * @returns true when the undeleted order exists and belongs to that supplier
+ */
+export async function lockSupplierOrder(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  supplierOrganizationId: string
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT o.id
+    FROM orders o
+    JOIN customer_relationships r ON r.id = o.customer_relationship_id
+    WHERE o.id = ${orderId}::uuid
+      AND r.supplier_organization_id = ${supplierOrganizationId}::uuid
+      AND o.deleted_at IS NULL
+    FOR UPDATE OF o
+  `;
+  return rows.length === 1;
+}
+
+/** An order with its undeleted lines (by id) and the customer person of its relationship. */
+export type OrderToAccept = OrderWithLines & { customerPersonId: string | null };
+
+/** Reads an order with its undeleted lines inside the caller's transaction. */
+export async function findOrderToAccept(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<OrderToAccept | null> {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    include: {
+      lines: { where: { deletedAt: null }, orderBy: { id: 'asc' } },
+      customerRelationship: { select: { customerPersonId: true } },
+    },
+  });
+  if (!order) return null;
+  const { customerRelationship, ...rest } = order;
+  return { ...rest, customerPersonId: customerRelationship.customerPersonId };
+}
+
+/**
+ * Lowers one line's price: the new price, the matching amount and the author and time of the change
+ * (C-20: both are set exactly when the applied price differs from the reference price).
+ */
+export async function setLinePrice(
+  tx: Prisma.TransactionClient,
+  lineId: string,
+  data: { unitPriceApplied: bigint; amount: bigint; priceSetById: string; priceSetAt: Date }
+): Promise<void> {
+  await tx.orderLine.update({ where: { id: lineId }, data });
+}
+
+/** Writes the recomputed total; it must agree with the line amounts at commit (ORD-006). */
+export async function setOrderTotal(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  totalAmount: bigint
+): Promise<void> {
+  await tx.order.update({ where: { id: orderId }, data: { totalAmount } });
+}
+
+/** Tells whether the person is registered (a guest has no account to notify). */
+export async function isRegisteredPerson(
+  tx: Prisma.TransactionClient,
+  personId: string
+): Promise<boolean> {
+  const person = await tx.person.findFirst({
+    where: { id: personId, registeredAt: { not: null } },
+    select: { id: true },
+  });
+  return person !== null;
+}

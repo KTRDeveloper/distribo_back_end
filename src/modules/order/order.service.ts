@@ -6,14 +6,26 @@ import { getActiveProduct, getReferencePrice } from '../catalog/catalog.reposito
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import { ensureCustomerRelationship } from '../relationship/relationship.repository.js';
 import { lineAmountOf, orderTotal } from './order.calculations.js';
+import type { Actor } from '../../types/express.js';
 import {
+  findOrderToAccept,
   insertPendingOrder,
+  isRegisteredPerson,
   listOrderTeamIds,
+  lockSupplierOrder,
   runInTransaction,
+  setLinePrice,
+  setOrderTotal,
   type NewOrderLine,
 } from './order.repository.js';
-import type { PlaceOrderInput } from './order.schemas.js';
-import { projectOrderForCustomer, type CustomerOrderView } from './order.views.js';
+import type { AcceptInput, PlaceOrderInput } from './order.schemas.js';
+import { transitionOrder } from './order.state.js';
+import {
+  projectOrderForCustomer,
+  projectOrderForSupplier,
+  type CustomerOrderView,
+  type SupplierOrderView,
+} from './order.views.js';
 
 const PLACED_CONTENT = {
   FR: 'Nouvelle commande reçue.',
@@ -181,4 +193,100 @@ export function placePurchase(
     );
   }
   return placeOrderFor({ personId: actor.personId, organizationId: actor.organizationId }, input);
+}
+
+const ACCEPTED_CONTENT = {
+  FR: 'Votre commande a été acceptée.',
+  EN: 'Your order was accepted.',
+} as const;
+
+/**
+ * The supplier's SELLER, MANAGER or OWNER accepts a PENDING order, lowering prices if agreed
+ * (ORD-011, CM-12, CM-16). One transaction (v5.0.0-2.3.3): the order of the caller's organization
+ * is locked (an order of another business is 404, v5.0.0-8.2.2), PENDING becomes CONFIRMED by a
+ * conditional update (v5.0.0-2.3.1), each listed price is lowered (never raised, never negative),
+ * the line amounts and the total are recomputed on the server and the customer is notified
+ * `order.status_changed`. Any refusal rolls everything back. Prices are frozen from here: no other
+ * gesture changes them.
+ *
+ * A price equal to the current one changes nothing. The customer notified is the person of the
+ * relationship, or, for a business customer, the person who entered the order; a guest has no
+ * account, so nobody is notified. Replays with the same `id` are answered by `idempotent()`.
+ *
+ * @param actor - Person, organization and role from `loadActor`; the route checked `accept Order`.
+ * @param orderId - Order from the path.
+ * @param input - Validated body: gesture id and optional lowered prices.
+ * @returns The CONFIRMED order, supplier view for the caller's role.
+ * @throws 404 `NOT_FOUND` (order outside the caller's business, or a line of another order);
+ * 409 `INVALID_TRANSITION` (not PENDING); 400 `PRICE_INCREASE_REFUSED` (price above the current).
+ */
+export function acceptOrder(
+  actor: Actor,
+  orderId: string,
+  input: AcceptInput
+): Promise<SupplierOrderView> {
+  return runInTransaction(async (tx) => {
+    if (!(await lockSupplierOrder(tx, orderId, actor.organizationId))) {
+      throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    }
+    await transitionOrder(tx, orderId, 'CONFIRMED', {
+      personId: actor.personId,
+      party: 'SUPPLIER',
+    });
+
+    const order = await findOrderToAccept(tx, orderId);
+    if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+
+    const now = new Date();
+    const lines = new Map(order.lines.map((line) => [line.id, line]));
+    for (const requested of input.line_prices ?? []) {
+      const line = lines.get(requested.line_id);
+      if (!line) throw httpError(404, 'NOT_FOUND', 'Order line not found.');
+      const price = BigInt(requested.unit_price_applied);
+      if (price > line.unitPriceApplied) {
+        throw httpError(400, 'PRICE_INCREASE_REFUSED', 'A price cannot be raised at acceptance.');
+      }
+      if (price === line.unitPriceApplied) continue;
+      line.unitPriceApplied = price;
+      line.amount = lineAmountOf({
+        quantityMilli: parseQuantity(line.quantity.toFixed(3)),
+        deliveredQuantityMilli:
+          line.deliveredQuantity === null ? null : parseQuantity(line.deliveredQuantity.toFixed(3)),
+        unitPriceApplied: price,
+      });
+      line.priceSetById = actor.personId;
+      line.priceSetAt = now;
+      await setLinePrice(tx, line.id, {
+        unitPriceApplied: price,
+        amount: line.amount,
+        priceSetById: actor.personId,
+        priceSetAt: now,
+      });
+    }
+
+    if (input.line_prices !== undefined && input.line_prices.length > 0) {
+      order.totalAmount = orderTotal(
+        order.lines.map((line) => line.amount),
+        order.deliveryCost
+      );
+      await setOrderTotal(tx, orderId, order.totalAmount);
+    }
+
+    const recipientId = order.customerPersonId ?? order.enteredById;
+    if (await isRegisteredPerson(tx, recipientId)) {
+      const language = await recipientLanguage(recipientId, tx);
+      await notify(
+        {
+          recipientId,
+          organizationId: actor.organizationId,
+          sourceEvent: 'order.status_changed',
+          content: language === 'EN' ? ACCEPTED_CONTENT.EN : ACCEPTED_CONTENT.FR,
+          related: { type: 'order', id: orderId },
+        },
+        tx
+      );
+    }
+
+    return projectOrderForSupplier(order, actor.role);
+  });
 }

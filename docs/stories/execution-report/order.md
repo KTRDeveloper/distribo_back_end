@@ -416,6 +416,38 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - The ORD-009 route `POST /api/v1/orders` is still missing from the OpenAPI document.
 <!-- end ORD-010 -->
 
+<!-- begin ORD-011 -->
+## ORD-011 — Supplier accepts an order, lowering prices if needed
+
+- Filed: 2026-10-04 19:43 UTC
+- Status: **done**: accept route, lowers prices, notifies customer; 22 story tests, full suite 2334 green
+- Risk: high · story: [ORD-011-supplier-accepts-an-order-lowering-prices-if.md](../modules/order/ORD-011-supplier-accepts-an-order-lowering-prices-if.md)
+- Agent: 78,405 tokens, 25 tool uses, 6 min 10 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/{organizationId}/orders/{orderId}/accept: locks the supplier order, PENDING to CONFIRMED, lowers prices, recomputes amounts and total, notifies the customer.
+
+**Decisions:**
+- Route sits in a new `supplierOrderRoutes` router (mergeParams, mounted in app.ts) with `requireAbility('accept','Order')` and no status condition: the PENDING check is `transitionOrder`'s conditional update, so a non-PENDING order answers 409 and not 403.
+- Order of checks inside the transaction: lock (404) then transition (409), then lines (404) and prices (400); any failure rolls everything back.
+- A price equal to the current one is skipped (no author set), because C-20 sets the author only when the price differs from the reference.
+- Notified person: the relationship's customer person, else (business customer) the person who entered the order; skipped if not registered (notify refuses guests).
+- Response is the supplier view for the caller's role, so a SELLER does not see `price_set_by_id` (existing `projectOrderForSupplier` rule).
+
+**Tests added beyond the story:**
+- `accept-order.test.ts` › two parallel accepts: exactly one 200 and one 409, one notification (CM-12, v5.0.0-2.3.1); passed at once (lock already in place)
+- `accept-order.test.ts` › business customer notified via enteredById, price 0, half-up rounding, equal price unmarked, unknown fields and duplicate lines 400, non-member and customer-org path 404 (story AC-1/AC-2/AC-3, C-20, AB-2); passed at once or with the implementation
+
+**Other additions:**
+- `openapi/openapi.json` regenerated; the path added to the route list in `tests/integration/api-docs/catalog.test.ts` (CONVENTIONS rule).
+
+**Evidence:** story tests 22/22; full suite 2334/2334, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing security/detect-* kind)
+
+**Follow-ups:**
+- Business-customer notification goes to the person who entered the order; a future story may want all org managers instead.
+<!-- end ORD-011 -->
+
 <!-- begin ORD-018 -->
 ## ORD-018 — Closing a business refuses its pending orders
 

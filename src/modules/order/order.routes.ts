@@ -3,8 +3,13 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
-import { placeOrderSchema, placePurchaseSchema } from './order.schemas.js';
-import { placeOrder, placePurchase } from './order.service.js';
+import {
+  acceptOrderSchema,
+  orderIdParamSchema,
+  placeOrderSchema,
+  placePurchaseSchema,
+} from './order.schemas.js';
+import { acceptOrder, placeOrder, placePurchase } from './order.service.js';
 import './order.openapi.js';
 
 /** Order routes; all require authentication. */
@@ -51,6 +56,39 @@ purchaseRoutes.post(
   (req, res, next) => {
     placePurchase(req.actor!, placePurchaseSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+/** Supplier-side order routes, mounted at `/organizations/:organizationId`. */
+export const supplierOrderRoutes = Router({ mergeParams: true });
+
+// POST /api/v1/organizations/:organizationId/orders/:orderId/accept - the supplier confirms a
+// PENDING order, optionally lowering prices; the organization is the caller's, never a body field.
+// The PENDING condition is the service's conditional update (409 when not PENDING), so the route
+// only checks the role.
+supplierOrderRoutes.post(
+  '/orders/:orderId/accept',
+  authMiddleware,
+  loadActor,
+  requireAbility('accept', 'Order'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = acceptOrderSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    acceptOrder(
+      req.actor!,
+      orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      acceptOrderSchema.parse(req.body)
+    )
+      .then((view) => res.status(200).json(view))
       .catch(next);
   }
 );

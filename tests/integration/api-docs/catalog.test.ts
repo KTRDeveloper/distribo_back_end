@@ -113,6 +113,9 @@ describe('GET /docs/openapi.json', () => {
     // ORD-010: the organization purchase route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases');
 
+    // ORD-011: the supplier accepts an order
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/orders/{orderId}/accept');
+
     // SYNC-006: the pull route
     expect(paths).toContain('/api/v1/sync/pull');
 
