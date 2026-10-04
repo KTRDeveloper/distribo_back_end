@@ -1175,8 +1175,15 @@ model Handover {
 // - departed_at, arrived_at and failed_at start empty; failure_reason and
 //   sync_issue are free text and optional.
 // - server_updated_at is set by the database on every change.
-// The rules on state changes (departure, arrival, failure) are added by a
-// later story (DLV-002), not here.
+// The rules below come from migration 20261004320000_dlv_002_delivery_rules.
+// - A delivery cannot be both arrived and failed. A failure reason is given
+//   exactly when the delivery failed.
+// - An order has at most one delivery in progress (neither arrived nor failed).
+//   Deleted deliveries do not count, so that rule is not written as @@unique.
+// - When a delivery is created, its driver must be an active collaborator of
+//   the supplier organization of the order's relationship, whatever their
+//   role. Only creation is checked: a delivery stays valid if the driver
+//   later leaves.
 model Delivery {
   id              String    @id @db.Uuid
   orderId         String    @map("order_id") @db.Uuid

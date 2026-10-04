@@ -81,6 +81,11 @@ beforeEach(async () => {
     INSERT INTO organizations (id, name) VALUES (${SUPPLIER_ORG_ID}::uuid, 'Fixture Supplier')
   `;
   await prisma.$executeRaw`
+    INSERT INTO collaborations (id, person_id, organization_id, role, status) VALUES
+      ('0199d001-0000-7000-8000-000000000051'::uuid, ${OWNER_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'OWNER', 'ACTIVE'),
+      ('0199d001-0000-7000-8000-000000000052'::uuid, ${CUSTOMER_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'DRIVER', 'ACTIVE')
+  `;
+  await prisma.$executeRaw`
     INSERT INTO customer_relationships (id, supplier_organization_id, customer_person_id, created_by_id)
     VALUES (${REL_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, ${CUSTOMER_ID}::uuid, ${OWNER_ID}::uuid)
   `;
@@ -156,6 +161,10 @@ describe('deliveries row (AC-1, C-01, C-35)', () => {
 
   it('allows several attempts for the same order', async () => {
     await insertDelivery();
+    await prisma.$executeRaw`
+      UPDATE deliveries SET failed_at = now(), failure_reason = 'client absent'
+      WHERE id = ${DELIVERY_ID}::uuid
+    `;
     await expect(insertDelivery({ id: '0199d001-0000-7000-8000-000000000042' })).resolves.toBe(1);
   });
 });

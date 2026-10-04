@@ -172,7 +172,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-019 | todo | | |
 | FIN-020 | todo | | |
 | DLV-001 | done | | deliveries table, triggers and tests green |
-| DLV-002 | blocked | | DLV-001 tests in delivery-table.test.ts (4) contradict DLV-002 (no collaboration; two in-progress deliveries); story lists no Tests to update, may I amend them? |
+| DLV-002 | done | | CHECKs, partial unique index, driver membership trigger; delivery-table tests updated per amended story |
 | DLV-003 | todo | | |
 | DLV-004 | todo | | |
 | DLV-005 | todo | | |

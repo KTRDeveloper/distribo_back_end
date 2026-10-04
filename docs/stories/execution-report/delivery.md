@@ -96,33 +96,31 @@ Also in this run: relationship, admin, catalog, order, finance.
 <!-- begin DLV-002 -->
 ## DLV-002 — Delivery state rules in the database
 
-- Filed: 2026-10-04 16:55 UTC
-- Status: **blocked**: DLV-001 tests in delivery-table.test.ts (4) contradict DLV-002 (no collaboration; two in-progress deliveries); story lists no Tests to update, may I amend them?
+- Filed: 2026-10-04 19:09 UTC
+- Status: **done**: CHECKs, partial unique index, driver membership trigger; delivery-table tests updated per amended story
 - Risk: high · story: [DLV-002-delivery-state-rules-in-the-database.md](../modules/delivery/DLV-002-delivery-state-rules-in-the-database.md)
-- Agent: 52,711 tokens, 15 tool uses, 1 min 55 s
+- Agent: 28,776 tokens, 9 tool uses, 6 min 2 s
 
 ### Agent report
 
-**Summary:** Blocked: DLV-002 is implemented and its 20 tests pass, but 4 existing DLV-001 tests now fail and the story does not list them under "Tests to update".
+**Summary:** Migration with two CHECKs, partial unique index and BEFORE INSERT membership trigger; delivery-table fixture updated as the amended story lists.
 
 **Decisions:**
-- Unknown order or unknown driver: the trigger lets the foreign key answer (23503), as ORD-003 does, so DLV-001's 23503 tests still pass.
-- failure_reason: an empty or blank string counts as no reason; this goes slightly beyond the story's "empty".
-- Membership ignores deleted collaborations (deleted_at not null), by the C-35 convention.
+- failure_reason CHECK: a blank string (after trim) counts as no reason, so "failure_reason empty" rejects with failed_at set.
+- Trigger skips the check when order or driver does not exist, so the foreign keys keep answering 23503 (existing delivery-table tests).
+- Trigger fires on INSERT only and ignores soft-deleted collaborations (deleted_at not null); schema.prisma comment documents the rules.
 
 **Tests added beyond the story:**
-- `delivery-rules.test.ts` › update setting both outcomes: the CHECK also guards UPDATE (C-21)
-- `delivery-rules.test.ts` › in-progress delivery on another order: the unique index is per order (C-21)
-- `delivery-rules.test.ts` › deleted membership, no collaboration at all: both rejected with 23514 (C-21, C-35)
-- `delivery-rules.test.ts` › two concurrent inserts: exactly one gets through, the other 23505 (AB-1, CWE-362)
+- `delivery-rules.test.ts` › rejects an update that sets both outcomes: the CHECK also guards UPDATE (C-21)
+- `delivery-rules.test.ts` › allows an in-progress delivery on another order: index is per order (AC-2); passed at once
+- `delivery-rules.test.ts` › rejects a collaborator whose membership is deleted / registered person with no collaboration (C-21 ACTIVE collaborator)
+- `delivery-rules.test.ts` › lets only one of two concurrent inserts through: race guard (AB-1, CWE-362)
 
 **Other additions:**
-- Comment above `model Delivery` in `prisma/schema.prisma` for the new rules (CLAUDE.md rule).
+- schema.prisma comment above Delivery describing the DB-enforced rules (CLAUDE.md rule).
 
-**Evidence:** story tests 20/20; full suite not run (blocked); typecheck not run; lint 0 errors (quiet)
+**Evidence:** story tests 30/30 (delivery folder, both files); full suite 2254/2254, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
 
 **Follow-ups:**
-- Question: `tests/integration/delivery/delivery-table.test.ts` has 4 tests that fail by design: "stores a delivery with empty attempt columns", "moves server_updated_at forward", "allows several attempts for the same order", "accepts a registered driver". Their fixtures assign a driver with no collaboration, and one inserts two in-progress deliveries. They need a collaboration fixture and a failed or arrived first attempt. May they be amended, or should the DLV-002 story gain "Tests to update"?
-- Files left in the working tree: migration `20261004320000_dlv_002_delivery_rules`, `delivery-rules.test.ts`, the schema comment.
-- Test DB: a first migration run failed on leftover rows, so I cleaned up by hand and resolved it. It is now applied.
+- The story file in the working tree carries the "Tests to update" section added before this run (uncommitted).
 <!-- end DLV-002 -->

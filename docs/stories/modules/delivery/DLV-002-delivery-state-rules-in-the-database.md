@@ -82,5 +82,14 @@ Scenario: AB-1 Two drivers on one order by a crafted write (tampering)
 
 Command: `npx vitest run tests/integration/delivery/delivery-rules.test.ts`
 
+### Tests to update
+| existing test | reason | new expectation |
+|---|---|---|
+| tests/integration/delivery/delivery-table.test.ts › `beforeEach` | its drivers (`OWNER_ID`, `CUSTOMER_ID`) have no collaboration with `SUPPLIER_ORG_ID`, so the membership trigger answers 23514 | after the organization insert, one INSERT adds two ACTIVE collaborations in `SUPPLIER_ORG_ID`: `OWNER_ID` as OWNER and `CUSTOMER_ID` as DRIVER (one statement, so the organization has exactly one active owner when the transaction is saved) |
+| tests/integration/delivery/delivery-table.test.ts › "stores a delivery with empty attempt columns and a server time" | fails only through the fixture above | unchanged; passes with the new `beforeEach` |
+| tests/integration/delivery/delivery-table.test.ts › "moves server_updated_at forward on update" | fails only through the fixture above | unchanged; passes with the new `beforeEach` |
+| tests/integration/delivery/delivery-table.test.ts › "accepts a registered driver" | fails only through the fixture above | unchanged; passes with the new `beforeEach` |
+| tests/integration/delivery/delivery-table.test.ts › "allows several attempts for the same order" | inserts two deliveries in progress for the same order, so the one-in-progress index answers 23505 | before the second insert, the first delivery is updated with `failed_at = now()` and a non-blank `failure_reason`; the second insert still resolves to 1 |
+
 ## Out of scope
 - Routes (DLV-003 onward).
