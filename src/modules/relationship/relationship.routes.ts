@@ -11,6 +11,7 @@ import {
   editCustomerSchema,
   endReopenSchema,
   listCustomersQuerySchema,
+  listSuppliersQuerySchema,
   setCreditLimitSchema,
 } from './relationship.schemas.js';
 import {
@@ -21,6 +22,7 @@ import {
   getCustomer,
   listCreditLimitChanges,
   listCustomers,
+  listSuppliersOfPerson,
   reopenRelationship,
   setCreditLimit,
 } from './relationship.service.js';
@@ -200,3 +202,15 @@ endOrReopenRoute('/customers/:relationshipId/end', endRelationship);
 // POST /api/v1/organizations/:organizationId/customers/:relationshipId/reopen - a manager online
 // reopens a relationship the supplier ended; 409 when the customer ended it
 endOrReopenRoute('/customers/:relationshipId/reopen', reopenRelationship);
+
+/** Relationship routes of the signed-in person as customer, mounted at `/suppliers`. */
+export const supplierRoutes = Router();
+
+// GET /api/v1/suppliers - any signed-in person lists the relationships where they are the
+// customer; the person comes from the session, never from the request
+supplierRoutes.get('/', authMiddleware, (req, res, next) => {
+  Promise.resolve()
+    .then(() => listSuppliersOfPerson(req.user!.id, listSuppliersQuerySchema.parse(req.query)))
+    .then((page) => res.json(page))
+    .catch(next);
+});

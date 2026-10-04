@@ -600,3 +600,30 @@ Also in this run: admin, catalog, order, finance, delivery.
 - AC-3 row "ending a PENDING relationship -> 409" is unreachable by the supplier organization: a PENDING row always has a person as supplier (DB CHECK), so the org-scoped lookup answers 404. The test asserts 404; the service still checks status !== ACTIVE (409) defensively. A human should confirm the intended behavior.
 - RELATIONSHIP_NOT_ENDED is a new code outside the story's Errors list.
 <!-- end REL-015 -->
+
+<!-- begin REL-016 -->
+## REL-016 — Customer lists their suppliers
+
+- Filed: 2026-10-04 14:30 UTC
+- Status: **done**: GET /suppliers customer view, 11 tests, suite 1671 green
+- Risk: medium · story: [REL-016-customer-lists-their-suppliers.md](../modules/relationship/REL-016-customer-lists-their-suppliers.md)
+- Agent: 55,765 tokens, 14 tool uses, 3 min 12 s
+
+### Agent report
+
+**Summary:** Added GET /api/v1/suppliers (customer view, status filter, keyset paging) through route, service, repository, schema and OpenAPI.
+
+**Decisions:**
+- Mount point: new `supplierRoutes` router exported from relationship.routes.ts and mounted at `/suppliers` in `src/app.ts` (the org-scoped router cannot host it).
+- Scope: visibility predicate with no organization ids, narrowed to `customerPersonId = caller`, so rows where the caller is only the supplier person are excluded.
+- 401 without header is `UNAUTHORIZED`; a bad token gives the existing `INVALID_TOKEN`, so the 401 test sends no header.
+
+**Tests added beyond the story:**
+- `list-suppliers.test.ts` › 400 VALIDATION_ERROR (unknown field, bad status, limit 101, bad cursor): strict query (Validation convention); passed at once after implementation.
+- `list-suppliers.test.ts` › 401 without token (Errors convention).
+
+**Other additions:**
+- `src/app.ts` mount and `/api/v1/suppliers` entry in `catalog.test.ts` (CONVENTIONS: story that adds a route).
+
+**Evidence:** story tests 11/11; full suite 1671/1671, failing: none; typecheck clean; lint 0 errors, 57 warnings (pre-existing)
+<!-- end REL-016 -->

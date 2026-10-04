@@ -208,6 +208,54 @@ export async function listSupplierRelationships(
 }
 
 /**
+ * Lists the relationships where the person is the customer, newest first (created_at descending
+ * then id), keyset-paged: ACTIVE, ENDED and the PENDING invitations the person sent. The query
+ * starts from the visibility predicate for the person (v5.0.0-8.2.2) and narrows it to the rows
+ * where the person is the customer person, so rows where the person is only the supplier person
+ * never match; deleted and merged rows never match either.
+ *
+ * @param personId - Caller's person id from the session, never from the client.
+ * @param query - Page size, opaque cursor and optional status filter.
+ * @returns Rows (at most limit) with the supplier parties loaded, and the next cursor or null.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listCustomerRelationships(
+  personId: string,
+  query: { limit: number; cursor?: string; status?: RelationshipStatus }
+) {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const and: Prisma.CustomerRelationshipWhereInput[] = [
+    visibleRelationsWhere({ personId, organizationIds: [] }),
+    { customerPersonId: personId },
+  ];
+  if (query.status) and.push({ status: query.status });
+  if (cursor) {
+    and.push({
+      OR: [
+        { createdAt: { lt: cursor.createdAt } },
+        { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+      ],
+    });
+  }
+
+  const found = await prisma.customerRelationship.findMany({
+    where: { AND: and },
+    include: { supplierPerson: true, supplierOrganization: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.createdAt, id: last.id })
+        : null,
+  };
+}
+
+/**
  * Finds one relationship of the organization as supplier by id, through the visibility predicate
  * (v5.0.0-8.2.2): id and visibility are matched in the same query, so another business's row is
  * indistinguishable from an absent one. Deleted and merged rows never match.

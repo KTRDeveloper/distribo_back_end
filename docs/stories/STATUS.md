@@ -109,7 +109,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-013 | done | | GET credit-limit-changes: MANAGER and above, visibility first, keyset on set_at; 10 tests |
 | REL-014 | done | | Reassignments journal table, contestation partial unique index, immutable; 12 tests |
 | REL-015 | done | | end/reopen routes; PENDING unreachable via org scope (404); reopen of non-ended = RELATIONSHIP_NOT_ENDED (unspecified) |
-| REL-016 | todo | | |
+| REL-016 | done | | GET /suppliers customer view, 11 tests, suite 1671 green |
 | REL-017 | todo | | |
 | REL-018 | todo | | |
 | REL-019 | todo | | |

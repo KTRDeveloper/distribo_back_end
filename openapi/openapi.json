@@ -8934,6 +8934,240 @@
         }
       }
     },
+    "/api/v1/suppliers": {
+      "get": {
+        "tags": [
+          "relationship"
+        ],
+        "summary": "List my suppliers as a customer, newest first (any signed-in person)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "ACTIVE",
+                "ENDED"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of customer-side relationship views",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "ACTIVE",
+                              "ENDED"
+                            ]
+                          },
+                          "supplier": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "PERSON"
+                                    ]
+                                  },
+                                  "person": {
+                                    "type": "object",
+                                    "properties": {
+                                      "public_name": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "phone_number": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "registered": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "public_name",
+                                      "phone_number",
+                                      "registered"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "person"
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ORGANIZATION"
+                                    ]
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "name",
+                                  "description"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "supplier_label": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "delivery_address": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "credit_limit": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "balance": {
+                            "type": "integer"
+                          },
+                          "ended_by_party": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "SUPPLIER",
+                              "CUSTOMER"
+                            ]
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "status",
+                          "supplier",
+                          "supplier_label",
+                          "delivery_address",
+                          "credit_limit",
+                          "balance",
+                          "ended_by_party",
+                          "created_at"
+                        ]
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/remote-config": {
       "post": {
         "tags": [

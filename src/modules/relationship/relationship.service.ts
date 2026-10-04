@@ -14,6 +14,7 @@ import type {
   AddCustomerInput,
   EditCustomerInput,
   ListCustomersQuery,
+  ListSuppliersQuery,
   SetCreditLimitInput,
 } from './relationship.schemas.js';
 import {
@@ -25,6 +26,7 @@ import {
   findSupplierRelationshipLocked,
   findWithParties,
   listCreditLimitChangeRows,
+  listCustomerRelationships,
   listSupplierRelationships,
   lockOrganization,
   managesOrganization,
@@ -32,7 +34,12 @@ import {
   updateSupplierFields,
   writeCreditLimit,
 } from './relationship.repository.js';
-import { projectForSupplier, type SupplierRelationshipView } from './relationship.visibility.js';
+import {
+  projectForCustomer,
+  projectForSupplier,
+  type CustomerRelationshipView,
+  type SupplierRelationshipView,
+} from './relationship.visibility.js';
 
 const ADDED_CONTENT = {
   FR: (organizationName: string) => `${organizationName} vous a ajoute comme client.`,
@@ -123,6 +130,27 @@ export async function listCustomers(
 
   const { rows, nextCursor } = await listSupplierRelationships(actor, query);
   return { items: rows.map(projectForSupplier), next_cursor: nextCursor };
+}
+
+/**
+ * A signed-in person lists their suppliers: the relationships where they are the customer person
+ * (ACTIVE, ENDED and the PENDING invitations they sent), newest first.
+ *
+ * The filter is the visibility predicate for the caller's person id, taken from the session
+ * (v5.0.0-8.2.2). Each row goes through `projectForCustomer`, so `customer_label` and
+ * `supplier_notes` are never sent (CM-19, v5.0.0-15.3.1).
+ *
+ * @param personId - Caller's person id from the session.
+ * @param query - Validated page size, cursor and optional status.
+ * @returns A page of customer views and the next cursor, or null on the last page.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listSuppliersOfPerson(
+  personId: string,
+  query: ListSuppliersQuery
+): Promise<{ items: CustomerRelationshipView[]; next_cursor: string | null }> {
+  const { rows, nextCursor } = await listCustomerRelationships(personId, query);
+  return { items: rows.map(projectForCustomer), next_cursor: nextCursor };
 }
 
 /**

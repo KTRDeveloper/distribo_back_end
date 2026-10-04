@@ -37,6 +37,16 @@ export const listCustomersQuerySchema = paginationQuerySchema
 export type ListCustomersQuery = z.infer<typeof listCustomersQuerySchema>;
 
 /**
+ * Strict query of the supplier list: `limit`, `cursor` and a status filter; any other field or
+ * value is a 400.
+ */
+export const listSuppliersQuerySchema = paginationQuerySchema
+  .extend({ status: z.enum(['PENDING', 'ACTIVE', 'ENDED']).optional() })
+  .strict();
+
+export type ListSuppliersQuery = z.infer<typeof listSuppliersQuerySchema>;
+
+/**
  * Path of one customer: the relationship id must be a UUIDv7, else 400. Not strict because the
  * merged route params also carry `organizationId`, which `loadActor` already validated.
  */

@@ -89,7 +89,7 @@ import {
   collaborationRoutes,
   organizationRoutes,
 } from './modules/organization/organization.routes.js';
-import { relationshipRoutes } from './modules/relationship/relationship.routes.js';
+import { relationshipRoutes, supplierRoutes } from './modules/relationship/relationship.routes.js';
 import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
@@ -123,6 +123,7 @@ v1Router.use('/tasks', tasksRoutes);
 v1Router.use('/people', personRoutes);
 v1Router.use('/organizations', organizationRoutes);
 v1Router.use('/organizations/:organizationId', relationshipRoutes);
+v1Router.use('/suppliers', supplierRoutes);
 v1Router.use('/collaborations', collaborationRoutes);
 v1Router.use('/auth', authRoutes);
 v1Router.use('/admin', adminRoutes);

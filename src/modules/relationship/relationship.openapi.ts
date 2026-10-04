@@ -9,6 +9,7 @@ import {
   editCustomerSchema,
   endReopenSchema,
   listCustomersQuerySchema,
+  listSuppliersQuerySchema,
   setCreditLimitSchema,
 } from './relationship.schemas.js';
 
@@ -36,6 +37,28 @@ const supplierRelationshipViewSchema = z.object({
   credit_limit: z.number().int().nullable(),
   credit_limit_set_by_id: z.string().uuid().nullable(),
   credit_limit_set_at: z.string().datetime().nullable(),
+  balance: z.number().int(),
+  ended_by_party: z.enum(['SUPPLIER', 'CUSTOMER']).nullable(),
+  created_at: z.string().datetime(),
+});
+
+/** Customer-side view: `supplier_label` in, `customer_label` and `supplier_notes` never (CM-19). */
+const customerRelationshipViewSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['PENDING', 'ACTIVE', 'ENDED']),
+  supplier: z
+    .union([
+      z.object({ kind: z.literal('PERSON'), person: publicPersonSchema }),
+      z.object({
+        kind: z.literal('ORGANIZATION'),
+        name: z.string(),
+        description: z.string().nullable(),
+      }),
+    ])
+    .nullable(),
+  supplier_label: z.string().nullable(),
+  delivery_address: z.string().nullable(),
+  credit_limit: z.number().int().nullable(),
   balance: z.number().int(),
   ended_by_party: z.enum(['SUPPLIER', 'CUSTOMER']).nullable(),
   created_at: z.string().datetime(),
@@ -281,3 +304,27 @@ for (const [action, summary, conflicts] of [
     },
   });
 }
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/suppliers',
+  tags: ['relationship'],
+  summary: 'List my suppliers as a customer, newest first (any signed-in person)',
+  security: [{ bearerAuth: [] }],
+  request: { query: listSuppliersQuerySchema },
+  responses: {
+    200: {
+      description: 'A page of customer-side relationship views',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(customerRelationshipViewSchema),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid query', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+  },
+});
