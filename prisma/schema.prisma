@@ -102,6 +102,12 @@ enum NotificationReadStatus {
   READ
 }
 
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
 model SystemConfig {
   id               String    @id @default(uuid())
   category         String
@@ -192,6 +198,19 @@ model Notification {
 
   @@index([recipientId, readStatus, createdAt(sort: Desc)])
   @@map("notifications")
+}
+
+model Organization {
+  id              String             @id @db.Uuid
+  name            String
+  description     String?            @db.Text
+  email           String?
+  status          OrganizationStatus @default(ACTIVE)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  serverUpdatedAt DateTime           @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt       DateTime?          @map("deleted_at") @db.Timestamptz
+
+  @@map("organizations")
 }
 
 model OtpChallenge {
