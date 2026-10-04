@@ -40,3 +40,11 @@ export const creditNoteSchema = z
   .strict();
 
 export type CreditNoteInput = z.infer<typeof creditNoteSchema>;
+
+/**
+ * Strict body of the opening-balance gesture (FIN-007): same fields as a credit note, the reason
+ * being the notebook reference. No mode, kind, recorder or time (ASVS v5.0.0-15.3.3).
+ */
+export const openingBalanceSchema = creditNoteSchema;
+
+export type OpeningBalanceInput = z.infer<typeof openingBalanceSchema>;

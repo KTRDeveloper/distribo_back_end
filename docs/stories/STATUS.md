@@ -157,7 +157,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-004 | done | | Payment route, 13 tests, full suite green; OpenAPI paths left to FIN-010 |
 | FIN-005 | done | | refund route, 13 tests, full suite green |
 | FIN-006 | done | | POST credit-notes; guards shared with refund; 2574 tests pass |
-| FIN-007 | todo | | |
+| FIN-007 | done | | POST opening-balances; reuses refund guards; all tests pass |
 | FIN-008 | todo | | |
 | FIN-009 | todo | | |
 | FIN-010 | todo | | |

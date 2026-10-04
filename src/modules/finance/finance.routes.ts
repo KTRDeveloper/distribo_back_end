@@ -6,8 +6,18 @@ import { requireAbility } from '../../middleware/require-ability.js';
 import { logger } from '../../lib/logger.js';
 import { httpError } from '../../lib/http-error.js';
 import { atLeast } from '../../shared/access/roles.js';
-import { creditNoteSchema, paymentParamSchema, recordPaymentSchema } from './finance.schemas.js';
-import { recordCreditNote, recordPayment, recordRefund } from './finance.service.js';
+import {
+  creditNoteSchema,
+  openingBalanceSchema,
+  paymentParamSchema,
+  recordPaymentSchema,
+} from './finance.schemas.js';
+import {
+  recordCreditNote,
+  recordOpeningBalance,
+  recordPayment,
+  recordRefund,
+} from './finance.service.js';
 
 /** Finance routes of one organization, mounted at `/organizations/:organizationId`. */
 export const financeRoutes = Router({ mergeParams: true });
@@ -105,6 +115,36 @@ financeRoutes.post(
       req.actor!,
       paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
       creditNoteSchema.parse(req.body)
+    )
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/customers/:relationshipId/opening-balances - a MANAGER
+// online or the OWNER copies a customer's debt from a paper notebook. The rules table grants
+// `create LedgerEntry kind OPENING_BALANCE` to nobody below MANAGER; the organization and the
+// recorder are the caller's, never body fields.
+financeRoutes.post(
+  '/customers/:relationshipId/opening-balances',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'LedgerEntry', () => ({ kind: 'OPENING_BALANCE' })),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = paymentParamSchema.safeParse({ relationshipId: req.params.relationshipId });
+    if (!params.success) return next(params.error);
+    const parsed = openingBalanceSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    recordOpeningBalance(
+      req.actor!,
+      paymentParamSchema.parse({ relationshipId: req.params.relationshipId }).relationshipId,
+      openingBalanceSchema.parse(req.body)
     )
       .then((view) => res.status(201).json(view))
       .catch(next);

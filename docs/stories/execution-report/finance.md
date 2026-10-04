@@ -271,6 +271,35 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - No `.openapi.ts` for finance and no catalog/per-001 entries: neither FIN-004, FIN-005 nor this story has them, so I kept the precedent. Convention says each route should be registered.
 <!-- end FIN-006 -->
 
+<!-- begin FIN-007 -->
+## FIN-007 — Manager records an opening balance from a paper notebook
+
+- Filed: 2026-10-04 21:33 UTC
+- Status: **done**: POST opening-balances; reuses refund guards; all tests pass
+- Risk: high · story: [FIN-007-manager-records-an-opening-balance-from-a-paper.md](../modules/finance/FIN-007-manager-records-an-opening-balance-from-a-paper.md)
+- Agent: 37,508 tokens, 12 tool uses, 4 min 9 s
+
+### Agent report
+
+**Summary:** Added POST .../customers/{relationshipId}/opening-balances (recordOpeningBalance), reusing the FIN-005/006 guards.
+
+**Decisions:**
+- Schema: `openingBalanceSchema` aliases `creditNoteSchema` (same fields, note required), since the shape is identical.
+- Extracted `notifyBalanceIncreased` from recordRefund so refund and opening balance share it (no behavior change).
+- No `.openapi.ts` or catalog/per-001 entries: the finance module has none for FIN-004..006 either.
+
+**Tests added beyond the story:**
+- `opening-balance.test.ts` › owner on manager-as-customer: owner allowed on own-record (v5.0.0-8.2.1, as FIN-006)
+- `opening-balance.test.ts` › CLOSED/SUSPENDED org: ORGANIZATION_NOT_ACTIVE ("Same refusals as FIN-005")
+- `opening-balance.test.ts` › retried id: one entry, one notification (project rule on idempotent gestures)
+- `opening-balance.test.ts` › foreign customer: 404, nothing stored (v5.0.0-8.2.2); these four passed at once once the route existed
+
+**Evidence:** story tests 10/10; full suite 2584/2584, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- Finance routes (FIN-004..007) are not registered in an `.openapi.ts` although CONVENTIONS requires it; worth a dedicated story.
+<!-- end FIN-007 -->
+
 <!-- begin FIN-011 -->
 ## FIN-011 — Expenses table
 
