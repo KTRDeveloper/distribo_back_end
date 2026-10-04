@@ -704,3 +704,39 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - DLV-012 must add abandoned rests of partial deliveries to these items.
 - Soft-deleted expenses/handovers (deleted_at) are not filtered, consistent with held-money reconciliation.
 <!-- end FIN-019 -->
+
+<!-- begin FIN-020 -->
+## FIN-020 — Owner reads the treasury and expenses
+
+- Filed: 2026-10-04 23:05 UTC
+- Status: **done**: treasury and expense list for OWNER and MANAGER; 28 story tests, full suite green
+- Risk: medium · story: [FIN-020-owner-reads-the-treasury-and-expenses.md](../modules/finance/FIN-020-owner-reads-the-treasury-and-expenses.md)
+- Agent: 72,671 tokens, 24 tool uses, 5 min 45 s
+
+### Agent report
+
+**Summary:** Added GET treasury and GET expenses (OWNER and MANAGER) with service, repository, schemas, routes and OpenAPI; all green.
+
+**Decisions:**
+- Expense list period: from/to optional with no default and no 92-day cap (only ISO dates, from <= to); the story says "period rules as FIN-019" for the treasury only, and a 7-day default would hide history while paging.
+- Expense list item: FIN-013 fields plus an explicit `cancelled` boolean (the "flag"), with cancelled_at and cancelled_by_id.
+- Role check in the service (logged 403 before the query is read), like FIN-019, since the rules table has no `read Expense` rule.
+- Treasury reuses the FIN-019 query schema and period resolver (default 7 days, max 92); reversals count on the day of the reversal entry, expenses by occurred_at, cancelled expenses excluded.
+- Expense list order is occurred_at desc then id (Expense has no created_at), same as the ledger read.
+
+**Tests added beyond the story:**
+- `tests/integration/finance/treasury.test.ts` › customer-side relationship: ORG as customer, payment is an outflow and refund an inflow (story context rule); passed at once with the implementation
+- same file › sales, credit notes, opening balances are not money (story context)
+- same file › period boundaries, whole last day included, default 7 days (FIN-019 period rules)
+- same file › another business's ledger and expenses are ignored; 401 without token; stranger gets 404 (AB-1)
+- same file › manager reads it; DRIVER 403; expense list cursor paging across 3 pages and bad limit/cursor/date 400 (AC-3, AC-4)
+
+**Other additions:**
+- `tests/integration/api-docs/catalog.test.ts`: treasury path added (convention); `openapi/openapi.json` regenerated.
+
+**Evidence:** story tests 28/28; full suite 2736/2736, failing: none; typecheck clean; lint 0 errors, 65 warnings (pre-existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- Prettier flags `src/modules/finance/ledger.service.ts` (not touched by this story).
+- A reversal is counted at its own date, so a payment reversed in a later period lowers that later period, not the original one.
+<!-- end FIN-020 -->

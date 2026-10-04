@@ -6,6 +6,7 @@ import {
   cancelExpenseSchema,
   creditNoteSchema,
   ledgerQuerySchema,
+  listExpensesQuerySchema,
   moneyExceptionsQuerySchema,
   openingBalanceSchema,
   paymentParamSchema,
@@ -18,6 +19,7 @@ import {
   returnSchema,
   reverseEntrySchema,
   reverseParamSchema,
+  treasuryQuerySchema,
 } from './finance.schemas.js';
 
 const organizationParamsSchema = z.object({ organizationId: uuidV7Schema });
@@ -391,6 +393,82 @@ openApiRegistry.registerPath({
     },
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'The caller is not the owner', content: errorContent },
+    404: { description: 'Not a member of the organization', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/treasury',
+  tags: ['finance'],
+  summary: 'Money that came in and went out over a period, totals only (OWNER and MANAGER)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema,
+    query: treasuryQuerySchema,
+  },
+  responses: {
+    200: {
+      description:
+        'Inflows (payments received, refunds received), outflows (payments made, refunds given, live expenses) and their difference, in XAF',
+      content: {
+        'application/json': {
+          schema: z.object({
+            inflows: z.number().int(),
+            outflows: z.number().int(),
+            net: z.number().int(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'Malformed date, from after to, or more than 92 days',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Below MANAGER', content: errorContent },
+    404: { description: 'Not a member of the organization', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/expenses',
+  tags: ['finance'],
+  summary: 'List expenses, newest first, cancelled ones flagged (OWNER and MANAGER)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema,
+    query: listExpensesQuerySchema,
+  },
+  responses: {
+    200: {
+      description: 'A page of expenses',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(
+              z.object({
+                id: z.string().uuid(),
+                paid_by_id: z.string().uuid(),
+                amount: z.number().int(),
+                category: z.string().nullable(),
+                description: z.string().nullable(),
+                recorded_by_id: z.string().uuid(),
+                occurred_at: z.string().datetime(),
+                cancelled: z.boolean(),
+                cancelled_at: z.string().datetime().nullable(),
+                cancelled_by_id: z.string().uuid().nullable(),
+              })
+            ),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid limit, cursor, date or query field', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Below MANAGER', content: errorContent },
     404: { description: 'Not a member of the organization', content: errorContent },
   },
 });

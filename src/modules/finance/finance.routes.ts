@@ -37,6 +37,8 @@ import {
   recordRefund,
   recordReturn,
   reverseEntry,
+  listExpenses,
+  treasury,
 } from './finance.service.js';
 import './finance.openapi.js';
 
@@ -414,6 +416,23 @@ financeRoutes.get('/exceptions/money', authMiddleware, loadActor, (req, res, nex
   // The raw query goes to the service, which refuses a non-owner first and then validates it strictly.
   moneyExceptions(req.actor!, req.query as { from?: string; to?: string })
     .then((view) => res.json(view))
+    .catch(next);
+});
+
+// GET /api/v1/organizations/:organizationId/treasury - OWNER and MANAGER read the money that came
+// in and went out over a period. The service answers 403 below MANAGER before reading the query;
+// the organization is the actor's, from the path through `loadActor`.
+financeRoutes.get('/treasury', authMiddleware, loadActor, (req, res, next) => {
+  treasury(req.actor!, req.query as { from?: string; to?: string })
+    .then((view) => res.json(view))
+    .catch(next);
+});
+
+// GET /api/v1/organizations/:organizationId/expenses - OWNER and MANAGER list the organization's
+// expenses, newest first, cancelled ones flagged. The service answers 403 below MANAGER.
+financeRoutes.get('/expenses', authMiddleware, loadActor, (req, res, next) => {
+  listExpenses(req.actor!, req.query as Record<string, string>)
+    .then((page) => res.json(page))
     .catch(next);
 });
 

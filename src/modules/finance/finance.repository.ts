@@ -314,3 +314,101 @@ export function findMoneyExceptions(
     { isolationLevel: 'RepeatableRead' }
   );
 }
+
+/** Money in and out of an organization over a period, whole XAF as bigint. */
+export type TreasuryTotals = { inflows: bigint; outflows: bigint };
+
+/**
+ * Sums the money that moved through an organization between `from` (inclusive) and `toExclusive`
+ * (FIN-020), in one repeatable-read transaction so the ledger and the expenses agree.
+ * Inflows: PAYMENT entries where the organization is the supplier plus REFUND entries where it is
+ * the customer; outflows: PAYMENT where it is the customer, REFUND where it is the supplier, plus
+ * live expenses. A reversal entry subtracts from the bucket of the entry it mirrors; a cancelled
+ * expense is left out. SALE, CREDIT_NOTE and OPENING_BALANCE move no money. The organization is
+ * the caller's and is bound as a query parameter.
+ */
+export function findTreasuryTotals(
+  organizationId: string,
+  period: { from: Date; toExclusive: Date }
+): Promise<TreasuryTotals> {
+  return prisma.$transaction(
+    async (tx) => {
+      const rows = await tx.$queryRaw<
+        { as_supplier: boolean; kind: string; reversal: boolean; total: bigint }[]
+      >`
+        SELECT cr.supplier_organization_id = ${organizationId}::uuid AS as_supplier,
+               le.kind::text AS kind,
+               le.reverses_entry_id IS NOT NULL AS reversal,
+               SUM(le.amount)::bigint AS total
+        FROM ledger_entries le
+        JOIN customer_relationships cr ON cr.id = le.customer_relationship_id
+        WHERE le.kind IN ('PAYMENT', 'REFUND')
+          AND (cr.supplier_organization_id = ${organizationId}::uuid
+               OR cr.customer_organization_id = ${organizationId}::uuid)
+          AND le.occurred_at >= ${period.from} AND le.occurred_at < ${period.toExclusive}
+        GROUP BY 1, 2, 3
+      `;
+      let inflows = 0n;
+      let outflows = 0n;
+      for (const row of rows) {
+        // PAYMENT comes in for the supplier, REFUND comes in for the customer.
+        const comesIn = (row.kind === 'PAYMENT') === row.as_supplier;
+        const signed = row.reversal ? -row.total : row.total;
+        if (comesIn) inflows += signed;
+        else outflows += signed;
+      }
+      const expenses = await tx.expense.aggregate({
+        where: {
+          organizationId,
+          deletedAt: null,
+          cancelledAt: null,
+          occurredAt: { gte: period.from, lt: period.toExclusive },
+        },
+        _sum: { amount: true },
+      });
+      outflows += expenses._sum.amount ?? 0n;
+      return { inflows, outflows };
+    },
+    { isolationLevel: 'RepeatableRead' }
+  );
+}
+
+/**
+ * Reads one page of an organization's expenses, newest `occurred_at` first then id, keyset-paged,
+ * cancelled ones included (FIN-020). Only the caller's own organization is read.
+ *
+ * @param organizationId - The caller's organization.
+ * @param query - Page size, opaque cursor and optional period (`from` inclusive, `toExclusive`).
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listExpensePage(
+  organizationId: string,
+  query: { limit: number; cursor?: string; from?: Date; toExclusive?: Date }
+) {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const and: Prisma.ExpenseWhereInput[] = [{ organizationId, deletedAt: null }];
+  if (query.from) and.push({ occurredAt: { gte: query.from } });
+  if (query.toExclusive) and.push({ occurredAt: { lt: query.toExclusive } });
+  if (cursor) {
+    and.push({
+      OR: [
+        { occurredAt: { lt: cursor.createdAt } },
+        { occurredAt: cursor.createdAt, id: { gt: cursor.id } },
+      ],
+    });
+  }
+  const found = await prisma.expense.findMany({
+    where: { AND: and },
+    orderBy: [{ occurredAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.occurredAt, id: last.id })
+        : null,
+  };
+}

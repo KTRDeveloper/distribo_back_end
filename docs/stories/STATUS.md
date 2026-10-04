@@ -170,7 +170,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-017 | done | | Former owner's held money handed over in the transfer transaction; sync pull tests flaky on timing, unrelated |
 | FIN-018 | done | | reconcile service + job:reconcile script, 7 tests pass, full suite 2686/2686 |
 | FIN-019 | done | | Owner money exceptions route; full suite 2708 passed |
-| FIN-020 | todo | | |
+| FIN-020 | done | | treasury and expense list for OWNER and MANAGER; 28 story tests, full suite green |
 | DLV-001 | done | | deliveries table, triggers and tests green |
 | DLV-002 | done | | CHECKs, partial unique index, driver membership trigger; delivery-table tests updated per amended story |
 | DLV-003 | done | | Driver to-deliver pool and own deliveries; tests green |

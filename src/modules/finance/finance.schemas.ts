@@ -227,3 +227,24 @@ export const moneyExceptionsQuerySchema = z
   });
 
 export type MoneyExceptionsQuery = z.infer<typeof moneyExceptionsQuerySchema>;
+
+/** Strict query of the treasury (FIN-020): the same period rules as the money exceptions. */
+export const treasuryQuerySchema = moneyExceptionsQuerySchema;
+
+export type TreasuryQuery = z.infer<typeof treasuryQuerySchema>;
+
+/**
+ * Strict query of the expense list (FIN-020): `limit`, `cursor` and an optional `from` and `to`
+ * (ISO dates, `from` not after `to`). Without a period every expense is listed, since a list pages
+ * through history; any other field is a 400.
+ */
+export const listExpensesQuerySchema = paginationQuerySchema
+  .extend({ from: isoDateSchema.optional(), to: isoDateSchema.optional() })
+  .strict()
+  .superRefine((query, context) => {
+    if (query.from && query.to && query.from > query.to) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'from_after_to', path: ['from'] });
+    }
+  });
+
+export type ListExpensesQuery = z.input<typeof listExpensesQuerySchema>;

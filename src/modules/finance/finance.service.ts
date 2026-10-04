@@ -26,8 +26,19 @@ import type {
   ReturnInput,
   ReverseEntryInput,
 } from './finance.schemas.js';
-import { findMoneyExceptions, listLedgerPage } from './finance.repository.js';
-import { moneyExceptionsQuerySchema, resolveMoneyPeriod } from './finance.schemas.js';
+import {
+  findMoneyExceptions,
+  findTreasuryTotals,
+  listExpensePage,
+  listLedgerPage,
+} from './finance.repository.js';
+import {
+  listExpensesQuerySchema,
+  moneyExceptionsQuerySchema,
+  resolveMoneyPeriod,
+  treasuryQuerySchema,
+} from './finance.schemas.js';
+import type { ListExpensesQuery } from './finance.schemas.js';
 import {
   cancelExpenseInTx,
   cancelHandoverInTx,
@@ -984,4 +995,79 @@ export async function moneyExceptions(
         : 1
   );
   return { items: ranked.map((entry) => entry.item) };
+}
+
+/** Refuses a caller below MANAGER with a logged 403 (deny by default, ASVS v5.0.0-8.2.1). */
+function requireManagerOrOwner(actor: Actor, subjectType: string): void {
+  if (atLeast(actor.role, 'MANAGER')) return;
+  logger.warn(
+    { event: 'permission_refused', personId: actor.personId, action: 'read', subjectType },
+    'Permission refused'
+  );
+  throw httpError(403, 'FORBIDDEN', 'Permission denied');
+}
+
+/**
+ * The owner or a manager reads the money that came in and went out over a period (FIN-020).
+ * Totals only (ASVS v5.0.0-15.3.1), in whole XAF; the organization is the actor's, never a client
+ * value. The role is checked before the query is read. `net` is `inflows - outflows` and may be
+ * negative.
+ *
+ * @param actor - Person, organization and role from `loadActor`.
+ * @param query - Raw `from` and `to` (`YYYY-MM-DD`); default the last 7 days, at most 92 days apart.
+ * @throws 403 `FORBIDDEN` below MANAGER; 400 `VALIDATION_ERROR` for a bad or too long period.
+ */
+export async function treasury(
+  actor: Actor,
+  query: { from?: string; to?: string }
+): Promise<{ inflows: number; outflows: number; net: number }> {
+  requireManagerOrOwner(actor, 'Treasury');
+  const period = resolveMoneyPeriod(treasuryQuerySchema.parse(query));
+  const totals = await findTreasuryTotals(actor.organizationId, period);
+  return {
+    inflows: Number(totals.inflows),
+    outflows: Number(totals.outflows),
+    net: Number(totals.inflows - totals.outflows),
+  };
+}
+
+/** An expense in the list: the recorded fields plus its cancellation flag. */
+export type ListedExpenseView = CancelledExpenseView & { cancelled: boolean };
+
+/**
+ * The owner or a manager lists the organization's expenses, newest first, cancelled ones included
+ * and flagged (FIN-020). The organization is the actor's; the role is checked before the query is
+ * read.
+ *
+ * @param actor - Person, organization and role from `loadActor`.
+ * @param query - Raw `limit`, `cursor`, `from`, `to` (`YYYY-MM-DD`, `to` inclusive).
+ * @throws 403 `FORBIDDEN` below MANAGER; 400 `VALIDATION_ERROR` for a bad query or cursor.
+ */
+export async function listExpenses(
+  actor: Actor,
+  query: ListExpensesQuery
+): Promise<{ items: ListedExpenseView[]; next_cursor: string | null }> {
+  requireManagerOrOwner(actor, 'Expense');
+  const parsed = listExpensesQuerySchema.parse(query);
+  const page = await listExpensePage(actor.organizationId, {
+    limit: parsed.limit,
+    cursor: parsed.cursor,
+    from: parsed.from ? resolveMoneyPeriod({ from: parsed.from, to: parsed.from }).from : undefined,
+    toExclusive: parsed.to ? resolveMoneyPeriod({ to: parsed.to }).toExclusive : undefined,
+  });
+  return {
+    items: page.rows.map((expense) => ({
+      id: expense.id,
+      paid_by_id: expense.paidById,
+      amount: Number(expense.amount),
+      category: expense.category,
+      description: expense.description,
+      recorded_by_id: expense.recordedById,
+      occurred_at: expense.occurredAt,
+      cancelled: expense.cancelledAt !== null,
+      cancelled_at: expense.cancelledAt,
+      cancelled_by_id: expense.cancelledById,
+    })),
+    next_cursor: page.nextCursor,
+  };
 }

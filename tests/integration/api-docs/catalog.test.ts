@@ -149,6 +149,9 @@ describe('GET /docs/openapi.json', () => {
     // FIN-019: the owner's money exceptions
     expect(paths).toContain('/api/v1/organizations/{organizationId}/exceptions/money');
 
+    // FIN-020: the owner's treasury (the expense list shares the FIN-012 path)
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/treasury');
+
     // ORD-010: the organization purchase route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases');
 
