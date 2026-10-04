@@ -138,7 +138,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-006 | done | | Deferred totals/delivered-quantity triggers; 14 story tests, full suite 2234 pass |
 | ORD-007 | done | | Pure order calculations and supplier/customer views; 14 unit tests, full suite 2103 pass |
 | ORD-008 | done | | transitionOrder with conditional update, viaSync delivery-wins; 23 tests |
-| ORD-009 | todo | | |
+| ORD-009 | done | | POST /api/v1/orders; 35 story tests + full suite green |
 | ORD-010 | todo | | |
 | ORD-011 | todo | | |
 | ORD-012 | todo | | |

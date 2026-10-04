@@ -347,6 +347,42 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 23/23; full suite 2126/2126 after fixing a lint error in my test (first run 2125/2126, quality-gates lint), failing: none; typecheck clean; lint 0 errors, 60 pre-existing warnings
 <!-- end ORD-008 -->
 
+<!-- begin ORD-009 -->
+## ORD-009 — Customer places an order
+
+- Filed: 2026-10-04 19:31 UTC
+- Status: **done**: POST /api/v1/orders; 35 story tests + full suite green
+- Risk: high · story: [ORD-009-customer-places-an-order.md](../modules/order/ORD-009-customer-places-an-order.md)
+- Agent: 81,181 tokens, 22 tool uses, 8 min 36 s
+
+### Agent report
+
+**Summary:** Added POST /api/v1/orders (customer places a PENDING order, server-side prices, relationship ensured, team notified) in one transaction.
+
+**Decisions:**
+- Notification text: fixed FR/EN "new order received" per recipient language (no customer name, so no personal data); related = order id.
+- Duplicate line ids in one body: rejected with 400 by a schema refine (else the primary key would give a 500).
+- Min-quantity check done in the service (400 VALIDATION_ERROR) before the DB trigger, which would answer with a raw check error.
+- Response lines are returned in request order.
+- Quantity accepts string or number, canonicalised by the schema (same rule as catalog min_order_quantity, re-implemented locally to avoid a cross-module import).
+- No OpenAPI paths or catalog.test/per-001 additions: ORD-019 owns OpenAPI registration (story "Out of scope").
+
+**Tests added beyond the story:**
+- `place-order.test.ts` › accepts exactly 100 lines: limit boundary (AC-4)
+- `place-order.test.ts` › requires authentication: 401 deny by default (CONVENTIONS); passed at once
+- `place-order.test.ts` › refuses an unknown business with 404: assertOrganizationActive contract; passed at once
+- `place-order.test.ts` › duplicate line id / negative / 1e3 quantity: malformed input 400 (AC-4)
+- `place-order.test.ts` › always orders as the caller: AB-2 positive side; body address overrides default (Context)
+
+**Other additions:**
+- `runInTransaction`, `insertPendingOrder`, `listOrderTeamIds` in order.repository.ts: only file allowed to call prisma.
+
+**Evidence:** story tests 35/35; full suite 2297/2297, failing: none; typecheck clean; lint 0 errors, 62 warnings (none new; one new object-injection warning removed)
+
+**Follow-ups:**
+- The same order id sent by two different people hits the primary key (500); the story gives no code for it.
+<!-- end ORD-009 -->
+
 <!-- begin ORD-018 -->
 ## ORD-018 — Closing a business refuses its pending orders
 

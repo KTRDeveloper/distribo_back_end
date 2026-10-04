@@ -1,4 +1,6 @@
 import type { Order, OrderStatus, Prisma } from '@prisma/client';
+import { prisma } from '../../lib/db.js';
+import type { OrderWithLines } from './order.views.js';
 
 /** Columns a status step may write; everything else on an order is left alone. */
 export type StatusStepData = Prisma.OrderUncheckedUpdateManyInput;
@@ -101,4 +103,73 @@ export async function refusePendingOrders(
     },
   });
   return result.count;
+}
+
+/**
+ * Runs `work` in one database transaction, so the relationship, the order, its lines and the
+ * notifications of one gesture commit or fail together (v5.0.0-2.3.3).
+ */
+export function runInTransaction<T>(
+  work: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(work);
+}
+
+export type NewOrderLine = {
+  id: string;
+  productId: string;
+  labelApplied: string;
+  quantity: string;
+  referencePrice: bigint;
+  unitPriceApplied: bigint;
+  amount: bigint;
+};
+
+/**
+ * Inserts a PENDING order placed by the customer, with its lines, and returns it with the lines.
+ * The caller computes every amount; the total is checked by the database at commit (ORD-006).
+ */
+export function insertPendingOrder(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    customerRelationshipId: string;
+    enteredById: string;
+    deliveryAddressApplied: string | null;
+    desiredDeliveryDate: Date | null;
+    customerNote: string | null;
+    totalAmount: bigint;
+    lines: NewOrderLine[];
+  }
+): Promise<OrderWithLines> {
+  const { lines, ...order } = data;
+  return tx.order.create({
+    data: {
+      ...order,
+      placedByParty: 'CUSTOMER',
+      status: 'PENDING',
+      deliveryCost: 0n,
+      lines: { create: lines },
+    },
+    include: { lines: true },
+  });
+}
+
+/** Lists the registered people holding an ACTIVE OWNER, MANAGER or SELLER role in the business. */
+export async function listOrderTeamIds(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<string[]> {
+  const found = await tx.collaboration.findMany({
+    where: {
+      organizationId,
+      role: { in: ['OWNER', 'MANAGER', 'SELLER'] },
+      status: 'ACTIVE',
+      deletedAt: null,
+      person: { registeredAt: { not: null } },
+    },
+    select: { personId: true },
+    orderBy: { personId: 'asc' },
+  });
+  return found.map((collaboration) => collaboration.personId);
 }

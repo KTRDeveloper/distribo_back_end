@@ -97,6 +97,7 @@ import {
   supplierInvitationRoutes,
   supplierRoutes,
 } from './modules/relationship/relationship.routes.js';
+import { orderRoutes } from './modules/order/order.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
@@ -137,6 +138,7 @@ v1Router.use('/sync', syncRoutes);
 v1Router.use('/organizations', organizationRoutes);
 v1Router.use('/organizations/:organizationId', relationshipRoutes);
 v1Router.use('/organizations/:organizationId', catalogRoutes);
+v1Router.use('/orders', orderRoutes);
 v1Router.use('/suppliers', supplierRoutes);
 v1Router.use('/supplier-invitations', supplierInvitationRoutes);
 v1Router.use('/collaborations', collaborationRoutes);
