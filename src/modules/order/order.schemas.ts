@@ -223,3 +223,17 @@ export const listOrdersQuerySchema = paginationQuerySchema
   .strict();
 
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;
+
+/**
+ * Strict query of the customer's order list (ORD-021), for a person and for a business: `limit`,
+ * `cursor`, one status and one relationship id. Any other field or value is a 400 (ASVS
+ * v5.0.0-2.2.1); an id outside the caller's relationships matches nothing.
+ */
+export const listCustomerOrdersQuerySchema = paginationQuerySchema
+  .extend({
+    status: z.enum(['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'CANCELLED']).optional(),
+    supplier_relationship_id: uuidV7Schema.optional(),
+  })
+  .strict();
+
+export type ListCustomerOrdersQuery = z.infer<typeof listCustomerOrdersQuerySchema>;

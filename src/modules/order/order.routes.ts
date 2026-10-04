@@ -9,6 +9,7 @@ import {
   cancelOrderSchema,
   editOrderSchema,
   enterOrderSchema,
+  listCustomerOrdersQuerySchema,
   listOrdersQuerySchema,
   orderIdParamSchema,
   placeOrderSchema,
@@ -23,7 +24,9 @@ import {
   editOrder,
   enterOrder,
   getOrder,
+  getOrderAsCustomer,
   listOrders,
+  listOrdersAsCustomer,
   placeOrder,
   placePurchase,
   refuseOrder,
@@ -35,6 +38,29 @@ import './order.openapi.js';
 export const orderRoutes = Router();
 
 orderRoutes.use(authMiddleware);
+
+// GET /api/v1/orders - a person lists their own orders; the customer is always the caller and the
+// query starts from the visibility predicate narrowed to the caller as customer
+orderRoutes.get('/', (req, res, next) => {
+  Promise.resolve()
+    .then(() =>
+      listOrdersAsCustomer(
+        { personId: req.user!.id },
+        listCustomerOrdersQuerySchema.parse(req.query)
+      )
+    )
+    .then((page) => res.json(page))
+    .catch(next);
+});
+
+// GET /api/v1/orders/:orderId - a person opens one of their own orders (404 for anyone else's)
+orderRoutes.get('/:orderId', (req, res, next) => {
+  const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+  if (!params.success) return next(params.error);
+  getOrderAsCustomer({ personId: req.user!.id }, params.data.orderId)
+    .then((view) => res.json(view))
+    .catch(next);
+});
 
 // POST /api/v1/orders - a customer places an order; the customer is always the caller
 orderRoutes.post(
@@ -82,6 +108,25 @@ orderRoutes.post(
 
 /** Purchase routes of one organization, mounted at `/organizations/:organizationId`. */
 export const purchaseRoutes = Router({ mergeParams: true });
+
+// GET /api/v1/organizations/:organizationId/purchases - OWNER and MANAGER list the orders the
+// business placed as customer; the service answers 403 below MANAGER and a non-member gets 404
+purchaseRoutes.get('/purchases', authMiddleware, loadActor, (req, res, next) => {
+  Promise.resolve()
+    .then(() => listOrdersAsCustomer(req.actor!, listCustomerOrdersQuerySchema.parse(req.query)))
+    .then((page) => res.json(page))
+    .catch(next);
+});
+
+// GET /api/v1/organizations/:organizationId/purchases/:orderId - OWNER and MANAGER open one
+// purchase; an order of another customer is a 404
+purchaseRoutes.get('/purchases/:orderId', authMiddleware, loadActor, (req, res, next) => {
+  const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+  if (!params.success) return next(params.error);
+  getOrderAsCustomer(req.actor!, params.data.orderId)
+    .then((view) => res.json(view))
+    .catch(next);
+});
 
 // POST /api/v1/organizations/:organizationId/purchases - a manager orders for the business; the
 // customer is the organization of the path (a non-member gets 404), never a body field

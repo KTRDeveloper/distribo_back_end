@@ -145,6 +145,14 @@ describe('GET /docs/openapi.json', () => {
       bodyOf<OpenApiDoc>(response).paths['/api/v1/organizations/{organizationId}/orders/{orderId}']
     ).toHaveProperty('get');
 
+    // ORD-021: the customer lists and opens their orders
+    expect(paths).toContain('/api/v1/orders');
+    expect(paths).toContain('/api/v1/orders/{orderId}');
+    expect(
+      bodyOf<OpenApiDoc>(response).paths['/api/v1/organizations/{organizationId}/purchases']
+    ).toHaveProperty('get');
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases/{orderId}');
+
     // SYNC-006: the pull route
     expect(paths).toContain('/api/v1/sync/pull');
 

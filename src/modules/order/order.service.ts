@@ -13,12 +13,14 @@ import { lineAmountOf, orderTotal } from './order.calculations.js';
 import { atLeast, type Role } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import {
+  findCustomerOrder,
   findExistingLineIds,
   findOrderToAccept,
   findSupplierOrder,
   insertConfirmedOrder,
   insertPendingOrder,
   isRegisteredPerson,
+  listCustomerOrders,
   listOrderTeamIds,
   listSupplierOrders,
   lockCustomerOrder,
@@ -37,6 +39,7 @@ import type {
   CancelInput,
   EditOrderInput,
   EnterOrderInput,
+  ListCustomerOrdersQuery,
   ListOrdersQuery,
   PlaceOrderInput,
   RefuseInput,
@@ -768,4 +771,74 @@ export async function getOrder(actor: Actor, orderId: string): Promise<SupplierO
   const order = await findSupplierOrder(actor, orderId);
   if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
   return projectOrderForSupplier(order, actor.role);
+}
+
+/** A business purchase is read by its OWNER or MANAGER only; a person reads their own orders. */
+function assertCanReadPurchases(customer: {
+  personId: string;
+  organizationId?: string;
+  role?: Role;
+}) {
+  if (customer.organizationId === undefined) return;
+  if (customer.role === 'OWNER' || customer.role === 'MANAGER') return;
+  logger.warn(
+    {
+      event: 'permission_refused',
+      personId: customer.personId,
+      action: 'read',
+      subjectType: 'Order',
+    },
+    'Permission refused'
+  );
+  throw httpError(403, 'FORBIDDEN', 'Permission denied');
+}
+
+/**
+ * A customer lists their orders, newest first (ORD-021): the person's own, or the purchases of a
+ * business when `organizationId` is given (OWNER or MANAGER only). The query starts from the
+ * visibility predicate narrowed to the caller as customer (v5.0.0-8.2.2), and every order goes
+ * through the customer projection, which leaves out the supplier team's ids and the sync issue
+ * (v5.0.0-15.3.1).
+ *
+ * @param customer - The caller, from the session; `organizationId` and `role` come from
+ * `loadActor` for a purchase.
+ * @param query - Validated page size, cursor and optional status and relationship filters.
+ * @returns A page of customer views and the next cursor, or null on the last page.
+ * @throws 403 `FORBIDDEN` (organization role below MANAGER); 400 `VALIDATION_ERROR` for a
+ * malformed cursor.
+ */
+export async function listOrdersAsCustomer(
+  customer: { personId: string; organizationId?: string; role?: Role },
+  query: ListCustomerOrdersQuery
+): Promise<{ items: CustomerOrderView[]; next_cursor: string | null }> {
+  assertCanReadPurchases(customer);
+  const { rows, nextCursor } = await listCustomerOrders(
+    { personId: customer.personId, organizationId: customer.organizationId },
+    query
+  );
+  return { items: rows.map(projectOrderForCustomer), next_cursor: nextCursor };
+}
+
+/**
+ * A customer opens one of their orders (ORD-021), or one purchase of their business (OWNER or
+ * MANAGER only). The order is selected by its id through the visibility predicate narrowed to the
+ * caller as customer, so another customer's order is a 404 (v5.0.0-8.2.2).
+ *
+ * @param customer - The caller, from the session; `organizationId` and `role` come from
+ * `loadActor` for a purchase.
+ * @param orderId - Validated order id from the path.
+ * @returns The order, customer view.
+ * @throws 403 `FORBIDDEN` (organization role below MANAGER); 404 `NOT_FOUND` (not the caller's).
+ */
+export async function getOrderAsCustomer(
+  customer: { personId: string; organizationId?: string; role?: Role },
+  orderId: string
+): Promise<CustomerOrderView> {
+  assertCanReadPurchases(customer);
+  const order = await findCustomerOrder(
+    { personId: customer.personId, organizationId: customer.organizationId },
+    orderId
+  );
+  if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+  return projectOrderForCustomer(order);
 }

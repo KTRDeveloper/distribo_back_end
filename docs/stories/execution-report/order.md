@@ -721,3 +721,34 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 
 **Evidence:** story tests 9/9; full suite 2451/2451, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
 <!-- end ORD-020 -->
+
+<!-- begin ORD-021 -->
+## ORD-021 — Customer lists and opens their orders
+
+- Filed: 2026-10-04 20:31 UTC
+- Status: **done**: 4 customer GET routes, customer projection; suite 2465/2465
+- Risk: medium · story: [ORD-021-customer-lists-and-opens-their-orders.md](../modules/order/ORD-021-customer-lists-and-opens-their-orders.md)
+- Agent: 71,011 tokens, 20 tool uses, 5 min 30 s
+
+### Agent report
+
+**Summary:** Added the four customer GET routes (person and business purchases, list and open) through the customer projection, with the visibility predicate narrowed to the caller as customer.
+
+**Decisions:**
+- `supplier_relationship_id` filter: matches `customer_relationship_id` of the order (the caller's relationship with that supplier); an id outside the caller's relationships returns an empty list.
+- Query type: new `ListCustomerOrdersQuery` / `listCustomerOrdersQuerySchema` instead of `ListOrdersQuery` in the signatures, because the filter name differs from the supplier list.
+- Purchases role check (OWNER or MANAGER, else 403 with a `permission_refused` warn log) lives in the service, matching `cancelOrderAsCustomer`; services take `role` in the caller object too.
+- Predicate: `visibleRelationsWhere` with the org id only for purchases, then narrowed to `customerPersonId` / `customerOrganizationId`, so a supplier-side person match never leaks in.
+
+**Tests added beyond the story:**
+- `tests/integration/order/customer-orders.test.ts` › malformed order id, non-member 404, deleted order/line, 400 on unknown query fields (incl. `customer_relationship_id`), purchases vs person list separation, 401 unauthenticated: fail-closed and scope paths (CONVENTIONS errors and Security baseline); passed at once for the 401 case.
+
+**Other additions:**
+- `tests/integration/api-docs/catalog.test.ts`: the four new paths (required by CONVENTIONS).
+- `openapi/openapi.json` regenerated.
+
+**Evidence:** story tests 14/14; full suite 2465/2465, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- `per-001.test.ts` has no order routes listed, so nothing was added there.
+<!-- end ORD-021 -->

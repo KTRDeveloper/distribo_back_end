@@ -7,6 +7,7 @@ import {
   cancelOrderSchema,
   editOrderSchema,
   enterOrderSchema,
+  listCustomerOrdersQuerySchema,
   listOrdersQuerySchema,
   placePurchaseSchema,
   refuseOrderSchema,
@@ -354,4 +355,81 @@ openApiRegistry.registerPath({
     403: { description: 'A DRIVER may not open orders', content: errorContent },
     404: { description: 'Not a member or order outside the business', content: errorContent },
   },
+});
+
+const customerOrderPageResponses = (forbidden: string) => ({
+  200: {
+    description: 'A page of orders, customer view, and the cursor of the next page or null',
+    content: {
+      'application/json': {
+        schema: z.object({
+          items: z.array(customerOrderViewSchema),
+          next_cursor: z.string().nullable(),
+        }),
+      },
+    },
+  },
+  400: {
+    description: 'Invalid query (unknown field, status, id or cursor)',
+    content: errorContent,
+  },
+  401: { description: 'Missing or invalid token', content: errorContent },
+  ...(forbidden ? { 403: { description: forbidden, content: errorContent } } : {}),
+  ...(forbidden
+    ? { 404: { description: 'Not a member of the organization', content: errorContent } }
+    : {}),
+});
+
+const customerOrderResponses = (forbidden: string) => ({
+  200: {
+    description: 'The order, customer view',
+    content: { 'application/json': { schema: customerOrderViewSchema } },
+  },
+  400: { description: 'The order id is not a UUID', content: errorContent },
+  401: { description: 'Missing or invalid token', content: errorContent },
+  ...(forbidden ? { 403: { description: forbidden, content: errorContent } } : {}),
+  404: { description: 'Order not found for the caller as customer', content: errorContent },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/orders',
+  tags: ['order'],
+  summary: 'A person lists their own orders, newest first, with lines (ORD-021)',
+  security: [{ bearerAuth: [] }],
+  request: { query: listCustomerOrdersQuerySchema },
+  responses: customerOrderPageResponses(''),
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/orders/{orderId}',
+  tags: ['order'],
+  summary: 'A person opens one of their own orders (ORD-021)',
+  security: [{ bearerAuth: [] }],
+  request: { params: z.object({ orderId: uuidV7Schema }) },
+  responses: customerOrderResponses(''),
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/purchases',
+  tags: ['order'],
+  summary: 'A manager lists the purchases of the business, newest first (ORD-021)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema }),
+    query: listCustomerOrdersQuerySchema,
+  },
+  responses: customerOrderPageResponses('The role is below MANAGER'),
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/purchases/{orderId}',
+  tags: ['order'],
+  summary: 'A manager opens one purchase of the business (ORD-021)',
+  security: [{ bearerAuth: [] }],
+  request: { params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }) },
+  responses: customerOrderResponses('The role is below MANAGER'),
 });

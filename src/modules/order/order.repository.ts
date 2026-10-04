@@ -479,3 +479,100 @@ export function findSupplierOrder(
     include: { lines: { where: { deletedAt: null }, orderBy: { id: 'asc' } } },
   });
 }
+
+/** Where clause of the orders the customer may see: the visibility predicate, narrowed to them as customer. */
+function customerOrdersWhere(customer: {
+  personId: string;
+  organizationId?: string;
+}): Prisma.CustomerRelationshipWhereInput {
+  return {
+    AND: [
+      visibleRelationsWhere({
+        personId: customer.personId,
+        organizationIds: customer.organizationId === undefined ? [] : [customer.organizationId],
+      }),
+      customer.organizationId === undefined
+        ? { customerPersonId: customer.personId }
+        : { customerOrganizationId: customer.organizationId },
+    ],
+  };
+}
+
+/**
+ * Lists the orders of the caller as customer, newest first (created_at descending then id),
+ * keyset-paged, each with its undeleted lines. The query starts from the visibility predicate and
+ * narrows it to the relationships where the caller (the person, or the organization of a purchase)
+ * is the customer, so a `supplier_relationship_id` of someone else matches nothing
+ * (v5.0.0-8.2.2, v5.0.0-8.4.1).
+ *
+ * @param customer - Person, and organization for a purchase, from the session; never the client.
+ * @param query - Page size, opaque cursor and optional status and relationship filters.
+ * @returns Orders with lines (at most limit) and the next cursor or null.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listCustomerOrders(
+  customer: { personId: string; organizationId?: string },
+  query: {
+    limit: number;
+    cursor?: string;
+    status?: OrderStatus;
+    supplier_relationship_id?: string;
+  }
+): Promise<{ rows: OrderWithLines[]; nextCursor: string | null }> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const and: Prisma.OrderWhereInput[] = [
+    { deletedAt: null },
+    { customerRelationship: { is: customerOrdersWhere(customer) } },
+  ];
+  if (query.status) and.push({ status: query.status });
+  if (query.supplier_relationship_id) {
+    and.push({ customerRelationshipId: query.supplier_relationship_id });
+  }
+  if (cursor) {
+    and.push({
+      OR: [
+        { createdAt: { lt: cursor.createdAt } },
+        { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+      ],
+    });
+  }
+
+  const found = await prisma.order.findMany({
+    where: { AND: and },
+    include: { lines: { where: { deletedAt: null }, orderBy: { id: 'asc' } } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.createdAt, id: last.id })
+        : null,
+  };
+}
+
+/**
+ * Reads one undeleted order of the caller as customer with its undeleted lines. The query starts
+ * from the visibility predicate narrowed to the caller as customer, so another customer's order is
+ * simply absent (v5.0.0-8.2.2).
+ *
+ * @param customer - Person, and organization for a purchase, from the session; never the client.
+ * @param orderId - Order id from the path.
+ * @returns The order with lines, or null when it is not the caller's.
+ */
+export function findCustomerOrder(
+  customer: { personId: string; organizationId?: string },
+  orderId: string
+): Promise<OrderWithLines | null> {
+  return prisma.order.findFirst({
+    where: {
+      id: orderId,
+      deletedAt: null,
+      customerRelationship: { is: customerOrdersWhere(customer) },
+    },
+    include: { lines: { where: { deletedAt: null }, orderBy: { id: 'asc' } } },
+  });
+}

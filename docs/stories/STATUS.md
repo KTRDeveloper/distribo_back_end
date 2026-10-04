@@ -150,7 +150,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-018 | done | | Pending orders refused in the close transaction; customers notified |
 | ORD-019 | done | | Seller order list with filters, keyset paging, supplier projection; GET documented |
 | ORD-020 | done | | GET order by id, supplier view, 403/404/400 covered |
-| ORD-021 | todo | | |
+| ORD-021 | done | | 4 customer GET routes, customer projection; suite 2465/2465 |
 | FIN-001 | done | | ledger_entries table, generated balance_effect, append-only grants |
 | FIN-002 | todo | | |
 | FIN-003 | todo | | |
