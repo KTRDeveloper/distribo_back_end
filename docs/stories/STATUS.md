@@ -106,7 +106,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-010 | done | | PATCH customers/:id; per-field ability check, 21 tests |
 | REL-011 | done | | POST /counters; SELLER blocked by an extra MANAGER rank check |
 | REL-012 | done | | PUT credit-limit done; same-author trigger workaround (clear author then write, locked tx) |
-| REL-013 | todo | | |
+| REL-013 | done | | GET credit-limit-changes: MANAGER and above, visibility first, keyset on set_at; 10 tests |
 | REL-014 | done | | Reassignments journal table, contestation partial unique index, immutable; 12 tests |
 | REL-015 | todo | | |
 | REL-016 | todo | | |

@@ -24,6 +24,7 @@ import {
   findSupplierRelationship,
   findSupplierRelationshipLocked,
   findWithParties,
+  listCreditLimitChangeRows,
   listSupplierRelationships,
   lockOrganization,
   managesOrganization,
@@ -378,4 +379,57 @@ async function notifyOwnerOfRaise(
     },
     tx
   );
+}
+
+/** One credit limit journal entry as the API returns it (an empty limit means no ceiling). */
+export interface CreditLimitChangeView {
+  previous_limit: number | null;
+  new_limit: number | null;
+  set_by_id: string;
+  set_at: string;
+}
+
+/**
+ * An OWNER or a MANAGER reads the credit limit history of one customer, newest first.
+ *
+ * The role is checked first (ASVS v5.0.0-8.2.1): a SELLER or DRIVER answers 403 and the event is
+ * logged. The relationship is then loaded through the visibility predicate (v5.0.0-8.2.2), so a
+ * relationship of another business answers 404 and never confirms the id exists. The response is
+ * built from an explicit list of fields (v5.0.0-15.3.1).
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param query - Validated page size and cursor.
+ * @returns A page of journal entries and the next cursor, or null on the last page.
+ * @throws 403 `FORBIDDEN`; 404 `NOT_FOUND`; 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listCreditLimitChanges(
+  actor: Actor,
+  relationshipId: string,
+  query: { limit: number; cursor?: string }
+): Promise<{ items: CreditLimitChangeView[]; next_cursor: string | null }> {
+  if (!atLeast(actor.role, 'MANAGER')) {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'read',
+        subjectType: 'CreditLimitChange',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+
+  const page = await listCreditLimitChangeRows(actor, relationshipId, query);
+  if (!page) throw httpError(404, 'NOT_FOUND', 'Customer not found');
+  return {
+    items: page.rows.map((row) => ({
+      previous_limit: row.previousLimit === null ? null : Number(row.previousLimit),
+      new_limit: row.newLimit === null ? null : Number(row.newLimit),
+      set_by_id: row.setById,
+      set_at: row.setAt.toISOString(),
+    })),
+    next_cursor: page.nextCursor,
+  };
 }

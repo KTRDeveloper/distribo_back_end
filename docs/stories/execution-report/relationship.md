@@ -509,6 +509,34 @@ Also in this run: admin, catalog, order, finance, delivery.
 - The REL-004 same-author rule is still odd; a human may prefer relaxing the trigger in a migration instead of the two-statement workaround.
 <!-- end REL-012 -->
 
+<!-- begin REL-013 -->
+## REL-013 — Owner reads the credit limit history
+
+- Filed: 2026-10-04 14:22 UTC
+- Status: **done**: GET credit-limit-changes: MANAGER and above, visibility first, keyset on set_at; 10 tests
+- Risk: medium · story: [REL-013-owner-reads-the-credit-limit-history.md](../modules/relationship/REL-013-owner-reads-the-credit-limit-history.md)
+- Agent: 53,077 tokens, 17 tool uses, 3 min 17 s
+
+### Agent report
+
+**Summary:** Added GET .../customers/{relationshipId}/credit-limit-changes (OWNER and MANAGER, paged newest first, 404 outside the organization).
+
+**Decisions:**
+- Role gate: `atLeast(role, 'MANAGER')` in the service, 403 logged as permission_refused; no CASL subject exists for the journal and the story names none.
+- Ordering and cursor: `set_at` desc then id (the journal has no created_at); the shared cursor carries set_at in its `createdAt` field.
+- Query schema `creditLimitChangesQuerySchema` is strict (unknown fields 400).
+
+**Tests added beyond the story:**
+- `credit-limit-history.test.ts` › empty page and null limits: no entries gives [], no ceiling gives null (journal note in schema.prisma); passed at once
+- `credit-limit-history.test.ts` › malformed cursor, unknown field, bad id: 400 (CONVENTIONS validation rules); passed at once
+- `credit-limit-history.test.ts` › AB-1 foreign vs absent id and org B path: same 404, no data leak (CONVENTIONS scope rule); passed at once
+
+**Other additions:**
+- Path added to `tests/integration/api-docs/catalog.test.ts`; per-001.test.ts holds no route list, so untouched.
+
+**Evidence:** story tests 10/10; full suite 1644/1644, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+<!-- end REL-013 -->
+
 <!-- begin REL-014 -->
 ## REL-014 — Reassignment journal table
 

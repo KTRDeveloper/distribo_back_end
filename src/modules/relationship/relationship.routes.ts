@@ -6,6 +6,7 @@ import { requireAbility } from '../../middleware/require-ability.js';
 import {
   addCounterSchema,
   addCustomerSchema,
+  creditLimitChangesQuerySchema,
   customerParamsSchema,
   editCustomerSchema,
   listCustomersQuerySchema,
@@ -16,6 +17,7 @@ import {
   addCustomer,
   editCustomer,
   getCustomer,
+  listCreditLimitChanges,
   listCustomers,
   setCreditLimit,
 } from './relationship.service.js';
@@ -136,6 +138,27 @@ relationshipRoutes.put(
         )
       )
       .then((customer) => res.json(customer))
+      .catch(next);
+  }
+);
+
+// GET /api/v1/organizations/:organizationId/customers/:relationshipId/credit-limit-changes - an
+// owner or a manager reads the credit limit history; the service answers 403 below MANAGER and 404
+// outside the organization
+relationshipRoutes.get(
+  '/customers/:relationshipId/credit-limit-changes',
+  authMiddleware,
+  loadActor,
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        listCreditLimitChanges(
+          req.actor!,
+          customerParamsSchema.parse(req.params).relationshipId,
+          creditLimitChangesQuerySchema.parse(req.query)
+        )
+      )
+      .then((page) => res.json(page))
       .catch(next);
   }
 );

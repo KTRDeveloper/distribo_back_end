@@ -4,6 +4,7 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import {
   addCounterSchema,
   addCustomerSchema,
+  creditLimitChangesQuerySchema,
   customerParamsSchema,
   editCustomerSchema,
   listCustomersQuerySchema,
@@ -197,6 +198,45 @@ openApiRegistry.registerPath({
     },
     409: {
       description: 'COUNTER_NO_CREDIT, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+const creditLimitChangeViewSchema = z.object({
+  previous_limit: z.number().int().nullable(),
+  new_limit: z.number().int().nullable(),
+  set_by_id: z.string().uuid(),
+  set_at: z.string().datetime(),
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/credit-limit-changes',
+  tags: ['relationship'],
+  summary: 'Read the credit limit history of a customer, newest first (OWNER and MANAGER)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema.merge(customerParamsSchema),
+    query: creditLimitChangesQuerySchema,
+  },
+  responses: {
+    200: {
+      description: 'A page of journal entries; an empty limit means no ceiling',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(creditLimitChangeViewSchema),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: { description: 'Invalid query or relationship id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'A SELLER or DRIVER cannot read the history', content: errorContent },
+    404: {
+      description: 'Not found, deleted, of another business, or not a member',
       content: errorContent,
     },
   },

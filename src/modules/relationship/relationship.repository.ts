@@ -376,3 +376,48 @@ export async function writeCreditLimit(
     data: { creditLimit: input.creditLimit, creditLimitSetById: input.setById },
   });
 }
+
+/**
+ * Lists the credit limit journal of one relationship of the organization as supplier, newest
+ * first (`set_at` descending then id), keyset-paged.
+ *
+ * The relationship is loaded first, through the visibility predicate (v5.0.0-8.2.2): another
+ * business's row, a deleted or a merged one answers null like an absent id, and its journal is
+ * never read. The cursor reuses the shared one, carrying `set_at` in its `createdAt` field.
+ *
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param id - Relationship id from the path.
+ * @param query - Page size and opaque cursor.
+ * @returns Journal rows (at most limit) and the next cursor or null; null when not visible.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listCreditLimitChangeRows(
+  viewer: { personId: string; organizationId: string },
+  id: string,
+  query: { limit: number; cursor?: string }
+) {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const relationship = await findSupplierRelationship(viewer, id);
+  if (!relationship) return null;
+
+  const and: Prisma.CreditLimitChangeWhereInput[] = [{ customerRelationshipId: relationship.id }];
+  if (cursor) {
+    and.push({
+      OR: [{ setAt: { lt: cursor.createdAt } }, { setAt: cursor.createdAt, id: { gt: cursor.id } }],
+    });
+  }
+  const found = await prisma.creditLimitChange.findMany({
+    where: { AND: and },
+    orderBy: [{ setAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.setAt, id: last.id })
+        : null,
+  };
+}

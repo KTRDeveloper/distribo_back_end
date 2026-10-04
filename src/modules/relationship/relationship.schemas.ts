@@ -88,3 +88,6 @@ export const setCreditLimitSchema = z
   .strict();
 
 export type SetCreditLimitInput = z.infer<typeof setCreditLimitSchema>;
+
+/** Strict query of the credit limit history: `limit` and `cursor` only; any other field is a 400. */
+export const creditLimitChangesQuerySchema = paginationQuerySchema.strict();
