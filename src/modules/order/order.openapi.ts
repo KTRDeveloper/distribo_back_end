@@ -7,6 +7,7 @@ import {
   cancelOrderSchema,
   editOrderSchema,
   enterOrderSchema,
+  listOrdersQuerySchema,
   placePurchaseSchema,
   refuseOrderSchema,
   setSupplierNoteSchema,
@@ -299,5 +300,37 @@ openApiRegistry.registerPath({
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'The role may not write the note', content: errorContent },
     404: { description: 'Not a member or order outside the business', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/orders',
+  tags: ['order'],
+  summary: 'A seller lists the orders of the business, newest first, with lines (ORD-019)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema }),
+    query: listOrdersQuerySchema,
+  },
+  responses: {
+    200: {
+      description: 'A page of orders, supplier view, and the cursor of the next page or null',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(supplierOrderViewSchema),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'Invalid query (unknown field, status, id or cursor)',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'A DRIVER may not list orders', content: errorContent },
+    404: { description: 'Not a member of the organization', content: errorContent },
   },
 });

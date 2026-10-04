@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { httpError } from '../../lib/http-error.js';
+import { logger } from '../../lib/logger.js';
 import { parseQuantity } from '../../shared/money.js';
 import { getActiveProduct, getReferencePrice } from '../catalog/catalog.repository.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
@@ -9,7 +10,7 @@ import {
   findSupplierRelationshipLocked,
 } from '../relationship/relationship.repository.js';
 import { lineAmountOf, orderTotal } from './order.calculations.js';
-import type { Role } from '../../shared/access/roles.js';
+import { atLeast, type Role } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import {
   findExistingLineIds,
@@ -18,6 +19,7 @@ import {
   insertPendingOrder,
   isRegisteredPerson,
   listOrderTeamIds,
+  listSupplierOrders,
   lockCustomerOrder,
   lockSupplierOrder,
   replaceOrderLines,
@@ -34,6 +36,7 @@ import type {
   CancelInput,
   EditOrderInput,
   EnterOrderInput,
+  ListOrdersQuery,
   PlaceOrderInput,
   RefuseInput,
 } from './order.schemas.js';
@@ -701,4 +704,38 @@ export function setSupplierNote(
     if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
     return projectOrderForSupplier(order, actor.role);
   });
+}
+
+/**
+ * A SELLER or above lists the orders of the organization's customers, newest first, each with its
+ * lines. The organization comes from the loaded actor and the query starts from the visibility
+ * predicate (v5.0.0-8.2.2); every order goes through the supplier projection, with the price
+ * author only for OWNER and MANAGER (v5.0.0-15.3.1).
+ *
+ * @param actor - Actor loaded from the path.
+ * @param query - Validated page size, cursor and filters.
+ * @returns A page of supplier views and the next cursor, or null on the last page.
+ * @throws 403 `FORBIDDEN` for a DRIVER; 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listOrders(
+  actor: Actor,
+  query: ListOrdersQuery
+): Promise<{ items: SupplierOrderView[]; next_cursor: string | null }> {
+  if (!atLeast(actor.role, 'SELLER')) {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'list',
+        subjectType: 'Order',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+  const { rows, nextCursor } = await listSupplierOrders(actor, query);
+  return {
+    items: rows.map((order) => projectOrderForSupplier(order, actor.role)),
+    next_cursor: nextCursor,
+  };
 }

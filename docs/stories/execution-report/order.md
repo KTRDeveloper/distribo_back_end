@@ -659,3 +659,38 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Follow-ups:**
 - order/contracts.md does not list `refusePendingOrders`; organization imports order.repository directly as the story's Implementation says.
 <!-- end ORD-018 -->
+
+<!-- begin ORD-019 -->
+## ORD-019 — Seller lists the orders
+
+- Filed: 2026-10-04 20:20 UTC
+- Status: **done**: Seller order list with filters, keyset paging, supplier projection; GET documented
+- Risk: medium · story: [ORD-019-seller-lists-the-orders.md](../modules/order/ORD-019-seller-lists-the-orders.md)
+- Agent: 75,603 tokens, 26 tool uses, 8 min 0 s
+
+### Agent report
+
+**Summary:** Added GET /organizations/{id}/orders (SELLER+, DRIVER 403) with status and customer filters, keyset paging and the supplier projection.
+
+**Decisions:**
+- order.openapi.ts already existed (ORD-009 to 017 documented); only the new GET path was added.
+- Role check done in the service (atLeast SELLER, logged 403), like listCustomers, since no "read Order" rule exists in the ability table.
+- Filter on a foreign customer_relationship_id is ANDed with the visibility predicate for the supplier, so it returns an empty list (AB-2), not 404.
+- Order lines returned are undeleted only, ordered by id; deleted orders are excluded.
+
+**Tests added beyond the story:**
+- `list-orders.test.ts` › combines status and customer filters: AND of both filters (story filter rules); passed at once
+- `list-orders.test.ts` › 400 on unknown field, bad status, bad cursor, bad customer id: strict query (CONVENTIONS validation); passed at once
+- `list-orders.test.ts` › never lists a deleted order or deleted line: soft-deleted data must not leak; passed at once
+- `list-orders.test.ts` › supplier projection (price author only for OWNER): v5.0.0-15.3.1; passed at once
+- `list-orders.test.ts` › other business sees only its own orders: AB-1 both ways; passed at once
+
+**Other additions:**
+- `catalog.test.ts`: assert the `/orders` path has a `get` (path alone already existed from ORD-013).
+- `openapi/openapi.json` regenerated.
+
+**Evidence:** story tests 13/13; full suite 2442/2442, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- Implementation was written before the first red run of the story tests (tests were run once after both existed).
+<!-- end ORD-019 -->

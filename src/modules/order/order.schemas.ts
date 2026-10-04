@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
 import { TEXT_MAX } from '../../shared/limits.js';
 import { parseQuantity } from '../../shared/money.js';
+import { paginationQuerySchema } from '../../shared/pagination.js';
 
 /** Largest quantity `numeric(12,3)` holds, in thousandths. */
 const QUANTITY_MAX_MILLI = 999_999_999_999n;
@@ -209,3 +210,16 @@ export const setSupplierNoteSchema = z
   .strict();
 
 export type SetSupplierNoteInput = z.infer<typeof setSupplierNoteSchema>;
+
+/**
+ * Strict query of the seller's order list: `limit`, `cursor`, one status and one customer
+ * relationship. Any other field or value is a 400 (ASVS v5.0.0-2.2.1).
+ */
+export const listOrdersQuerySchema = paginationQuerySchema
+  .extend({
+    status: z.enum(['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'CANCELLED']).optional(),
+    customer_relationship_id: uuidV7Schema.optional(),
+  })
+  .strict();
+
+export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;

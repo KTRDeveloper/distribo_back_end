@@ -1,5 +1,7 @@
 import { Prisma, type Order, type OrderStatus } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
+import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
 import type { OrderWithLines } from './order.views.js';
 
 /** Columns a status step may write; everything else on an order is left alone. */
@@ -375,4 +377,71 @@ export async function updateSupplierNote(
   supplierNote: string | null
 ): Promise<void> {
   await tx.order.update({ where: { id: orderId }, data: { supplierNote } });
+}
+
+/**
+ * Lists the orders of the organization's customers, newest first (created_at descending then id),
+ * keyset-paged, each with its undeleted lines. The query starts from the visibility predicate for
+ * the organization and narrows it to the relationships where the organization is the supplier, so
+ * a `customer_relationship_id` of another business matches nothing (v5.0.0-8.2.2, v5.0.0-8.4.1).
+ *
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param query - Page size, opaque cursor and optional status and customer relationship filters.
+ * @returns Orders with lines (at most limit) and the next cursor or null.
+ * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listSupplierOrders(
+  viewer: { personId: string; organizationId: string },
+  query: {
+    limit: number;
+    cursor?: string;
+    status?: OrderStatus;
+    customer_relationship_id?: string;
+  }
+): Promise<{ rows: OrderWithLines[]; nextCursor: string | null }> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const and: Prisma.OrderWhereInput[] = [
+    { deletedAt: null },
+    {
+      customerRelationship: {
+        is: {
+          AND: [
+            visibleRelationsWhere({
+              personId: viewer.personId,
+              organizationIds: [viewer.organizationId],
+            }),
+            { supplierOrganizationId: viewer.organizationId },
+          ],
+        },
+      },
+    },
+  ];
+  if (query.status) and.push({ status: query.status });
+  if (query.customer_relationship_id) {
+    and.push({ customerRelationshipId: query.customer_relationship_id });
+  }
+  if (cursor) {
+    and.push({
+      OR: [
+        { createdAt: { lt: cursor.createdAt } },
+        { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+      ],
+    });
+  }
+
+  const found = await prisma.order.findMany({
+    where: { AND: and },
+    include: { lines: { where: { deletedAt: null }, orderBy: { id: 'asc' } } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: query.limit + 1,
+  });
+  const rows = found.slice(0, query.limit);
+  const last = rows[rows.length - 1];
+  return {
+    rows,
+    nextCursor:
+      found.length > query.limit && last
+        ? encodeCursor({ createdAt: last.createdAt, id: last.id })
+        : null,
+  };
 }

@@ -9,6 +9,7 @@ import {
   cancelOrderSchema,
   editOrderSchema,
   enterOrderSchema,
+  listOrdersQuerySchema,
   orderIdParamSchema,
   placeOrderSchema,
   placePurchaseSchema,
@@ -21,6 +22,7 @@ import {
   cancelOrderAsSupplier,
   editOrder,
   enterOrder,
+  listOrders,
   placeOrder,
   placePurchase,
   refuseOrder,
@@ -134,6 +136,16 @@ purchaseRoutes.post(
 
 /** Supplier-side order routes, mounted at `/organizations/:organizationId`. */
 export const supplierOrderRoutes = Router({ mergeParams: true });
+
+// GET /api/v1/organizations/:organizationId/orders - SELLER and above list the orders of the
+// organization's customers; the service answers 403 for a DRIVER and the query starts from the
+// visibility predicate for the actor's organization
+supplierOrderRoutes.get('/orders', authMiddleware, loadActor, (req, res, next) => {
+  Promise.resolve()
+    .then(() => listOrders(req.actor!, listOrdersQuerySchema.parse(req.query)))
+    .then((page) => res.json(page))
+    .catch(next);
+});
 
 // POST /api/v1/organizations/:organizationId/orders - a seller enters a CONFIRMED order for a
 // customer; the supplier is the caller's organization, the prices are the server's
