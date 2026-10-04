@@ -251,27 +251,27 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 <!-- begin ORD-006 -->
 ## ORD-006 — Order total equals the sum of its lines
 
-- Filed: 2026-10-04 16:38 UTC
-- Status: **blocked**: Migration and 14 story tests pass, but the new totals trigger breaks 48 existing tests in 6 files (ledger-table, line-rules, order-line-table, order-table, status-rules, contest) that build orders with arbitrary totals or lines without matching total; story has no Tests to update: may they be updated?
+- Filed: 2026-10-04 18:32 UTC
+- Status: **blocked**: Totals trigger breaks 18 tests in tests/integration/sync/pull-catalog.test.ts (7) and pull-orders.test.ts (11), not under Tests to update; may I change their fixtures (order total + line in one tx)?
 - Risk: high · story: [ORD-006-order-total-equals-the-sum-of-its-lines.md](../modules/order/ORD-006-order-total-equals-the-sum-of-its-lines.md)
-- Agent: 55,013 tokens, 20 tool uses, 6 min 1 s
+- Agent: 59,806 tokens, 21 tool uses, 8 min 21 s
 
 ### Agent report
 
-**Summary:** Blocked: migration and story tests are green, but the new trigger breaks 48 existing tests the story does not list under "Tests to update".
+**Summary:** Blocked: migration, schema comments and the 6 listed test files are done, but the new trigger breaks 18 unlisted sync tests.
 
 **Decisions:**
-- One shared deferred constraint-trigger function on orders (insert/update) and order_lines (insert/update/delete): checks total = sum(non-deleted lines) + delivery_cost and DELIVERED => every non-deleted line has delivered_quantity; also re-checks the old order when a line moves.
-- Story tests use a raw `pg` Client for BEGIN..COMMIT: Prisma's interactive $transaction hides the SQLSTATE of a commit-time failure (no code in the error), `pg` gives 23514.
+- Migration was already in the working tree (deferred constraint triggers on orders and order_lines, function checks non-deleted lines); I kept it, its 14 tests pass.
+- Listed tests: fixtures changed so a line and its total move in one statement or transaction (CTE in order-line-table so commit-time SQLSTATE of the guest-author test stays 23514; prisma.$transaction batch in line-rules).
+- Schema comments above Order and OrderLine updated; the "(ORD-006) later story" line removed.
 
 **Tests added beyond the story:**
-- `tests/integration/order/total-check.test.ts` › rejects removing a line without lowering the total, ignores a soft-deleted line, rejects moving a line to another order, rejects no-lines total <> delivery_cost, accepts DELIVERED with every delivered_quantity (story Context: non-deleted lines, ORD-006 rule); passed once the migration existed
+- `tests/integration/order/total-check.test.ts` (already present, not by me) › removing a line, soft-deleted line, moving a line to another order, no-lines total mismatch: trigger edge cases (AC-2, C-19)
 
-**Evidence:** story tests 14/14; full suite 2055/2103, failing: 48 in ledger-table (28), line-rules (9), order-line-table (8), order-table (1), status-rules (1), relationship/contest (1); typecheck clean; lint 0 errors, 59 warnings
+**Evidence:** story tests 14/14; full suite 2216/2234, failing: 7 in tests/integration/sync/pull-catalog.test.ts, 11 in tests/integration/sync/pull-orders.test.ts (23514 from the totals check); typecheck clean; lint 0 errors, 62 warnings
 
 **Follow-ups:**
-- Question: those fixtures insert lines with order total 0, or orders with a total and no lines (autoc-commit), which the specified rule now rejects at commit. Permit updating those 6 test files (fixtures only), or define a different rule? Files left uncommitted: migration prisma/migrations/20261004320000_ord_006_total_check and the new test.
-- Schema comment above Order/OrderLine in schema.prisma (CLAUDE.md rule) not yet written; also still says "other rules on creation (ORD-006)" to update.
+- Question: those two sync files (created by SYNC-006, after this story was written) create orders with lines through prisma.order.create and prisma.orderLine.create without matching totals. They are not under "Tests to update". Allow changing only their fixture data, or amend the story's table?
 <!-- end ORD-006 -->
 
 <!-- begin ORD-007 -->
