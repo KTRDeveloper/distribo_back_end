@@ -196,6 +196,19 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum LedgerEntryKind {
+  SALE
+  PAYMENT
+  REFUND
+  CREDIT_NOTE
+  OPENING_BALANCE
+}
+
+enum LedgerEntryMode {
+  CASH
+  MOBILE_MONEY
+}
+
 model SystemConfig {
   id               String    @id @default(uuid())
   category         String
@@ -305,6 +318,8 @@ model Person {
   ordersEntered   Order[] @relation("OrderEnteredBy")
   ordersDelivered Order[] @relation("OrderDeliveredBy")
   ordersCancelled Order[] @relation("OrderCancelledBy")
+
+  ledgerEntriesRecorded LedgerEntry[] @relation("LedgerEntryRecordedBy")
 
   administrators Administrator[]
 
@@ -496,6 +511,7 @@ model CustomerRelationship {
   reassignments        CustomerRelationshipReassignment[]
   customerPrices       CustomerPrice[]
   orders               Order[]
+  ledgerEntries        LedgerEntry[]
 
   @@index([supplierOrganizationId])
   @@index([supplierPersonId])
@@ -887,9 +903,58 @@ model Order {
   cancelledBy          Person?              @relation("OrderCancelledBy", fields: [cancelledById], references: [id])
   parentOrder          Order?               @relation("OrderParent", fields: [parentOrderId], references: [id])
   childOrders          Order[]              @relation("OrderParent")
+  ledgerEntries        LedgerEntry[]
 
   @@index([customerRelationshipId])
   @@index([status])
   @@index([deliveredById, deliveredAt])
   @@map("orders")
+}
+
+// Rules the database enforces on the ledger, beyond what this model declares.
+// All come from migration 20261004230000_fin_001_ledger_entries.
+// - The ledger can only grow: the application can add and read entries but
+//   never change, delete or empty them. A mistake is fixed by adding a
+//   reversing entry (reverses_entry_id), never by editing a line.
+// - balance_effect is worked out by the database from kind, amount and
+//   reverses_entry_id, and is stored. Code must never write it: an insert that
+//   names it fails. A SALE, OPENING_BALANCE or REFUND raises what the customer
+//   owes by the amount; a PAYMENT or CREDIT_NOTE lowers it. An entry that
+//   reverses another has the opposite sign. Prisma cannot express a generated
+//   column, so it is declared with an unknown default here; leave it out of
+//   every create call.
+// - The amount is always above zero; the sign lives in balance_effect.
+// - A mode (CASH or MOBILE_MONEY) is given exactly when the kind is PAYMENT or
+//   REFUND, and never otherwise.
+// - The person who recorded the entry must be a registered person, never a
+//   guest. This is checked when the transaction is saved, not row by row.
+// - server_updated_at is set by the database on every change. There is no
+//   deleted_at: entries are never removed.
+// The rules on who may record which entry, reversals and sales are added by
+// later stories (FIN-002), not here.
+model LedgerEntry {
+  id                     String           @id @db.Uuid
+  customerRelationshipId String           @map("customer_relationship_id") @db.Uuid
+  orderId                String?          @map("order_id") @db.Uuid
+  kind                   LedgerEntryKind
+  amount                 BigInt
+  balanceEffect          BigInt           @default(dbgenerated()) @map("balance_effect")
+  mode                   LedgerEntryMode?
+  transactionReference   String?          @map("transaction_reference")
+  reversesEntryId        String?          @map("reverses_entry_id") @db.Uuid
+  recordedById           String           @map("recorded_by_id") @db.Uuid
+  note                   String?          @db.Text
+  occurredAt             DateTime         @map("occurred_at") @db.Timestamptz
+  serverUpdatedAt        DateTime         @default(now()) @map("server_updated_at") @db.Timestamptz
+
+  customerRelationship CustomerRelationship @relation(fields: [customerRelationshipId], references: [id])
+  order                Order?               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  reversesEntry        LedgerEntry?         @relation("LedgerEntryReversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversals            LedgerEntry[]        @relation("LedgerEntryReversal")
+  recordedBy           Person               @relation("LedgerEntryRecordedBy", fields: [recordedById], references: [id])
+
+  @@index([customerRelationshipId, occurredAt(sort: Desc)])
+  @@index([orderId])
+  @@index([recordedById, occurredAt])
+  @@map("ledger_entries")
 }

@@ -38,3 +38,33 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - Nothing unexpected: the agent report and the notification figures both came in.
 - REL-002's migration, test file and schema.prisma comment are left uncommitted in the working tree, waiting for the human decision.
 - Next: decide whether that REL-001 test may be updated (amend REL-002's "Tests to update"), then `/implement-stories REL-002` and `/implement-stories next:100`.
+
+<!-- begin FIN-001 -->
+## FIN-001 — Ledger entries table
+
+- Filed: 2026-10-04 10:11 UTC
+- Status: **done**: ledger_entries table, generated balance_effect, append-only grants
+- Risk: high · story: [FIN-001-ledger-entries-table.md](../modules/finance/FIN-001-ledger-entries-table.md)
+- Agent: 53,789 tokens, 19 tool uses, 12 min 9 s
+
+### Agent report
+
+**Summary:** Added ledger_entries (enums, generated balance_effect, CHECKs, FKs, triggers, REVOKE) with migration 20261004230000_fin_001_ledger_entries and schema model.
+
+**Decisions:**
+- Enum names LedgerEntryKind / LedgerEntryMode: story gave values only.
+- occurred_at has no default (NOT NULL): the caller supplies the business time.
+- All FKs ON DELETE RESTRICT (incl. optional order_id, reverses_entry_id): SET NULL would update an immutable row.
+- balance_effect in Prisma is `BigInt @default(dbgenerated())`, documented in the model comment; code must omit it on create.
+- CHECK on mode uses (mode IS NOT NULL) = (kind IN PAYMENT, REFUND).
+
+**Tests added beyond the story:**
+- ledger-table.test.ts › flips the sign of a reversing SALE/CREDIT_NOTE/REFUND: sign flip for all kinds (C-23); passed at once with the migration
+- ledger-table.test.ts › OPENING_BALANCE / REFUND without mode / CREDIT_NOTE with mode: mode rule edges (C-23)
+- ledger-table.test.ts › unknown kind or mode (22P02), missing required columns (23502), unknown order/reversed entry (23503), no deleted_at column, TRUNCATE denied (C-39)
+
+**Evidence:** story tests 28/28; full suite 1360/1360, failing: none; typecheck clean; lint 0 errors, 55 warnings (pre-existing)
+
+**Follow-ups:**
+- The SET NULL default would also be wrong for other immutable tables' optional FKs; not checked here.
+<!-- end FIN-001 -->

@@ -151,7 +151,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-019 | todo | | |
 | ORD-020 | todo | | |
 | ORD-021 | todo | | |
-| FIN-001 | todo | | |
+| FIN-001 | done | | ledger_entries table, generated balance_effect, append-only grants |
 | FIN-002 | todo | | |
 | FIN-003 | todo | | |
 | FIN-004 | todo | | |
