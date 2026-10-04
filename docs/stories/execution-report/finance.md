@@ -170,6 +170,39 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - `reverseLedgerEntry` targets the entry's original relationship id. An entry written before a merge sits on the now-deleted duplicate, so reversing it gives 404 (`addToBalance` ignores deleted rows). FIN-009 should decide how to handle this.
 <!-- end FIN-003 -->
 
+<!-- begin FIN-004 -->
+## FIN-004 — Seller records a payment
+
+- Filed: 2026-10-04 21:19 UTC
+- Status: **done**: Payment route, 13 tests, full suite green; OpenAPI paths left to FIN-010
+- Risk: high · story: [FIN-004-seller-records-a-payment.md](../modules/finance/FIN-004-seller-records-a-payment.md)
+- Agent: 76,241 tokens, 27 tool uses, 5 min 59 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/:organizationId/customers/:relationshipId/payments (schemas, service, routes, app mount) on top of appendLedgerEntry; all 13 tests pass.
+
+**Decisions:**
+- DRIVER refusal: the CASL rule `create LedgerEntry PAYMENT` also matches DRIVER (delivery payments), so the route adds an explicit `atLeast(role, 'SELLER')` check after requireAbility, 403 FORBIDDEN with a permission_refused warn log.
+- Response balance: locked relationship balance plus the entry's generated balance_effect (row locked FOR UPDATE), no extra query.
+- Org status: findOrganizationStatus directly (assertOrganizationActive refuses CLOSED, which AC-5 must accept); SUSPENDED gives 409.
+- `amount` capped at Number.MAX_SAFE_INTEGER so a huge value is a 400, not a bigint overflow 500; `transaction_reference` trimmed, 1 to 100 characters.
+- catalog.test.ts / per-001.test.ts not changed: the story puts OpenAPI registration in FIN-010 (which documents FIN-004..009), and a catalog entry would fail without it.
+
+**Tests added beyond the story:**
+- `tests/integration/finance/record-payment.test.ts` › accepts a payment on an ENDED relationship and from a MANAGER: the story context says ENDED is allowed and security says seller and above; passed at once only after implementation (written before)
+- `tests/integration/finance/record-payment.test.ts` › answers 404 for a non-member and a foreign relationship, nothing moved (AB-3, CONVENTIONS 404 outside scope)
+
+**Other additions:**
+- PENDING test drops and re-adds the pending_iff_supplier_person CHECK inside the test (a PENDING row cannot belong to an organization supplier otherwise); restored in `finally`.
+
+**Evidence:** story tests 13/13; full suite 2552/2552, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
+
+**Follow-ups:**
+- A different person reusing another person's ledger entry id would hit a primary key violation (500); same as the other gesture routes, not handled here.
+- Add the payments path to catalog.test.ts when FIN-010 registers the OpenAPI paths.
+<!-- end FIN-004 -->
+
 <!-- begin FIN-011 -->
 ## FIN-011 — Expenses table
 
