@@ -64,3 +64,36 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 
 **Evidence:** story tests 16/16; full suite 1332/1332, failing: none; typecheck clean; lint 0 errors, 55 warnings (pre-existing)
 <!-- end ORD-001 -->
+
+<!-- begin ORD-002 -->
+## ORD-002 — Order status, cancellation and delivery rules in the database
+
+- Filed: 2026-10-04 09:58 UTC
+- Status: **blocked**: Story tests pass (35/35) but 2 ORD-001 tests in order-table.test.ts contradict C-16/C-17: 'accepts every documented status' (DELIVERED/CANCELLED/PENDING inserted without their columns) and 'accepts delivered_by_id and cancelled_by_id of a registered person' (set on CONFIRMED). Not under Tests to update: list them, or say how to proceed
+- Risk: high · story: [ORD-002-order-status-cancellation-and-delivery-rules-in.md](../modules/order/ORD-002-order-status-cancellation-and-delivery-rules-in.md)
+- Agent: 48,629 tokens, 13 tool uses, 2 min 38 s
+
+### Agent report
+
+**Summary:** Blocked: migration, trigger and tests are done and green, but two ORD-001 tests contradict C-16/C-17/C-19 and the story lists no "Tests to update".
+
+**Decisions:**
+- CANCELLED to DELIVERED: `sync_issue` counts as set when it is non-null and not blank in the new row (not only when this update changes it); the trigger also clears the four cancellation columns, so the update need not.
+- Reason rule: "not null when SUPPLIER" implemented literally (an empty string is accepted), as the story says.
+- Frozen check compares `to_jsonb(NEW)` and `to_jsonb(OLD)` minus supplier_note, sync_issue, server_updated_at, so new columns are frozen by default.
+- Trigger only on UPDATE (the story says BEFORE UPDATE); inserts are covered by the CHECKs.
+
+**Tests added beyond the story:**
+- `tests/integration/order/status-rules.test.ts` › clears the cancellation columns when delivery wins: the trigger clears them (story context); passed only after the trigger
+- same file › CANCELLED can change supplier_note and sync_issue only (C-18); PENDING to IN_DELIVERY, CONFIRMED to PENDING, DELIVERED to CONFIRMED, blank sync_issue refused (CM-12); non-frozen order may still change other columns
+
+**Other additions:**
+- `prisma/schema.prisma`: plain-language comment above `Order` for the new rules (CLAUDE.md rule).
+
+**Evidence:** story tests 35/35; full suite not run (blocked); typecheck clean; lint 0 errors, 56 warnings (+1 object-injection warning in the new test, same pattern as the existing tests)
+
+**Follow-ups:**
+- Failing ORD-001 tests in `tests/integration/order/order-table.test.ts`: 'orders enums and keys (AC-2)' › 'accepts every documented status' (inserts DELIVERED, CANCELLED, and PENDING placed by SUPPLIER without the required columns) and › 'accepts delivered_by_id and cancelled_by_id of a registered person' (sets both on a CONFIRMED order).
+- Add both to ORD-002 "Tests to update", expected: each status inserted with consistent columns, PENDING placed by CUSTOMER; the registered-person test on a DELIVERED or CANCELLED row (or one column per row). Then rerun the full suite.
+- Work is uncommitted in the tree: migration `20261004230000_ord_002_status_rules`, schema.prisma comment, the new test.
+<!-- end ORD-002 -->

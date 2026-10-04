@@ -131,7 +131,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-010 | todo | | |
 | CAT-011 | todo | | |
 | ORD-001 | done | | orders table, enums, FKs, indexes, triggers; 16 tests |
-| ORD-002 | todo | | |
+| ORD-002 | blocked | | Story tests pass (35/35) but 2 ORD-001 tests in order-table.test.ts contradict C-16/C-17: 'accepts every documented status' (DELIVERED/CANCELLED/PENDING inserted without their columns) and 'accepts delivered_by_id and cancelled_by_id of a registered person' (set on CONFIRMED). Not under Tests to update: list them, or say how to proceed |
 | ORD-003 | todo | | |
 | ORD-004 | todo | | |
 | ORD-005 | todo | | |
