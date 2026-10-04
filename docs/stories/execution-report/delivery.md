@@ -74,3 +74,37 @@ Also in this run: relationship, admin, catalog, order, finance.
 
 **Evidence:** story tests 10/10; full suite 1431/1431, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
 <!-- end DLV-001 -->
+
+<!-- begin DLV-002 -->
+## DLV-002 — Delivery state rules in the database
+
+- Filed: 2026-10-04 16:55 UTC
+- Status: **blocked**: DLV-001 tests in delivery-table.test.ts (4) contradict DLV-002 (no collaboration; two in-progress deliveries); story lists no Tests to update, may I amend them?
+- Risk: high · story: [DLV-002-delivery-state-rules-in-the-database.md](../modules/delivery/DLV-002-delivery-state-rules-in-the-database.md)
+- Agent: 52,711 tokens, 15 tool uses, 1 min 55 s
+
+### Agent report
+
+**Summary:** Blocked: DLV-002 is implemented and its 20 tests pass, but 4 existing DLV-001 tests now fail and the story does not list them under "Tests to update".
+
+**Decisions:**
+- Unknown order or unknown driver: the trigger lets the foreign key answer (23503), as ORD-003 does, so DLV-001's 23503 tests still pass.
+- failure_reason: an empty or blank string counts as no reason; this goes slightly beyond the story's "empty".
+- Membership ignores deleted collaborations (deleted_at not null), by the C-35 convention.
+
+**Tests added beyond the story:**
+- `delivery-rules.test.ts` › update setting both outcomes: the CHECK also guards UPDATE (C-21)
+- `delivery-rules.test.ts` › in-progress delivery on another order: the unique index is per order (C-21)
+- `delivery-rules.test.ts` › deleted membership, no collaboration at all: both rejected with 23514 (C-21, C-35)
+- `delivery-rules.test.ts` › two concurrent inserts: exactly one gets through, the other 23505 (AB-1, CWE-362)
+
+**Other additions:**
+- Comment above `model Delivery` in `prisma/schema.prisma` for the new rules (CLAUDE.md rule).
+
+**Evidence:** story tests 20/20; full suite not run (blocked); typecheck not run; lint 0 errors (quiet)
+
+**Follow-ups:**
+- Question: `tests/integration/delivery/delivery-table.test.ts` has 4 tests that fail by design: "stores a delivery with empty attempt columns", "moves server_updated_at forward", "allows several attempts for the same order", "accepts a registered driver". Their fixtures assign a driver with no collaboration, and one inserts two in-progress deliveries. They need a collaboration fixture and a failed or arrived first attempt. May they be amended, or should the DLV-002 story gain "Tests to update"?
+- Files left in the working tree: migration `20261004320000_dlv_002_delivery_rules`, `delivery-rules.test.ts`, the schema comment.
+- Test DB: a first migration run failed on leftover rows, so I cleaned up by hand and resolved it. It is now applied.
+<!-- end DLV-002 -->
