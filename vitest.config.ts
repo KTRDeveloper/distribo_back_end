@@ -12,7 +12,7 @@ export default defineConfig({
     // CI and terminals keep the default reporter.
     reporters: process.env.CLAUDECODE ? ['dot'] : ['default'],
     // Integration test files share one physical Postgres database and each
-    // file's beforeEach truncates shared tables — running files in parallel
+    // file's beforeEach empties shared tables — running files in parallel
     // lets one file's cleanup wipe rows another concurrently-running file
     // just created (observed as spurious FK violations / "not found" errors
     // when the full suite ran in parallel). Force sequential file execution.

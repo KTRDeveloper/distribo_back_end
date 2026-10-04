@@ -175,7 +175,7 @@ test('service with mocked dependencies', async () => {
 ## Test Isolation
 
 - Each test runs in isolation with a clean database state
-- Database is reset in `beforeEach` hook (deletes all data)
+- Database is reset in `beforeEach` hook: `clearDatabase` in `tests/setup.ts` deletes every row (DELETE, not TRUNCATE, which is slow on small tables)
 - Mocks are cleared before each test
 - No test should depend on another test's state
 

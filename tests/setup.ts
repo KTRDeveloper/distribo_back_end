@@ -105,6 +105,14 @@ beforeAll(() => {
   // Pending migrations are applied once per run by tests/global-setup.ts.
 });
 
+// Runs before every test of the suite, so it must stay cheap. DELETE, not
+// TRUNCATE: TRUNCATE recreates each table's files even when the table is empty
+// (about half a second per cleanup, most of the suite's time), while DELETE
+// only removes the rows the previous test left. Replica mode pauses foreign
+// keys and triggers for this one statement (set_config local to its
+// transaction): the table order does not matter, and the trigger keeping one
+// active owner per organization cannot refuse the cleanup. Setting it needs a
+// superuser: postgres, the test user locally and in CI.
 async function clearDatabase() {
   if (process.env.NODE_ENV !== 'test' || process.env.DATABASE_URL !== TEST_DATABASE_URL) {
     throw new Error('Refusing to clear a non-test database');
@@ -115,13 +123,14 @@ async function clearDatabase() {
     DECLARE
       table_name text;
     BEGIN
+      PERFORM set_config('session_replication_role', 'replica', true);
       FOR table_name IN
         SELECT tablename
         FROM pg_tables
         WHERE schemaname = 'public'
           AND tablename <> '_prisma_migrations'
       LOOP
-        EXECUTE format('TRUNCATE TABLE %I RESTART IDENTITY CASCADE', table_name);
+        EXECUTE format('DELETE FROM %I', table_name);
       END LOOP;
     END $$;
   `;
@@ -137,4 +146,4 @@ afterAll(async () => {
 });
 
 // Export for use in tests
-export { prisma };
+export { prisma, clearDatabase };

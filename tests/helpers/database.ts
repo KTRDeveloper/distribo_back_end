@@ -4,8 +4,6 @@ import { prisma } from '../setup';
 import argon2 from 'argon2';
 import { uniquePhone } from './phone';
 
-const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
-
 /**
  * Seed database with a test Person (creates a registered Person with credentials)
  */
@@ -82,30 +80,8 @@ export async function clearTasks() {
   await prisma.task.deleteMany();
 }
 
-/**
- * Clear all data from database
- */
-export async function clearDatabase() {
-  if (process.env.NODE_ENV !== 'test' || process.env.DATABASE_URL !== TEST_DATABASE_URL) {
-    throw new Error('Refusing to clear a non-test database');
-  }
-
-  await prisma.$executeRaw`
-    DO $$
-    DECLARE
-      table_name text;
-    BEGIN
-      FOR table_name IN
-        SELECT tablename
-        FROM pg_tables
-        WHERE schemaname = 'public'
-          AND tablename <> '_prisma_migrations'
-      LOOP
-        EXECUTE format('TRUNCATE TABLE %I RESTART IDENTITY CASCADE', table_name);
-      END LOOP;
-    END $$;
-  `;
-}
+// Clear all data from database: the same cleanup tests/setup.ts runs before each test.
+export { clearDatabase } from '../setup';
 
 /**
  * Get person by email from database
