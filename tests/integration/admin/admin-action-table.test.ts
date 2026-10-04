@@ -13,6 +13,7 @@ const SUPER_ID = '0199d002-0000-7000-8000-000000000011';
 const MODERATOR_ID = '0199d002-0000-7000-8000-000000000012';
 const UNKNOWN_ID = '0199d002-0000-7000-8000-0000000000ff';
 const ARCHIVE_ID = '0199d002-0000-7000-8000-000000000031';
+const DEVICE_ID = '0199d002-0000-7000-8000-000000000041';
 const FIRST_ID = '0199d002-0000-7000-8000-000000000021';
 
 type SqlError = {
@@ -108,6 +109,14 @@ beforeEach(async () => {
     INSERT INTO administrators (id, person_id, role, totp_secret) VALUES
       (${SUPER_ID}::uuid, ${SUPER_PERSON_ID}::uuid, 'SUPER_ADMIN', 'encrypted-secret'),
       (${MODERATOR_ID}::uuid, ${MODERATOR_PERSON_ID}::uuid, 'MODERATOR', 'encrypted-secret')
+  `;
+  await prisma.$executeRaw`
+    INSERT INTO devices (id, person_id, platform, app_version)
+    VALUES (${DEVICE_ID}::uuid, ${PERSON_ID}::uuid, 'ANDROID', '1.0.0')
+  `;
+  await prisma.$executeRaw`
+    INSERT INTO sync_archives (id, person_id, device_id, changes)
+    VALUES (${ARCHIVE_ID}::uuid, ${PERSON_ID}::uuid, ${DEVICE_ID}::uuid, '[]'::jsonb)
   `;
 });
 

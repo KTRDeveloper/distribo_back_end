@@ -65,28 +65,25 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 <!-- begin SYNC-002 -->
 ## SYNC-002 — Sync archive table
 
-- Filed: 2026-10-04 17:05 UTC
-- Status: **blocked**: FK admin_actions.sync_archive_id breaks existing admin-action-table.test.ts 'accepts REPLAY_SYNC...' (uses non-existent ARCHIVE_ID); story lists no Tests to update: allow inserting an archive row in that test's setup?
+- Filed: 2026-10-04 19:20 UTC
+- Status: **done**: sync_archives table, FKs, immutability grants; admin-action-table fixture updated
 - Risk: high · story: [SYNC-002-sync-archive-table.md](../modules/sync/SYNC-002-sync-archive-table.md)
-- Agent: 39,027 tokens, 13 tool uses, 3 min 24 s
+- Agent: 26,386 tokens, 8 tool uses, 5 min 37 s
 
 ### Agent report
 
-**Summary:** Blocked: implementation done and story tests green, but the new FK breaks one existing test the story does not list under "Tests to update".
+**Summary:** Added sync_archives (migration, schema model), FK from admin_actions.sync_archive_id, trigger and REVOKE; fixture of admin-action-table test updated as now listed.
 
 **Decisions:**
-- Migration 20261004320000_sync_002_sync_archives: table, FKs (person, device, admin_actions.sync_archive_id), DESC index, set_server_updated_at trigger, REVOKE UPDATE/DELETE/TRUNCATE; schema.prisma updated with comments.
-- Added indexes on sync_archives(device_id) and admin_actions(sync_archive_id) for FK lookups (pattern of ADM-003).
+- Extra index on sync_archives(device_id) and admin_actions(sync_archive_id): FK lookups, not required by the story.
+- Trigger fires on INSERT OR UPDATE, like the other synchronized tables.
 
 **Tests added beyond the story:**
-- `tests/integration/sync/archive-table.test.ts` › accepts a REPLAY_SYNC row pointing to an existing archive: FK allows valid link (AC-4); passed at once
-- same file › rejects a missing person or device with 23502, index (person_id, received_at DESC) exists (AC-3, Context)
+- `tests/integration/sync/archive-table.test.ts` › accepts a REPLAY_SYNC row pointing to an existing archive: FK allows a valid link (AC-4); passed at once
+- same file › TRUNCATE denied and row unchanged after denied UPDATE/DELETE (C-39); passed at once
+- same file › index (person_id, received_at desc) exists (Context); passed at once
 
-**Evidence:** story tests 8/8; full suite 2146/2147, failing: admin-action-table.test.ts > "accepts REPLAY_SYNC by a SUPER_ADMIN with a sync_archive_id"; typecheck clean; lint 0 errors, 60 warnings (pre-existing kind)
-
-**Follow-ups:**
-- Question: that existing test inserts REPLAY_SYNC with a non-existent ARCHIVE_ID and expects success; AC-4 makes that impossible. Fix needs the test to insert a sync_archives row first (needs person+device). I did not touch it (rule: never modify tests not listed). Allow it, or add "Tests to update" to the story.
-- Work left uncommitted in the working tree (migration, schema, new test).
+**Evidence:** story tests 8/8 (plus 18 in admin-action-table); full suite 2262/2262, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
 <!-- end SYNC-002 -->
 
 <!-- begin SYNC-003 -->

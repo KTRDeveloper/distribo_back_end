@@ -333,6 +333,7 @@ model Person {
   handoversCancelled Handover[] @relation("HandoverCancelledBy")
 
   administrators Administrator[]
+  syncArchives   SyncArchive[]
 
   adminActionsAsTarget AdminAction[] @relation("AdminActionTargetPerson")
 
@@ -688,6 +689,7 @@ model Device {
 
   person        Person         @relation(fields: [personId], references: [id])
   refreshTokens RefreshToken[]
+  syncArchives  SyncArchive[]
 
   @@map("devices")
 }
@@ -759,8 +761,8 @@ model Administrator {
 //   only an administrator whose role is SUPER_ADMIN can record a REPLAY_SYNC
 //   (checked on the administrator's role at the time of the insert).
 // - report_id must point to an existing report (foreign key added by migration
-//   20261004190000_adm_003_reports). sync_archive_id is a plain column for now:
-//   its foreign key to sync archives is added by SYNC-002.
+//   20261004190000_adm_003_reports). sync_archive_id must point to an existing
+//   sync archive (foreign key added by migration 20261004320000_sync_002_sync_archives).
 // - server_updated_at is set by the database on every change.
 model AdminAction {
   id                   String          @id @db.Uuid
@@ -776,6 +778,7 @@ model AdminAction {
 
   administrator      Administrator @relation(fields: [administratorId], references: [id])
   report             Report?       @relation(fields: [reportId], references: [id])
+  syncArchive        SyncArchive?  @relation(fields: [syncArchiveId], references: [id])
   targetPerson       Person?       @relation("AdminActionTargetPerson", fields: [targetPersonId], references: [id])
   targetOrganization Organization? @relation("AdminActionTargetOrganization", fields: [targetOrganizationId], references: [id])
 
@@ -783,6 +786,7 @@ model AdminAction {
   @@index([targetPersonId])
   @@index([targetOrganizationId])
   @@index([reportId])
+  @@index([syncArchiveId])
   @@map("admin_actions")
 }
 
@@ -1202,4 +1206,30 @@ model Delivery {
   @@index([orderId])
   @@index([assignedToId, departedAt])
   @@map("deliveries")
+}
+
+// Rules the database enforces on the archive of received sync batches, beyond
+// what this model declares. All come from migration
+// 20261004320000_sync_002_sync_archives.
+// - The archive can only grow: the application can add and read rows but never
+//   change, delete or empty them. Only the retention purge, run by the database
+//   owner outside the application account, removes rows after 90 days.
+// - server_updated_at is set by the database on every write.
+// - The database index on (person_id, received_at newest first) serves the
+//   listing of a person's batches.
+model SyncArchive {
+  id              String   @id @db.Uuid
+  personId        String   @map("person_id") @db.Uuid
+  deviceId        String   @map("device_id") @db.Uuid
+  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz
+  changes         Json
+  serverUpdatedAt DateTime @default(now()) @map("server_updated_at") @db.Timestamptz
+
+  person       Person        @relation(fields: [personId], references: [id])
+  device       Device        @relation(fields: [deviceId], references: [id])
+  adminActions AdminAction[]
+
+  @@index([personId, receivedAt(sort: Desc)])
+  @@index([deviceId])
+  @@map("sync_archives")
 }

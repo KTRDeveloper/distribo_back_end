@@ -74,5 +74,11 @@ Scenario: AB-1 Erasing evidence of a batch (repudiation)
 
 Command: `npx vitest run tests/integration/sync/archive-table.test.ts`
 
+### Tests to update
+| existing test | reason | new expectation |
+|---|---|---|
+| tests/integration/admin/admin-action-table.test.ts › `beforeEach` | `ARCHIVE_ID` names no `sync_archives` row, so the new foreign key on `admin_actions.sync_archive_id` answers 23503 | after the administrators insert, insert through `prisma` (owner account) one device for `PERSON_ID` and one `sync_archives` row with id `ARCHIVE_ID`, that person and device, and a small `changes` array; add a `DEVICE_ID` constant next to the others |
+| tests/integration/admin/admin-action-table.test.ts › "accepts REPLAY_SYNC by a SUPER_ADMIN with a sync_archive_id" | fails only through the fixture above | unchanged; passes with the new `beforeEach` |
+
 ## Out of scope
 - Writing archives (SYNC-009). The 90-day purge (PRIV module).
