@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
-import { assignDeliverySchema, mineQuerySchema, toDeliverQuerySchema } from './delivery.schemas.js';
+import {
+  assignDeliverySchema,
+  departSchema,
+  mineQuerySchema,
+  toDeliverQuerySchema,
+} from './delivery.schemas.js';
 
 const errorContent = { 'application/json': { schema: errorResponseSchema } };
 
@@ -118,6 +123,48 @@ openApiRegistry.registerPath({
     409: {
       description:
         'DELIVERY_IN_PROGRESS (already departed), INVALID_TRANSITION (not CONFIRMED) or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/orders/{orderId}/depart',
+  tags: ['delivery'],
+  summary: 'A driver departs with a CONFIRMED order (DLV-005)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: departSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The departed delivery and the new order status',
+      content: {
+        'application/json': {
+          schema: z.object({
+            delivery: z.object({
+              id: z.string().uuid(),
+              order_id: z.string().uuid(),
+              assigned_to_id: z.string().uuid(),
+              departed_at: z.string().datetime().nullable(),
+            }),
+            order_status: z.literal('IN_DELIVERY'),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'VALIDATION_ERROR (body, or the order has no delivery address)',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The role may not depart with an order', content: errorContent },
+    404: { description: 'Not a member, or order outside the business', content: errorContent },
+    409: {
+      description:
+        'ASSIGNED_TO_OTHER, DELIVERY_IN_PROGRESS (already on the road), INVALID_TRANSITION (not CONFIRMED) or conflicting gesture id',
       content: errorContent,
     },
   },

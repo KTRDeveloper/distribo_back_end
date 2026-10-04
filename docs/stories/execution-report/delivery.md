@@ -200,3 +200,38 @@ Also in this run: relationship, admin, catalog, order, finance.
 **Follow-ups:**
 - A client gesture id equal to an existing delivery id of another order would surface as 500 (primary key); not mapped.
 <!-- end DLV-004 -->
+
+<!-- begin DLV-005 -->
+## DLV-005 — Driver departs with an order
+
+- Filed: 2026-10-04 23:10 UTC
+- Status: **done**: depart route, 21 tests; full suite 2757 green
+- Risk: high · story: [DLV-005-driver-departs-with-an-order.md](../modules/delivery/DLV-005-driver-departs-with-an-order.md)
+- Agent: 69,808 tokens, 19 tool uses, 5 min 18 s
+
+### Agent report
+
+**Summary:** Added `POST .../orders/{orderId}/depart` (`departWithOrder`): one transaction under the order row lock, `transitionOrder` to IN_DELIVERY, delivery created or marked departed, customer notified.
+
+**Decisions:**
+- Manager or owner takes over an order assigned to another driver: the same row gets `departed_at` and `assigned_to_id` becomes the caller, so the person on the road owns the delivery (the story is silent on this case).
+- Order already IN_DELIVERY, or a delivery already departed, gives DELIVERY_IN_PROGRESS even for the same driver; checked before INVALID_TRANSITION, which covers PENDING, DELIVERED and CANCELLED.
+- Customer recipient is read through a new repository function (relationship person, else the person who entered the order, only if registered), because order.service's helper is not a contract export; a guest gets no notification.
+- Reused `lockOrderToAssign` and `findDeliveryInProgress` from DLV-004 for the lock, so the race loser sees IN_DELIVERY and gets 409.
+- `requireAbility('depart','Order')` checks the role only; the status condition is enforced by the service under the lock. SELLER passes the route check because the ability ranks SELLER above DRIVER (ACC rule, unchanged).
+
+**Tests added beyond the story:**
+- `depart.test.ts` › notifies the customer order.status_changed: the notification the story requires (Context)
+- `depart.test.ts` › lets a MANAGER / an OWNER depart with an order assigned to another driver: the takeover branch (Context)
+- `depart.test.ts` › departs with an order whose earlier delivery failed: a failed delivery does not count as in progress (C-21)
+- `depart.test.ts` › 400 for unknown field, missing id, malformed id, and 401 without a token: strict body, deny by default (CONVENTIONS validation)
+- `depart.test.ts` › answers 404 to a member of another business: also covers a cross-path attempt, and an own-business success
+
+**Other additions:**
+- `departSchema`, `markDeparted`, `insertDepartedDelivery`, `findRegisteredCustomerRecipient`, the OpenAPI path and the route line in `catalog.test.ts` (convention: a route story adds its path there)
+
+**Evidence:** story tests 21/21; full suite 2757/2757, failing: none; typecheck clean; lint 0 errors, 65 warnings (all existing, none in the delivery files)
+
+**Follow-ups:**
+- Confirm the takeover rule (`assigned_to_id` becomes the manager or owner) when DLV-006 and DLV-007 read the delivery's driver.
+<!-- end DLV-005 -->

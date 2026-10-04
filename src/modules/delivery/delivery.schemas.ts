@@ -29,3 +29,11 @@ export const assignDeliverySchema = z
   .strict();
 
 export type AssignDeliveryInput = z.infer<typeof assignDeliverySchema>;
+
+/**
+ * Strict body of the depart gesture (DLV-005): only the gesture id, which becomes the delivery id
+ * when a delivery is created. Driver, order and times are never accepted (ASVS v5.0.0-15.3.3).
+ */
+export const departSchema = z.object({ id: uuidV7Schema }).strict();
+
+export type DepartInput = z.infer<typeof departSchema>;

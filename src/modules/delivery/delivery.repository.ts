@@ -214,3 +214,48 @@ export function reassignDelivery(
 ): Promise<Delivery> {
   return tx.delivery.update({ where: { id }, data: { assignedToId } });
 }
+
+/**
+ * Marks a delivery departed now and gives it to the person leaving with the order (the assigned
+ * driver, or the MANAGER or OWNER who takes it over). The row is the one found under the order lock.
+ */
+export function markDeparted(
+  tx: Prisma.TransactionClient,
+  id: string,
+  assignedToId: string,
+  departedAt: Date
+): Promise<Delivery> {
+  return tx.delivery.update({ where: { id }, data: { assignedToId, departedAt } });
+}
+
+/** Inserts a delivery for the order that departs at once. */
+export function insertDepartedDelivery(
+  tx: Prisma.TransactionClient,
+  data: { id: string; orderId: string; assignedToId: string; departedAt: Date }
+): Promise<Delivery> {
+  return tx.delivery.create({ data });
+}
+
+/**
+ * The person to tell an order changed status: the relationship's person or, for a business
+ * customer, whoever entered the order; null when that person is a guest with no account.
+ */
+export async function findRegisteredCustomerRecipient(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<string | null> {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    select: {
+      enteredById: true,
+      customerRelationship: { select: { customerPersonId: true } },
+    },
+  });
+  if (!order) return null;
+  const recipientId = order.customerRelationship.customerPersonId ?? order.enteredById;
+  const person = await tx.person.findFirst({
+    where: { id: recipientId, registeredAt: { not: null } },
+    select: { id: true },
+  });
+  return person ? recipientId : null;
+}

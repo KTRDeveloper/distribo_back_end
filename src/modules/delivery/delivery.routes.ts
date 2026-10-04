@@ -6,10 +6,16 @@ import { requireAbility } from '../../middleware/require-ability.js';
 import {
   assignDeliverySchema,
   assignParamSchema,
+  departSchema,
   mineQuerySchema,
   toDeliverQuerySchema,
 } from './delivery.schemas.js';
-import { assignDelivery, listMyDeliveries, listToDeliver } from './delivery.service.js';
+import {
+  assignDelivery,
+  departWithOrder,
+  listMyDeliveries,
+  listToDeliver,
+} from './delivery.service.js';
 import './delivery.openapi.js';
 
 /** Delivery routes of one organization, mounted at `/organizations/:organizationId`. */
@@ -58,6 +64,35 @@ deliveryRoutes.post(
       assignDeliverySchema.parse(req.body)
     )
       .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/orders/:orderId/depart - a DRIVER (or above) leaves
+// with a CONFIRMED order; the caller is the driver, never a body field. Order status, address,
+// assignment and race checks are the service's.
+deliveryRoutes.post(
+  '/orders/:orderId/depart',
+  authMiddleware,
+  loadActor,
+  requireAbility('depart', 'Order'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = assignParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = departSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    departWithOrder(
+      req.actor!,
+      assignParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      departSchema.parse(req.body)
+    )
+      .then((result) => res.status(200).json(result))
       .catch(next);
   }
 );
