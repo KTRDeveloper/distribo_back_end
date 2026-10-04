@@ -7,6 +7,7 @@ import {
   customerParamsSchema,
   editCustomerSchema,
   listCustomersQuerySchema,
+  setCreditLimitSchema,
 } from './relationship.schemas.js';
 
 const organizationParamsSchema = z.object({ organizationId: uuidV7Schema });
@@ -164,6 +165,38 @@ openApiRegistry.registerPath({
     404: { description: 'Not found or not a member', content: errorContent },
     409: {
       description: 'COUNTER_LABEL_TAKEN, organization not active or conflicting gesture id',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'put',
+  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/credit-limit',
+  tags: ['relationship'],
+  summary: 'Set the credit limit of a customer (OWNER, or MANAGER online)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationParamsSchema.merge(customerParamsSchema),
+    body: { content: { 'application/json': { schema: setCreditLimitSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The updated supplier-side relationship view',
+      content: { 'application/json': { schema: supplierRelationshipViewSchema } },
+    },
+    400: { description: 'Invalid body or relationship id', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: {
+      description: "FORBIDDEN for the role, or OWN_RECORD on the caller's own customer record",
+      content: errorContent,
+    },
+    404: {
+      description: 'Not found, deleted, of another business, or not a member',
+      content: errorContent,
+    },
+    409: {
+      description: 'COUNTER_NO_CREDIT, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
       content: errorContent,
     },
   },

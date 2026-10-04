@@ -498,6 +498,10 @@ model Collaboration {
 //   credit_limit_set_at to the server time itself and writes one
 //   credit_limit_changes row (old limit, new limit, author, time) in the same
 //   transaction, so code never writes that journal row and cannot skip it.
+//   This also refuses the same person changing the limit twice in a row, so
+//   when the caller is already the recorded author the code first blanks
+//   author and time (together), then writes the new limit and author, all in
+//   one transaction under a row lock (relationship.repository writeCreditLimit).
 //   Setting the same value again changes nothing and writes nothing. The
 //   default of 0 is also applied by the database on insert; an insert that
 //   supplies a limit directly is not journaled (it is creation, not a change).

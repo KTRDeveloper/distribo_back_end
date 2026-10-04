@@ -476,6 +476,39 @@ Also in this run: admin, catalog, order, finance, delivery.
 - A 409 COUNTER_LABEL_TAKEN is not replayed specially; idempotency behavior for 4xx follows the existing middleware.
 <!-- end REL-011 -->
 
+<!-- begin REL-012 -->
+## REL-012 — Owner or manager sets a credit limit
+
+- Filed: 2026-10-04 14:18 UTC
+- Status: **done**: PUT credit-limit done; same-author trigger workaround (clear author then write, locked tx)
+- Risk: high · story: [REL-012-owner-or-manager-sets-a-credit-limit.md](../modules/relationship/REL-012-owner-or-manager-sets-a-credit-limit.md)
+- Agent: 86,833 tokens, 29 tool uses, 5 min 44 s
+
+### Agent report
+
+**Summary:** Added PUT .../customers/{relationshipId}/credit-limit with checks, journal via REL-004 trigger, owner notification and warn log; all green.
+
+**Decisions:**
+- REL-004 trigger refuses a limit change with an unchanged author (same person twice): when the caller is already the author, a first statement blanks author and time, then the limit and author are written, in one transaction under a row lock; no migration.
+- Same value again writes nothing and returns 200 with the unchanged row (no journal, no author change, no notification).
+- "Raised" = higher number, or ceiling removed; null to a number is a lowering, so no notification.
+- Own record: customer person == caller (any role), or a non-OWNER who is MANAGER/OWNER of the customer organization; checked after the counter check and before the status check.
+- credit_limit bounded to safe integers (`.safe()`) so it fits the bigint column; field required (absent is 400, not "no ceiling").
+- No ORGANIZATION_NOT_ACTIVE check (story lists none).
+
+**Tests added beyond the story:**
+- `credit-limit.test.ts` › same author three times, same value no-op, manager lowers or owner raises does not notify, manager removing the ceiling notifies, owner own-person 403 vs owner of customer org 200, other organization 404, missing/string/unsafe limit 400 (AC-3, REL-004 trigger, C-10, ACC rules); all green after implementation.
+
+**Other additions:**
+- Catalog test path entry for the new route (CONVENTIONS rule); schema.prisma comment on the same-author workaround.
+
+**Evidence:** story tests 25/25; full suite 1634/1634, failing: none; typecheck clean; lint 0 errors, 57 warnings
+
+**Follow-ups:**
+- PENDING relationship cannot be seeded (an org supplier is never PENDING), so only ENDED is tested for RELATIONSHIP_NOT_ACTIVE.
+- The REL-004 same-author rule is still odd; a human may prefer relaxing the trigger in a migration instead of the two-statement workaround.
+<!-- end REL-012 -->
+
 <!-- begin REL-014 -->
 ## REL-014 — Reassignment journal table
 

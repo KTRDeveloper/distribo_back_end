@@ -1,7 +1,8 @@
+import type { Prisma } from '@prisma/client';
 import type { Actor } from '../../types/express.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
-import { runInTransaction } from '../organization/organization.repository.js';
+import { findActiveOwnerId, runInTransaction } from '../organization/organization.repository.js';
 import { findOrCreateByPhone } from '../person/person.repository.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
@@ -13,16 +14,21 @@ import type {
   AddCustomerInput,
   EditCustomerInput,
   ListCustomersQuery,
+  SetCreditLimitInput,
 } from './relationship.schemas.js';
 import {
   counterLabelExists,
   createCounter,
   ensureCustomerRelationship,
+  findPersonName,
   findSupplierRelationship,
+  findSupplierRelationshipLocked,
   findWithParties,
   listSupplierRelationships,
   lockOrganization,
+  managesOrganization,
   updateSupplierFields,
+  writeCreditLimit,
 } from './relationship.repository.js';
 import { projectForSupplier, type SupplierRelationshipView } from './relationship.visibility.js';
 
@@ -237,4 +243,139 @@ export async function addCounter(
     });
     return projectForSupplier(await findWithParties(tx, counter.id));
   });
+}
+
+const CREDIT_LIMIT_CONTEXT = { onServer: false, online: true, daysSinceSync: 0 } as const;
+
+const RAISED_CONTENT = {
+  FR: (author: string, customer: string, limit: string) =>
+    `${author} a relevé le plafond de ${customer} à ${limit}.`,
+  EN: (author: string, customer: string, limit: string) =>
+    `${author} raised the credit limit of ${customer} to ${limit}.`,
+};
+
+/** True when the new limit is higher than the old one; an empty limit (no ceiling) is the highest. */
+function isRaise(previous: bigint | null, next: bigint | null): boolean {
+  if (previous === null) return false;
+  return next === null || next > previous;
+}
+
+function refuse(actor: Actor, event: 'permission_refused' | 'own_record_refused'): never {
+  logger.warn(
+    { event, personId: actor.personId, action: 'update', subjectType: 'CustomerRelationship' },
+    'Permission refused'
+  );
+  if (event === 'own_record_refused') {
+    throw httpError(403, 'OWN_RECORD', 'Not allowed on your own record');
+  }
+  throw httpError(403, 'FORBIDDEN', 'Permission denied');
+}
+
+/**
+ * An owner, or a manager online, sets the credit limit of one customer of the actor's organization.
+ *
+ * The rules table decides first (`update` on the field `credit_limit`, ASVS v5.0.0-8.2.1): a
+ * SELLER or DRIVER answers 403. One transaction then locks the row selected by id and the
+ * visibility predicate together (404 outside the organization, v5.0.0-8.2.2) and checks, in order:
+ * a counter (409 `COUNTER_NO_CREDIT`), the caller's own record (403 `OWN_RECORD`: the caller is
+ * the customer person, or, below OWNER, manages the customer organization), and an ACTIVE status
+ * (409 `RELATIONSHIP_NOT_ACTIVE`). The limit, its author (always the caller) and its time are
+ * written together and the database journal trigger adds the `CreditLimitChange` row (C-10,
+ * v5.0.0-2.3.3). Setting the current value again writes nothing. A MANAGER raising a limit
+ * notifies the owner `credit_limit.raised` in the same transaction.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param input - Validated body: gesture id and the new limit (null: no ceiling).
+ * @returns The supplier view of the relationship.
+ * @throws 403 `FORBIDDEN` or `OWN_RECORD`; 404 `NOT_FOUND`; 409 `COUNTER_NO_CREDIT` or
+ * `RELATIONSHIP_NOT_ACTIVE`.
+ */
+export async function setCreditLimit(
+  actor: Actor,
+  relationshipId: string,
+  input: SetCreditLimitInput
+): Promise<SupplierRelationshipView> {
+  if (
+    !abilityFor(actor.role, CREDIT_LIMIT_CONTEXT).can(
+      'update',
+      'CustomerRelationship',
+      'credit_limit'
+    )
+  ) {
+    refuse(actor, 'permission_refused');
+  }
+
+  return runInTransaction(async (tx) => {
+    const row = await findSupplierRelationshipLocked(tx, actor, relationshipId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Customer not found');
+
+    if (row.customerPersonId === null && row.customerOrganizationId === null) {
+      throw httpError(409, 'COUNTER_NO_CREDIT', 'A counter has no credit');
+    }
+    // Own-record gestures return to the owner: only a customer person equal to the caller binds
+    // an owner; a manager is also bound by a customer organization they manage.
+    const ownPerson = row.customerPersonId === actor.personId;
+    const managesCustomer =
+      actor.role !== 'OWNER' &&
+      row.customerOrganizationId !== null &&
+      (await managesOrganization(tx, actor.personId, row.customerOrganizationId));
+    if (ownPerson || managesCustomer) refuse(actor, 'own_record_refused');
+    if (row.status !== 'ACTIVE') {
+      throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'The relationship is not active');
+    }
+
+    const previous = row.creditLimit;
+    const next = input.credit_limit === null ? null : BigInt(input.credit_limit);
+    if (previous === next) return projectForSupplier(row);
+
+    await writeCreditLimit(tx, row.id, {
+      creditLimit: next,
+      setById: actor.personId,
+      clearAuthorFirst: row.creditLimitSetById === actor.personId,
+    });
+    logger.warn(
+      {
+        event: 'credit_limit_changed',
+        relationshipId: row.id,
+        authorId: actor.personId,
+        previousLimit: previous === null ? null : Number(previous),
+        newLimit: next === null ? null : Number(next),
+      },
+      'Credit limit changed'
+    );
+
+    if (actor.role === 'MANAGER' && isRaise(previous, next)) {
+      const customer =
+        row.customerPerson?.fullName ?? row.customerOrganization?.name ?? row.customerLabel ?? '';
+      await notifyOwnerOfRaise(tx, actor, { id: row.id, customer }, next);
+    }
+    return projectForSupplier(await findWithParties(tx, row.id));
+  });
+}
+
+/** Tells the organization's owner that a manager raised a limit, in the owner's language. */
+async function notifyOwnerOfRaise(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  target: { id: string; customer: string },
+  limit: bigint | null
+): Promise<void> {
+  const ownerId = await findActiveOwnerId(tx, actor.organizationId);
+  if (ownerId === null) return;
+  const language = await recipientLanguage(ownerId, tx);
+  const author = (await findPersonName(tx, actor.personId)) ?? '';
+  let amount = limit?.toString() ?? '';
+  if (limit === null) amount = language === 'EN' ? 'no ceiling' : 'sans plafond';
+  const text = language === 'EN' ? RAISED_CONTENT.EN : RAISED_CONTENT.FR;
+  await notify(
+    {
+      recipientId: ownerId,
+      organizationId: actor.organizationId,
+      sourceEvent: 'credit_limit.raised',
+      content: text(author, target.customer, amount),
+      related: { type: 'customer_relationship', id: target.id },
+    },
+    tx
+  );
 }

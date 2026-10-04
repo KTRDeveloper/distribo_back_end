@@ -72,3 +72,19 @@ export const addCounterSchema = z
   .strict();
 
 export type AddCounterInput = z.infer<typeof addCounterSchema>;
+
+/**
+ * Strict body of the set-credit-limit gesture: the gesture id and the limit (ASVS v5.0.0-15.3.3).
+ * The limit is a whole number of XAF from 0 up, or null for no ceiling; it is required, so an
+ * absent field is never read as "no ceiling". It stays within the safe integers so it always
+ * fits the database column. Author and time are set by the server and rejected as unknown keys
+ * (CWE-915).
+ */
+export const setCreditLimitSchema = z
+  .object({
+    id: uuidV7Schema,
+    credit_limit: z.number().int().safe().min(0).nullable(),
+  })
+  .strict();
+
+export type SetCreditLimitInput = z.infer<typeof setCreditLimitSchema>;

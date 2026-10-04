@@ -9,6 +9,7 @@ import {
   customerParamsSchema,
   editCustomerSchema,
   listCustomersQuerySchema,
+  setCreditLimitSchema,
 } from './relationship.schemas.js';
 import {
   addCounter,
@@ -16,6 +17,7 @@ import {
   editCustomer,
   getCustomer,
   listCustomers,
+  setCreditLimit,
 } from './relationship.service.js';
 import './relationship.openapi.js';
 
@@ -105,6 +107,35 @@ relationshipRoutes.post(
   (req, res, next) => {
     addCounter(req.actor!, addCounterSchema.parse(req.body))
       .then((counter) => res.status(201).json(counter))
+      .catch(next);
+  }
+);
+
+// PUT /api/v1/organizations/:organizationId/customers/:relationshipId/credit-limit - an owner, or a
+// manager online, sets the limit; the service checks the rules table (403), the organization scope
+// (404) and the credit rules (409, 403 OWN_RECORD)
+relationshipRoutes.put(
+  '/customers/:relationshipId/credit-limit',
+  authMiddleware,
+  loadActor,
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = setCreditLimitSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        setCreditLimit(
+          req.actor!,
+          customerParamsSchema.parse(req.params).relationshipId,
+          setCreditLimitSchema.parse(req.body)
+        )
+      )
+      .then((customer) => res.json(customer))
       .catch(next);
   }
 );

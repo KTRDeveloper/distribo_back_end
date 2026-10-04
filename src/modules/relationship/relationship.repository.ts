@@ -278,3 +278,101 @@ export function updateSupplierFields(
     });
   });
 }
+
+/**
+ * Reads one relationship of the organization as supplier and holds a row lock on it until the
+ * transaction ends, so a concurrent limit change, end or merge waits and the checks of the caller
+ * (status, customer) stay true until it writes.
+ *
+ * The scoped lookup runs first, through the visibility predicate (v5.0.0-8.2.2): another
+ * business's row, a deleted or a merged one answers null like an absent id, and is never locked.
+ *
+ * @param tx - Transaction client of the caller.
+ * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param id - Relationship id from the path.
+ * @returns The locked row with the customer parties loaded, or null.
+ */
+export async function findSupplierRelationshipLocked(
+  tx: Prisma.TransactionClient,
+  viewer: { personId: string; organizationId: string },
+  id: string
+) {
+  const scope: Prisma.CustomerRelationshipWhereInput = {
+    AND: [
+      visibleRelationsWhere({
+        personId: viewer.personId,
+        organizationIds: [viewer.organizationId],
+      }),
+      { supplierOrganizationId: viewer.organizationId },
+      { id },
+    ],
+  };
+  const found = await tx.customerRelationship.findFirst({ where: scope, select: { id: true } });
+  if (!found) return null;
+  await tx.$queryRaw`SELECT "id" FROM "customer_relationships" WHERE "id" = ${found.id}::uuid FOR UPDATE`;
+  return tx.customerRelationship.findFirst({
+    where: scope,
+    include: { customerPerson: true, customerOrganization: true },
+  });
+}
+
+/** Tells whether the person is an ACTIVE MANAGER or OWNER of the organization. */
+export async function managesOrganization(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  organizationId: string
+): Promise<boolean> {
+  const found = await tx.collaboration.findFirst({
+    where: {
+      personId,
+      organizationId,
+      role: { in: ['MANAGER', 'OWNER'] },
+      status: 'ACTIVE',
+      deletedAt: null,
+    },
+    select: { id: true },
+  });
+  return found !== null;
+}
+
+/** Reads the display name of a person, for a notification text. */
+export async function findPersonName(
+  tx: Prisma.TransactionClient,
+  personId: string
+): Promise<string | null> {
+  const person = await tx.person.findUnique({
+    where: { id: personId },
+    select: { fullName: true },
+  });
+  return person?.fullName ?? null;
+}
+
+/**
+ * Writes a new credit limit and its author on a relationship the caller has locked. The database
+ * stamps `credit_limit_set_at` and writes the journal row in the same statement (REL-004).
+ *
+ * The REL-004 trigger refuses a limit change whose author is unchanged. When the caller is
+ * already the recorded author, `clearAuthorFirst` blanks author and time (both together, so the
+ * pair rule holds) in a statement that does not touch the limit; the row lock and the caller's
+ * transaction make the two statements invisible to anyone else.
+ *
+ * @param tx - Transaction client of the caller.
+ * @param id - Relationship id, already checked and locked.
+ * @param input - New limit (null: no ceiling), author, and whether the author must be blanked.
+ */
+export async function writeCreditLimit(
+  tx: Prisma.TransactionClient,
+  id: string,
+  input: { creditLimit: bigint | null; setById: string; clearAuthorFirst: boolean }
+): Promise<void> {
+  if (input.clearAuthorFirst) {
+    await tx.customerRelationship.update({
+      where: { id },
+      data: { creditLimitSetById: null, creditLimitSetAt: null },
+    });
+  }
+  await tx.customerRelationship.update({
+    where: { id },
+    data: { creditLimit: input.creditLimit, creditLimitSetById: input.setById },
+  });
+}
