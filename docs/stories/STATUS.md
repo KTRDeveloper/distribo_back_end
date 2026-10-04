@@ -183,7 +183,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-010 | todo | | |
 | DLV-011 | todo | | |
 | DLV-012 | todo | | |
-| SYNC-001 | todo | | |
+| SYNC-001 | done | | types, registry, viewer; 7 tests pass |
 | SYNC-002 | todo | | |
 | SYNC-003 | todo | | |
 | SYNC-004 | todo | | |
