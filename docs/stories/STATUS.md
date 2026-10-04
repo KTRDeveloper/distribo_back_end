@@ -94,7 +94,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-013 | todo | | |
 | ADM-014 | todo | | |
 | ADM-015 | todo | | |
-| REL-001 | todo | | |
+| REL-001 | done | | customer_relationships table, migration, 14 tests green |
 | REL-002 | todo | | |
 | REL-003 | todo | | |
 | REL-004 | todo | | |

@@ -137,6 +137,17 @@ enum CollaborationStatus {
   REVOKED
 }
 
+enum RelationshipStatus {
+  PENDING
+  ACTIVE
+  ENDED
+}
+
+enum RelationshipParty {
+  CUSTOMER
+  SUPPLIER
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -236,6 +247,11 @@ model Person {
   notifications         Notification[]
   collaborations        Collaboration[]
 
+  suppliedRelationships   CustomerRelationship[] @relation("RelationshipSupplierPerson")
+  customerRelationships   CustomerRelationship[] @relation("RelationshipCustomerPerson")
+  creditLimitSetRelations CustomerRelationship[] @relation("RelationshipCreditLimitSetBy")
+  createdRelationships    CustomerRelationship[] @relation("RelationshipCreatedBy")
+
   @@map("people")
 }
 
@@ -293,6 +309,9 @@ model Organization {
   collaborations Collaboration[]
   subscriptions  Subscription[]
 
+  suppliedRelationships CustomerRelationship[] @relation("RelationshipSupplierOrganization")
+  customerRelationships CustomerRelationship[] @relation("RelationshipCustomerOrganization")
+
   @@map("organizations")
 }
 
@@ -349,6 +368,54 @@ model Collaboration {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@map("collaborations")
+}
+
+// Rules the database enforces on customer relationships (the commercial link
+// between a supplier and a customer), beyond what this model declares. All
+// come from migration 20261004130000_rel_001_relationships.
+// - The person who created the relationship, and the person who set the credit
+//   limit, must be registered people, never guests. This is checked when the
+//   transaction is saved, not row by row.
+// - server_updated_at is set by the database on every change.
+// Rules about which parties may be filled in, one live relationship per pair,
+// status and credit are added by later stories (REL-002 and REL-004).
+model CustomerRelationship {
+  id                     String             @id @db.Uuid
+  supplierOrganizationId String?            @map("supplier_organization_id") @db.Uuid
+  supplierPersonId       String?            @map("supplier_person_id") @db.Uuid
+  customerPersonId       String?            @map("customer_person_id") @db.Uuid
+  customerOrganizationId String?            @map("customer_organization_id") @db.Uuid
+  customerPhoneNumber    String?            @map("customer_phone_number")
+  customerLabel          String?            @map("customer_label")
+  supplierLabel          String?            @map("supplier_label")
+  deliveryAddress        String?            @map("delivery_address")
+  creditLimit            BigInt?            @map("credit_limit")
+  creditLimitSetById     String?            @map("credit_limit_set_by_id") @db.Uuid
+  creditLimitSetAt       DateTime?          @map("credit_limit_set_at") @db.Timestamptz
+  balance                BigInt             @default(0)
+  status                 RelationshipStatus @default(ACTIVE)
+  endedByParty           RelationshipParty? @map("ended_by_party")
+  supplierNotes          String?            @map("supplier_notes") @db.Text
+  createdById            String             @map("created_by_id") @db.Uuid
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  mergedIntoId           String?            @map("merged_into_id") @db.Uuid
+  serverUpdatedAt        DateTime           @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt              DateTime?          @map("deleted_at") @db.Timestamptz
+
+  supplierOrganization Organization?          @relation("RelationshipSupplierOrganization", fields: [supplierOrganizationId], references: [id])
+  supplierPerson       Person?                @relation("RelationshipSupplierPerson", fields: [supplierPersonId], references: [id])
+  customerPerson       Person?                @relation("RelationshipCustomerPerson", fields: [customerPersonId], references: [id])
+  customerOrganization Organization?          @relation("RelationshipCustomerOrganization", fields: [customerOrganizationId], references: [id])
+  creditLimitSetBy     Person?                @relation("RelationshipCreditLimitSetBy", fields: [creditLimitSetById], references: [id])
+  createdBy            Person                 @relation("RelationshipCreatedBy", fields: [createdById], references: [id])
+  mergedInto           CustomerRelationship?  @relation("RelationshipMergedInto", fields: [mergedIntoId], references: [id])
+  mergedDuplicates     CustomerRelationship[] @relation("RelationshipMergedInto")
+
+  @@index([supplierOrganizationId])
+  @@index([supplierPersonId])
+  @@index([customerPersonId])
+  @@index([customerOrganizationId])
+  @@map("customer_relationships")
 }
 
 // Rules the database enforces on one-time codes, beyond what this model
