@@ -1,5 +1,7 @@
 import type { Expense, Handover, Prisma } from '@prisma/client';
-import { addAmountHeld } from '../organization/organization.repository.js';
+import { httpError } from '../../lib/http-error.js';
+import { newId } from '../../shared/ids.js';
+import { addAmountHeld, lockAmountHeld } from '../organization/organization.repository.js';
 
 export type ExpenseInput = {
   id: string;
@@ -158,4 +160,35 @@ export async function cancelHandoverInTx(
     await addAmountHeld(tx, personId, input.organizationId, delta);
   }
   return handover;
+}
+
+/**
+ * Hands the former owner's money back to the business when ownership changes (CM-18, C-27): when
+ * their `amount_held` is above 0, a handover from and to themselves for that amount is recorded, so
+ * the amount only falls and they restart at 0. At 0 or below nothing is written. The row is locked
+ * for the read, so the handover covers exactly what is held when it commits, and the whole step
+ * runs in the caller's transaction: if the insert fails the ownership change rolls back (ASVS
+ * v5.0.0-2.3.3). The caller runs it with the former owner still an active OWNER or MANAGER, as the
+ * database requires of a handover's receiver.
+ *
+ * @param tx - The ownership transfer's transaction.
+ * @param input - Organization and former owner from the session, never from the body.
+ * @returns The automatic handover, or null when nothing above 0 was held.
+ * @throws 404 `NOT_FOUND` when the former owner has no live collaboration.
+ */
+export async function handOverFormerOwnerMoneyInTx(
+  tx: Prisma.TransactionClient,
+  input: { organizationId: string; formerOwnerId: string }
+): Promise<Handover | null> {
+  const held = await lockAmountHeld(tx, input.formerOwnerId, input.organizationId);
+  if (held === null) throw httpError(404, 'NOT_FOUND', 'Not found');
+  if (held <= 0n) return null;
+  return recordHandoverInTx(tx, {
+    id: newId(),
+    organizationId: input.organizationId,
+    fromPersonId: input.formerOwnerId,
+    toPersonId: input.formerOwnerId,
+    amount: held,
+    occurredAt: new Date(),
+  });
 }

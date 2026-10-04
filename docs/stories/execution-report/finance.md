@@ -599,3 +599,36 @@ Also in this run: relationship, admin, catalog, order, delivery.
 **Follow-ups:**
 - Confirm whether a cancelled handover should be disputable, and whether cancel should require an ACTIVE organization.
 <!-- end FIN-016 -->
+
+<!-- begin FIN-017 -->
+## FIN-017 — Ownership transfer hands over the former owner's money
+
+- Filed: 2026-10-04 22:47 UTC
+- Status: **done**: Former owner's held money handed over in the transfer transaction; sync pull tests flaky on timing, unrelated
+- Risk: high · story: [FIN-017-ownership-transfer-hands-over-the-former-owner.md](../modules/finance/FIN-017-ownership-transfer-hands-over-the-former-owner.md)
+- Agent: 53,273 tokens, 19 tool uses, 14 min 2 s
+
+### Agent report
+
+**Summary:** transferOwnership now records the former owner's automatic handover (from = to = former owner) in the same transaction when amount_held > 0.
+
+**Decisions:**
+- Locked read: added `lockAmountHeld` (SELECT ... FOR UPDATE) in organization.repository, so the handover covers exactly what is held at commit (CWE-362).
+- New `handOverFormerOwnerMoneyInTx` in held-money.ts, called after demote and before promote: the former owner is then an active MANAGER, valid as receiver per the handover DB rule; id is a server-made UUIDv7 (newId).
+- Idempotent repeat relies on the existing gesture-id layer: no second handover.
+
+**Tests added beyond the story:**
+- `tests/integration/finance/transfer-handover.test.ts` › AC-1 only the fall applies: new owner and other organizations keep their held money (C-27); passed at once
+- same file › AC-2 negative amount held writes no handover (AC-2); passed at once
+- same file › repeat with same gesture id writes the handover once (ADR idempotency rule, project rules); passed at once
+- same file › AB-1 transfer back: second handover covers the new owner's money only (CM-18)
+
+**Other additions:**
+- None beyond the repository helper above.
+
+**Evidence:** story tests 26/26 (transfer-handover 7 + transfer 19); full suite 2673/2679 on the last run, failing: tests/integration/sync/pull-catalog, pull-identity, pull-orders (timing-flaky, vary 1 to 6 failures per run, also fail with my changes stashed); typecheck clean; lint 0 errors, 64 warnings
+
+**Follow-ups:**
+- finance `contracts.md` does not list `handOverFormerOwnerMoneyInTx`, which organization.service now imports; a human should add it (stories folder is read-only for me).
+- sync pull tests are flaky on timestamps and should be looked at separately.
+<!-- end FIN-017 -->

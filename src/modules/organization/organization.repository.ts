@@ -214,6 +214,27 @@ export async function addAmountHeld(
 }
 
 /**
+ * Reads a person's `amount_held` in an organization and locks the row until the transaction ends,
+ * so a parallel expense or handover cannot change the amount between this read and the handover
+ * written from it (CWE-362).
+ *
+ * @returns The amount held, or null when the person has no live collaboration in the organization.
+ */
+export async function lockAmountHeld(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  organizationId: string
+): Promise<bigint | null> {
+  const rows = await tx.$queryRaw<{ amount_held: bigint }[]>`
+    SELECT amount_held FROM collaborations
+    WHERE person_id = ${personId}::uuid AND organization_id = ${organizationId}::uuid
+      AND deleted_at IS NULL
+    FOR UPDATE
+  `;
+  return rows[0]?.amount_held ?? null;
+}
+
+/**
  * Runs `work` in one database transaction so the person, the collaboration and the
  * notification of one gesture commit or fail together.
  *

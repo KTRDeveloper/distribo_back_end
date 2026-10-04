@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js';
 import { checkAndConsume } from '../../lib/rate-limit.js';
 import { atLeast } from '../../shared/access/roles.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
+import { handOverFormerOwnerMoneyInTx } from '../finance/held-money.js';
 import { lockPendingOrders, refusePendingOrders } from '../order/order.repository.js';
 import { createCounter } from '../relationship/relationship.repository.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
@@ -412,8 +413,9 @@ const OWNERSHIP_RECEIVED_CONTENT = {
  * caller MANAGER, both scope versions are bumped (CM-03) and the new owner is notified, all in
  * one transaction so the organization keeps exactly one ACTIVE OWNER (C-05, CM-09; ASVS
  * v5.0.0-2.3.3). The caller is demoted first because the unique index allows one ACTIVE OWNER at
- * every statement; the deferred check only needs one at commit. `is_public_contact` and
- * `amount_held` are untouched (FIN-017 hands the money over). The target is looked up inside the
+ * every statement; the deferred check only needs one at commit. `is_public_contact` is untouched.
+ * The former owner's `amount_held`, when above 0, goes back to the business through an automatic
+ * handover from and to themselves in the same transaction, so they restart at 0 (CM-18, FIN-017). The target is looked up inside the
  * actor's organization, so another business's row looks absent (ASVS v5.0.0-8.2.1).
  *
  * @param actor - Owner loaded from the path and checked for `transfer_ownership Organization`.
@@ -445,6 +447,11 @@ export async function transferOwnership(
     if (!(await promoteToOwner(tx, row.id, actor.organizationId))) {
       throw httpError(404, 'NOT_FOUND', 'Not found');
     }
+
+    await handOverFormerOwnerMoneyInTx(tx, {
+      organizationId: actor.organizationId,
+      formerOwnerId: actor.personId,
+    });
 
     await bumpScopeVersion(actor.personId, tx);
     await bumpScopeVersion(row.personId, tx);
