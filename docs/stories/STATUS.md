@@ -72,7 +72,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-010 | done | | DELETE collaborator revoke; 839 tests pass |
 | ORG-011 | done | | PATCH collaborators/me sets own is_public_contact; 409 NO_ACTIVE_NUMBER; 12 tests, full suite 851 pass |
 | ORG-012 | done | | subscriptions table, partial unique index on ACTIVE, 8 tests green |
-| ORG-013 | todo | | |
+| ORG-013 | done | | POST/GET subscription; 21 story tests, full suite 880 pass |
 | ORG-014 | todo | | |
 | ORG-015 | todo | | |
 | ORG-016 | todo | | |

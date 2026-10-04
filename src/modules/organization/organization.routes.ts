@@ -12,6 +12,7 @@ import {
   listInvitationsQuerySchema,
   listOrganizationsQuerySchema,
   setPublicContactSchema,
+  startSubscriptionSchema,
 } from './organization.schemas.js';
 import {
   acceptInvitation,
@@ -19,11 +20,13 @@ import {
   createOrganization,
   declineInvitation,
   getOrganizationDetails,
+  getSubscription,
   inviteCollaborator,
   listMyInvitations,
   listMyOrganizations,
   revokeCollaborator,
   setPublicContact,
+  startSubscription,
 } from './organization.service.js';
 import './organization.openapi.js';
 
@@ -131,6 +134,33 @@ organizationRoutes.delete(
       .catch(next);
   }
 );
+
+// POST /api/v1/organizations/:organizationId/subscription - the owner records a subscription
+organizationRoutes.post(
+  '/:organizationId/subscription',
+  loadActor,
+  requireAbility('manage', 'Subscription'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = startSubscriptionSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    startSubscription(req.actor!, startSubscriptionSchema.parse(req.body))
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// GET /api/v1/organizations/:organizationId/subscription - any member reads the ACTIVE one
+organizationRoutes.get('/:organizationId/subscription', loadActor, (req, res, next) => {
+  getSubscription(req.actor!)
+    .then((view) => res.json(view))
+    .catch(next);
+});
 
 /** Invitation routes, mounted at `/collaborations`; the caller is always the invited person. */
 export const collaborationRoutes = Router();

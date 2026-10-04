@@ -11,12 +11,15 @@ import {
 } from '../person/person.repository.js';
 import {
   activateInvitation,
+  expireLapsedSubscriptions,
+  findActiveSubscription,
   findActiveOwnerId,
   findCollaboration,
   findCollaborationWithPerson,
   findOrganization,
   insertInvitation,
   insertOrganizationWithOwner,
+  insertSubscription,
   listActiveOrganizations,
   listInvitations,
   reinviteRevoked,
@@ -33,6 +36,8 @@ import type {
   InviteInput,
   MyOrganizationItem,
   OrganizationView,
+  StartSubscriptionInput,
+  SubscriptionView,
 } from './organization.schemas.js';
 
 /**
@@ -395,4 +400,64 @@ export async function setPublicContact(
     }
     throw httpError(404, 'NOT_FOUND', 'Not found');
   });
+}
+
+type StoredSubscription = {
+  id: string;
+  plan: string;
+  startsAt: Date | null;
+  endsAt: Date | null;
+};
+
+function toSubscriptionView(row: StoredSubscription): SubscriptionView {
+  return {
+    id: row.id,
+    plan: row.plan,
+    status: 'ACTIVE',
+    starts_at: row.startsAt?.toISOString() ?? null,
+    ends_at: row.endsAt?.toISOString() ?? null,
+  };
+}
+
+/**
+ * Records an ACTIVE subscription for the actor's organization. No payment is taken and no feature
+ * is limited (Q-011).
+ *
+ * The organization comes from the loaded actor and `starts_at` is the server clock; status is
+ * never writable (ASVS v5.0.0-8.2.1, v5.0.0-15.3.3). A lapsed ACTIVE row is set to EXPIRED first,
+ * in the same transaction; a live one is a conflict (C-31).
+ *
+ * @param actor - Owner loaded from the path and checked for `manage Subscription`.
+ * @param input - Validated body: gesture id, plan and future end.
+ * @returns The closed subscription view.
+ * @throws 409 `SUBSCRIPTION_EXISTS` when a live ACTIVE subscription exists.
+ */
+export async function startSubscription(
+  actor: Actor,
+  input: StartSubscriptionInput
+): Promise<SubscriptionView> {
+  const row = await runInTransaction(async (tx) => {
+    const now = new Date();
+    await expireLapsedSubscriptions(tx, actor.organizationId, now);
+    return insertSubscription(tx, {
+      id: input.id,
+      organizationId: actor.organizationId,
+      plan: input.plan,
+      startsAt: now,
+      endsAt: new Date(input.ends_at),
+    });
+  });
+  return toSubscriptionView(row);
+}
+
+/**
+ * Returns the organization's current ACTIVE subscription to any member.
+ *
+ * @param actor - Member loaded from the path.
+ * @throws 404 `NOT_FOUND` when the organization has none.
+ */
+export async function getSubscription(actor: Actor): Promise<SubscriptionView> {
+  const row = await findActiveSubscription(actor.organizationId);
+  if (!row) throw httpError(404, 'NOT_FOUND', 'Not found');
+  return toSubscriptionView(row);
 }
