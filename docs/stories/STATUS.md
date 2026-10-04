@@ -95,7 +95,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-014 | todo | | |
 | ADM-015 | todo | | |
 | REL-001 | done | | customer_relationships table, migration, 14 tests green |
-| REL-002 | todo | | |
+| REL-002 | blocked | | Migration done, party-rules tests green; REL-001 test relationship-table.test.ts 'rejects an unknown merged_into_id with 23503 and accepts an existing one' fails (merged_into_id with deleted_at null gives 23514 before the FK check; second insert has no customer or label). Story lists no test to update: may it be updated (add deleted_at and a label)? |
 | REL-003 | todo | | |
 | REL-004 | todo | | |
 | REL-005 | todo | | |
