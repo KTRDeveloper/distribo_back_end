@@ -6,6 +6,17 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-04 21:00 UTC: `/implement-stories FIN-002`
+
+| story | status | commit | note |
+|---|---|---|---|
+| FIN-002 Ledger sale and reversal rules in the database | done | 4c15eca | migration 20261004330000 adds sale and reversal triggers plus partial unique index; ledger-table fixtures updated |
+
+- Re-run of FIN-002 after the user approved a "Tests to update" section (9 FIN-001 tests in ledger-table.test.ts), added to the story before the run and committed with it.
+- Old stash `stash@{0}` "FIN-002 blocked: partial changes" from the earlier run is now redundant.
+- Run completed; nothing unexpected.
+- Next: `/implement-stories next:1`
+
 ### Run 2026-10-04 10:55 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
