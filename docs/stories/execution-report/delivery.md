@@ -134,3 +134,37 @@ Also in this run: relationship, admin, catalog, order, finance.
 **Follow-ups:**
 - The story file in the working tree carries the "Tests to update" section added before this run (uncommitted).
 <!-- end DLV-002 -->
+
+<!-- begin DLV-003 -->
+## DLV-003 — Driver sees the orders to deliver
+
+- Filed: 2026-10-04 20:39 UTC
+- Status: **done**: Driver to-deliver pool and own deliveries; tests green
+- Risk: high · story: [DLV-003-driver-sees-the-orders-to-deliver.md](../modules/delivery/DLV-003-driver-sees-the-orders-to-deliver.md)
+- Agent: 73,470 tokens, 24 tool uses, 6 min 18 s
+
+### Agent report
+
+**Summary:** Added GET to-deliver and mine routes for drivers (any active member), with projectForDriver customer part; done.
+
+**Decisions:**
+- Delivery has no created_at: `mine` is ordered by the order's created_at desc then delivery id, cursor carries that pair.
+- `mine` status: in_progress = neither arrived nor failed (assigned-not-departed included), done = arrived, failed = failed; no status returns all; deleted deliveries excluded.
+- Pool keeps CONFIRMED + non-null address only; no exclusion of orders already assigned (story does not say).
+- No 403 path: every role is DRIVER or above, so loadActor (404 for non-members) is the only gate.
+- Items carry an extra `delivery_id` in `mine`; line field `label` is `label_applied`.
+
+**Tests added beyond the story:**
+- `driver-lists.test.ts` › deleted order never listed, deleted delivery never listed: soft-delete scope (story: "not deleted"); passed at once
+- `driver-lists.test.ts` › open to every role, 401 without token, strict query 400: deny-by-default and input limits (CONVENTIONS); passed at once
+- `driver-lists.test.ts` › pages mine without repeats, lists nothing of this business to the other: AC-5, AB-2 on mine; passed at once
+
+**Other additions:**
+- `delivery.schemas.ts`, `delivery.views.ts`: query schemas and explicit-field projections (not in the Create list).
+- `scripts/generate-openapi.ts` imports `delivery.openapi.js`, else generate-script test fails; DLV-003 paths added to `catalog.test.ts`. per-001 has no org routes, so untouched.
+
+**Evidence:** story tests 14/14; full suite 2478/2479 before the generate-script fix, that test then passed (api-docs 28/28); typecheck clean; lint 0 errors, 62 pre-existing warnings
+
+**Follow-ups:**
+- Orders already assigned to a driver stay in the pool until they leave CONFIRMED; confirm this is intended for DLV-004.
+<!-- end DLV-003 -->

@@ -18671,6 +18671,447 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/deliveries/to-deliver": {
+      "get": {
+        "tags": [
+          "delivery"
+        ],
+        "summary": "A driver lists the CONFIRMED orders with an address to deliver (DLV-003)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of orders, newest first; the customer shows the available credit only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "order_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "delivery_address": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "desired_delivery_date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "customer_note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "total_amount": {
+                            "type": "integer"
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "quantity": {
+                                  "type": "string"
+                                },
+                                "unit_price_applied": {
+                                  "type": "integer"
+                                },
+                                "amount": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "quantity",
+                                "unit_price_applied",
+                                "amount"
+                              ]
+                            }
+                          },
+                          "customer": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "customer_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "available_credit": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "customer_name",
+                              "available_credit"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "order_id",
+                          "delivery_address",
+                          "desired_delivery_date",
+                          "customer_note",
+                          "total_amount",
+                          "lines",
+                          "customer"
+                        ]
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query or cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a member of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/deliveries/mine": {
+      "get": {
+        "tags": [
+          "delivery"
+        ],
+        "summary": "A driver lists the caller's own deliveries, by status (DLV-003)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "in_progress",
+                "done",
+                "failed"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of the caller's deliveries with their order fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "order_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "delivery_address": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "desired_delivery_date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "customer_note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "total_amount": {
+                            "type": "integer"
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "quantity": {
+                                  "type": "string"
+                                },
+                                "unit_price_applied": {
+                                  "type": "integer"
+                                },
+                                "amount": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "quantity",
+                                "unit_price_applied",
+                                "amount"
+                              ]
+                            }
+                          },
+                          "customer": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "customer_name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "available_credit": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "customer_name",
+                              "available_credit"
+                            ]
+                          },
+                          "delivery_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "departed_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "arrived_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "failed_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "failure_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "order_id",
+                          "delivery_address",
+                          "desired_delivery_date",
+                          "customer_note",
+                          "total_amount",
+                          "lines",
+                          "customer",
+                          "delivery_id",
+                          "departed_at",
+                          "arrived_at",
+                          "failed_at",
+                          "failure_reason"
+                        ]
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query or cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a member of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/remote-config": {
       "post": {
         "tags": [

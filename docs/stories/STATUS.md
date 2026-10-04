@@ -173,7 +173,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-020 | todo | | |
 | DLV-001 | done | | deliveries table, triggers and tests green |
 | DLV-002 | done | | CHECKs, partial unique index, driver membership trigger; delivery-table tests updated per amended story |
-| DLV-003 | todo | | |
+| DLV-003 | done | | Driver to-deliver pool and own deliveries; tests green |
 | DLV-004 | todo | | |
 | DLV-005 | todo | | |
 | DLV-006 | todo | | |
