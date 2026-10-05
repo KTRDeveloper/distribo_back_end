@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { paginationQuerySchema } from '../../shared/pagination.js';
 
 /** Epoch milliseconds stay far below 16 digits; the cap bounds the input (ASVS v5.0.0-2.2.1). */
 const EPOCH_MS_DIGITS = /^\d{1,15}$/;
@@ -109,3 +110,10 @@ export const clientTimeHeaderSchema = z
   )
   .refine((value) => Number.isFinite(value), 'Expected epoch milliseconds or an ISO 8601 date')
   .optional();
+
+/** Strict query of the issues list: `limit` (1 to 100, default 50) and an opaque `cursor`. */
+export const issuesQuerySchema = paginationQuerySchema
+  .extend({ cursor: z.string().max(300).optional() })
+  .strict();
+
+export type IssuesQuery = z.infer<typeof issuesQuerySchema>;

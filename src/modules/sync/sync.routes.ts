@@ -9,12 +9,13 @@ import { pushChanges } from './sync.push.js';
 import {
   appVersionHeaderSchema,
   clientTimeHeaderSchema,
+  issuesQuerySchema,
   pullQuerySchema,
   pushBodySchema,
   pushQuerySchema,
   scopeVersionHeaderSchema,
 } from './sync.schemas.js';
-import { pull } from './sync.service.js';
+import { listIssues, pull } from './sync.service.js';
 import { buildViewer } from './sync.viewer.js';
 import './sync.openapi.js';
 
@@ -60,6 +61,18 @@ syncRoutes.post('/push', (req, res, next) => {
           clientTime,
         })
       );
+    })
+    .catch(next);
+});
+
+// GET /api/v1/sync/issues - the caller's orders and deliveries the server flagged
+syncRoutes.get('/issues', (req, res, next) => {
+  Promise.resolve()
+    .then(async () => {
+      const query = issuesQuerySchema.parse(req.query);
+      const viewer = await buildViewer(req.user!.id, req.user!.deviceId);
+      res.set('Cache-Control', 'no-store');
+      res.json(await listIssues(viewer, query));
     })
     .catch(next);
 });

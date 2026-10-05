@@ -156,3 +156,53 @@ openApiRegistry.registerPath({
     },
   },
 });
+
+const issueSchema = z.object({
+  table: z.enum(['orders', 'deliveries']),
+  id: z.string().uuid(),
+  order_id: z.string().uuid(),
+  code: z.string(),
+  message: z.string(),
+  created_at: z.string().datetime(),
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/sync/issues',
+  tags: ['sync'],
+  summary: 'List the orders and deliveries the server flagged for the caller to resolve',
+  description:
+    'Orders and deliveries whose `sync_issue` is not empty and that the caller entered, delivered ' +
+    'or is assigned to; an OWNER sees all of the organization. `code` is the text before the first ' +
+    'colon of the issue and `message` the issue text. Newest first, paginated; an issue disappears ' +
+    'when the record is corrected. A delivery is dated by its order.',
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      limit: z.coerce.number().int().min(1).max(100).default(50).optional(),
+      cursor: z.string().max(300).optional(),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'One page of issues',
+      content: {
+        'application/json': {
+          schema: z.object({ items: z.array(issueSchema), next_cursor: z.string().nullable() }),
+        },
+      },
+    },
+    400: {
+      description: 'Invalid limit or cursor',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing or invalid token, or `SESSION_REVOKED` for a revoked device',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Not found',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});

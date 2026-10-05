@@ -657,3 +657,37 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - Blocking question: that test expects `prisma.notification.count()` = 2 after a batch with 2 forbidden lines; the story's own notification makes it 3. Allow narrowing it to the seeded `sync.test` notifications (count where sourceEvent = 'sync.test')? Changes are left in src/modules/sync/sync.judge.ts and the new test file, uncommitted.
 - sync.push.ts needed no change (PushResponse already carries resync_required).
 <!-- end SYNC-018 -->
+
+<!-- begin SYNC-020 -->
+## SYNC-020 — The list of things to resolve
+
+- Filed: 2026-10-05 04:42 UTC
+- Status: **done**: GET /sync/issues: orders and deliveries with sync_issue, scoped by author or OWNER
+- Risk: medium · story: [SYNC-020-the-list-of-things-to-resolve.md](../modules/sync/SYNC-020-the-list-of-things-to-resolve.md)
+- Agent: 74,335 tokens, 28 tool uses, 11 min 56 s
+
+### Agent report
+
+**Summary:** Added GET /api/v1/sync/issues (orders and deliveries with a non-empty sync_issue, keyset-paged, scoped by active membership and author or OWNER).
+
+**Decisions:**
+- `message`: the full stored sync_issue text (story only defines `code`); `code`: text before the first colon, trimmed; the whole text when there is no colon (many stored issues, e.g. "Livrée après annulation", have none).
+- Delivery `created_at`: Delivery has no created_at column, so it uses its order's created_at (as the delivery list already does); ties by id ascending.
+- Scope: orders = entered_by or delivered_by the caller; deliveries = assigned to the caller; OWNER sees all of its orgs. Always requires an ACTIVE membership in the supplier org (removed member and customer see nothing). Only OWNER is widened (manager is not, as the story says).
+- Added `findIssueRows` to sync.repository.ts (the only file that may call prisma), not in the story's Modify list.
+- `created_at` serialized as ISO 8601 string.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/issues.test.ts` › delivered and assigned: delivered_by and delivery assigned_to branches, other-org delivery excluded (story: "entered, delivered or are assigned to"); passed at once on the implemented scope
+- `tests/integration/sync/issues.test.ts` › a person who left the business, and a customer, see nothing (AB-1, v5.0.0-8.2.2)
+- `tests/integration/sync/issues.test.ts` › malformed query or cursor is 400 VALIDATION_ERROR (story Errors)
+- `tests/integration/sync/issues.test.ts` › requires authentication (401)
+
+**Other additions:**
+- `/api/v1/sync/issues` added to the route list in tests/integration/api-docs/catalog.test.ts (CONVENTIONS); per-001.test.ts has no sync route list, so unchanged.
+
+**Evidence:** story tests 9/9; full suite 3046/3047 on the first run (only the lint quality-gate test failed on one unnecessary `!` in sync.service.ts, fixed; that test and api-docs re-run green); typecheck clean; lint 0 errors (118 pre-existing warnings)
+
+**Follow-ups:**
+- Confirm the code/message split for issues without a colon (whole text as code) if the phone needs stable codes.
+<!-- end SYNC-020 -->

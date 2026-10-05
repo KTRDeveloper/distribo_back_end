@@ -198,3 +198,128 @@ export async function findStoredRow(
     }
   }
 }
+
+/** A flagged order or delivery, with the date the list sorts on. */
+export type IssueRow = {
+  table: 'orders' | 'deliveries';
+  id: string;
+  orderId: string;
+  syncIssue: string;
+  createdAt: Date;
+};
+
+type IssueViewer = {
+  personId: string;
+  memberships: Array<{ organizationId: string; role: CollaborationRole }>;
+};
+
+const suppliedBy = (organizationIds: string[]): Prisma.OrderWhereInput => ({
+  deletedAt: null,
+  customerRelationship: { is: { supplierOrganizationId: { in: organizationIds } } },
+});
+
+const NON_EMPTY_ISSUE = { not: null } as const;
+
+/**
+ * Reads, newest first (created_at descending then id), the orders and deliveries with a non-empty
+ * `sync_issue` that the person may see (ASVS v5.0.0-8.2.2). Scope starts from the ACTIVE memberships
+ * of the viewer: in an organization where they are OWNER every flagged record counts; in any other,
+ * only the orders they entered or delivered and the deliveries assigned to them. A person with no
+ * membership gets nothing. A delivery has no creation date of its own, so it sorts on its order's
+ * (as the delivery list does). Each table is read up to `take` rows past the cursor; the caller
+ * merges and trims.
+ *
+ * @param viewer - Person id and ACTIVE memberships, built from the database.
+ * @param cursor - Last row of the previous page, or undefined for the first.
+ * @param take - Rows to read from each table.
+ */
+export async function findIssueRows(
+  viewer: IssueViewer,
+  cursor: { createdAt: Date; id: string } | undefined,
+  take: number
+): Promise<IssueRow[]> {
+  const memberOrgs = viewer.memberships.map((m) => m.organizationId);
+  if (memberOrgs.length === 0) return [];
+  const ownerOrgs = viewer.memberships
+    .filter((m) => m.role === 'OWNER')
+    .map((m) => m.organizationId);
+  const ownerScope = ownerOrgs.length > 0 ? [suppliedBy(ownerOrgs)] : [];
+
+  const orders = await prisma.order.findMany({
+    where: {
+      AND: [
+        { syncIssue: NON_EMPTY_ISSUE },
+        { NOT: { syncIssue: '' } },
+        {
+          OR: [
+            ...ownerScope,
+            {
+              AND: [
+                suppliedBy(memberOrgs),
+                { OR: [{ enteredById: viewer.personId }, { deliveredById: viewer.personId }] },
+              ],
+            },
+          ],
+        },
+        ...(cursor
+          ? [
+              {
+                OR: [
+                  { createdAt: { lt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    },
+    select: { id: true, syncIssue: true, createdAt: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take,
+  });
+
+  const deliveries = await prisma.delivery.findMany({
+    where: {
+      AND: [
+        { deletedAt: null, syncIssue: NON_EMPTY_ISSUE },
+        { NOT: { syncIssue: '' } },
+        {
+          OR: [
+            ...ownerScope.map((order) => ({ order: { is: order } })),
+            { assignedToId: viewer.personId, order: { is: suppliedBy(memberOrgs) } },
+          ],
+        },
+        ...(cursor
+          ? [
+              {
+                OR: [
+                  { order: { is: { createdAt: { lt: cursor.createdAt } } } },
+                  { order: { is: { createdAt: cursor.createdAt } }, id: { gt: cursor.id } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    },
+    select: { id: true, orderId: true, syncIssue: true, order: { select: { createdAt: true } } },
+    orderBy: [{ order: { createdAt: 'desc' } }, { id: 'asc' }],
+    take,
+  });
+
+  return [
+    ...orders.map((o) => ({
+      table: 'orders' as const,
+      id: o.id,
+      orderId: o.id,
+      syncIssue: o.syncIssue ?? '',
+      createdAt: o.createdAt,
+    })),
+    ...deliveries.map((d) => ({
+      table: 'deliveries' as const,
+      id: d.id,
+      orderId: d.orderId,
+      syncIssue: d.syncIssue ?? '',
+      createdAt: d.order.createdAt,
+    })),
+  ];
+}

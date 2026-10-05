@@ -1,5 +1,6 @@
 import { logger } from '../../lib/logger.js';
-import { markDevicePulled, withPullSnapshot } from './sync.repository.js';
+import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import { findIssueRows, markDevicePulled, withPullSnapshot } from './sync.repository.js';
 import { getAdapters } from './sync.registry.js';
 import type { TableChange, Viewer } from './sync.types.js';
 
@@ -97,4 +98,52 @@ export async function pull(
  */
 export async function recordPush(viewer: Viewer): Promise<void> {
   await markDevicePulled(viewer.personId, viewer.deviceId, null);
+}
+
+/** One thing to resolve: a flagged order or delivery, in the fields a person reads. */
+export type IssueView = {
+  table: 'orders' | 'deliveries';
+  id: string;
+  order_id: string;
+  code: string;
+  message: string;
+  created_at: string;
+};
+
+/**
+ * The list of things to resolve (CM-28, CM-31): the viewer's orders and deliveries that the server
+ * flagged in `sync_issue`, newest first, keyset-paged. The flag lives on the record, so a corrected
+ * record (empty field) is simply no longer found. `code` is the text before the first colon
+ * (the whole text when there is none), `message` the text as stored; fields are listed one by one
+ * (ASVS v5.0.0-15.3.1).
+ *
+ * @param viewer - Built from the database for this request, never from the client.
+ * @param query - Page size and opaque cursor.
+ * @throws HttpError 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listIssues(
+  viewer: Viewer,
+  query: { limit: number; cursor?: string }
+): Promise<{ items: IssueView[]; next_cursor: string | null }> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const rows = (await findIssueRows(viewer, cursor, query.limit + 1)).sort(
+    (a, b) =>
+      b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
+  const page = rows.slice(0, query.limit);
+  const last = page[page.length - 1];
+  return {
+    items: page.map((row) => ({
+      table: row.table,
+      id: row.id,
+      order_id: row.orderId,
+      code: row.syncIssue.split(':', 1)[0].trim(),
+      message: row.syncIssue,
+      created_at: row.createdAt.toISOString(),
+    })),
+    next_cursor:
+      rows.length > query.limit && last
+        ? encodeCursor({ createdAt: last.createdAt, id: last.id })
+        : null,
+  };
 }
