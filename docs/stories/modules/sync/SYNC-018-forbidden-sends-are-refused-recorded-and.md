@@ -71,5 +71,10 @@ Scenario: AB-1 Probing the rules through refusals (information disclosure)
 
 Command: `npx vitest run tests/integration/sync/forbidden-sends.test.ts`
 
+### Tests to update
+| existing test | reason | new expectation |
+|---|---|---|
+| tests/integration/sync/push-payments.test.ts › "forbids a phone creating or deleting a notification" | counts every notification, so the author's new `sync.refused` notice makes 3 instead of 2 | `rejected` still has 2 lines; the notifications other than `sync.refused` (`sourceEvent` not `sync.refused`) still number 2, so the phone neither created nor deleted one |
+
 ## Out of scope
 - Rights changes (SYNC-019).
