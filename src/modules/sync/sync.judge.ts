@@ -14,6 +14,7 @@ import {
   takeOrders,
   type ClosingBook,
 } from './adapters/closing.push.js';
+import { runBatchControls } from './sync.controls.js';
 import { getAdapters } from './sync.registry.js';
 import {
   findOrderOwner,
@@ -443,6 +444,10 @@ const countRows = (t: { created: unknown[]; updated: unknown[]; deleted: unknown
  * An order the adapter did not store (SYNC-012) takes its lines of the batch with it: they get the
  * order's outcome instead of being judged.
  *
+ * Once every table is applied, the controls on arrival run on the orders the batch created
+ * (SYNC-016): they flag old prices and odd dates in `sync_issue` and notify the owners, never
+ * refusing anything.
+ *
  * Tables outside the six judged ones go to their adapter as sent: their adapters own the rules.
  * Rows that name no parent are not scope-checked here, only handed over; the adapter refuses them.
  *
@@ -465,6 +470,7 @@ export async function judgeBatch(
     const redirects = new Map<string, string>();
     const unstoredOrders = new Map<string, LineOutcome>();
     const closings: ClosingBook = new Map();
+    const createdOrderIds: string[] = [];
     const restOrders = findRestOrders(batch.orders && { table: 'orders', ...batch.orders });
 
     for (const [name, change] of Object.entries(batch)) {
@@ -498,7 +504,12 @@ export async function judgeBatch(
         toApply = passed;
         // An order pushed DELIVERED is closed by the server after every table (SYNC-014).
         const ctx = { viewer, tx };
-        if (table === 'orders') toApply = takeOrders(closings, toApply);
+        if (table === 'orders') {
+          for (const row of toApply.created) {
+            if (typeof row['id'] === 'string') createdOrderIds.push(row['id']);
+          }
+          toApply = takeOrders(closings, toApply);
+        }
         if (restRows.length > 0 && (table === 'orders' || table === 'order_lines')) {
           outcomes.push(...adoptRestRows(closings, restOrders, table, restRows));
         }
@@ -532,6 +543,9 @@ export async function judgeBatch(
       if (index === -1) outcomes.push(line);
       else if (line.kind !== 'accepted') outcomes[index] = line;
     }
+
+    // Controls never refuse: they flag the orders stored by this batch and tell the owners (SYNC-016).
+    await runBatchControls({ viewer, tx }, createdOrderIds);
 
     const rejected: PushResult['rejected'] = [];
     let accepted = 0;

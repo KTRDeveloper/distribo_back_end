@@ -554,3 +554,41 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - Answer the AC-2 question above, then re-run SYNC-015. Plan ready: `adapters/ledger.push.ts` (payment via `appendLedgerEntry` with an advisory lock on the id, notification read via `updateMany` on the viewer's own rows), judge `ownFields` for `notifications.read_status`, registration in `money.adapter.ts`.
 <!-- end SYNC-015 -->
+
+<!-- begin SYNC-016 -->
+## SYNC-016 — Controls on arrival: prices, articles and dates
+
+- Filed: 2026-10-05 03:57 UTC
+- Status: **done**: controls on arrival: PRICE_CHANGED, DATE_*, owner notification; suite 3010 green
+- Risk: medium · story: [SYNC-016-controls-on-arrival-prices-articles-and-dates.md](../modules/sync/SYNC-016-controls-on-arrival-prices-articles-and-dates.md)
+- Agent: 93,094 tokens, 29 tool uses, 8 min 52 s
+
+### Agent report
+
+**Summary:** Added `runControls`/`runBatchControls` (sync.controls.ts), called by the judge after all tables; PRICE_CHANGED, DATE_IN_FUTURE, DATE_OUT_OF_ORDER and one `sync.anomalies` notification per owner.
+
+**Decisions:**
+- Controls run at the end of `judgeBatch` (after lines and closings), not in the orders adapter: PRICE_CHANGED needs the stored lines.
+- `readEnteredAt` now keeps a created_at more than 5 min ahead (was clamped to now), else DATE_IN_FUTURE could never be seen; drift under 5 min is still clamped.
+- AB-1: the server holds only the current price and its date. A phone reference differing from it, with the price older than the order, is false: the line's reference is rewritten to the server price and the gap gets its author (a warn log records it). History before the order's date cannot be checked.
+- No PRICE_CHANGED text for lines of retired articles (PRODUCT_RETIRED already flags them; existing SYNC-012 tests expect that exact text).
+- Control messages append to an existing `sync_issue`; a code already present is not added again, so a repeated push changes nothing and sends no new notification.
+- Notification count = number of issue messages in the batch for that org; only orders entered by the viewer in their own orgs are controlled; owners = ACTIVE registered OWNER (one per org by DB rule); text FR/EN by preferred language.
+- Times in messages use Douala time (UTC+1), as the delivery module does.
+
+**Tests added beyond the story:**
+- `controls-prices.test.ts` › not flag clock few seconds ahead: drift under 5 min is no issue (CM-31); passed at once
+- `controls-prices.test.ts` › DATE_OUT_OF_ORDER and joined issues with " ; " (story rules)
+- `controls-prices.test.ts` › repeated batch changes nothing: idempotent repeat (ACC); passed at once after implementation
+- `controls-prices.test.ts` › owner test also checks other-org owner, manager and seller are not told (tenant/role scope)
+- `tests/unit/sync/controls-words.test.ts`: French weekday/hour and thousands grouping (story example)
+
+**Other additions:**
+- None beyond `whenWords`/`francs` exports used by the unit test.
+
+**Evidence:** story tests 10/10 (+2 unit); full suite 3010/3010, failing: none; typecheck clean; lint 0 errors, 113 warnings (pre-existing)
+
+**Follow-ups:**
+- Price history is not stored, so a phone can still hide a discount by backdating created_at before the last price change; a price-history table would close it.
+- The product `price_updated_at` is DB-controlled, so tests express "price changed later" through the order date.
+<!-- end SYNC-016 -->

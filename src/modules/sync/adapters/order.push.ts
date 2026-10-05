@@ -17,6 +17,9 @@ const MAX_AMOUNT = 1_000_000_000_000n;
 /** Largest quantity `numeric(12,3)` holds, in thousandths. */
 const MAX_QUANTITY_MILLI = 999_999_999_999n;
 
+/** A phone clock further ahead than this is an anomaly to report, not drift (CM-31). */
+const FUTURE_TOLERANCE_MS = 5 * 60_000;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -77,8 +80,9 @@ function readDay(row: Row, key: string): Date | null | Invalid {
 }
 
 /**
- * The moment the phone says the order was entered (epoch milliseconds or ISO text). A moment after
- * the server's now is a phone clock error: the order is dated now (CM-31).
+ * The moment the phone says the order was entered (epoch milliseconds or ISO text). A moment a few
+ * seconds after the server's now is clock drift: the order is dated now. A moment beyond the
+ * tolerance is kept as sent, so the controls on arrival can report it (DATE_IN_FUTURE, CM-31).
  */
 function readEnteredAt(row: Row, now: Date): Date | Invalid {
   const value = row['created_at'];
@@ -90,7 +94,8 @@ function readEnteredAt(row: Row, now: Date): Date | Invalid {
         ? new Date(value)
         : null;
   if (!parsed || Number.isNaN(parsed.getTime())) return INVALID;
-  return parsed.getTime() > now.getTime() ? now : parsed;
+  const ahead = parsed.getTime() - now.getTime();
+  return ahead > 0 && ahead <= FUTURE_TOLERANCE_MS ? now : parsed;
 }
 
 /** A quantity in thousandths, above zero; the phone may send a number or a decimal text. */
