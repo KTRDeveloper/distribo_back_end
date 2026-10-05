@@ -1,5 +1,6 @@
 import type { CollaborationRole, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
+import { newId } from '../../shared/ids.js';
 
 /** Reads a person's scope version and ACTIVE memberships; null when the person does not exist. */
 export async function findViewerData(personId: string): Promise<{
@@ -58,4 +59,27 @@ export async function markDevicePulled(
       ...(scopeVersionSeen === null ? {} : { scopeVersionSeen }),
     },
   });
+}
+
+/**
+ * Stores the batch exactly as received, in its own committed statement: it stays even when the push
+ * is later refused or fails (ASVS v5.0.0-16.3.1). Returns the archive id.
+ */
+export async function archiveBatch(
+  personId: string,
+  deviceId: string,
+  changes: Prisma.InputJsonValue
+): Promise<string> {
+  const archive = await prisma.syncArchive.create({
+    data: { id: newId(), personId, deviceId, changes },
+    select: { id: true },
+  });
+  return archive.id;
+}
+
+/** Runs the conflict check and the judging of one push in a single transaction (ASVS v5.0.0-2.3.3). */
+export async function withPushTransaction<T>(
+  work: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(work);
 }

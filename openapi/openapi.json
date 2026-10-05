@@ -25063,6 +25063,218 @@
         }
       }
     },
+    "/api/v1/sync/push": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Push what the phone did offline",
+        "description": "Body `{ changes: { <table>: { created, updated, deleted } } }`, at most 2000 rows in total (body limit 5 MB). The batch is archived as received first. Then: an `X-App-Version` below the platform minimum gets 426 `APP_UPDATE_REQUIRED`; an `X-Client-Time` more than 5 minutes from server time sets `clock_skew`; an updated row changed on the server after `last_pulled_at` gets 409 `SYNC_CONFLICT` and nothing is applied; otherwise the batch is judged in one transaction. A table the server does not know is counted in `aside` and the rest passes. A processed push sets the device's `last_synced_at`.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 15,
+              "description": "Epoch milliseconds of the previous pull"
+            },
+            "required": true,
+            "name": "last_pulled_at",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Dotted numbers such as 1.4.2"
+            },
+            "required": false,
+            "name": "X-App-Version",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Phone clock, epoch milliseconds or ISO 8601"
+            },
+            "required": false,
+            "name": "X-Client-Time",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "changes": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "created": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "updated": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "deleted": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        }
+                      },
+                      "required": [
+                        "created",
+                        "updated",
+                        "deleted"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "changes"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The batch was processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "table": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "table",
+                          "id",
+                          "code",
+                          "message"
+                        ]
+                      }
+                    },
+                    "aside": {
+                      "type": "integer"
+                    },
+                    "clock_skew": {
+                      "type": "boolean"
+                    },
+                    "resync_required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "accepted",
+                    "rejected",
+                    "aside",
+                    "clock_skew",
+                    "resync_required"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query, headers or body, or more than 2000 rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token, or `SESSION_REVOKED` for a revoked device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`SYNC_CONFLICT`: pull the latest changes, then send again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body above 5 MB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "`APP_UPDATE_REQUIRED`: the app version is below the platform minimum",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/me/deletion-check": {
       "get": {
         "tags": [

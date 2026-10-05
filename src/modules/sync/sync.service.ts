@@ -90,3 +90,11 @@ export async function pull(
   await recordPull(viewer, phoneScopeVersion, full);
   return { ...result, scope_version: viewer.scopeVersion };
 }
+
+/**
+ * Records a processed push on the viewer's device: `last_synced_at` becomes server time. The
+ * scope version the device has seen is left alone; only a full pull moves it (C-34).
+ */
+export async function recordPush(viewer: Viewer): Promise<void> {
+  await markDevicePulled(viewer.personId, viewer.deviceId, null);
+}

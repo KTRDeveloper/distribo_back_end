@@ -296,3 +296,40 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - A token whose device row does not exist is still served (needed by existing tests); revisit if sync must require a registered device.
 <!-- end SYNC-008 -->
+
+<!-- begin SYNC-009 -->
+## SYNC-009 — Push endpoint, archive and envelope
+
+- Filed: 2026-10-05 00:16 UTC
+- Status: **done**: Push envelope: archive, 426, clock skew, 409, aside, last_synced_at; interim apply loop until SYNC-010 judgeBatch
+- Risk: high · story: [SYNC-009-push-endpoint-archive-and-envelope.md](../modules/sync/SYNC-009-push-endpoint-archive-and-envelope.md)
+- Agent: 83,064 tokens, 28 tool uses, 7 min 29 s
+
+### Agent report
+
+**Summary:** Added POST /api/v1/sync/push (archive, 426, clock skew, 409, aside, last_synced_at) with an interim apply loop until SYNC-010.
+
+**Decisions:**
+- `judgeBatch` does not exist yet (SYNC-010): `sync.push.ts` has an internal `applyBatch` that runs each table's adapter push in one transaction, tables in SYNC_TABLES order; SYNC-010 must replace it.
+- Conflict check reuses each adapter's `pull(viewer, last_pulled_at)`: only rows in the viewer's scope can conflict, so a 409 never confirms an out-of-scope id.
+- `aside` counts rows (not tables) of unknown tables; an `issue` outcome counts as accepted (stored with sync_issue, CM-28), forbidden goes to `rejected`.
+- `resync_required` stays false for now (SYNC-018 sets it for forbidden lines).
+- Validation 400 (query, body, headers, >2000 rows) happens before archiving, so nothing is archived; `last_pulled_at` is required and not in the future.
+- X-Client-Time accepts epoch ms or ISO 8601, else 400; X-App-Version is dotted numbers, else 400; missing version with a minimum configured gives 426 (fail closed).
+- Minimum read through `configService.get('sync','min_app_version')` (remote-config is not wired to it yet: env `SYNC_MIN_APP_VERSION` works); an unparsable minimum gives 500.
+
+**Tests added beyond the story:**
+- `push-envelope.test.ts` › 409 out-of-scope id: no existence leak through SYNC_CONFLICT (CONVENTIONS 404/scope rule); passed at once
+- `push-envelope.test.ts` › failing adapter rolls everything back, archive stays (v5.0.0-2.3.3); passed at once
+- `push-envelope.test.ts` › 2000 rows accepted, counted across tables/lists (AC-5 boundary); strict validation cases; revoked device; no auth; passed at once
+
+**Other additions:**
+- `archiveBatch`, `withPushTransaction` in the repository; `recordPush` in the service; `pushQuerySchema`, `pushBodySchema` and header schemas.
+- `/api/v1/sync/push` added to `tests/integration/api-docs/catalog.test.ts` (per-001 lists only auth paths, nothing to add).
+
+**Evidence:** story tests 30/30; full suite 2903/2904, failing: pull-relationships "driver pull never contains a debt" (flaky: the string "99000" occurs in a server_updated_at timestamp; passes on rerun, not related); typecheck clean; lint 0 errors, 74 warnings (pre-existing)
+
+**Follow-ups:**
+- The flaky SYNC-004 test (`not.toContain('99000')` on a serialized body with timestamps) should use a less collision-prone sentinel.
+- SYNC-010 must replace `applyBatch` and set `resync_required` per SYNC-018.
+<!-- end SYNC-009 -->
