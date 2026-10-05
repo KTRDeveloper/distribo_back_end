@@ -6,6 +6,21 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-05 05:56 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-019 First push after a rights change | done | 603e445 | Grace for stale devices: seller ops kept and reported, rest refused; owners told |
+| SYNC-022 Super administrator replays an archived batch | done | 2f89ace | replay route, REPLAY_SYNC journal + notices in one transaction; suite 3089/3089 |
+| SYNC-023 Administrators list and open archived batches | done | 602cdd0 | list and open archived batches; 7 tests, suite 3096 green |
+
+Also in this run: privacy.
+
+- Run completed: all 4 PLAN stories done; none skipped, no stash.
+- SYNC-019: the subagent hit its 40-turn limit while its own background work ran; the first notification was interim, the hand-back came later; figures filed from the final notification.
+- PRIV-003 open question for a human: archives referenced by a REPLAY_SYNC journal entry are kept past 90 days (foreign key forbids deleting them); confirm the rule.
+- Next: `select.mjs next:100` gives PLAN none; no todo story is ready.
+
 ### Run 2026-10-05 05:08 UTC: `/implement-stories SYNC-018`
 
 | story | status | commit | note |

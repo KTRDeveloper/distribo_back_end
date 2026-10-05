@@ -6,6 +6,19 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-05 05:56 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| PRIV-003 Daily purge of expired data | done | 77135a0 | purge service, job and tests; archives pointed to by a journal entry are kept |
+
+Also in this run: sync.
+
+- Run completed: all 4 PLAN stories done; none skipped, no stash.
+- SYNC-019: the subagent hit its 40-turn limit while its own background work ran; the first notification was interim, the hand-back came later; figures filed from the final notification.
+- PRIV-003 open question for a human: archives referenced by a REPLAY_SYNC journal entry are kept past 90 days (foreign key forbids deleting them); confirm the rule.
+- Next: `select.mjs next:100` gives PLAN none; no todo story is ready.
+
 ### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
