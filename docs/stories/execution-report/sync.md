@@ -6,6 +6,16 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-05 05:08 UTC: `/implement-stories SYNC-018`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-018 Forbidden sends are refused, recorded and trigger a resync | done | 4d55bef | Refused and set-aside lines logged, resync on refusal, sync.refused notice; push-payments test updated |
+
+- Resumed SYNC-018 from its stash after the user approved its "Tests to update" entry (story commit b7be050); the stash was popped before the run.
+- Run completed.
+- Next: `/implement-stories SYNC-019` or `next:N`.
+
 ### Run 2026-10-05 02:43 UTC: `/implement-stories SYNC-010`
 
 | story | status | commit | note |
