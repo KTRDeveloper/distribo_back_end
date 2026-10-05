@@ -13,6 +13,8 @@ export const FUTURE_TOLERANCE_MS = 5 * 60_000;
 /** An order older than the device's previous sync by more than this is out of order. */
 const OUT_OF_ORDER_DAYS = 92;
 const DAY_MS = 86_400_000;
+/** Without a sync for longer than this, a phone is in restricted mode (CM-31). */
+const RESTRICTED_DAYS = 3;
 /** Africa/Douala is UTC+1 all year: the clock of the people who read the messages. */
 const DOUALA_OFFSET_MS = 3_600_000;
 const WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
@@ -101,11 +103,60 @@ async function dateControls(ctx: PushContext, order: Order): Promise<string[]> {
       `DATE_OUT_OF_ORDER: commande datée du ${formatMoment(order.createdAt)}, plus de ${OUT_OF_ORDER_DAYS} jours avant la dernière synchronisation (${formatMoment(last)})`
     );
   }
+  // An operation made after the phone was in restricted mode is stored and flagged, never refused.
+  if (last && order.createdAt.getTime() > last.getTime() + RESTRICTED_DAYS * DAY_MS) {
+    messages.push(`RESTRICTED_MODE: ${RESTRICTED_WORDS}`);
+  }
   return messages;
 }
 
 /**
- * The controls on arrival for one stored order: old prices, claimed reference prices, odd dates.
+ * Flags a delivery the server recorded above the customer's credit limit (CM-15): the order's
+ * `sync_issue` gets `CREDIT_EXCEEDED: <customer> : plafond dépassé de <amount>`. The delivery
+ * itself stays recorded; a code already on the order is not added again (ASVS v5.0.0-2.3.1).
+ *
+ * @param exceededBy - Francs above the limit, as `deliverOrder` reports them; 0 does nothing.
+ */
+export async function flagCreditExceeded(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  exceededBy: number
+): Promise<void> {
+  if (exceededBy <= 0) return;
+  const order = await tx.order.findUniqueOrThrow({
+    where: { id: orderId },
+    select: {
+      syncIssue: true,
+      customerRelationship: {
+        select: {
+          customerLabel: true,
+          customerPerson: { select: { fullName: true } },
+          customerOrganization: { select: { name: true } },
+        },
+      },
+    },
+  });
+  if ((order.syncIssue ?? '').includes(CREDIT_CODE)) return;
+  const relationship = order.customerRelationship;
+  const customer =
+    relationship.customerLabel ??
+    relationship.customerPerson?.fullName ??
+    relationship.customerOrganization?.name ??
+    'client';
+  const message = `${CREDIT_CODE} ${customer} : plafond dépassé de ${francs(BigInt(exceededBy))}`;
+  await tx.order.update({
+    where: { id: orderId },
+    data: { syncIssue: order.syncIssue ? `${order.syncIssue} ; ${message}` : message },
+  });
+  logger.warn(
+    { event: 'sync_credit_exceeded', orderId },
+    'delivery recorded above the credit limit'
+  );
+}
+
+/**
+ * The controls on arrival for one stored order: old prices, claimed reference prices, odd dates,
+ * operations made after 3 days without sync (RESTRICTED_MODE, SYNC-017).
  * Controls never refuse (CM-28, CM-31): each problem is written to the order's `sync_issue` as
  * `CODE: message`, joined to what is there with " ; ". A code already on the order is not added
  * again, so a repeated push changes nothing. Runs on the server against current data
@@ -137,13 +188,20 @@ export async function runControls(
   return added;
 }
 
+const CREDIT_CODE = 'CREDIT_EXCEEDED:';
+const RESTRICTED_WORDS = 'opération faite après 3 jours sans synchronisation';
+
 const COUNT_WORDS = {
   FR: (n: number) => `${n} écarts à vérifier`,
   EN: (n: number) => `${n} discrepancies to review`,
 };
 
 /** One `sync.anomalies` notification per OWNER of the organization (v5.0.0-16.3.3). */
-async function tellOwners(ctx: PushContext, organizationId: string, count: number) {
+async function tellOwners(
+  ctx: PushContext,
+  organizationId: string,
+  words: (l: 'FR' | 'EN') => string
+) {
   const owners = await ctx.tx.collaboration.findMany({
     where: {
       organizationId,
@@ -161,7 +219,7 @@ async function tellOwners(ctx: PushContext, organizationId: string, count: numbe
         recipientId: personId,
         organizationId,
         sourceEvent: ANOMALIES_EVENT,
-        content: COUNT_WORDS[language](count),
+        content: words(language),
       },
       ctx.tx
     );
@@ -197,5 +255,34 @@ export async function runBatchControls(ctx: PushContext, orderIds: string[]): Pr
     if (added.length > 0)
       issues.set(organizationId, (issues.get(organizationId) ?? 0) + added.length);
   }
-  for (const [organizationId, count] of issues) await tellOwners(ctx, organizationId, count);
+  for (const [organizationId, count] of issues) {
+    await tellOwners(ctx, organizationId, (language) => COUNT_WORDS[language](count));
+  }
+}
+
+/**
+ * A push from a device whose previous sync is more than 3 days old adds one information line for
+ * the owners of the viewer's organizations: who came back, and after how many days. Nothing is
+ * refused (CM-31, ASVS v5.0.0-2.3.1). Call before the device's `last_synced_at` moves forward.
+ */
+export async function runLongAbsence(ctx: PushContext): Promise<void> {
+  const last = await previousSync(ctx);
+  if (!last || Date.now() - last.getTime() <= RESTRICTED_DAYS * DAY_MS) return;
+  const days = Math.floor((Date.now() - last.getTime()) / DAY_MS);
+  const person = await ctx.tx.person.findUnique({
+    where: { id: ctx.viewer.personId },
+    select: { fullName: true },
+  });
+  const name = person?.fullName ?? '';
+  const words: Record<'FR' | 'EN', string> = {
+    FR: `${name} s'est resynchronisé après ${days} jours`,
+    EN: `${name} synced again after ${days} days`,
+  };
+  for (const organizationId of new Set(ctx.viewer.memberships.map((m) => m.organizationId))) {
+    await tellOwners(ctx, organizationId, (language) => words[language]);
+  }
+  logger.warn(
+    { event: 'sync_long_absence', personId: ctx.viewer.personId, deviceId: ctx.viewer.deviceId },
+    'device resynchronized after a long absence'
+  );
 }

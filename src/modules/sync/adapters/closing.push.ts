@@ -3,6 +3,7 @@ import { newId } from '../../../shared/ids.js';
 import { findDeliveryInProgress, lockOrderToAssign } from '../../delivery/delivery.repository.js';
 import { deliverOrder, type ClosingPayment } from '../../delivery/delivery.service.js';
 import type { Actor } from '../../../types/express.js';
+import { flagCreditExceeded } from '../sync.controls.js';
 import type { LineOutcome, PushContext, Row, SyncTable, TableChange } from '../sync.types.js';
 import { TAKEN_BY_PREFIX, takenBy } from './delivery.push.js';
 import {
@@ -459,7 +460,7 @@ async function closeOrder(ctx: PushContext, closing: Closing): Promise<LineOutco
   await tx.$executeRaw`SAVEPOINT closing_order`;
   try {
     await takeOverCrossedDelivery(ctx, orderId);
-    await deliverOrder(
+    const closed = await deliverOrder(
       actor,
       orderId,
       {
@@ -476,6 +477,8 @@ async function closeOrder(ctx: PushContext, closing: Closing): Promise<LineOutco
         ...(closing.child !== null && !restTaken ? { restOrderId: closing.child } : {}),
       }
     );
+    // A delivery above the credit limit is recorded and flagged for the owner (SYNC-017, CM-15).
+    await flagCreditExceeded(tx, orderId, closed.creditExceededBy);
     await tx.$executeRaw`RELEASE SAVEPOINT closing_order`;
   } catch (error) {
     await tx.$executeRaw`ROLLBACK TO SAVEPOINT closing_order`;

@@ -199,7 +199,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-014 | done | | Closing of a pushed DELIVERED order via deliverOrder viaSync; story tests 45/45, full suite 2998/2998 |
 | SYNC-015 | done | | ledger.push + notification reads; judge ONLINE_ONLY for non-payment ledger gestures |
 | SYNC-016 | done | | controls on arrival: PRICE_CHANGED, DATE_*, owner notification; suite 3010 green |
-| SYNC-017 | todo | | |
+| SYNC-017 | done | | controls: CREDIT_EXCEEDED, RESTRICTED_MODE, long-absence notice; 9 tests |
 | SYNC-018 | todo | | |
 | SYNC-019 | todo | | |
 | SYNC-020 | todo | | |

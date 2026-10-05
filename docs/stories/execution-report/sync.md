@@ -598,3 +598,34 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - Price history is not stored, so a phone can still hide a discount by backdating created_at before the last price change; a price-history table would close it.
 - The product `price_updated_at` is DB-controlled, so tests express "price changed later" through the order date.
 <!-- end SYNC-016 -->
+
+<!-- begin SYNC-017 -->
+## SYNC-017 — Controls on arrival: credit, restricted mode and long absence
+
+- Filed: 2026-10-05 04:20 UTC
+- Status: **done**: controls: CREDIT_EXCEEDED, RESTRICTED_MODE, long-absence notice; 9 tests
+- Risk: medium · story: [SYNC-017-controls-on-arrival-credit-restricted-mode-and.md](../modules/sync/SYNC-017-controls-on-arrival-credit-restricted-mode-and.md)
+- Agent: 77,649 tokens, 19 tool uses, 6 min 22 s
+
+### Agent report
+
+**Summary:** Added CREDIT_EXCEEDED (closing), RESTRICTED_MODE (order dates) and the long-absence owner notification; nothing is ever refused.
+
+**Decisions:**
+- Amount format: used `francs()` ("15 000") as the SYNC-016 messages do; AC-1 writes "15000".
+- Customer label fallback: customerLabel, then person name, then organization name, then "client" (same order as the unsettled-orders view).
+- RESTRICTED_MODE covers orders created in the batch (via runControls); payments are not checked.
+- Long absence: runs for every push (even an empty batch), skipped on a replay, one notification per OWNER of each org the viewer belongs to (owner who is the device holder included); EN text added.
+- CREDIT_EXCEEDED is written in the closing's savepoint, appended before later PRICE_CHANGED; it does not feed the "n écarts" count notification (the story names only sync_issue).
+
+**Tests added beyond the story:**
+- `controls-credit.test.ts` › exactly 3 days after last sync not flagged: boundary of "more than 3 days" (CM-31); passed at once after implementation
+- `controls-credit.test.ts` › synced 2 days ago adds no line; second push after long absence adds no second notice; other org owner not told (AC-3 scope); passed at once
+- `controls-credit.test.ts` › customer without limit gets no credit issue (CM-15 null = no limit)
+
+**Evidence:** story tests 9/9; full suite 3038/3038, failing: none; typecheck clean; lint 0 errors, 118 warnings (pre-existing)
+
+**Follow-ups:**
+- pull also sets last_synced_at (markDevicePulled): a phone that pulls before pushing hides RESTRICTED_MODE and long absence; check with the design.
+- Credit overruns on a delivery do not notify the owner (no AC asks for it).
+<!-- end SYNC-017 -->

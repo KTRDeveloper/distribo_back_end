@@ -14,7 +14,7 @@ import {
   takeOrders,
   type ClosingBook,
 } from './adapters/closing.push.js';
-import { runBatchControls } from './sync.controls.js';
+import { runBatchControls, runLongAbsence } from './sync.controls.js';
 import { getAdapters } from './sync.registry.js';
 import {
   findOrderOwner,
@@ -467,8 +467,9 @@ const countRows = (t: { created: unknown[]; updated: unknown[]; deleted: unknown
  * order's outcome instead of being judged.
  *
  * Once every table is applied, the controls on arrival run on the orders the batch created
- * (SYNC-016): they flag old prices and odd dates in `sync_issue` and notify the owners, never
- * refusing anything.
+ * (SYNC-016, SYNC-017): they flag old prices, odd dates, operations made after 3 days without
+ * sync and deliveries above the credit limit in `sync_issue` and notify the owners (also of a long
+ * absence of the device), never refusing anything.
  *
  * A ledger line the phone may not write (any kind but a payment, an update, a delete) is answered
  * `ONLINE_ONLY` before the role check (SYNC-015).
@@ -571,6 +572,8 @@ export async function judgeBatch(
 
     // Controls never refuse: they flag the orders stored by this batch and tell the owners (SYNC-016).
     await runBatchControls({ viewer, tx }, createdOrderIds);
+    // A device back after a long absence is told to the owners, before `last_synced_at` moves (SYNC-017).
+    if (!options.replay) await runLongAbsence({ viewer, tx });
 
     const rejected: PushResult['rejected'] = [];
     let accepted = 0;
