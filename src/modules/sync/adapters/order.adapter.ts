@@ -7,7 +7,7 @@ import {
 import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
 import type { Row, SyncAdapter, Viewer } from '../sync.types.js';
-import { refuseEveryLine } from './identity.adapter.js';
+import { pushDeliveries } from './delivery.push.js';
 import { pushOrderLines, pushOrders } from './order.push.js';
 
 type Changes = { created: Row[]; updated: Row[]; deleted: string[] };
@@ -265,7 +265,7 @@ export const deliveriesAdapter: SyncAdapter = {
     // No creation column: a delivery is `created` on a first pull and `updated` afterwards.
     return classifyChanges(rows, since, () => new Date(0), deliveryRow);
   },
-  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+  push: pushDeliveries,
 };
 
 export const orderAdapters: SyncAdapter[] = [ordersAdapter, orderLinesAdapter, deliveriesAdapter];

@@ -1,10 +1,12 @@
-import type { Prisma } from '@prisma/client';
+import type { CollaborationRole, OrderStatus, Prisma } from '@prisma/client';
 import { logger } from '../../../lib/logger.js';
+import { abilityFor } from '../../../shared/access/ability.js';
 import { TEXT_MAX } from '../../../shared/limits.js';
 import { parseQuantity } from '../../../shared/money.js';
 import { lineAmountOf, orderTotal } from '../../order/order.calculations.js';
+import { transitionOrder } from '../../order/order.state.js';
 import { resolveMergedRelation } from '../../relationship/relationship.repository.js';
-import type { LineOutcome, PushContext, Row, TableChange } from '../sync.types.js';
+import type { LineOutcome, PushContext, Row, SyncTable, TableChange } from '../sync.types.js';
 import { refuseEveryLine } from './identity.adapter.js';
 
 /** The note the owner reads when a line names a product withdrawn since the entry (SYNC-012 AC-3). */
@@ -18,11 +20,11 @@ const MAX_QUANTITY_MILLI = 999_999_999_999n;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-const INVALID = Symbol('invalid');
-type Invalid = typeof INVALID;
+export const INVALID = Symbol('invalid');
+export type Invalid = typeof INVALID;
 
-const outcome = (
-  table: 'orders' | 'order_lines',
+export const outcome = (
+  table: SyncTable,
   id: string,
   kind: LineOutcome['kind'],
   code?: string,
@@ -35,8 +37,8 @@ const outcome = (
   ...(message ? { message } : {}),
 });
 
-const forbidden = (
-  table: 'orders' | 'order_lines',
+export const forbidden = (
+  table: SyncTable,
   id: string,
   code: string,
   message: string
@@ -45,10 +47,10 @@ const forbidden = (
   return outcome(table, id, 'forbidden', code, message);
 };
 
-const OUT_OF_SCOPE = 'This line is outside your scope';
+export const OUT_OF_SCOPE = 'This line is outside your scope';
 
 /** A text the phone sent: `null` when absent or empty, `INVALID` when unusable. */
-function readText(row: Row, key: string): string | null | Invalid {
+export function readText(row: Row, key: string): string | null | Invalid {
   const value = row[key];
   if (value === undefined || value === null) return null;
   if (typeof value !== 'string' || value.length > TEXT_MAX) return INVALID;
@@ -202,11 +204,189 @@ async function createOrder(ctx: PushContext, row: Row): Promise<LineOutcome> {
   return outcome('orders', id, 'accepted');
 }
 
+/** The five statuses, as a phone may name them. */
+const ORDER_STATUSES: readonly string[] = [
+  'PENDING',
+  'CONFIRMED',
+  'IN_DELIVERY',
+  'DELIVERED',
+  'CANCELLED',
+] satisfies OrderStatus[];
+
+/** An order status in the words of the message a person reads in `sync_issue`. */
+export const STATUS_WORDS: Record<OrderStatus, string> = {
+  PENDING: 'en attente',
+  CONFIRMED: 'confirmée',
+  IN_DELIVERY: 'en cours de livraison',
+  DELIVERED: 'livrée',
+  CANCELLED: 'annulée',
+};
+
+/** Abilities as the server judges them: never online, never past the 3-day window (ACC). */
+export const SERVER_CONTEXT = { onServer: true, online: false, daysSinceSync: 0 } as const;
+
+/** What the viewer is to an order: the supplier organization and the role they hold in it. */
+export type OrderScope = { organizationId: string; role: CollaborationRole };
+
 /**
- * Push side of `orders` (SYNC-012): orders entered offline are created CONFIRMED, placed by the
- * SUPPLIER and entered by the viewer. The totals are the server's (CM-27, CWE-345); a customer
- * that is a counter or whose relationship is not ACTIVE makes the order an issue that is not
- * stored. Status changes and edits are not handled yet and stay refused (SYNC-013).
+ * The viewer's role for an order, from their ACTIVE memberships in its supplier organization; null
+ * when the order does not exist, when the viewer is its customer (a customer has no write right
+ * here) or when they hold no role in the supplier (ASVS v5.0.0-8.2.2). The caller answers null
+ * like an order outside the scope.
+ */
+export async function scopeOfOrder(ctx: PushContext, orderId: string): Promise<OrderScope | null> {
+  const found = await ctx.tx.order.findUnique({
+    where: { id: orderId },
+    select: {
+      customerRelationship: { select: { supplierOrganizationId: true, customerPersonId: true } },
+    },
+  });
+  if (!found) return null;
+  const { supplierOrganizationId, customerPersonId } = found.customerRelationship;
+  if (customerPersonId === ctx.viewer.personId || supplierOrganizationId === null) return null;
+  const membership = ctx.viewer.memberships.find(
+    (m) => m.organizationId === supplierOrganizationId
+  );
+  return membership ? { organizationId: supplierOrganizationId, role: membership.role } : null;
+}
+
+/** True when the HTTP error raised by the state machine is a step it does not permit. */
+export const isRefusedStep = (error: unknown): boolean =>
+  error instanceof Error && (error as { code?: unknown }).code === 'INVALID_TRANSITION';
+
+/** `2026-09-30 10:30 UTC`: the time a person reads in a `sync_issue` message. */
+export function formatMoment(moment: Date): string {
+  return `${moment.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
+export const setIssue = (ctx: PushContext, id: string, message: string) =>
+  ctx.tx.order.update({ where: { id }, data: { syncIssue: message } });
+
+/** The business problem of a status step: the order keeps its status and carries the message. */
+async function orderIssue(
+  ctx: PushContext,
+  id: string,
+  code: string,
+  message: string
+): Promise<LineOutcome> {
+  await setIssue(ctx, id, message);
+  return outcome('orders', id, 'issue', code, message);
+}
+
+/**
+ * A SELLER's (or above) cancellation, through the state machine with `viaSync` (CM-12). An order
+ * delivered meanwhile stays delivered and its `sync_issue` names who delivered and when; any other
+ * step the machine refuses leaves the status and says why.
+ */
+async function cancelOrder(ctx: PushContext, id: string, reason: string): Promise<LineOutcome> {
+  const { tx, viewer } = ctx;
+  try {
+    const after = await transitionOrder(
+      tx,
+      id,
+      'CANCELLED',
+      { personId: viewer.personId, party: 'SUPPLIER' },
+      { cancellationReason: reason },
+      { viaSync: true }
+    );
+    if (after.status === 'CANCELLED') return outcome('orders', id, 'accepted');
+    const deliverer = after.deliveredById
+      ? await tx.person.findUnique({
+          where: { id: after.deliveredById },
+          select: { fullName: true },
+        })
+      : null;
+    const when = after.deliveredAt ? ` à ${formatMoment(after.deliveredAt)}` : '';
+    const who = deliverer ? ` par ${deliverer.fullName}` : '';
+    return orderIssue(
+      ctx,
+      id,
+      'ORDER_ALREADY_DELIVERED',
+      `Annulation impossible : commande livrée${who}${when}`
+    );
+  } catch (error) {
+    if (!isRefusedStep(error)) throw error;
+    const current = await tx.order.findUniqueOrThrow({ where: { id }, select: { status: true } });
+    return orderIssue(
+      ctx,
+      id,
+      'INVALID_TRANSITION',
+      `Annulation impossible : commande ${STATUS_WORDS[current.status]}`
+    );
+  }
+}
+
+/**
+ * One order edited offline (SYNC-013). The judge has already checked scope and the fields the role
+ * may write. Only `supplier_note` (any status) and a status change to CANCELLED are applied here;
+ * every other status is reached through deliveries or the closing of an order, so a phone that
+ * pushes one directly gets a business problem and the order keeps its status (ASVS v5.0.0-2.3.1).
+ * A DRIVER holds departure rights, not cancellation: the judge lets the status field through for
+ * them, so the cancellation right is checked again here.
+ */
+async function updateOrder(ctx: PushContext, row: Row): Promise<LineOutcome> {
+  const { tx } = ctx;
+  const id = String(row['id']);
+  const scope = await scopeOfOrder(ctx, id);
+  if (!scope) return forbidden('orders', id, 'OUT_OF_SCOPE', OUT_OF_SCOPE);
+  const stored = await tx.order.findUniqueOrThrow({
+    where: { id },
+    select: { status: true, supplierNote: true },
+  });
+  const ability = abilityFor(scope.role, SERVER_CONTEXT);
+
+  const note = 'supplier_note' in row ? readText(row, 'supplier_note') : undefined;
+  const reason = readText(row, 'cancellation_reason');
+  const pushedStatus = row['status'];
+  if (
+    note === INVALID ||
+    reason === INVALID ||
+    (pushedStatus !== undefined &&
+      (typeof pushedStatus !== 'string' || !ORDER_STATUSES.includes(pushedStatus)))
+  ) {
+    return invalidOrder(id);
+  }
+  const noteChanged = note !== undefined && note !== (stored.supplierNote ?? null);
+  const statusChanged = pushedStatus !== undefined && pushedStatus !== stored.status;
+
+  if (noteChanged && !ability.can('update', 'Order', 'supplier_note')) {
+    return forbidden('orders', id, 'FIELD_NOT_ALLOWED', 'Your role may not make this change');
+  }
+  if (statusChanged && pushedStatus === 'CANCELLED') {
+    if (!ability.can('cancel', 'Order')) {
+      return forbidden('orders', id, 'FIELD_NOT_ALLOWED', 'Your role may not make this change');
+    }
+    if (reason === null) {
+      return outcome(
+        'orders',
+        id,
+        'aside',
+        'INVALID_FIELD',
+        'A cancellation by the supplier needs a reason'
+      );
+    }
+  }
+
+  if (noteChanged) {
+    await tx.order.update({ where: { id }, data: { supplierNote: note } });
+  }
+  if (!statusChanged) return outcome('orders', id, 'accepted');
+  if (pushedStatus === 'CANCELLED') return cancelOrder(ctx, id, reason ?? '');
+  return orderIssue(
+    ctx,
+    id,
+    'INVALID_TRANSITION',
+    'Changement de statut impossible depuis le téléphone : la commande suit ses livraisons'
+  );
+}
+
+/**
+ * Push side of `orders` (SYNC-012, SYNC-013): orders entered offline are created CONFIRMED,
+ * placed by the SUPPLIER and entered by the viewer. The totals are the server's (CM-27, CWE-345); a
+ * customer that is a counter or whose relationship is not ACTIVE makes the order an issue that is
+ * not stored. Edits are the supplier note and the cancellation (see `updateOrder`); a step the
+ * state machine does not allow is a business problem, never a refusal of the batch (C-36).
+ * Deletions stay refused.
  *
  * @param ctx - Viewer and the batch's transaction; lines arrive already judged.
  * @param change - Judged lines of the table.
@@ -214,7 +394,8 @@ async function createOrder(ctx: PushContext, row: Row): Promise<LineOutcome> {
 export async function pushOrders(ctx: PushContext, change: TableChange): Promise<LineOutcome[]> {
   const outcomes: LineOutcome[] = [];
   for (const row of change.created) outcomes.push(await createOrder(ctx, row));
-  outcomes.push(...refuseEveryLine({ ...change, created: [] }));
+  for (const row of change.updated) outcomes.push(await updateOrder(ctx, row));
+  outcomes.push(...refuseEveryLine({ ...change, created: [], updated: [] }));
   return outcomes;
 }
 

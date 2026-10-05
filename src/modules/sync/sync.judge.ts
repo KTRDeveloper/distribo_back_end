@@ -389,7 +389,8 @@ function redirectRelationshipRefs(
 /**
  * Lines whose order was not stored (an issue, set aside or refused by the orders adapter) are
  * answered like their order, and not judged: there is nothing to attach them to, and an honest
- * phone must not read that as a forbidden line (SYNC-012 AC-4).
+ * phone must not read that as a forbidden line (SYNC-012 AC-4). The same goes for the deliveries
+ * of an order that was never stored (SYNC-013).
  *
  * @returns The change without those lines, and an outcome for each removed line.
  */
@@ -462,7 +463,7 @@ export async function judgeBatch(
       if (!change || !adapter) continue;
       let toApply: TableChange = { table, ...change };
       if (redirects.size > 0) toApply = redirectRelationshipRefs(toApply, redirects);
-      if (table === 'order_lines' && unstoredOrders.size > 0) {
+      if ((table === 'order_lines' || table === 'deliveries') && unstoredOrders.size > 0) {
         const split = withoutLinesOfUnstoredOrders(toApply, unstoredOrders);
         outcomes.push(...split.outcomes);
         toApply = split.change;
@@ -473,13 +474,18 @@ export async function judgeBatch(
         toApply = passed;
       }
       if (countRows(toApply) > 0) {
+        // Only an order created in this batch can be missing for its lines: an edit of a stored
+        // order (SYNC-013) that ends as an issue leaves the order and its lines in place.
+        const createdIds = new Set(toApply.created.map((row) => row['id']));
         const pushed = await adapter.push({ viewer, tx }, toApply);
         outcomes.push(...pushed);
         for (const line of pushed) {
           if (line.mergedInto && table === 'customer_relationships') {
             redirects.set(line.id, line.mergedInto);
           }
-          if (table === 'orders' && line.kind !== 'accepted') unstoredOrders.set(line.id, line);
+          if (table === 'orders' && line.kind !== 'accepted' && createdIds.has(line.id)) {
+            unstoredOrders.set(line.id, line);
+          }
         }
       }
     }

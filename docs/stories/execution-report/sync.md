@@ -449,3 +449,41 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - A hostile line (foreign product) leaves the order stored empty; a human may want the order dropped too.
 - The migration is a trigger change the story did not list; confirm the GUC approach is acceptable.
 <!-- end SYNC-012 -->
+
+<!-- begin SYNC-013 -->
+## SYNC-013 — Push order status changes and deliveries
+
+- Filed: 2026-10-05 03:28 UTC
+- Status: **done**: Departures, crossed departures, failures and cancellations pushed through the state machine; 19 tests
+- Risk: high · story: [SYNC-013-push-order-status-changes-and-deliveries.md](../modules/sync/SYNC-013-push-order-status-changes-and-deliveries.md)
+- Agent: 125,143 tokens, 30 tool uses, 9 min 17 s
+
+### Agent report
+
+**Summary:** Deliveries push adapter and order edits (cancellation, supplier note) are in, all through transitionOrder; story tests and full suite green.
+
+**Decisions:**
+- Direct status push (DELIVERED, IN_DELIVERY, PENDING, CONFIRMED) by a phone: business issue, order keeps status, sync_issue set (AB-1); counted as accepted, not rejected.
+- Cancel right (DRIVER forbidden, AB-2) is re-checked in the adapter with abilityFor: the judge only requires one step right, and a DRIVER holds depart.
+- Cancel without reason: set aside (INVALID_FIELD). Cancel on IN_DELIVERY/other refused step: issue, sync_issue "Annulation impossible : commande <état>".
+- "<time>" in the delivered-by message is "YYYY-MM-DD HH:mm UTC" (story left the format open).
+- Assigned-but-not-departed delivery: replaced by the pushed one when it is the viewer's, or the viewer is MANAGER/OWNER (as DLV-005); otherwise stored as a crossed departure.
+- Departure on an order that is not CONFIRMED or has no address: issue, no delivery stored, order sync_issue "Départ impossible : ...".
+- Created row may carry failed_at+reason (depart and fail in one push): applied in sequence. An update carrying departed_at on an unstarted assigned delivery is handled as a departure.
+- Rows with a new arrived_at are set aside (DELIVERY_CLOSING_NOT_APPLIED): closing belongs to SYNC-014/015.
+- No customer/manager notifications (DLV-005/006 send them online); not in the story.
+
+**Tests added beyond the story:**
+- `push-deliveries.test.ts` › second departure on a cancelled order, driver failing another driver's delivery, other-business order, supplier note on a delivered order, departure with failure in one push, cancel on an IN_DELIVERY order, cancel without reason, assigned-delivery takeover (scope, fail-closed, CM-12/CM-23, ASVS 8.2.x); several passed at once (written after the adapter design)
+- `push-deliveries.test.ts` › departure still applied when an edit of the same order ended as an issue: guards the judge change below (C-36); passed at once
+
+**Other additions:**
+- sync.judge.ts: unstored-order tracking now only for orders created in the batch (an edit ending as issue must not swallow later lines), and deliveries of an unstored order get the order's outcome like order_lines.
+- order.push.ts exports shared helpers (outcome, forbidden, scopeOfOrder, SERVER_CONTEXT, STATUS_WORDS...) reused by delivery.push.ts; order.adapter.ts wires pushDeliveries.
+
+**Evidence:** story tests 19/19; full suite 2983/2983, failing: none; typecheck clean; lint 0 errors, 103 warnings (existing kind)
+
+**Follow-ups:**
+- delivery.push.ts imports functions from delivery.repository.ts that delivery/contracts.md does not list (lockOrderToAssign, findDeliveryInProgress, markDeparted, markFailed...); contracts.md could list them.
+- SYNC-015 must handle arrived_at and the "delivery wins" case of CM-23 (currently set aside).
+<!-- end SYNC-013 -->
