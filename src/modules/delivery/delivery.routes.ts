@@ -161,7 +161,7 @@ deliveryRoutes.post(
       assignParamSchema.parse({ orderId: req.params.orderId }).orderId,
       deliverSchema.parse(req.body)
     )
-      .then((result) => res.status(200).json(result))
+      .then(({ order, sale, payment }) => res.status(200).json({ order, sale, payment }))
       .catch(next);
   }
 );

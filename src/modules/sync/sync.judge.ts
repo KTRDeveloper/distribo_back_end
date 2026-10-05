@@ -2,6 +2,18 @@ import { subject, type MongoAbility } from '@casl/ability';
 import type { Prisma } from '@prisma/client';
 import { logger } from '../../lib/logger.js';
 import { abilityFor } from '../../shared/access/ability.js';
+import {
+  adoptRestRows,
+  dropClosing,
+  findRestOrders,
+  runClosings,
+  splitRestRows,
+  takeDeliveries,
+  takeLedger,
+  takeLines,
+  takeOrders,
+  type ClosingBook,
+} from './adapters/closing.push.js';
 import { getAdapters } from './sync.registry.js';
 import {
   findOrderOwner,
@@ -452,6 +464,8 @@ export async function judgeBatch(
     let aside = 0;
     const redirects = new Map<string, string>();
     const unstoredOrders = new Map<string, LineOutcome>();
+    const closings: ClosingBook = new Map();
+    const restOrders = findRestOrders(batch.orders && { table: 'orders', ...batch.orders });
 
     for (const [name, change] of Object.entries(batch)) {
       if (!adapters.has(name as SyncTable)) aside += countRows(change);
@@ -463,15 +477,36 @@ export async function judgeBatch(
       if (!change || !adapter) continue;
       let toApply: TableChange = { table, ...change };
       if (redirects.size > 0) toApply = redirectRelationshipRefs(toApply, redirects);
-      if ((table === 'order_lines' || table === 'deliveries') && unstoredOrders.size > 0) {
+      if (
+        (table === 'order_lines' || table === 'deliveries' || table === 'ledger_entries') &&
+        unstoredOrders.size > 0
+      ) {
         const split = withoutLinesOfUnstoredOrders(toApply, unstoredOrders);
         outcomes.push(...split.outcomes);
         toApply = split.change;
+      }
+      // The orders for the rest of a closing, and their lines, are made by the server (SYNC-014).
+      let restRows: Row[] = [];
+      if (restOrders.size > 0 && (table === 'orders' || table === 'order_lines')) {
+        const split = splitRestRows(toApply, restOrders, table === 'orders' ? 'id' : 'order_id');
+        toApply = split.kept;
+        restRows = split.taken;
       }
       if (isJudged(table)) {
         const { passed, forbidden } = await judgeTable(judge, table, toApply);
         outcomes.push(...forbidden);
         toApply = passed;
+        // An order pushed DELIVERED is closed by the server after every table (SYNC-014).
+        const ctx = { viewer, tx };
+        if (table === 'orders') toApply = takeOrders(closings, toApply);
+        if (restRows.length > 0 && (table === 'orders' || table === 'order_lines')) {
+          outcomes.push(...adoptRestRows(closings, restOrders, table, restRows));
+        }
+        if (closings.size > 0) {
+          if (table === 'order_lines') toApply = await takeLines(ctx, closings, toApply);
+          if (table === 'deliveries') toApply = await takeDeliveries(ctx, closings, toApply);
+          if (table === 'ledger_entries') toApply = takeLedger(closings, toApply);
+        }
       }
       if (countRows(toApply) > 0) {
         // Only an order created in this batch can be missing for its lines: an edit of a stored
@@ -485,9 +520,17 @@ export async function judgeBatch(
           }
           if (table === 'orders' && line.kind !== 'accepted' && createdIds.has(line.id)) {
             unstoredOrders.set(line.id, line);
+            outcomes.push(...dropClosing(closings, line.id, line));
           }
         }
       }
+    }
+
+    for (const line of await runClosings({ viewer, tx }, closings)) {
+      // The closing of an order created in this batch may refine the creation's own outcome.
+      const index = outcomes.findIndex((o) => o.table === line.table && o.id === line.id);
+      if (index === -1) outcomes.push(line);
+      else if (line.kind !== 'accepted') outcomes[index] = line;
     }
 
     const rejected: PushResult['rejected'] = [];

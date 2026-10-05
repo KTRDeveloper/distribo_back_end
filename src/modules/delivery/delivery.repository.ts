@@ -442,6 +442,29 @@ export async function lockRelationshipForCredit(
   return row ? { id, balance: row.balance, creditLimit: row.credit_limit } : null;
 }
 
+/**
+ * What a closing already wrote: the order, its SALE and its first PAYMENT, when the order is
+ * DELIVERED by this person. Null when another person delivered it or no sale exists. Used to answer
+ * a repeated closing with the first result (SYNC-014).
+ */
+export async function findClosedResult(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  personId: string
+) {
+  const order = await tx.order.findFirst({
+    where: { id: orderId, status: 'DELIVERED', deliveredById: personId },
+  });
+  if (!order) return null;
+  const entries = await tx.ledgerEntry.findMany({
+    where: { orderId, kind: { in: ['SALE', 'PAYMENT'] } },
+    orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
+  });
+  const sale = entries.find((entry) => entry.kind === 'SALE');
+  if (!sale) return null;
+  return { order, sale, payment: entries.find((entry) => entry.kind === 'PAYMENT') ?? null };
+}
+
 /** The live lines of an order, in a stable order. */
 export function listLiveLines(tx: Prisma.TransactionClient, orderId: string) {
   return tx.orderLine.findMany({

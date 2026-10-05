@@ -32,7 +32,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const NOT_ALLOWED = 'Your role may not make this change';
 
 /** The text a second departure carries when another driver already left with the order (CM-23). */
-const takenBy = (name: string): string => `Livraison déjà prise par ${name}`;
+export const TAKEN_BY_PREFIX = 'Livraison déjà prise par ';
+export const takenBy = (name: string): string => `${TAKEN_BY_PREFIX}${name}`;
 
 const wordsOf = (status: string): string => STATUS_WORDS[status as OrderStatus] ?? status;
 

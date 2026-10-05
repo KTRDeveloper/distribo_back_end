@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
@@ -20,6 +21,7 @@ import {
   insertDepartedDelivery,
   insertRestOrder,
   deleteUnstartedDeliveries,
+  findClosedResult,
   isActiveCollaborator,
   listLiveLines,
   listOwnDeliveries,
@@ -327,6 +329,20 @@ export type DeliverResult = {
   payment: DeliveredEntryView | null;
 };
 
+/** A payment a phone collected at the closing: its id and mode are kept (SYNC-014). */
+export type ClosingPayment = { id: string; amount: bigint; mode: 'CASH' | 'MOBILE_MONEY' };
+
+export type DeliverOptions = {
+  /** The closing comes from a phone's push: the sync judgment applies (SYNC-014). */
+  viaSync?: boolean;
+  /** Payments collected, used instead of `collected_amount` when present. */
+  payments?: ClosingPayment[];
+  /** The batch's transaction, so the closing joins it instead of opening its own. */
+  tx?: Prisma.TransactionClient;
+  /** The id the order for the rest takes, when the phone already created it. */
+  restOrderId?: string;
+};
+
 /**
  * The one gesture that closes an order, "Commande livrée" (DLV-007, CM-13, CM-15). One transaction
  * (v5.0.0-2.3.3): the order of the caller's organization is locked (another business's order is
@@ -352,8 +368,15 @@ export type DeliverResult = {
  * @param actor - Person, organization and role from `loadActor`; the route checked `deliver Order`.
  * @param orderId - Order from the path.
  * @param input - Validated body: gesture id, collected amount, mode and entry ids.
- * @param options - `viaSync` lets `transitionOrder` apply the sync judgment (delivery wins).
- * @returns The delivered order, the sale and the payment (null when nothing was collected).
+ * Through sync (SYNC-014, `viaSync`): the credit rule never refuses, the result carries
+ * `creditExceededBy` (francs, 0 within the limit); a CANCELLED order is delivered anyway (delivery
+ * wins, CM-12); a repeat by the person who delivered returns the stored result. `payments` gives
+ * every payment collected (ids and modes kept) in place of `collected_amount`; `tx` joins the
+ * caller's transaction; `restOrderId` is the id of the order for the rest.
+ *
+ * @param options - See `DeliverOptions`.
+ * @returns The delivered order, the sale and the payment (null when nothing was collected), and
+ * how many francs the delivery put above the credit limit (0 unless `viaSync`).
  * @throws 404 `NOT_FOUND` (order outside the business, a DRIVER's order of another driver, or a line
  * of another order); 400 `VALIDATION_ERROR` (quantity above the ordered one, short line without
  * `rest`, nothing delivered); 409 `INVALID_TRANSITION` (status does not fit the caller's role);
@@ -363,14 +386,27 @@ export function deliverOrder(
   actor: Actor,
   orderId: string,
   input: DeliverInput,
-  options: { viaSync?: boolean } = {}
-): Promise<DeliverResult> {
-  return runInTransaction(async (tx) => {
+  options: DeliverOptions = {}
+): Promise<DeliverResult & { creditExceededBy: number }> {
+  const work = async (tx: Prisma.TransactionClient) => {
     const order = await lockOrderToDeliver(tx, orderId, actor.organizationId);
     if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');
 
+    if (options.viaSync && order.status === 'DELIVERED') {
+      const stored = await findClosedResult(tx, orderId, actor.personId);
+      if (stored) {
+        return {
+          order: projectDeliveredOrder(stored.order),
+          sale: projectDeliveredEntry(stored.sale),
+          payment: stored.payment ? projectDeliveredEntry(stored.payment) : null,
+          creditExceededBy: 0,
+        };
+      }
+    }
+
     const isDriver = actor.role === 'DRIVER';
-    if (order.status !== (isDriver ? 'IN_DELIVERY' : 'CONFIRMED')) {
+    const deliverableFrom = isDriver ? 'IN_DELIVERY' : 'CONFIRMED';
+    if (order.status !== deliverableFrom && !(options.viaSync && order.status === 'CANCELLED')) {
       throw httpError(409, 'INVALID_TRANSITION', `Order cannot be delivered from ${order.status}.`);
     }
     const inProgress = isDriver ? await findDeliveryInProgress(tx, orderId) : null;
@@ -420,12 +456,16 @@ export function deliverOrder(
       order.deliveryCost
     );
 
-    const collected = BigInt(input.collected_amount);
-    if (
-      relationship.creditLimit !== null &&
-      relationship.balance + total - collected > relationship.creditLimit
-    ) {
-      const minCollect = relationship.balance + total - relationship.creditLimit;
+    const payments = options.payments;
+    const collected = payments
+      ? payments.reduce((sum, payment) => sum + payment.amount, 0n)
+      : BigInt(input.collected_amount);
+    const creditLimit = relationship.creditLimit;
+    const overLimit =
+      creditLimit !== null ? relationship.balance + total - collected - creditLimit : 0n;
+    const creditExceededBy = overLimit > 0n ? Number(overLimit) : 0;
+    if (overLimit > 0n && !options.viaSync) {
+      const minCollect = relationship.balance + total - (creditLimit ?? 0n);
       throw httpError(409, 'CREDIT_INSUFFICIENT', 'The credit limit would be exceeded.', {
         min_collect: Number(minCollect),
       });
@@ -470,7 +510,7 @@ export function deliverOrder(
         };
       });
       await insertRestOrder(tx, {
-        id: newId(),
+        id: options.restOrderId ?? newId(),
         parentOrderId: orderId,
         customerRelationshipId: order.customerRelationshipId,
         enteredById: actor.personId,
@@ -494,20 +534,28 @@ export function deliverOrder(
       organizationId: actor.organizationId,
       occurredAt,
     });
-    const payment =
-      collected > 0n && input.mode !== undefined && input.payment_entry_id !== undefined
-        ? await appendLedgerEntry(tx, {
-            id: input.payment_entry_id,
-            relationshipId: relationship.id,
-            kind: 'PAYMENT',
-            amount: collected,
-            mode: input.mode,
-            orderId,
-            recordedById: actor.personId,
-            organizationId: actor.organizationId,
-            occurredAt,
-          })
-        : null;
+    const toRecord: ClosingPayment[] =
+      payments ??
+      (collected > 0n && input.mode !== undefined && input.payment_entry_id !== undefined
+        ? [{ id: input.payment_entry_id, amount: collected, mode: input.mode }]
+        : []);
+    const recorded = [];
+    for (const entry of toRecord) {
+      recorded.push(
+        await appendLedgerEntry(tx, {
+          id: entry.id,
+          relationshipId: relationship.id,
+          kind: 'PAYMENT',
+          amount: entry.amount,
+          mode: entry.mode,
+          orderId,
+          recordedById: actor.personId,
+          organizationId: actor.organizationId,
+          occurredAt,
+        })
+      );
+    }
+    const payment = recorded[0] ?? null;
 
     const recipientId = await findRegisteredCustomerRecipient(tx, orderId);
     if (recipientId !== null) {
@@ -527,8 +575,10 @@ export function deliverOrder(
       order: projectDeliveredOrder(closed),
       sale: projectDeliveredEntry(sale),
       payment: payment ? projectDeliveredEntry(payment) : null,
+      creditExceededBy,
     };
-  });
+  };
+  return options.tx ? work(options.tx) : runInTransaction(work);
 }
 
 export type CounterSaleResult = {

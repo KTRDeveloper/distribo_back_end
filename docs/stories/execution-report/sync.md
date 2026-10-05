@@ -487,3 +487,39 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - delivery.push.ts imports functions from delivery.repository.ts that delivery/contracts.md does not list (lockOrderToAssign, findDeliveryInProgress, markDeparted, markFailed...); contracts.md could list them.
 - SYNC-015 must handle arrived_at and the "delivery wins" case of CM-23 (currently set aside).
 <!-- end SYNC-013 -->
+
+<!-- begin SYNC-014 -->
+## SYNC-014 — Push the closing of an order with its sale and payments
+
+- Filed: 2026-10-05 03:45 UTC
+- Status: **done**: Closing of a pushed DELIVERED order via deliverOrder viaSync; story tests 45/45, full suite 2998/2998
+- Risk: high · story: [SYNC-014-push-the-closing-of-an-order-with-its-sale-and.md](../modules/sync/SYNC-014-push-the-closing-of-an-order-with-its-sale-and.md)
+- Agent: 131,098 tokens, 70 tool uses, 17 min 24 s
+
+### Agent report
+
+**Summary:** An order pushed DELIVERED is now closed by the server through `deliverOrder` with `viaSync`, in a savepoint of the batch transaction; sale at the server total.
+
+**Decisions:**
+- `DeliverOptions` gains `tx` and `restOrderId` beyond the story's signature: `tx` joins the batch transaction (a nested one would deadlock), `restOrderId` carries the pushed child id.
+- Closing runs after all tables (`runClosings`); the judge pulls DELIVERED orders, delivered quantities, SALE/PAYMENT rows and `arrived_at` out of the normal adapters (`closing.push.ts` take* functions).
+- Child (rest) order and its lines are taken out before the judge, as a DRIVER has no right to create orders; the server makes them at original prices with the pushed order id. Orphans (parent refused) get OUT_OF_SCOPE.
+- Business refusals (409/400) become an `issue` plus a French `sync_issue` (not on an already DELIVERED order); 404 becomes forbidden OUT_OF_SCOPE (a driver without a delivery of their own).
+- Crossed departure (CM-23): if the viewer's delivery was stored closed "Livraison déjà prise par", the closing closes the other in-progress delivery and reopens the viewer's before delivering.
+- Pushed SALE id reused only if free; its amount is never read. A repeat returns the stored result with `creditExceededBy` 0.
+- A payment id already used by another entry is answered forbidden and skipped; the batch goes on.
+- Deliver route now returns explicit `{order, sale, payment}` so `creditExceededBy` does not leak to the API.
+- A SELLER pushing a SALE row is still refused by the judge (rules table gives SELLER PAYMENT only); my seller tests push payments only.
+
+**Tests added beyond the story:**
+- `push-closing.test.ts` › driver with no own delivery (ASVS 8.2.1, AB-2); other business order refused; quantity above ordered leaves nothing written (fail closed); already delivered by another person writes no second sale; colliding payment id does not fail the batch (C-36); `creditExceededBy` on the service result (AC-5). All passed only after implementation.
+
+**Other additions:**
+- `findClosedResult` in `delivery.repository.ts` (repeat answer); `takenBy`/`TAKEN_BY_PREFIX` exported from `delivery.push.ts`.
+
+**Evidence:** story tests 45/45; full suite 2998/2998, failing: none; typecheck clean; lint 0 errors, 109 warnings (a few new security/detect-object-injection like the existing ones).
+
+**Follow-ups:**
+- A pushed `arrived_at` is now silently dropped for orders closed in the same batch; SYNC-015/017 should check it still fits.
+- Ledger rows of orders not stored are answered with the order outcome (judge extended to ledger_entries).
+<!-- end SYNC-014 -->
