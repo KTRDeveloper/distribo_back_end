@@ -39,12 +39,14 @@ export type Closing = {
   saleIds: string[];
   /** Rows taken from other tables, answered like the order. */
   related: Related[];
+  /** True when the judge kept the order under the rights the person held before a change (SYNC-019). */
+  graced: boolean;
 };
 
 /** The closings of one batch, by order id. */
 export type ClosingBook = Map<string, Closing>;
 
-const newClosing = (orderId: string, created: boolean): Closing => ({
+const newClosing = (orderId: string, created: boolean, graced: boolean): Closing => ({
   orderId,
   created,
   child: null,
@@ -52,6 +54,7 @@ const newClosing = (orderId: string, created: boolean): Closing => ({
   payments: [],
   saleIds: [],
   related: [],
+  graced,
 });
 
 const without = (row: Row, key: string): Row => {
@@ -67,14 +70,16 @@ const onlyKeys = (row: Row, allowed: string[]): boolean =>
  * Reads the judged `orders` lines: an order pushed with status DELIVERED becomes a closing, and its
  * `status` is removed so the orders adapter does not turn it into an issue.
  *
+ * @param graced - True for the lines the judge kept under old rights (SYNC-019): their closing runs
+ * with the viewer of that grace.
  * @returns The lines the orders adapter still has to see.
  */
-export function takeOrders(book: ClosingBook, change: TableChange): TableChange {
+export function takeOrders(book: ClosingBook, change: TableChange, graced = false): TableChange {
   const updated: Row[] = [];
   for (const row of change.updated) {
     const id = row['id'];
     if (row['status'] === 'DELIVERED' && typeof id === 'string') {
-      book.set(id, newClosing(id, false));
+      book.set(id, newClosing(id, false, graced));
       const rest = without(row, 'status');
       if (!onlyKeys(rest, ['id'])) updated.push(rest);
     } else {
@@ -83,7 +88,8 @@ export function takeOrders(book: ClosingBook, change: TableChange): TableChange 
   }
   for (const row of change.created) {
     const id = row['id'];
-    if (row['status'] === 'DELIVERED' && typeof id === 'string') book.set(id, newClosing(id, true));
+    if (row['status'] === 'DELIVERED' && typeof id === 'string')
+      book.set(id, newClosing(id, true, graced));
   }
   return { ...change, updated };
 }
@@ -519,10 +525,19 @@ async function closeOrder(ctx: PushContext, closing: Closing): Promise<LineOutco
  *
  * @param ctx - Viewer and the batch's transaction.
  * @param book - Closings read out of the judged tables.
+ * @param graced - The contexts a closing kept under old rights runs with (SYNC-019): `sale` for an
+ * order the viewer made in the same batch, `own` for the delivery of an order that existed.
  * @returns One outcome for the order and for each row that came with it.
  */
-export async function runClosings(ctx: PushContext, book: ClosingBook): Promise<LineOutcome[]> {
+export async function runClosings(
+  ctx: PushContext,
+  book: ClosingBook,
+  graced: { own: PushContext; sale: PushContext } = { own: ctx, sale: ctx }
+): Promise<LineOutcome[]> {
   const outcomes: LineOutcome[] = [];
-  for (const closing of book.values()) outcomes.push(...(await closeOrder(ctx, closing)));
+  for (const closing of book.values()) {
+    const closingCtx = !closing.graced ? ctx : closing.created ? graced.sale : graced.own;
+    outcomes.push(...(await closeOrder(closingCtx, closing)));
+  }
   return outcomes;
 }

@@ -1,7 +1,8 @@
 import { subject, type MongoAbility } from '@casl/ability';
-import type { Prisma } from '@prisma/client';
+import type { CollaborationRole, Prisma } from '@prisma/client';
 import { logger } from '../../lib/logger.js';
 import { abilityFor } from '../../shared/access/ability.js';
+import { atLeast } from '../../shared/access/roles.js';
 import {
   adoptRestRows,
   dropClosing,
@@ -22,12 +23,14 @@ import {
   findRelationshipOwner,
   findStoredRow,
   withPushTransaction,
+  type StoredRow,
   type RowOwner,
 } from './sync.repository.js';
 import type { PushBatch } from './sync.schemas.js';
 import {
   SYNC_TABLES,
   type LineOutcome,
+  type PushContext,
   type Row,
   type SyncTable,
   type TableChange,
@@ -207,7 +210,10 @@ const isUuid = (value: unknown): value is string => typeof value === 'string' &&
 /** Abilities as the server judges: never online, never past the 3-day window (ACC rules table). */
 const SERVER_CONTEXT = { onServer: true, online: false, daysSinceSync: 0 } as const;
 
-type Verdict = { ok: true; row: Row } | { ok: false; code: string; message: string };
+/** `graced` names the organization whose rows were kept under old rights (SYNC-019, CM-29). */
+type Verdict =
+  | { ok: true; row: Row; graced?: string }
+  | { ok: false; code: string; message: string };
 const refuse = (code: string, message: string): Verdict => ({ ok: false, code, message });
 const OUT_OF_SCOPE = refuse('OUT_OF_SCOPE', 'This line is outside your scope');
 const NOT_ALLOWED = refuse('FIELD_NOT_ALLOWED', 'Your role may not make this change');
@@ -219,7 +225,98 @@ type Judge = {
   abilities: Map<string, MongoAbility>;
   /** The orders closed in this batch (SYNC-014): their SALE and PAYMENT rows are not SYNC-015's. */
   closings: ClosingBook;
+  /** True when the device missed a rights change: its seller operations are kept (SYNC-019). */
+  stale: boolean;
+  /** The orders this batch kept under old rights: their lines are judged the same way. */
+  gracedOrders: Set<string>;
+  /** The operations kept under old rights that the owners are told about. */
+  gracedOps: Array<{ table: SyncTable; id: string; organizationId: string }>;
 };
+
+/**
+ * The role under which a seller operation of a stale device is judged (CM-29): what a SELLER or a
+ * DRIVER may do. A SELLER holds the DRIVER's rights too; nothing above (manager powers) is lent.
+ */
+const GRACE_ROLE: CollaborationRole = 'SELLER';
+
+/** The only fields a late sale or delivery may change on an order, a line or a delivery. */
+const SALE_ORDER_FIELDS = ['id', 'status', 'delivered_at', 'delivered_by_id'];
+const SALE_LINE_FIELDS = ['id', 'order_id', 'delivered_quantity'];
+const DELIVERY_FIELDS = [
+  'id',
+  'order_id',
+  'departed_at',
+  'arrived_at',
+  'failed_at',
+  'failure_reason',
+];
+
+const onlyFields = (row: Row, allowed: string[]): boolean =>
+  Object.keys(row).every((key) => allowed.includes(key));
+
+/**
+ * True when the line is one of the three seller operations kept after a rights change (CM-29): a
+ * sale (an order made or closed DELIVERED, and its lines), a delivery, or a payment. Anything else,
+ * including an edit of those rows that carries other fields along, is judged with current rights
+ * only (ASVS v5.0.0-8.2.1).
+ */
+function isSellerOperation(
+  judge: Judge,
+  table: JudgedTable,
+  row: Row,
+  listed: 'created' | 'updated',
+  stored: StoredRow | null
+): boolean {
+  switch (table) {
+    case 'orders':
+      return (
+        row['status'] === 'DELIVERED' &&
+        (listed === 'created' || onlyFields(row, SALE_ORDER_FIELDS))
+      );
+    case 'order_lines': {
+      if (listed === 'updated' && !onlyFields(row, SALE_LINE_FIELDS)) return false;
+      const orderId = row['order_id'] ?? stored?.row['order_id'];
+      return typeof orderId === 'string' && judge.gracedOrders.has(orderId);
+    }
+    case 'deliveries':
+      return listed === 'created' || onlyFields(row, DELIVERY_FIELDS);
+    case 'ledger_entries':
+      return listed === 'created' && (row['kind'] === 'PAYMENT' || row['kind'] === 'SALE');
+    default:
+      return false;
+  }
+}
+
+/**
+ * The role a seller operation of a stale device is judged under: the person's own role when it
+ * already is a SELLER or above, else the grace role: for a DRIVER, and for a collaborator revoked
+ * from this very organization. Null for any other person, so a row outside what they ever belonged
+ * to stays out of scope (ASVS v5.0.0-8.2.2).
+ */
+function graceRoleFor(viewer: Viewer, owner: RowOwner, role: string | null): string | null {
+  if (role === 'CUSTOMER' || owner.organizationId === null) return null;
+  if (role !== null) return atLeast(role, GRACE_ROLE) ? role : GRACE_ROLE;
+  const former = viewer.formerMemberships ?? [];
+  return former.some((m) => m.organizationId === owner.organizationId) ? GRACE_ROLE : null;
+}
+
+/**
+ * The viewer the adapters see for the lines kept under old rights (SYNC-019). `own` keeps what the
+ * person held, a former role capped at SELLER: a driver's closing still runs as a driver's, and a
+ * former manager gets no manager power. `sale` lends at least a SELLER wherever the person was,
+ * for the orders they made and closed themselves. Only lines the judge kept reach these viewers.
+ */
+function gracedViewer(viewer: Viewer, mode: 'own' | 'sale'): Viewer {
+  const memberships = viewer.memberships.map((m) =>
+    mode === 'sale' && !atLeast(m.role, GRACE_ROLE) ? { ...m, role: GRACE_ROLE } : m
+  );
+  for (const former of viewer.formerMemberships ?? []) {
+    if (memberships.some((m) => m.organizationId === former.organizationId)) continue;
+    const role = mode === 'own' && !atLeast(former.role, 'MANAGER') ? former.role : GRACE_ROLE;
+    memberships.push({ organizationId: former.organizationId, role, status: 'ACTIVE' });
+  }
+  return { ...viewer, memberships };
+}
 
 /**
  * The ledger only grows through a SELLER payment (SYNC-015): any other kind, and any update or
@@ -313,7 +410,12 @@ async function ownerOfNewRow(
 }
 
 /** Judges one created or updated row: scope, then rights, then the clean row for the adapter. */
-async function judgeRow(judge: Judge, table: JudgedTable, row: Row, listed: 'created' | 'updated') {
+async function judgeRow(
+  judge: Judge,
+  table: JudgedTable,
+  row: Row,
+  listed: 'created' | 'updated'
+): Promise<Verdict> {
   if (table === 'ledger_entries' && isOnlineOnlyLedger(judge, row, listed)) return ONLINE_ONLY;
   const id = row['id'];
   if (!isUuid(id)) return OUT_OF_SCOPE;
@@ -324,11 +426,38 @@ async function judgeRow(judge: Judge, table: JudgedTable, row: Row, listed: 'cre
 
   const owner = stored ? stored.owner : await ownerOfNewRow(judge, table, row);
   if (owner === null) return OUT_OF_SCOPE;
-  const role = owner === 'unresolved' ? null : roleFor(judge.viewer, owner);
+  let role = owner === 'unresolved' ? null : roleFor(judge.viewer, owner);
+  // A device that missed a rights change keeps its seller operations (CM-29, SYNC-019).
+  let graced: string | undefined;
+  // The database takes a new delivery only from an ACTIVE collaborator: a revoked person's new
+  // departure stays refused, whatever the grace (their earlier deliveries are closed normally).
+  const newDeparture = table === 'deliveries' && (listed === 'created' || !stored);
+  if (
+    judge.stale &&
+    owner !== 'unresolved' &&
+    !(newDeparture && role === null) &&
+    isSellerOperation(judge, table, row, listed, stored)
+  ) {
+    const lent = graceRoleFor(judge.viewer, owner, role);
+    if (lent !== null && owner.organizationId !== null) {
+      role = lent;
+      graced = owner.organizationId;
+    }
+  }
   if (owner !== 'unresolved' && role === null) return OUT_OF_SCOPE;
 
   const clean = stripComputed(table, row);
-  if (role === null) return { ok: true, row: clean } satisfies Verdict;
+  const accept = (): Verdict => {
+    if (graced === undefined) return { ok: true, row: clean };
+    if (table === 'orders') judge.gracedOrders.add(id);
+    const counted =
+      table === 'orders' ||
+      table === 'deliveries' ||
+      (table === 'ledger_entries' && row['kind'] === 'PAYMENT');
+    if (counted) judge.gracedOps.push({ table, id, organizationId: graced });
+    return { ok: true, row: clean, graced };
+  };
+  if (role === null) return accept();
   const ability = abilityOf(judge, role);
 
   if (listed === 'created' || !stored) {
@@ -337,7 +466,7 @@ async function judgeRow(judge: Judge, table: JudgedTable, row: Row, listed: 'cre
     for (const field of rules.authorIfPresent ?? []) {
       if (field in clean) clean[field] = judge.viewer.personId;
     }
-    return { ok: true, row: clean } satisfies Verdict;
+    return accept();
   }
 
   const instance = subject(rules.subject, stored.row);
@@ -350,7 +479,7 @@ async function judgeRow(judge: Judge, table: JudgedTable, row: Row, listed: 'cre
       : ability.can('update', instance, field);
     if (!allowed) return NOT_ALLOWED;
   }
-  return { ok: true, row: clean } satisfies Verdict;
+  return accept();
 }
 
 /** Judges the deletion of a row by id: it must be in scope and the role must hold `delete`. */
@@ -368,9 +497,13 @@ async function judgeDeletion(judge: Judge, table: JudgedTable, id: string): Prom
   return allowed ? { ok: true, row: {} } : NOT_ALLOWED;
 }
 
-/** Judges every line of one table; returns the lines to hand over and the forbidden outcomes. */
+/**
+ * Judges every line of one table; returns the lines to hand over, those kept under old rights
+ * (SYNC-019, to be handed over with their own viewer) and the forbidden outcomes.
+ */
 async function judgeTable(judge: Judge, table: JudgedTable, change: TableChange) {
   const passed: TableChange = { table, created: [], updated: [], deleted: [] };
+  const graced: TableChange = { table, created: [], updated: [], deleted: [] };
   const forbidden: LineOutcome[] = [];
   const refuseLine = (id: string, verdict: Verdict & { ok: false }) => {
     forbidden.push({ table, id, kind: 'forbidden', code: verdict.code, message: verdict.message });
@@ -379,7 +512,7 @@ async function judgeTable(judge: Judge, table: JudgedTable, change: TableChange)
   for (const listed of ['created', 'updated'] as const) {
     for (const row of change[listed]) {
       const verdict = await judgeRow(judge, table, row, listed);
-      if (verdict.ok) passed[listed].push(verdict.row);
+      if (verdict.ok) (verdict.graced === undefined ? passed : graced)[listed].push(verdict.row);
       else refuseLine(typeof row['id'] === 'string' ? row['id'] : '', verdict);
     }
   }
@@ -388,7 +521,7 @@ async function judgeTable(judge: Judge, table: JudgedTable, change: TableChange)
     if (verdict.ok) passed.deleted.push(id);
     else refuseLine(id, verdict);
   }
-  return { passed, forbidden };
+  return { passed, graced, forbidden };
 }
 
 /**
@@ -458,17 +591,48 @@ const REFUSED_WORDS = {
     `${n} operation(s) not recorded. Reason: ${codes}. Lines: ${lines}`,
 };
 
+const GRACED_WORDS = {
+  FR: (n: number) => `${n} opération(s) faites avec d'anciens droits`,
+  EN: (n: number) => `${n} operation(s) made with former rights`,
+};
+
+/** A person's name before the refusal text the owners read: they must know whose phone it is. */
+const OWNER_REFUSED_WORDS = {
+  FR: (name: string, text: string) => `${name} : ${text} (après un changement de droits)`,
+  EN: (name: string, text: string) => `${name}: ${text} (after a rights change)`,
+};
+
+/** The ACTIVE owners of an organization who have an account (one notification each, SYNC-017). */
+async function ownersOf(tx: Prisma.TransactionClient, organizationId: string): Promise<string[]> {
+  const owners = await tx.collaboration.findMany({
+    where: {
+      organizationId,
+      role: 'OWNER',
+      status: 'ACTIVE',
+      deletedAt: null,
+      person: { registeredAt: { not: null } },
+    },
+    select: { personId: true },
+  });
+  return owners.map((owner) => owner.personId);
+}
+
 /**
  * The lines of a batch no rule wrote: each is logged at `warn` (table, row id, code, person id;
  * never row content, ASVS v5.0.0-16.3.2) and the author gets one `sync.refused` notification for
  * the batch, in their language, naming `table:code` for the first 5 lines, never amounts or names
  * (CM-28, ASVS v5.0.0-16.3.3). A table name outside the sync tables is shown as `unknown`, so a
  * phone's text never reaches a notification.
+ *
+ * After a rights change the owners of the organizations the person belongs or belonged to get the
+ * same text with the person's name, one notification each: a refused operation is never silent
+ * (SYNC-019, CM-29, ASVS v5.0.0-16.3.1).
  */
 async function reportUnwritten(
   viewer: Viewer,
   tx: Prisma.TransactionClient,
-  lines: Unwritten[]
+  lines: Unwritten[],
+  tellOwners = false
 ): Promise<void> {
   if (lines.length === 0) return;
   for (const line of lines) {
@@ -500,6 +664,80 @@ async function reportUnwritten(
     },
     tx
   );
+  if (!tellOwners) return;
+  const person = await tx.person.findUnique({
+    where: { id: viewer.personId },
+    select: { fullName: true },
+  });
+  const organizations = new Set([
+    ...viewer.memberships.map((m) => m.organizationId),
+    ...(viewer.formerMemberships ?? []).map((m) => m.organizationId),
+  ]);
+  for (const organizationId of [...organizations].sort()) {
+    for (const ownerId of await ownersOf(tx, organizationId)) {
+      if (ownerId === viewer.personId) continue;
+      const ownerLanguage = await recipientLanguage(ownerId, tx);
+      await notify(
+        {
+          recipientId: ownerId,
+          organizationId,
+          sourceEvent: 'sync.refused',
+          content: OWNER_REFUSED_WORDS[ownerLanguage](
+            person?.fullName ?? '',
+            REFUSED_WORDS[ownerLanguage](lines.length, codes, named)
+          ),
+        },
+        tx
+      );
+    }
+  }
+}
+
+/**
+ * Tells the owners of each organization how many operations of a stale device were kept under old
+ * rights, in one `sync.rights_changed` notification each, and logs it at `warn` with ids only
+ * (SYNC-019, CM-29, ASVS v5.0.0-16.3.1). Only operations the server stored count.
+ */
+async function reportGracedOperations(
+  viewer: Viewer,
+  tx: Prisma.TransactionClient,
+  ops: Judge['gracedOps'],
+  outcomes: LineOutcome[]
+): Promise<void> {
+  const stored = new Set(
+    outcomes
+      .filter((o) => o.kind === 'accepted' || o.kind === 'issue')
+      .map((o) => `${o.table}:${o.id}`)
+  );
+  const perOrganization = new Map<string, number>();
+  for (const op of ops) {
+    if (!stored.has(`${op.table}:${op.id}`)) continue;
+    perOrganization.set(op.organizationId, (perOrganization.get(op.organizationId) ?? 0) + 1);
+  }
+  for (const [organizationId, count] of [...perOrganization].sort()) {
+    logger.warn(
+      {
+        event: 'sync_rights_changed_push',
+        personId: viewer.personId,
+        deviceId: viewer.deviceId,
+        organizationId,
+        count,
+      },
+      'operations kept under rights held before a change'
+    );
+    for (const ownerId of await ownersOf(tx, organizationId)) {
+      const language = await recipientLanguage(ownerId, tx);
+      await notify(
+        {
+          recipientId: ownerId,
+          organizationId,
+          sourceEvent: 'sync.rights_changed',
+          content: GRACED_WORDS[language](count),
+        },
+        tx
+      );
+    }
+  }
 }
 
 /**
@@ -528,6 +766,12 @@ async function reportUnwritten(
  * author in one `sync.refused` notification; a refused line makes `resync_required` true
  * (SYNC-018, CM-28). A line set aside alone does not: the phone's copy matches what was kept.
  *
+ * First push after a rights change (SYNC-019, CM-29): when the device's `scope_version_seen` is
+ * older than the person's `scope_version`, the sales, deliveries and payments of the batch are kept
+ * even if the current role (or a revoked membership) no longer allows them, and each organization's
+ * owners get one `sync.rights_changed` with the count. Every other line is judged with the current
+ * rights, and the owners hear of the refusals as the author does. Nothing else is lent.
+ *
  * Tables outside the six judged ones go to their adapter as sent: their adapters own the rules.
  * Rows that name no parent are not scope-checked here, only handed over; the adapter refuses them.
  *
@@ -545,7 +789,20 @@ export async function judgeBatch(
 
     const adapters = new Map(getAdapters().map((a) => [a.table, a]));
     const closings: ClosingBook = new Map();
-    const judge: Judge = { viewer, tx, abilities: new Map(), closings };
+    // A device that missed a rights change keeps its seller operations (SYNC-019, CM-29).
+    const stale =
+      viewer.scopeVersionSeen !== undefined && viewer.scopeVersionSeen < viewer.scopeVersion;
+    const ownCtx = { viewer: stale ? gracedViewer(viewer, 'own') : viewer, tx };
+    const saleCtx = { viewer: stale ? gracedViewer(viewer, 'sale') : viewer, tx };
+    const judge: Judge = {
+      viewer,
+      tx,
+      abilities: new Map(),
+      closings,
+      stale,
+      gracedOrders: new Set(),
+      gracedOps: [],
+    };
     const outcomes: LineOutcome[] = [];
     const unwritten: Unwritten[] = [];
     let aside = 0;
@@ -585,32 +842,49 @@ export async function judgeBatch(
         toApply = split.kept;
         restRows = split.taken;
       }
+      // The lines the judge kept under old rights go to the adapters with their own viewer.
+      let parts: Array<{ change: TableChange; ctx: PushContext; graced: boolean }> = [
+        { change: toApply, ctx: { viewer, tx }, graced: false },
+      ];
       if (isJudged(table)) {
-        const { passed, forbidden } = await judgeTable(judge, table, toApply);
+        const { passed, graced, forbidden } = await judgeTable(judge, table, toApply);
         outcomes.push(...forbidden);
-        toApply = passed;
-        // An order pushed DELIVERED is closed by the server after every table (SYNC-014).
-        const ctx = { viewer, tx };
-        if (table === 'orders') {
-          for (const row of toApply.created) {
-            if (typeof row['id'] === 'string') createdOrderIds.push(row['id']);
+        parts = [
+          { change: passed, ctx: { viewer, tx }, graced: false },
+          {
+            change: graced,
+            ctx: table === 'orders' || table === 'order_lines' ? saleCtx : ownCtx,
+            graced: true,
+          },
+        ];
+        for (const part of parts) {
+          // An order pushed DELIVERED is closed by the server after every table (SYNC-014).
+          if (table === 'orders') {
+            for (const row of part.change.created) {
+              if (typeof row['id'] === 'string') createdOrderIds.push(row['id']);
+            }
+            part.change = takeOrders(closings, part.change, part.graced);
           }
-          toApply = takeOrders(closings, toApply);
+          if (closings.size > 0) {
+            if (table === 'order_lines') {
+              part.change = await takeLines(part.ctx, closings, part.change);
+            }
+            if (table === 'deliveries') {
+              part.change = await takeDeliveries(part.ctx, closings, part.change);
+            }
+            if (table === 'ledger_entries') part.change = takeLedger(closings, part.change);
+          }
         }
         if (restRows.length > 0 && (table === 'orders' || table === 'order_lines')) {
           outcomes.push(...adoptRestRows(closings, restOrders, table, restRows));
         }
-        if (closings.size > 0) {
-          if (table === 'order_lines') toApply = await takeLines(ctx, closings, toApply);
-          if (table === 'deliveries') toApply = await takeDeliveries(ctx, closings, toApply);
-          if (table === 'ledger_entries') toApply = takeLedger(closings, toApply);
-        }
       }
-      if (countRows(toApply) > 0) {
+      for (const part of parts) {
+        if (countRows(part.change) === 0) continue;
         // Only an order created in this batch can be missing for its lines: an edit of a stored
         // order (SYNC-013) that ends as an issue leaves the order and its lines in place.
-        const createdIds = new Set(toApply.created.map((row) => row['id']));
-        const pushed = await adapter.push({ viewer, tx }, toApply);
+        const createdIds = new Set(part.change.created.map((row) => row['id']));
+        const pushed = await adapter.push(part.ctx, part.change);
         outcomes.push(...pushed);
         for (const line of pushed) {
           if (line.mergedInto && table === 'customer_relationships') {
@@ -624,7 +898,10 @@ export async function judgeBatch(
       }
     }
 
-    for (const line of await runClosings({ viewer, tx }, closings)) {
+    for (const line of await runClosings({ viewer, tx }, closings, {
+      own: ownCtx,
+      sale: saleCtx,
+    })) {
       // The closing of an order created in this batch may refine the creation's own outcome.
       const index = outcomes.findIndex((o) => o.table === line.table && o.id === line.id);
       if (index === -1) outcomes.push(line);
@@ -632,7 +909,7 @@ export async function judgeBatch(
     }
 
     // Controls never refuse: they flag the orders stored by this batch and tell the owners (SYNC-016).
-    await runBatchControls({ viewer, tx }, createdOrderIds);
+    await runBatchControls(saleCtx, createdOrderIds);
     // A device back after a long absence is told to the owners, before `last_synced_at` moves (SYNC-017).
     if (!options.replay) await runLongAbsence({ viewer, tx });
 
@@ -655,7 +932,8 @@ export async function judgeBatch(
       }
     }
     // A refused line means the phone holds something the server did not keep: it pulls again (CM-28).
-    await reportUnwritten(viewer, tx, unwritten);
+    await reportUnwritten(viewer, tx, unwritten, stale);
+    if (stale) await reportGracedOperations(viewer, tx, judge.gracedOps, outcomes);
     return { accepted, rejected, aside, resync_required: rejected.length > 0 };
   });
 }

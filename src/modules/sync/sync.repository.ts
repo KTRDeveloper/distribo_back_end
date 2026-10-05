@@ -44,6 +44,31 @@ export async function isDeviceRevoked(personId: string, deviceId: string): Promi
 }
 
 /**
+ * What a push needs to judge a device whose phone missed a rights change (SYNC-019): the scope
+ * version the device last saw, and the organizations where the person's membership was REVOKED
+ * (with the role they held). A device that does not exist or is not the person's has seen nothing
+ * (null).
+ */
+export async function findRightsHistory(
+  personId: string,
+  deviceId: string
+): Promise<{
+  scopeVersionSeen: number;
+  formerMemberships: Array<{ organizationId: string; role: CollaborationRole }>;
+} | null> {
+  const device = await prisma.device.findFirst({
+    where: { id: deviceId, personId },
+    select: { scopeVersionSeen: true },
+  });
+  if (!device) return null;
+  const former = await prisma.collaboration.findMany({
+    where: { personId, status: 'REVOKED', deletedAt: null },
+    select: { organizationId: true, role: true },
+  });
+  return { scopeVersionSeen: device.scopeVersionSeen, formerMemberships: former };
+}
+
+/**
  * Records a pull on the person's live device: `last_synced_at` is server time, and
  * `scope_version_seen` is written only when `scopeVersionSeen` is given. The update filters on
  * person and device together and skips revoked devices (C-34).

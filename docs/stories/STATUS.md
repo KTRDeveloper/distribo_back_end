@@ -201,7 +201,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-016 | done | | controls on arrival: PRICE_CHANGED, DATE_*, owner notification; suite 3010 green |
 | SYNC-017 | done | | controls: CREDIT_EXCEEDED, RESTRICTED_MODE, long-absence notice; 9 tests |
 | SYNC-018 | done | | Refused and set-aside lines logged, resync on refusal, sync.refused notice; push-payments test updated |
-| SYNC-019 | todo | | |
+| SYNC-019 | done | | Grace for stale devices: seller ops kept and reported, rest refused; owners told |
 | SYNC-020 | done | | GET /sync/issues: orders and deliveries with sync_issue, scoped by author or OWNER |
 | SYNC-021 | done | | GET exceptions/sync grouped by cause; orders only; reuses FIN-019 period rules |
 | SYNC-022 | todo | | |

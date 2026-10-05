@@ -33,6 +33,18 @@ export type Viewer = {
   memberships: Array<{ organizationId: string; role: CollaborationRole; status: 'ACTIVE' }>;
   scopeVersion: number;
   isOnline: false;
+  /**
+   * What the device last learned of the person's rights (`Device.scope_version_seen`). Lower than
+   * `scopeVersion`, the phone did not know about a rights change and its first push is judged
+   * with the grace of SYNC-019 (CM-29). Absent when unknown: no grace.
+   */
+  scopeVersionSeen?: number;
+  /**
+   * Organizations where the person's membership was REVOKED, with the role they held. Read only
+   * for a device with stale rights: a revoked collaborator's late sales, deliveries and payments
+   * are kept (CM-29), never anything else.
+   */
+  formerMemberships?: Array<{ organizationId: string; role: CollaborationRole }>;
 };
 
 /** What a phone sends for one table in a push. */

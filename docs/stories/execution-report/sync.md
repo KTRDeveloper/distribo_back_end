@@ -664,6 +664,42 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - None.
 <!-- end SYNC-018 -->
 
+<!-- begin SYNC-019 -->
+## SYNC-019 — First push after a rights change
+
+- Filed: 2026-10-05 05:25 UTC
+- Status: **done**: Grace for stale devices: seller ops kept and reported, rest refused; owners told
+- Risk: high · story: [SYNC-019-first-push-after-a-rights-change.md](../modules/sync/SYNC-019-first-push-after-a-rights-change.md)
+- Agent: 150,128 tokens, 46 tool uses, 16 min 2 s
+
+### Agent report
+
+**Summary:** A push from a device with stale rights (scope_version_seen < scope_version) now keeps sales, deliveries and payments, reports them to the owners, and refuses the rest.
+
+**Decisions:**
+- Seller operations: an order created or closed DELIVERED, its lines, deliveries, and PAYMENT/SALE ledger rows. A row that carries extra fields (e.g. a note on a delivered order) is not one and is judged normally.
+- Notification count: accepted orders, deliveries and PAYMENT rows per organization, not lines or SALE rows. It is sent even when the current role would have allowed the line (AC-1 demotes to SELLER).
+- Refused lines in a stale batch: owners of the person's active and revoked organizations get a `sync.refused` notification with the person's name. The story names no event for this.
+- Role lent to the judge: SELLER (which includes DRIVER rights), never manager. Organization scope for a revoked person needs a REVOKED collaboration in that organization.
+- Adapter viewer: `own` (former role capped at SELLER, so a driver's closing stays a driver's) or `sale` (at least SELLER, for orders made in the same batch). Added optional fields to `Viewer` for this.
+- A revoked person's NEW departure stays refused: a database rule requires an ACTIVE driver. Without this the push returned 500. Their earlier deliveries close normally.
+
+**Tests added beyond the story:**
+- `rights-change.test.ts` › manager demoted to driver keeps a late sale: the lent role reaches the closing (AC-1, CM-29); passed at once
+- `rights-change.test.ts` › scope_version_seen left alone by a push (CM-03, story context)
+- `rights-change.test.ts` › revoked person's sale in an organization they never belonged to is refused (AB-1, ASVS 8.2.2)
+- `rights-change.test.ts` › new departure by a revoked driver refused, payment kept (AB-1, database rule)
+
+**Other additions:**
+- `findRightsHistory` in `sync.repository.ts`, and a `graced` flag with a `{own, sale}` context in `closing.push.ts` (`takeOrders`, `runClosings`): needed so adapters see a viewer matching the lent rights.
+
+**Evidence:** story tests 10/10; full suite 3074/3074, failing: none; typecheck clean; lint 0 errors, 127 warnings (all pre-existing security/detect-non-literal-fs-filename type)
+
+**Follow-ups:**
+- The wording of the owner notice for refused lines (name plus text) is my choice; a human may want to confirm it.
+- The count in `sync.rights_changed` is of operations (order, delivery, payment), not of sales.
+<!-- end SYNC-019 -->
+
 <!-- begin SYNC-020 -->
 ## SYNC-020 — The list of things to resolve
 
