@@ -333,3 +333,38 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - The flaky SYNC-004 test (`not.toContain('99000')` on a serialized body with timestamps) should use a less collision-prone sentinel.
 - SYNC-010 must replace `applyBatch` and set `resync_required` per SYNC-018.
 <!-- end SYNC-009 -->
+
+<!-- begin SYNC-010 -->
+## SYNC-010 — Judge pipeline: scope, field rights, computed fields
+
+- Filed: 2026-10-05 02:43 UTC
+- Status: **done**: judgeBatch wired in pushChanges; scope, field rights, computed strip, author; 19 tests, full suite 2923 green
+- Risk: high · story: [SYNC-010-judge-pipeline-scope-field-rights-computed.md](../modules/sync/SYNC-010-judge-pipeline-scope-field-rights-computed.md)
+- Agent: 53,176 tokens, 20 tool uses, 5 min 7 s
+
+### Agent report
+
+**Summary:** judgeBatch (scope, field rights, computed strip, author from session) written and wired into pushChanges; replaces the interim apply loop.
+
+**Decisions:**
+- Order, line and delivery step fields (status, delivered_*, departed_at...): the rules table grants them as transitions, not `update`; the judge requires the role to hold one transition and leaves the exact step to the adapters (SYNC-012+).
+- Order line create right: the order's `create` right (a line is written with its order).
+- Update of an unknown id answers OUT_OF_SCOPE, same as a foreign id (no existence leak).
+- Customer person owning the relationship acts as CUSTOMER (no write right) even if also a member.
+- Unchanged fields of a whole-row update (equal to stored) are not rights-checked.
+- Notifications: phones cannot create; recipient is the scope owner.
+- Sale `amount` on ledger entries is stripped; payment amount is kept (phone-collected).
+- `beforeApply` option runs the 409 conflict check inside the batch transaction.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/judge.test.ts` › unknown id vs foreign id, DRIVER create refused, immutable ledger update/delete, customer no write right, foreign notification, relationship create naming another org, rejected line not stopping others: fail-closed and no-leak paths (CONVENTIONS: 404/scope rule, immutable tables, CM-28); passed at once once the judge existed
+
+**Other additions:**
+- `findStoredRow`, `findRelationshipOwner`, `findOrderOwner` in `sync.repository.ts`: the judge compares updates with the server's own row; repository is the only prisma caller.
+
+**Evidence:** story tests 19/19; full suite 2923/2923, failing: none; typecheck clean; lint 0 errors, 86 warnings (object-injection on allowlisted keys, same kind as existing)
+
+**Follow-ups:**
+- Rows of the six tables that name no parent are handed to the adapter unscoped (adapter must refuse the malformed row).
+- `forbidden` still reports resync_required: false; full resync plus notification to the author (CM-28) is not in this story's ACs.
+<!-- end SYNC-010 -->

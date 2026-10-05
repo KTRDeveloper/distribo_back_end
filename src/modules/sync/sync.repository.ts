@@ -83,3 +83,118 @@ export async function withPushTransaction<T>(
 ): Promise<T> {
   return prisma.$transaction(work);
 }
+
+/** The six tables the judge reads and scopes. */
+export type JudgedTable =
+  | 'customer_relationships'
+  | 'orders'
+  | 'order_lines'
+  | 'deliveries'
+  | 'ledger_entries'
+  | 'notifications';
+
+/** Who a stored or referenced row belongs to: its supplier organization, its customer person. */
+export type RowOwner = { organizationId: string | null; customerPersonId: string | null };
+
+/** A stored row as the judge compares it: scalar columns in snake_case, plus who owns it. */
+export type StoredRow = { row: Record<string, unknown>; owner: RowOwner };
+
+const OWNER_SELECT = { supplierOrganizationId: true, customerPersonId: true } as const;
+type OwnerColumns = { supplierOrganizationId: string | null; customerPersonId: string | null };
+
+const ownerOf = (r: OwnerColumns): RowOwner => ({
+  organizationId: r.supplierOrganizationId,
+  customerPersonId: r.customerPersonId,
+});
+
+function snakeCase(key: string): string {
+  return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+/** Keeps the scalar columns of a Prisma row and names them as a phone does. */
+function toSnakeRow(entity: object): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(entity)) {
+    const isRelation =
+      value !== null &&
+      typeof value === 'object' &&
+      !(value instanceof Date) &&
+      !('toFixed' in value && 'toNumber' in value);
+    if (!isRelation) row[snakeCase(key)] = value;
+  }
+  return row;
+}
+
+/**
+ * Who owns the relationship `id`, or null when it does not exist. The reads below run on the
+ * transaction of the push and take only an id already checked as a UUID.
+ */
+export async function findRelationshipOwner(
+  tx: Prisma.TransactionClient,
+  id: string
+): Promise<RowOwner | null> {
+  const found = await tx.customerRelationship.findUnique({ where: { id }, select: OWNER_SELECT });
+  return found ? ownerOf(found) : null;
+}
+
+/** Who owns the order `id` through its relationship, or null when it does not exist. */
+export async function findOrderOwner(
+  tx: Prisma.TransactionClient,
+  id: string
+): Promise<RowOwner | null> {
+  const found = await tx.order.findUnique({
+    where: { id },
+    select: { customerRelationship: { select: OWNER_SELECT } },
+  });
+  return found ? ownerOf(found.customerRelationship) : null;
+}
+
+/**
+ * Reads the stored row `id` of a judged table with its owner, or null when absent. The judge
+ * compares a pushed update with this row, so only the server's own version is ever trusted.
+ */
+export async function findStoredRow(
+  tx: Prisma.TransactionClient,
+  table: JudgedTable,
+  id: string
+): Promise<StoredRow | null> {
+  const withRelationship = { customerRelationship: { select: OWNER_SELECT } };
+  const withOrder = { order: { select: withRelationship } };
+  switch (table) {
+    case 'customer_relationships': {
+      const r = await tx.customerRelationship.findUnique({ where: { id } });
+      return r ? { row: toSnakeRow(r), owner: ownerOf(r) } : null;
+    }
+    case 'orders': {
+      const found = await tx.order.findUnique({ where: { id }, include: withRelationship });
+      if (!found) return null;
+      const { customerRelationship, ...r } = found;
+      return { row: toSnakeRow(r), owner: ownerOf(customerRelationship) };
+    }
+    case 'order_lines': {
+      const found = await tx.orderLine.findUnique({ where: { id }, include: withOrder });
+      if (!found) return null;
+      const { order, ...r } = found;
+      return { row: toSnakeRow(r), owner: ownerOf(order.customerRelationship) };
+    }
+    case 'deliveries': {
+      const found = await tx.delivery.findUnique({ where: { id }, include: withOrder });
+      if (!found) return null;
+      const { order, ...r } = found;
+      return { row: toSnakeRow(r), owner: ownerOf(order.customerRelationship) };
+    }
+    case 'ledger_entries': {
+      const found = await tx.ledgerEntry.findUnique({ where: { id }, include: withRelationship });
+      if (!found) return null;
+      const { customerRelationship, ...r } = found;
+      return { row: toSnakeRow(r), owner: ownerOf(customerRelationship) };
+    }
+    case 'notifications': {
+      const r = await tx.notification.findUnique({ where: { id } });
+      // A notification belongs to its recipient alone: the recipient stands for the owner person.
+      return r
+        ? { row: toSnakeRow(r), owner: { organizationId: null, customerPersonId: r.recipientId } }
+        : null;
+    }
+  }
+}

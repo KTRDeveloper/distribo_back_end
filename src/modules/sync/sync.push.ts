@@ -3,10 +3,11 @@ import { configService } from '../../lib/config-service.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { getAdapters } from './sync.registry.js';
-import { archiveBatch, withPushTransaction } from './sync.repository.js';
+import { judgeBatch } from './sync.judge.js';
+import { archiveBatch } from './sync.repository.js';
 import type { PushBatch } from './sync.schemas.js';
 import { recordPush } from './sync.service.js';
-import { SYNC_TABLES, type LineOutcome, type SyncTable, type Viewer } from './sync.types.js';
+import type { Viewer } from './sync.types.js';
 
 /** A phone clock further than this from server time makes the app ask for automatic time (CM-31). */
 const CLOCK_SKEW_LIMIT_MS = 5 * 60_000;
@@ -93,52 +94,6 @@ async function assertNoConflict(
   }
 }
 
-function countRows(table: { created: unknown[]; updated: unknown[]; deleted: unknown[] }): number {
-  return table.created.length + table.updated.length + table.deleted.length;
-}
-
-/**
- * Hands each table of the batch to its adapter inside the transaction and tallies the outcomes.
- * A table the registry does not know is set aside, row by row, and never stops the rest (C-36).
- * Tables run in the order of the sync tables, parents before children.
- * SYNC-010 replaces this loop with `judgeBatch` (scope, field rights, computed fields).
- */
-async function applyBatch(
-  viewer: Viewer,
-  changes: PushBatch,
-  tx: Prisma.TransactionClient
-): Promise<Omit<PushResponse, 'clock_skew'>> {
-  const adapters = new Map(getAdapters().map((a) => [a.table, a]));
-  const outcomes: LineOutcome[] = [];
-  let aside = 0;
-
-  for (const [name, change] of Object.entries(changes)) {
-    if (!adapters.has(name as SyncTable)) aside += countRows(change);
-  }
-  for (const table of SYNC_TABLES) {
-    const change = changes[table];
-    const adapter = adapters.get(table);
-    if (!change || !adapter) continue;
-    outcomes.push(...(await adapter.push({ viewer, tx }, { table, ...change })));
-  }
-
-  const rejected: PushResponse['rejected'] = [];
-  let accepted = 0;
-  for (const outcome of outcomes) {
-    if (outcome.kind === 'accepted' || outcome.kind === 'issue') accepted += 1;
-    else if (outcome.kind === 'aside') aside += 1;
-    else {
-      rejected.push({
-        table: outcome.table,
-        id: outcome.id,
-        code: outcome.code ?? 'REFUSED',
-        message: outcome.message ?? 'Line refused',
-      });
-    }
-  }
-  return { accepted, rejected, aside, resync_required: false };
-}
-
 /**
  * One push exchange: the batch is archived as received first, in its own committed write, so a
  * refusal or a failure later loses nothing (ASVS v5.0.0-16.3.1, CM-28). Then, in order: the app
@@ -157,9 +112,8 @@ export async function pushChanges(viewer: Viewer, input: PushInput): Promise<Pus
   const clockSkew =
     input.clientTime !== undefined && Math.abs(input.clientTime - Date.now()) > CLOCK_SKEW_LIMIT_MS;
 
-  const result = await withPushTransaction(async (tx) => {
-    await assertNoConflict(viewer, input.changes, input.lastPulledAt, tx);
-    return applyBatch(viewer, input.changes, tx);
+  const result = await judgeBatch(viewer, input.changes, {
+    beforeApply: (tx) => assertNoConflict(viewer, input.changes, input.lastPulledAt, tx),
   });
 
   await recordPush(viewer);

@@ -192,7 +192,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-007 | done | | money adapter registered in sync.routes.ts; 10 tests, full suite 2874 green |
 | SYNC-008 | done | | Pull checks X-Scope-Version, revoked device 401, records last_synced_at and scope_version_seen |
 | SYNC-009 | done | | Push envelope: archive, 426, clock skew, 409, aside, last_synced_at; interim apply loop until SYNC-010 judgeBatch |
-| SYNC-010 | todo | | |
+| SYNC-010 | done | | judgeBatch wired in pushChanges; scope, field rights, computed strip, author; 19 tests, full suite 2923 green |
 | SYNC-011 | todo | | |
 | SYNC-012 | todo | | |
 | SYNC-013 | todo | | |
