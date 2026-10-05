@@ -92,3 +92,34 @@ Also in this run: relationship, catalog, order, finance, delivery, sync.
 - An OWNER of a CLOSED organization: revoking their ACTIVE OWNER collaboration violates the "exactly one ACTIVE OWNER" deferred trigger, so that deletion fails with 500 and rolls back (AC-6 holds). The story says revoke every collaboration; needs a decision (e.g. skip owners of closed organizations).
 - Blockers are checked before the transaction, not inside it: a balance changing in between is not locked.
 <!-- end PRIV-002 -->
+
+<!-- begin PRIV-003 -->
+## PRIV-003 — Daily purge of expired data
+
+- Filed: 2026-10-05 05:56 UTC
+- Status: **done**: purge service, job and tests; archives pointed to by a journal entry are kept
+- Risk: high · story: [PRIV-003-daily-purge-of-expired-data.md](../modules/privacy/PRIV-003-daily-purge-of-expired-data.md)
+- Agent: 59,217 tokens, 24 tool uses, 10 min 24 s
+
+### Agent report
+
+**Summary:** Added `purge(now)`, the `job:purge` script and tests; all five tables purged in batches of 1000 under the migration account.
+
+**Decisions:**
+- Archives referenced by an admin_actions row (REPLAY_SYNC): kept, not deleted, because the foreign key is RESTRICT and the journal is immutable; deleting would make the whole purge fail every day.
+- `purge()` builds its own Prisma client from `MIGRATION_DATABASE_URL` and throws without it (no fallback to `DATABASE_URL`); the job maps any error to exit 1.
+- Cutoffs computed in SQL (`interval '24 months'`) so months follow the calendar; deletes use `ctid` batches so the composite-key idempotency table works.
+- Log is `purge_done` with `counts` (per table) and `total`, nothing else.
+
+**Tests added beyond the story:**
+- `tests/integration/privacy/purge.test.ts` › purge() refuses to run without MIGRATION_DATABASE_URL (AC-3, fail closed)
+- same file › job exits 0 and deletes when the variable is set (AC-3 positive path)
+- same file › archive pointed to by a journal entry is kept and the rest is purged (immutable journal, FK; my decision above)
+- All passed at once only because the implementation was written in the same step; none was watched failing separately.
+
+**Evidence:** story tests 9/9; full suite 3105/3105, failing: none; typecheck clean; lint 0 errors, 130 existing warnings
+
+**Follow-ups:**
+- Confirm the "keep archives referenced by a REPLAY_SYNC journal entry" rule; those archives then outlive 90 days.
+- Scheduling stays out of scope (Q-010).
+<!-- end PRIV-003 -->

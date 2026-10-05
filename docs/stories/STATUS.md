@@ -208,7 +208,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-023 | done | | list and open archived batches; 7 tests, suite 3096 green |
 | PRIV-001 | done | | GET /users/me/deletion-check implemented; suite 2207 green |
 | PRIV-002 | done | | DELETE /users/me anonymizes in one transaction; Task table column mismatch worked around with raw SQL |
-| PRIV-003 | todo | | |
+| PRIV-003 | done | | purge service, job and tests; archives pointed to by a journal entry are kept |
 | PER-009 | done | | Targeted tests: 18 passed; full suite: 247 passed; typecheck, lint and format check pass |
 | FND-010 | done | | Formatting, typecheck, lint, and full suite pass; test person fixtures now generate the required UUIDv7 id |
 | FND-011 | done | | |
