@@ -413,3 +413,39 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - Issues (MERGED, INVALID_PHONE) are not yet returned to the phone: SYNC-020.
 - Cross-batch orders naming a merged id need `resolveMergedRelation` in SYNC-012.
 <!-- end SYNC-011 -->
+
+<!-- begin SYNC-012 -->
+## SYNC-012 — Push orders entered offline
+
+- Filed: 2026-10-05 03:18 UTC
+- Status: **done**: orders and lines pushed with server amounts; migration lets retired-product lines in
+- Risk: high · story: [SYNC-012-push-orders-entered-offline.md](../modules/sync/SYNC-012-push-orders-entered-offline.md)
+- Agent: 139,371 tokens, 36 tool uses, 9 min 19 s
+
+### Agent report
+
+**Summary:** Orders and order_lines push implemented (order.push.ts, judge hook); all tests green.
+
+**Decisions:**
+- Retired product (AC-3) vs ORD-005 trigger, which refuses non-ACTIVE products on insert: added migration 20261004340000_sync_012_retired_product_lines (not listed in the story) that skips only that check when the transaction-local setting `distribo.allow_retired_product` is 'on'. The push sets it around that one insert and resets it; schema.prisma comment updated.
+- The orders adapter stores the order empty (total = delivery cost); the order_lines adapter inserts lines then recomputes the total (and sets sync_issue), since the total check is deferred to commit.
+- Judge: lines of an order the adapter did not store take that order's outcome (issue/aside) instead of being judged, so AC-4 never yields `forbidden`.
+- `created_at` from the phone is kept, but a moment after server now is clamped to now (CM-31); an unparsable one is set aside.
+- Unusable values (quantity <= 0, negative/huge price or cost, bad date) are `aside` INVALID_FIELD; amounts capped at 1e12 so sums stay in bigint.
+- A line naming a product of another organization is `forbidden` OUT_OF_SCOPE; a new line on an order not CONFIRMED / not SUPPLIER-placed / not entered by the viewer is `aside` ORDER_NOT_EDITABLE.
+- PENDING relationships are person-supplied (no organization), so a seller reaches them only as OUT_OF_SCOPE at the judge; the adapter still answers RELATIONSHIP_NOT_ACTIVE (tested at adapter level). An inactive supplier organization is also RELATIONSHIP_NOT_ACTIVE (avoids a DB error aborting the batch).
+
+**Tests added beyond the story:**
+- push-orders.test.ts: several lines/decimal quantity with half-franc rounding and delivery cost in the total (AC-1, CM-14)
+- push-orders.test.ts: DRIVER cannot create; product of another organization forbidden without aborting; unusable quantity/price/delivery cost set aside; merged relationship redirect; new line on a non-open order; same line id twice in a batch (ASVS 8.2.1, C-36, story Create section)
+
+**Other additions:**
+- order.adapter.ts wired to the new push functions (needed; story lists only the judge).
+- `PRODUCT_RETIRED_NOTE` exported from order.push.ts.
+
+**Evidence:** story tests 18/18; full suite 2964/2964, failing: none; typecheck clean; lint 0 errors, 99 warnings (existing security/* kind)
+
+**Follow-ups:**
+- A hostile line (foreign product) leaves the order stored empty; a human may want the order dropped too.
+- The migration is a trigger change the story did not list; confirm the GUC approach is acceptable.
+<!-- end SYNC-012 -->

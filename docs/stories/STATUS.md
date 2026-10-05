@@ -194,7 +194,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-009 | done | | Push envelope: archive, 426, clock skew, 409, aside, last_synced_at; interim apply loop until SYNC-010 judgeBatch |
 | SYNC-010 | done | | judgeBatch wired in pushChanges; scope, field rights, computed strip, author; 19 tests, full suite 2923 green |
 | SYNC-011 | done | | Push side of customer_relationships: create, merge, redirect, edit |
-| SYNC-012 | todo | | |
+| SYNC-012 | done | | orders and lines pushed with server amounts; migration lets retired-product lines in |
 | SYNC-013 | todo | | |
 | SYNC-014 | todo | | |
 | SYNC-015 | todo | | |

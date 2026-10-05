@@ -386,6 +386,33 @@ function redirectRelationshipRefs(
   };
 }
 
+/**
+ * Lines whose order was not stored (an issue, set aside or refused by the orders adapter) are
+ * answered like their order, and not judged: there is nothing to attach them to, and an honest
+ * phone must not read that as a forbidden line (SYNC-012 AC-4).
+ *
+ * @returns The change without those lines, and an outcome for each removed line.
+ */
+function withoutLinesOfUnstoredOrders(
+  change: TableChange,
+  unstored: Map<string, LineOutcome>
+): { change: TableChange; outcomes: LineOutcome[] } {
+  const outcomes: LineOutcome[] = [];
+  const created = change.created.filter((row) => {
+    const order = typeof row['order_id'] === 'string' ? unstored.get(row['order_id']) : undefined;
+    if (!order || typeof row['id'] !== 'string') return true;
+    outcomes.push({
+      table: change.table,
+      id: row['id'],
+      kind: order.kind,
+      ...(order.code ? { code: order.code } : {}),
+      ...(order.message ? { message: order.message } : {}),
+    });
+    return false;
+  });
+  return { change: { ...change, created }, outcomes };
+}
+
 const countRows = (t: { created: unknown[]; updated: unknown[]; deleted: unknown[] }): number =>
   t.created.length + t.updated.length + t.deleted.length;
 
@@ -399,6 +426,9 @@ const countRows = (t: { created: unknown[]; updated: unknown[]; deleted: unknown
  *
  * A customer pushed twice and merged by its adapter (SYNC-011) sends its id to the survivor: the
  * later lines of the batch that name the duplicate are redirected before they are judged.
+ *
+ * An order the adapter did not store (SYNC-012) takes its lines of the batch with it: they get the
+ * order's outcome instead of being judged.
  *
  * Tables outside the six judged ones go to their adapter as sent: their adapters own the rules.
  * Rows that name no parent are not scope-checked here, only handed over; the adapter refuses them.
@@ -420,6 +450,7 @@ export async function judgeBatch(
     const outcomes: LineOutcome[] = [];
     let aside = 0;
     const redirects = new Map<string, string>();
+    const unstoredOrders = new Map<string, LineOutcome>();
 
     for (const [name, change] of Object.entries(batch)) {
       if (!adapters.has(name as SyncTable)) aside += countRows(change);
@@ -431,6 +462,11 @@ export async function judgeBatch(
       if (!change || !adapter) continue;
       let toApply: TableChange = { table, ...change };
       if (redirects.size > 0) toApply = redirectRelationshipRefs(toApply, redirects);
+      if (table === 'order_lines' && unstoredOrders.size > 0) {
+        const split = withoutLinesOfUnstoredOrders(toApply, unstoredOrders);
+        outcomes.push(...split.outcomes);
+        toApply = split.change;
+      }
       if (isJudged(table)) {
         const { passed, forbidden } = await judgeTable(judge, table, toApply);
         outcomes.push(...forbidden);
@@ -443,6 +479,7 @@ export async function judgeBatch(
           if (line.mergedInto && table === 'customer_relationships') {
             redirects.set(line.id, line.mergedInto);
           }
+          if (table === 'orders' && line.kind !== 'accepted') unstoredOrders.set(line.id, line);
         }
       }
     }

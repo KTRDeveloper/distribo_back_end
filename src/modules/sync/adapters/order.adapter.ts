@@ -8,6 +8,7 @@ import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
 import type { Row, SyncAdapter, Viewer } from '../sync.types.js';
 import { refuseEveryLine } from './identity.adapter.js';
+import { pushOrderLines, pushOrders } from './order.push.js';
 
 type Changes = { created: Row[]; updated: Row[]; deleted: string[] };
 
@@ -136,7 +137,7 @@ function orderRow(order: OrderWithParties, viewer: Viewer): Row | null {
  * confirmed orders with an address, the orders in delivery, the orders they delivered and those
  * carrying their deliveries, without `sync_issue`; the customer view for the customer person.
  * Open orders always, closed ones of the last 90 days (CM-30). Deleted rows are listed in
- * `deleted` (C-35).
+ * `deleted` (C-35). Orders entered offline are created by `order.push.ts` (SYNC-012).
  */
 export const ordersAdapter: SyncAdapter = {
   table: 'orders',
@@ -156,7 +157,7 @@ export const ordersAdapter: SyncAdapter = {
       (r) => orderRow(r, viewer) ?? {}
     );
   },
-  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+  push: pushOrders,
 };
 
 /**
@@ -205,7 +206,7 @@ export const orderLinesAdapter: SyncAdapter = {
       }
     );
   },
-  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+  push: pushOrderLines,
 };
 
 function deliveryRow(d: Delivery): Row {

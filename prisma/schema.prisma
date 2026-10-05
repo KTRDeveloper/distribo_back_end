@@ -1006,6 +1006,12 @@ model Order {
 //   price on insert, and may later be lowered but never raised above it (the
 //   supplier can only lower it). Lowering needs the price author and time as
 //   above. Supplier-placed orders have no such limit.
+// - One exception to the ACTIVE-product rule, from migration
+//   20261004340000_sync_012_retired_product_lines: an order entered offline may
+//   name a product that was retired since. The sync push then switches the rule
+//   off for that one insert by setting the transaction-local setting
+//   distribo.allow_retired_product to 'on' (and back to 'off' right after). No
+//   other code may set it; the product must still belong to the supplier.
 // Migration 20261004320000_ord_006_total_check: adding, changing, moving or
 // removing a line (and soft-deleting it) re-checks its order's total at commit.
 // The order's total must equal the sum of its non-deleted line amounts plus its
