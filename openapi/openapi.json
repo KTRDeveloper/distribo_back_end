@@ -23300,6 +23300,21 @@
                               "count",
                               "amount"
                             ]
+                          },
+                          "abandoned_rests": {
+                            "type": "object",
+                            "properties": {
+                              "count": {
+                                "type": "integer"
+                              },
+                              "amount": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "count",
+                              "amount"
+                            ]
                           }
                         },
                         "required": [
@@ -23308,7 +23323,8 @@
                           "credit_notes",
                           "reversals",
                           "expenses",
-                          "price_gaps"
+                          "price_gaps",
+                          "abandoned_rests"
                         ]
                       }
                     }

@@ -38,6 +38,7 @@ type Item = {
   reversals: Bucket;
   expenses: Bucket;
   price_gaps: Bucket;
+  abandoned_rests: Bucket;
 };
 
 async function seedPerson(id: string, phone: string) {
@@ -230,6 +231,7 @@ describe('FIN-019 owner reads the money exceptions', () => {
         reversals: { count: 0, amount: 0 },
         expenses: { count: 1, amount: 500 },
         price_gaps: { count: 0, amount: 0 },
+        abandoned_rests: { count: 0, amount: 0 },
       },
       {
         person_id: PAUL,
@@ -238,6 +240,7 @@ describe('FIN-019 owner reads the money exceptions', () => {
         reversals: { count: 0, amount: 0 },
         expenses: { count: 0, amount: 0 },
         price_gaps: { count: 12, amount: 2400 },
+        abandoned_rests: { count: 0, amount: 0 },
       },
     ]);
   });
@@ -413,7 +416,15 @@ describe('FIN-019 owner reads the money exceptions', () => {
     const [item] = await readItems();
 
     expect(Object.keys(item ?? {}).sort()).toEqual(
-      ['credit_notes', 'expenses', 'person_id', 'price_gaps', 'refunds', 'reversals'].sort()
+      [
+        'abandoned_rests',
+        'credit_notes',
+        'expenses',
+        'person_id',
+        'price_gaps',
+        'refunds',
+        'reversals',
+      ].sort()
     );
     expect(Object.keys(item?.refunds ?? {}).sort()).toEqual(['amount', 'count']);
   });

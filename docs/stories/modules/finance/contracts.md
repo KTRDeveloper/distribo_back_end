@@ -12,6 +12,7 @@ What this module provides to other modules, and what it consumes from them. A co
 - Used by: `organization`, `sync`
 
 ## Consumes
+- delivery: findAbandonedRests (docs/stories/modules/delivery/contracts.md)
 - relationship: addToBalance, visibleRelationsWhere (docs/stories/modules/relationship/contracts.md)
 - organization: loadActor, addAmountHeld, assertOrganizationActive (docs/stories/modules/organization/contracts.md)
 - access: requireAbility, idempotent (docs/stories/modules/access/contracts.md)

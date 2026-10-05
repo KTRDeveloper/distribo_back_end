@@ -1,5 +1,6 @@
 import type { Delivery, Order, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
+import { lineAmount, parseQuantity } from '../../shared/money.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { resolveMergedRelation } from '../relationship/relationship.repository.js';
 import {
@@ -623,4 +624,61 @@ export async function findDeliveredOrdersWithCollection(
     collected.set(entry.orderId, (collected.get(entry.orderId) ?? 0n) + signed);
   }
   return orders.map((order) => ({ order, collected: collected.get(order.id) ?? 0n }));
+}
+
+/**
+ * Goods abandoned in partial deliveries, per person (DLV-012, CM-22). A rest is a live line of a
+ * live DELIVERED order with `delivered_quantity` below `quantity`, whose order has no child order
+ * (a rest taken "later" becomes one). The person is the order's `delivered_by_id`, the excluded
+ * person (the owner) left out; the date is `delivered_at`, in `[from, toExclusive)`. The amount is
+ * (`quantity` - `delivered_quantity`) x `unit_price_applied`, rounded half up like a line. The
+ * organization is the caller's and scopes the query through the order's relationship (ASVS
+ * v5.0.0-8.2.2). Runs in the caller's transaction so it shares its snapshot.
+ *
+ * @param tx - The finance read's repeatable-read transaction.
+ * @param organizationId - The actor's organization, never a client value.
+ * @param period - Delivery date window, start inclusive and end exclusive.
+ * @param excludePersonId - The owner reading, whose own rests are not exceptions.
+ * @returns Count (lines) and amount (whole XAF) per person id; absent when nothing was abandoned.
+ */
+export async function findAbandonedRests(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  period: { from: Date; toExclusive: Date },
+  excludePersonId: string
+): Promise<Map<string, { count: number; amount: bigint }>> {
+  const lines = await tx.orderLine.findMany({
+    where: {
+      deletedAt: null,
+      deliveredQuantity: { not: null },
+      order: {
+        status: 'DELIVERED',
+        deletedAt: null,
+        deliveredAt: { gte: period.from, lt: period.toExclusive },
+        deliveredById: { not: excludePersonId },
+        childOrders: { none: {} },
+        customerRelationship: { supplierOrganizationId: organizationId },
+      },
+    },
+    select: {
+      quantity: true,
+      deliveredQuantity: true,
+      unitPriceApplied: true,
+      order: { select: { deliveredById: true } },
+    },
+  });
+
+  const people = new Map<string, { count: number; amount: bigint }>();
+  for (const line of lines) {
+    const personId = line.order.deliveredById;
+    if (personId === null || line.deliveredQuantity === null) continue;
+    const rest =
+      parseQuantity(line.quantity.toFixed(3)) - parseQuantity(line.deliveredQuantity.toFixed(3));
+    if (rest <= 0n) continue;
+    const tally = people.get(personId) ?? { count: 0, amount: 0n };
+    tally.count += 1;
+    tally.amount += lineAmount(rest, line.unitPriceApplied);
+    people.set(personId, tally);
+  }
+  return people;
 }

@@ -7,6 +7,9 @@ What this module provides to other modules, and what it consumes from them. A co
 - `deliverOrder(actor: Actor, orderId: string, input: DeliverInput, options?: { viaSync?: boolean }): Promise<DeliverResult>`: the one closing gesture: order DELIVERED, SALE and optional PAYMENT entries, credit rule, partial rest
 - `deleteUnstartedDeliveries(tx, orderId: string): Promise<number>`: removes deliveries not yet departed
 - Used by: `sync`
+### AbandonedRests (`src/modules/delivery/delivery.repository.ts`, created by DLV-012)
+- `findAbandonedRests(tx, organizationId: string, period: { from: Date; toExclusive: Date }, excludePersonId: string): Promise<Map<string, { count: number; amount: bigint }>>`: per deliverer, the lines of DELIVERED orders without a child order whose delivered quantity is below the ordered one, valued at the applied price
+- Used by: `finance`
 
 ## Consumes
 - order: transitionOrder, lineAmountOf, orderTotal, projectOrderForSupplier (docs/stories/modules/order/contracts.md)

@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { lineAmount, parseQuantity } from '../../shared/money.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import { findAbandonedRests } from '../delivery/delivery.repository.js';
 import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
 
 /** Which party reads the ledger: the supplier organization, a customer organization or a customer person. */
@@ -170,6 +171,7 @@ export type PersonExceptionTally = {
   reversals: ExceptionTally;
   expenses: ExceptionTally;
   priceGaps: ExceptionTally;
+  abandonedRests: ExceptionTally;
 };
 
 /**
@@ -185,7 +187,10 @@ export type PersonExceptionTally = {
  * - expenses: not cancelled, by `recorded_by_id`, `occurred_at`;
  * - price gaps: live lines of live orders whose applied price is below the reference, by
  *   `price_set_by_id`, `price_set_at`; amount (reference - applied) x delivered (else ordered)
- *   quantity, rounded half up like a line amount.
+ *   quantity, rounded half up like a line amount;
+ * - abandoned rests (DLV-012): goods left in partial deliveries without a child order, read by the
+ *   delivery module's `findAbandonedRests` inside this same transaction, by deliverer and
+ *   `delivered_at`.
  */
 export function findMoneyExceptions(
   organizationId: string,
@@ -206,6 +211,7 @@ export function findMoneyExceptions(
             reversals: empty(),
             expenses: empty(),
             priceGaps: empty(),
+            abandonedRests: empty(),
           };
           people.set(personId, tally);
         }
@@ -308,6 +314,11 @@ export function findMoneyExceptions(
           1,
           lineAmount(quantity, line.referencePrice - line.unitPriceApplied)
         );
+      }
+
+      const abandoned = await findAbandonedRests(tx, organizationId, period, excludePersonId);
+      for (const [personId, rests] of abandoned) {
+        add(of(personId).abandonedRests, rests.count, rests.amount);
       }
       return people;
     },

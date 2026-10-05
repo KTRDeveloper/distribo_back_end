@@ -932,13 +932,15 @@ export type MoneyExceptionItem = {
   reversals: MoneyExceptionBucket;
   expenses: MoneyExceptionBucket;
   price_gaps: MoneyExceptionBucket;
+  abandoned_rests: MoneyExceptionBucket;
 };
 
 /**
  * The owner reads the money gestures other people made, grouped by person (FIN-019). OWNER only:
  * any other role is refused with a logged 403 before the query is even read (deny by default,
  * ASVS v5.0.0-8.2.1); the organization is the actor's, never a client value, and the owner's own
- * gestures are left out. Nothing is hidden: a refund and its later reversal both show under the
+ * gestures are left out. Goods a non-owner deliverer abandoned in partial deliveries count too
+ * (`abandoned_rests`, DLV-012). Nothing is hidden: a refund and its later reversal both show under the
  * person who recorded them (CWE-778). Items are sorted by total amount, largest first, then by
  * person id so the order is stable.
  *
@@ -972,7 +974,8 @@ export async function moneyExceptions(
       tally.creditNotes.amount +
       tally.reversals.amount +
       tally.expenses.amount +
-      tally.priceGaps.amount;
+      tally.priceGaps.amount +
+      tally.abandonedRests.amount;
     const bucket = (value: { count: number; amount: bigint }): MoneyExceptionBucket => ({
       count: value.count,
       amount: Number(value.amount),
@@ -984,6 +987,7 @@ export async function moneyExceptions(
       reversals: bucket(tally.reversals),
       expenses: bucket(tally.expenses),
       price_gaps: bucket(tally.priceGaps),
+      abandoned_rests: bucket(tally.abandonedRests),
     };
     return { item, total };
   });

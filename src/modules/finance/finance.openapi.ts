@@ -381,6 +381,7 @@ openApiRegistry.registerPath({
                 reversals: exceptionBucketSchema,
                 expenses: exceptionBucketSchema,
                 price_gaps: exceptionBucketSchema,
+                abandoned_rests: exceptionBucketSchema,
               })
             ),
           }),
