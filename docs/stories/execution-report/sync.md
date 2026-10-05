@@ -6,6 +6,17 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-05 02:43 UTC: `/implement-stories SYNC-010`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-010 Judge pipeline: scope, field rights, computed fields | done | b3a24ce | judgeBatch wired in pushChanges; scope, field rights, computed strip, author; 19 tests, full suite 2923 green |
+
+- Run completed: SYNC-010 resumed its earlier partial changes and ended done.
+- An earlier `/implement-stories SYNC-10` call stopped on UNKNOWN SYNC-10 (the ID must be zero-padded); it filed nothing.
+- Follow-ups from the agent: rows with no parent reach their adapter unscoped (the adapter must refuse them); a forbidden line still returns resync_required false (CM-28's full resync and notification to the author are not covered).
+- Next: `/implement-stories next:3`
+
 ### Run 2026-10-04 19:20 UTC: `/implement-stories SYNC-002`
 
 | story | status | commit | note |
