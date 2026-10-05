@@ -629,3 +629,31 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - pull also sets last_synced_at (markDevicePulled): a phone that pulls before pushing hides RESTRICTED_MODE and long absence; check with the design.
 - Credit overruns on a delivery do not notify the owner (no AC asks for it).
 <!-- end SYNC-017 -->
+
+<!-- begin SYNC-018 -->
+## SYNC-018 — Forbidden sends are refused, recorded and trigger a resync
+
+- Filed: 2026-10-05 04:29 UTC
+- Status: **blocked**: Story code done and its 8 tests pass, but the sync.refused notification breaks push-payments.test.ts 'forbids a phone creating or deleting a notification' (counts all notifications = 2, now 3); not listed under Tests to update: may it count only sync.test notifications?
+- Risk: high · story: [SYNC-018-forbidden-sends-are-refused-recorded-and.md](../modules/sync/SYNC-018-forbidden-sends-are-refused-recorded-and.md)
+- Agent: 59,288 tokens, 15 tool uses, 9 min 27 s
+
+### Agent report
+
+**Summary:** Blocked: the feature works (8 story tests pass) but the mandated sync.refused notification breaks one existing test I may not edit.
+
+**Decisions:**
+- resync_required: true only when a line is refused (rejected non-empty); an aside-only batch keeps false, because push-envelope.test.ts (AC-4 unknown table) asserts false with aside 1.
+- Old per-line `sync_line_forbidden` log in judgeTable removed; the single end-of-batch `sync_line_refused` log covers forbidden and aside lines (adapters keep their own log).
+- Lines of tables without adapter now become per-line aside records (id, code NO_RULE) so they can be logged and named; the count is unchanged.
+- Notification text: "<n> opération(s) non enregistrée(s). Motif : <codes>. Lignes : table:code, ..." (first 5), EN equivalent; table names outside SYNC_TABLES shown as `unknown`.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/forbidden-sends.test.ts` › English notification, and "names at most 5 lines but counts all": language and 5-line cap (story Adds paragraph); failed first, then passed.
+
+**Evidence:** story tests 8/8; full suite 3045/3046, failing: push-payments.test.ts "forbids a phone creating or deleting a notification"; typecheck clean; lint 0 errors, 119 warnings (pre-existing kind)
+
+**Follow-ups:**
+- Blocking question: that test expects `prisma.notification.count()` = 2 after a batch with 2 forbidden lines; the story's own notification makes it 3. Allow narrowing it to the seeded `sync.test` notifications (count where sourceEvent = 'sync.test')? Changes are left in src/modules/sync/sync.judge.ts and the new test file, uncommitted.
+- sync.push.ts needed no change (PushResponse already carries resync_required).
+<!-- end SYNC-018 -->
