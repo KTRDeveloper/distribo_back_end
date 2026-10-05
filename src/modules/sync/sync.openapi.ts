@@ -3,6 +3,7 @@ import { openApiRegistry, errorResponseSchema } from '../../lib/openapi/registry
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
   archiveIdParamsSchema,
+  listArchivesQuerySchema,
   replayBodySchema,
   syncExceptionsQuerySchema,
 } from './sync.schemas.js';
@@ -305,6 +306,88 @@ openApiRegistry.registerPath({
     },
     400: {
       description: 'Missing, empty or too long reason, or a malformed archive id',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing, invalid or non-administration token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'The administrator is not a super administrator',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Unknown archive',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+const rowCountsSchema = z.object({
+  created: z.number().int(),
+  updated: z.number().int(),
+  deleted: z.number().int(),
+});
+
+const archiveSummarySchema = z.object({
+  id: z.string().uuid(),
+  person_id: z.string().uuid(),
+  device_id: z.string().uuid(),
+  received_at: z.string(),
+  row_counts: z.record(rowCountsSchema),
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/admin/sync-archives',
+  tags: ['sync'],
+  summary: 'List archived batches by person and period (any administrator)',
+  description:
+    'Newest first. Each item carries the number of rows created, updated and deleted per table, ' +
+    'never the batch content. `from` and `to` are UTC days, both included.',
+  security: [{ bearerAuth: [] }],
+  request: { query: listArchivesQuerySchema },
+  responses: {
+    200: {
+      description: 'One page of batch summaries',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(archiveSummarySchema),
+            next_cursor: z.string().nullable(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'Malformed person, date, limit or cursor, or from after to',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing, invalid or non-administration token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/admin/sync-archives/{archiveId}',
+  tags: ['sync'],
+  summary: 'Open an archived batch with its changes (super administrator only)',
+  security: [{ bearerAuth: [] }],
+  request: { params: archiveIdParamsSchema },
+  responses: {
+    200: {
+      description: 'The batch summary and the stored changes',
+      content: {
+        'application/json': {
+          schema: archiveSummarySchema.extend({ changes: z.record(z.unknown()) }),
+        },
+      },
+    },
+    400: {
+      description: 'Malformed archive id',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     401: {

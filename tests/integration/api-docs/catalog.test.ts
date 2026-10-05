@@ -230,6 +230,10 @@ describe('GET /docs/openapi.json', () => {
     // SYNC-022: a super administrator replays an archived batch
     expect(paths).toContain('/api/v1/admin/sync-archives/{archiveId}/replay');
 
+    // SYNC-023: administrators list and open archived batches
+    expect(paths).toContain('/api/v1/admin/sync-archives');
+    expect(paths).toContain('/api/v1/admin/sync-archives/{archiveId}');
+
     // ADM-007: the recovery email routes
     expect(paths).toContain('/api/v1/admin/recovery-email/request');
     expect(paths).toContain('/api/v1/admin/recovery-email/confirm');

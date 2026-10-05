@@ -13,13 +13,21 @@ import {
   archiveIdParamsSchema,
   clientTimeHeaderSchema,
   issuesQuerySchema,
+  listArchivesQuerySchema,
   pullQuerySchema,
   pushBodySchema,
   pushQuerySchema,
   replayBodySchema,
   scopeVersionHeaderSchema,
 } from './sync.schemas.js';
-import { listIssues, pull, replayArchive, syncExceptions } from './sync.service.js';
+import {
+  getArchive,
+  listArchives,
+  listIssues,
+  pull,
+  replayArchive,
+  syncExceptions,
+} from './sync.service.js';
 import { buildViewer } from './sync.viewer.js';
 import './sync.openapi.js';
 
@@ -110,6 +118,35 @@ syncArchiveRoutes.post(
         const result = await replayArchive(req.admin!, archiveId, { reason });
         res.set('Cache-Control', 'no-store');
         res.status(200).json(result);
+      })
+      .catch(next);
+  }
+);
+
+// GET /api/v1/admin/sync-archives - any administrator finds a batch by person and date; the
+// summary only, never the stored changes
+syncArchiveRoutes.get('/', adminAuthMiddleware, (req, res, next) => {
+  Promise.resolve()
+    .then(async () => {
+      const query = listArchivesQuerySchema.parse(req.query);
+      res.set('Cache-Control', 'no-store');
+      res.json(await listArchives(query));
+    })
+    .catch(next);
+});
+
+// GET /api/v1/admin/sync-archives/:archiveId - a SUPER_ADMIN opens one batch with its changes; the
+// role is checked before the id is read
+syncArchiveRoutes.get(
+  '/:archiveId',
+  adminAuthMiddleware,
+  requireAdminRole('SUPER_ADMIN'),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(async () => {
+        const { archiveId } = archiveIdParamsSchema.parse(req.params);
+        res.set('Cache-Control', 'no-store');
+        res.json(await getArchive(archiveId));
       })
       .catch(next);
   }

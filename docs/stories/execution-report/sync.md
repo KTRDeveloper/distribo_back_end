@@ -805,3 +805,35 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - I wrote the story's tests before the code but did not run them red first; they all passed on the first run after implementing.
 - `per-001.test.ts` has no sync route list, so nothing was added there.
 <!-- end SYNC-022 -->
+
+<!-- begin SYNC-023 -->
+## SYNC-023 — Administrators list and open archived batches
+
+- Filed: 2026-10-05 05:46 UTC
+- Status: **done**: list and open archived batches; 7 tests, suite 3096 green
+- Risk: medium · story: [SYNC-023-administrators-list-and-open-archived-batches.md](../modules/sync/SYNC-023-administrators-list-and-open-archived-batches.md)
+- Agent: 50,513 tokens, 18 tool uses, 9 min 35 s
+
+### Agent report
+
+**Summary:** Added GET /admin/sync-archives (any admin, summaries) and GET /admin/sync-archives/{archiveId} (SUPER_ADMIN, with changes).
+
+**Decisions:**
+- from/to format: `YYYY-MM-DD` UTC, both days inclusive, from after to is 400; same convention as FIN-019/expenses (story left the format open).
+- Order and cursor: received_at desc then id asc, cursor encoded with the shared helper (receivedAt as createdAt), as listIssues does.
+- row_counts: `{table: {created, updated, deleted}}` computed in the service from the stored JSON (changes are read for the page, not returned); malformed stored values count 0.
+- Detail route checks the role before the id is parsed, so a moderator gets 403 even on a bad id; responses are `Cache-Control: no-store`.
+
+**Tests added beyond the story:**
+- `archive-read.test.ts` › list without person_id: all people listed (AC-1); passed at once
+- `archive-read.test.ts` › list: bad query values answer 400 without echoing input (CONVENTIONS validation); failed first with the rest
+- `archive-read.test.ts` › open: unknown id answers 404 NOT_FOUND (story Errors)
+
+**Other additions:**
+- Paths of both routes added to `tests/integration/api-docs/catalog.test.ts` (convention); openapi.json regenerated. per-001 has no sync route list, nothing added.
+
+**Evidence:** story tests 7/7; full suite 3096/3096, failing: none; typecheck clean; lint 0 errors, 130 warnings (pre-existing)
+
+**Follow-ups:**
+- Page reads full `changes` of up to 101 rows to count rows; if archives grow large, count in SQL.
+<!-- end SYNC-023 -->

@@ -120,6 +120,45 @@ export async function findArchive(archiveId: string): Promise<ArchivedBatch | nu
   });
 }
 
+/** An archive row as the administrators' list reads it, with its stored changes. */
+export type ArchiveRow = ArchivedBatch;
+
+/**
+ * One page of archived batches, newest first then by id (SYNC-023). `from` is inclusive and
+ * `toExclusive` exclusive; `cursor` is the last row of the previous page.
+ */
+export async function findArchivePage(filter: {
+  personId?: string;
+  from?: Date;
+  toExclusive?: Date;
+  cursor?: { createdAt: Date; id: string };
+  take: number;
+}): Promise<ArchiveRow[]> {
+  const { personId, from, toExclusive, cursor, take } = filter;
+  return prisma.syncArchive.findMany({
+    where: {
+      AND: [
+        ...(personId ? [{ personId }] : []),
+        ...(from ? [{ receivedAt: { gte: from } }] : []),
+        ...(toExclusive ? [{ receivedAt: { lt: toExclusive } }] : []),
+        ...(cursor
+          ? [
+              {
+                OR: [
+                  { receivedAt: { lt: cursor.createdAt } },
+                  { receivedAt: cursor.createdAt, id: { gt: cursor.id } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    },
+    orderBy: [{ receivedAt: 'desc' }, { id: 'asc' }],
+    take,
+    select: { id: true, personId: true, deviceId: true, receivedAt: true, changes: true },
+  });
+}
+
 /** Runs the conflict check and the judging of one push in a single transaction (ASVS v5.0.0-2.3.3). */
 export async function withPushTransaction<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>

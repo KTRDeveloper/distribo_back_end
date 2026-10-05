@@ -9,13 +9,18 @@ import {
   type FlaggedLine,
   findFlaggedOrders,
   findArchive,
+  findArchivePage,
   findIssueRows,
   findViewerData,
   markDevicePulled,
   withPullSnapshot,
 } from './sync.repository.js';
 import { judgeBatch, notifyReplayed, type PushResult } from './sync.judge.js';
-import { archivedChangesSchema, syncExceptionsQuerySchema } from './sync.schemas.js';
+import {
+  archivedChangesSchema,
+  type ListArchivesQuery,
+  syncExceptionsQuerySchema,
+} from './sync.schemas.js';
 import { getAdapters } from './sync.registry.js';
 import type { TableChange, Viewer } from './sync.types.js';
 
@@ -335,4 +340,99 @@ export async function replayArchive(
     'archived batch replayed'
   );
   return result;
+}
+
+/** Rows created, updated and deleted in one table of an archived batch. */
+export type RowCounts = { created: number; updated: number; deleted: number };
+
+/** An archived batch as the list shows it: no content, only how many rows each table carried. */
+export type ArchiveSummary = {
+  id: string;
+  person_id: string;
+  device_id: string;
+  received_at: string;
+  row_counts: Record<string, RowCounts>;
+};
+
+/** An opened archived batch: the summary and the stored `changes`. */
+export type ArchiveDetail = ArchiveSummary & { changes: unknown };
+
+const arrayLength = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
+
+/** Counts created, updated and deleted rows per table; a malformed stored value counts as zero. */
+function countRows(changes: unknown): Record<string, RowCounts> {
+  const counts: Record<string, RowCounts> = {};
+  if (typeof changes !== 'object' || changes === null || Array.isArray(changes)) return counts;
+  for (const [table, change] of Object.entries(changes)) {
+    const part = (typeof change === 'object' && change !== null ? change : {}) as Record<
+      string,
+      unknown
+    >;
+    counts[table] = {
+      created: arrayLength(part.created),
+      updated: arrayLength(part.updated),
+      deleted: arrayLength(part.deleted),
+    };
+  }
+  return counts;
+}
+
+function summarize(archive: {
+  id: string;
+  personId: string;
+  deviceId: string;
+  receivedAt: Date;
+  changes: unknown;
+}): ArchiveSummary {
+  return {
+    id: archive.id,
+    person_id: archive.personId,
+    device_id: archive.deviceId,
+    received_at: archive.receivedAt.toISOString(),
+    row_counts: countRows(archive.changes),
+  };
+}
+
+/**
+ * Lists archived batches for any administrator (SYNC-023): newest first, optionally of one person
+ * and within a period (`from` and `to` days both included, UTC). Only the summary is returned, never
+ * the stored `changes`, which are sensitive (ASVS v5.0.0-14.2.4). The caller's administrator role is
+ * checked by the route before this runs.
+ *
+ * @param query - Validated query; `cursor` is the opaque value of a previous page.
+ * @throws HttpError 400 `VALIDATION_ERROR` for a malformed cursor.
+ */
+export async function listArchives(
+  query: ListArchivesQuery
+): Promise<{ items: ArchiveSummary[]; next_cursor: string | null }> {
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const rows = await findArchivePage({
+    personId: query.person_id,
+    from: query.from ? resolveMoneyPeriod({ from: query.from, to: query.from }).from : undefined,
+    toExclusive: query.to ? resolveMoneyPeriod({ to: query.to }).toExclusive : undefined,
+    cursor,
+    take: query.limit + 1,
+  });
+  const page = rows.slice(0, query.limit);
+  const last = page[page.length - 1];
+  return {
+    items: page.map(summarize),
+    next_cursor:
+      rows.length > query.limit && last
+        ? encodeCursor({ createdAt: last.receivedAt, id: last.id })
+        : null,
+  };
+}
+
+/**
+ * Opens one archived batch with its `changes` (SYNC-023). The route restricts it to SUPER_ADMIN:
+ * full batches are sensitive (ASVS v5.0.0-8.2.1, v5.0.0-14.2.4).
+ *
+ * @param archiveId - The archive to open.
+ * @throws HttpError 404 `NOT_FOUND` for an unknown archive.
+ */
+export async function getArchive(archiveId: string): Promise<ArchiveDetail> {
+  const archive = await findArchive(archiveId);
+  if (!archive) throw httpError(404, 'NOT_FOUND', 'Not found');
+  return { ...summarize(archive), changes: archive.changes };
 }

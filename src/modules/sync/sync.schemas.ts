@@ -141,3 +141,33 @@ export type ReplayBody = z.infer<typeof replayBodySchema>;
 
 /** The `changes` of an archived batch, checked again with the push rules before a replay. */
 export const archivedChangesSchema = pushBodySchema.shape.changes;
+
+/** True for a real calendar date written `YYYY-MM-DD` (no `2026-02-30`). */
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === value;
+}
+
+const calendarDateSchema = z.string().refine(isCalendarDate, 'invalid_date');
+
+/**
+ * Strict query of the archive list (SYNC-023): `limit`, an opaque `cursor`, an optional `person_id`
+ * and an optional period `from` / `to` as `YYYY-MM-DD` (UTC, both days included, `from` not after
+ * `to`). Unknown fields are refused (ASVS v5.0.0-15.3.1).
+ */
+export const listArchivesQuerySchema = paginationQuerySchema
+  .extend({
+    cursor: z.string().max(300).optional(),
+    person_id: uuidV7Schema.optional(),
+    from: calendarDateSchema.optional(),
+    to: calendarDateSchema.optional(),
+  })
+  .strict()
+  .superRefine((query, context) => {
+    if (query.from && query.to && query.from > query.to) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'from_after_to', path: ['from'] });
+    }
+  });
+
+export type ListArchivesQuery = z.infer<typeof listArchivesQuerySchema>;
