@@ -22,7 +22,7 @@ As a seller, I want payments I collected offline to reach the customer's account
 ## Context
 - Exists: `appendLedgerEntry` (FIN-003), rules for ledger kinds (ACC-004), judge pipeline.
 - Adds: `adapters/ledger.push.ts` registering `ledger_entries` and `notifications` push sides.
-- Ledger create: a PAYMENT with `id`, `customer_relationship_id` (redirected if merged), `amount`, `mode`, `transaction_reference`, `note`, `occurred_at`, `order_id` empty (payments tied to a delivery are handled by SYNC-014), by SELLER and above; the server sets `recorded_by_id` the viewer and appends it through `appendLedgerEntry` (balance down, viewer's held money up). `balance_effect` is ignored. Any other kind (REFUND, CREDIT_NOTE, OPENING_BALANCE, a reversal) and any update or delete of a ledger row is `forbidden` (`ONLINE_ONLY`). A PENDING relationship or a missing one is an issue that is not stored.
+- Ledger create: a PAYMENT with `id`, `customer_relationship_id` (redirected if merged), `amount`, `mode`, `transaction_reference`, `note`, `occurred_at`, `order_id` empty (payments tied to a delivery are handled by SYNC-014), by SELLER and above; the server sets `recorded_by_id` the viewer and appends it through `appendLedgerEntry` (balance down, viewer's held money up). `balance_effect` is ignored. Any other kind (REFUND, CREDIT_NOTE, OPENING_BALANCE, a reversal) and any update or delete of a ledger row is `forbidden` (`ONLINE_ONLY`), whatever the role: this check runs before the role check, so it replaces `FIELD_NOT_ALLOWED` for these lines. A PENDING relationship or a missing one is an issue that is not stored.
 - Notifications: an update of `read_status` on the viewer's own notification is accepted; any other field or another person's notification is forbidden.
 - A payment id already stored is accepted without a second write.
 - `CM-27`: Sync: computed fields (balance, amount_held, balance_effect, totals, line amounts, sale amount, customer-order reference price, price_updated_at, credit_limit_set_at, ended_by_party, last_synced_at, scope_version, server_updated_at) are ignored on receipt and recomputed.
@@ -86,6 +86,11 @@ Scenario: AB-2 Payment on another business's customer (horizontal)
 | other business | security | AB-2, WSTG-ATHZ-04 | forbidden |
 
 Command: `npx vitest run tests/integration/sync/push-payments.test.ts`
+
+## Tests to update
+- `tests/integration/sync/judge.test.ts`, test "forbids creating a row the role has no right to create (AB-2)": the DRIVER's CREDIT_NOTE line is now rejected with `ONLINE_ONLY`; the DRIVER's order line stays `FIELD_NOT_ALLOWED`. Change only the expected code of the CREDIT_NOTE line.
+- `tests/integration/sync/judge.test.ts`, test "does not let a ledger entry be changed or deleted (immutable table)": the OWNER's update and delete are both rejected with `ONLINE_ONLY` instead of `FIELD_NOT_ALLOWED`. Change only these two expected codes.
+- Change nothing else in that file.
 
 ## Out of scope
 - Every other table: online only.

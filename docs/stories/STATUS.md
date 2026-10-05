@@ -197,7 +197,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-012 | done | | orders and lines pushed with server amounts; migration lets retired-product lines in |
 | SYNC-013 | done | | Departures, crossed departures, failures and cancellations pushed through the state machine; 19 tests |
 | SYNC-014 | done | | Closing of a pushed DELIVERED order via deliverOrder viaSync; story tests 45/45, full suite 2998/2998 |
-| SYNC-015 | blocked | | AC-2 wants ONLINE_ONLY for REFUND/CREDIT_NOTE/update/delete of ledger rows, but judge.test.ts (SYNC-010, not listed under Tests to update) asserts FIELD_NOT_ALLOWED for a DRIVER CREDIT_NOTE and an OWNER update+delete: which wins? |
+| SYNC-015 | todo | | |
 | SYNC-016 | done | | controls on arrival: PRICE_CHANGED, DATE_*, owner notification; suite 3010 green |
 | SYNC-017 | todo | | |
 | SYNC-018 | todo | | |
