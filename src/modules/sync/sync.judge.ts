@@ -94,6 +94,8 @@ type TableRules = {
   steps?: { fields: string[]; any: Right[] };
   /** Fields that name the author of a create: always the viewer's id. */
   author: string[];
+  /** Fields of a row in scope that any role may change: the viewer's own (a notification's read state). */
+  ownFields?: string[];
   /** Author fields written only when the row already carries them. */
   authorIfPresent?: string[];
   /** The field that points to the parent row whose owner decides the scope of a create. */
@@ -173,8 +175,9 @@ const RULES_OF: Record<JudgedTable, TableRules> = {
   notifications: {
     subject: 'Notification',
     computed: [],
-    // The server writes notifications; a phone only ever reads them.
+    // The server writes notifications; a phone only reads them and marks its own as read.
     create: [],
+    ownFields: ['read_status'],
     author: ['recipient_id'],
   },
 };
@@ -207,12 +210,29 @@ type Verdict = { ok: true; row: Row } | { ok: false; code: string; message: stri
 const refuse = (code: string, message: string): Verdict => ({ ok: false, code, message });
 const OUT_OF_SCOPE = refuse('OUT_OF_SCOPE', 'This line is outside your scope');
 const NOT_ALLOWED = refuse('FIELD_NOT_ALLOWED', 'Your role may not make this change');
+const ONLINE_ONLY = refuse('ONLINE_ONLY', 'This gesture can only be made online');
 
 type Judge = {
   viewer: Viewer;
   tx: Prisma.TransactionClient;
   abilities: Map<string, MongoAbility>;
+  /** The orders closed in this batch (SYNC-014): their SALE and PAYMENT rows are not SYNC-015's. */
+  closings: ClosingBook;
 };
+
+/**
+ * The ledger only grows through a SELLER payment (SYNC-015): any other kind, and any update or
+ * delete of a row, is online-only whatever the role. The SALE and PAYMENT rows of an order closed
+ * in this batch belong to the closing (SYNC-014). Checked before scope and role, so the answer
+ * never says whether a row exists (ASVS v5.0.0-8.2.1).
+ */
+function isOnlineOnlyLedger(judge: Judge, row: Row | null, listed: 'created' | 'updated'): boolean {
+  if (row === null || listed === 'updated') return true;
+  if (row['kind'] === 'PAYMENT' && (row['order_id'] ?? null) === null) return false;
+  const orderId = row['order_id'];
+  const closing = typeof orderId === 'string' && judge.closings.has(orderId);
+  return !(closing && (row['kind'] === 'SALE' || row['kind'] === 'PAYMENT'));
+}
 
 /**
  * The viewer's role for a row's owner: a customer person acts as a customer (no write right) even
@@ -293,6 +313,7 @@ async function ownerOfNewRow(
 
 /** Judges one created or updated row: scope, then rights, then the clean row for the adapter. */
 async function judgeRow(judge: Judge, table: JudgedTable, row: Row, listed: 'created' | 'updated') {
+  if (table === 'ledger_entries' && isOnlineOnlyLedger(judge, row, listed)) return ONLINE_ONLY;
   const id = row['id'];
   if (!isUuid(id)) return OUT_OF_SCOPE;
   const rules = RULES_OF[table];
@@ -320,7 +341,7 @@ async function judgeRow(judge: Judge, table: JudgedTable, row: Row, listed: 'cre
 
   const instance = subject(rules.subject, stored.row);
   for (const [field, value] of Object.entries(clean)) {
-    if (field === 'id') continue;
+    if (field === 'id' || rules.ownFields?.includes(field)) continue;
     if (field in stored.row && sameValue(stored.row[field], value)) continue;
     const step = rules.steps?.fields.includes(field) === true;
     const allowed = step
@@ -333,6 +354,7 @@ async function judgeRow(judge: Judge, table: JudgedTable, row: Row, listed: 'cre
 
 /** Judges the deletion of a row by id: it must be in scope and the role must hold `delete`. */
 async function judgeDeletion(judge: Judge, table: JudgedTable, id: string): Promise<Verdict> {
+  if (table === 'ledger_entries' && isOnlineOnlyLedger(judge, null, 'updated')) return ONLINE_ONLY;
   if (!isUuid(id)) return OUT_OF_SCOPE;
   const stored = await findStoredRow(judge.tx, table, id);
   if (!stored) return OUT_OF_SCOPE;
@@ -448,6 +470,9 @@ const countRows = (t: { created: unknown[]; updated: unknown[]; deleted: unknown
  * (SYNC-016): they flag old prices and odd dates in `sync_issue` and notify the owners, never
  * refusing anything.
  *
+ * A ledger line the phone may not write (any kind but a payment, an update, a delete) is answered
+ * `ONLINE_ONLY` before the role check (SYNC-015).
+ *
  * Tables outside the six judged ones go to their adapter as sent: their adapters own the rules.
  * Rows that name no parent are not scope-checked here, only handed over; the adapter refuses them.
  *
@@ -464,12 +489,12 @@ export async function judgeBatch(
     await options.beforeApply?.(tx);
 
     const adapters = new Map(getAdapters().map((a) => [a.table, a]));
-    const judge: Judge = { viewer, tx, abilities: new Map() };
+    const closings: ClosingBook = new Map();
+    const judge: Judge = { viewer, tx, abilities: new Map(), closings };
     const outcomes: LineOutcome[] = [];
     let aside = 0;
     const redirects = new Map<string, string>();
     const unstoredOrders = new Map<string, LineOutcome>();
-    const closings: ClosingBook = new Map();
     const createdOrderIds: string[] = [];
     const restOrders = findRestOrders(batch.orders && { table: 'orders', ...batch.orders });
 

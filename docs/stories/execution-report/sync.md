@@ -527,32 +527,38 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 <!-- begin SYNC-015 -->
 ## SYNC-015 — Push payments and notification reads
 
-- Filed: 2026-10-05 03:48 UTC
-- Status: **blocked**: AC-2 wants ONLINE_ONLY for REFUND/CREDIT_NOTE/update/delete of ledger rows, but judge.test.ts (SYNC-010, not listed under Tests to update) asserts FIELD_NOT_ALLOWED for a DRIVER CREDIT_NOTE and an OWNER update+delete: which wins?
+- Filed: 2026-10-05 04:13 UTC
+- Status: **done**: ledger.push + notification reads; judge ONLINE_ONLY for non-payment ledger gestures
 - Risk: high · story: [SYNC-015-push-payments-and-notification-reads.md](../modules/sync/SYNC-015-push-payments-and-notification-reads.md)
-- Agent: 98,222 tokens, 24 tool uses, 2 min 37 s
+- Agent: 94,929 tokens, 29 tool uses, 7 min 38 s
 
 ### Agent report
 
-**Summary:** Blocked before any code change: SYNC-015 AC-2 contradicts two existing judge tests I may not modify.
+**Summary:** Payments and notification reads now push; the judge answers ONLINE_ONLY for non-payment ledger gestures; the two judge.test.ts codes were updated as the story lists.
 
 **Decisions:**
-- Stopped instead of choosing a role-dependent code rule: any rule satisfying both would be arbitrary (SELLER gets ONLINE_ONLY, DRIVER/OWNER gets FIELD_NOT_ALLOWED), and the conventions say to ask when ambiguous.
+- ONLINE_ONLY check in the judge runs before scope and role, for every update/delete (existing or not) and every created non-PAYMENT: it never confirms a row exists.
+- SALE and PAYMENT rows naming an order closed in the same batch are exempt from that check (SYNC-014 owns them); a PAYMENT with an order_id and no closing is ONLINE_ONLY.
+- Role stays the rules table's (DRIVER may push a PAYMENT too), not "SELLER and above" literally.
+- PENDING/missing/deleted relationship or no relationship id: outcome `issue` RELATIONSHIP_UNAVAILABLE, nothing stored. A judge-scoped PENDING one is in practice unreachable (viewer is CUSTOMER, FIELD_NOT_ALLOWED).
+- Unusable amount, mode, time, note or reference: `aside` INVALID_FIELD. occurred_at is required.
+- Repeat: an id stored as the viewer's own PAYMENT is accepted; any other stored id is OUT_OF_SCOPE. A pg advisory xact lock on the id serializes concurrent twins (C-36).
+- Notification `read_status` accepts READ or UNREAD, via `ownFields` in the judge rules; another value is aside.
 
-**Question for a human:**
-- AC-2 says a phone pushing a REFUND, CREDIT_NOTE, OPENING_BALANCE, an update or a delete of a ledger row gets `forbidden` with `ONLINE_ONLY`. The judge produces `FIELD_NOT_ALLOWED` for these today.
-- `tests/integration/sync/judge.test.ts` (SYNC-010) asserts `FIELD_NOT_ALLOWED` for a DRIVER pushing a CREDIT_NOTE ("forbids creating a row the role has no right to create") and for an OWNER pushing an update and a delete of a ledger entry ("does not let a ledger entry be changed or deleted").
-- SYNC-015 lists no "Tests to update", so those assertions stay. Options: (a) add SYNC-015 "Tests to update" for those two tests so the judge answers ONLINE_ONLY for every ledger create outside the PAYMENT right, every update and every delete; (b) change AC-2 to keep FIELD_NOT_ALLOWED where the rules table has no right for the role, with ONLINE_ONLY only for roles holding an online right (OWNER/MANAGER gestures).
-- Note for (b): a SELLER pushing a REFUND has no online right either, so AC-2/AB-1 would then see FIELD_NOT_ALLOWED too.
+**Tests added beyond the story:**
+- `push-payments.test.ts` › payment id stored by someone else: not a repeat, OUT_OF_SCOPE (ASVS 8.2.1)
+- `push-payments.test.ts` › payment tied to an order outside a closing: ONLINE_ONLY
+- `push-payments.test.ts` › unusable amounts, pending relationship, no relationship id: set aside or issue, nothing stored (C-36)
+- `push-payments.test.ts` › notification: extra field forbidden, bad status aside, create/delete forbidden (AC-4)
+- `push-payments.test.ts` › forbidden kinds also tested as OWNER (role independence); several of these passed at once as guards
 
-**Other open points found while reading (no code written):**
-- A DRIVER holds `create LedgerEntry` for PAYMENT in the rules table; the story says "SELLER and above". I would follow the rules table.
-- AB-1 "REFUND or a negative balance_effect": CM-27 says balance_effect is ignored, so a PAYMENT with a negative balance_effect would be stored normally; only a REFUND is forbidden.
+**Other additions:**
+- `money.adapter.ts`: wires `pushLedger` and `pushNotifications` (the story names only ledger.push.ts and the judge).
 
-**Evidence:** story tests 0/0 (not started); no files changed.
+**Evidence:** story tests 19/19; full suite 3029/3029, failing: none; typecheck clean; lint 0 errors, 117 warnings (existing kind)
 
 **Follow-ups:**
-- Answer the AC-2 question above, then re-run SYNC-015. Plan ready: `adapters/ledger.push.ts` (payment via `appendLedgerEntry` with an advisory lock on the id, notification read via `updateMany` on the viewer's own rows), judge `ownFields` for `notifications.read_status`, registration in `money.adapter.ts`.
+- push-deliveries.test.ts failed in isolation, with and without my change, on a stale local DB; it passed in the full run.
 <!-- end SYNC-015 -->
 
 <!-- begin SYNC-016 -->

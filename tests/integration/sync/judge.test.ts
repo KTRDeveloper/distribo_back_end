@@ -477,7 +477,7 @@ describe('sync judge pipeline', () => {
     });
 
     const body = bodyOf<PushBody>(response);
-    expect(body.rejected.map((r) => r.code)).toEqual(['FIELD_NOT_ALLOWED', 'FIELD_NOT_ALLOWED']);
+    expect(body.rejected.map((r) => r.code)).toEqual(['FIELD_NOT_ALLOWED', 'ONLINE_ONLY']);
     expect(calls).toEqual([]);
   });
 
@@ -502,8 +502,8 @@ describe('sync judge pipeline', () => {
     });
 
     expect(bodyOf<PushBody>(response).rejected.map((r) => r.code)).toEqual([
-      'FIELD_NOT_ALLOWED',
-      'FIELD_NOT_ALLOWED',
+      'ONLINE_ONLY',
+      'ONLINE_ONLY',
     ]);
     expect(calls).toEqual([]);
   });

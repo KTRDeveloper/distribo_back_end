@@ -3,6 +3,7 @@ import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
 import type { Row, SyncAdapter, Viewer } from '../sync.types.js';
 import { refuseEveryLine } from './identity.adapter.js';
+import { pushLedger, pushNotifications } from './ledger.push.js';
 
 type Changes = { created: Row[]; updated: Row[]; deleted: string[] };
 
@@ -125,7 +126,7 @@ export const ledgerEntriesAdapter: SyncAdapter = {
       }
     );
   },
-  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+  push: pushLedger,
 };
 
 /**
@@ -302,7 +303,7 @@ export const notificationsAdapter: SyncAdapter = {
       })
     );
   },
-  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+  push: pushNotifications,
 };
 
 export const moneyAdapters: SyncAdapter[] = [
