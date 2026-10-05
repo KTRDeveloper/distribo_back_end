@@ -86,7 +86,7 @@ import { notificationRoutes } from './modules/notification/notification.routes.j
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import { privacyRoutes, accountRoutes } from './modules/privacy/privacy.routes.js';
 import { personRoutes } from './modules/person/person.routes.js';
-import { syncRoutes } from './modules/sync/sync.routes.js';
+import { syncExceptionRoutes, syncRoutes } from './modules/sync/sync.routes.js';
 import {
   collaborationRoutes,
   organizationRoutes,
@@ -144,6 +144,7 @@ v1Router.use('/organizations/:organizationId', purchaseRoutes);
 v1Router.use('/organizations/:organizationId', supplierOrderRoutes);
 v1Router.use('/organizations/:organizationId', deliveryRoutes);
 v1Router.use('/organizations/:organizationId', financeRoutes);
+v1Router.use('/organizations/:organizationId', syncExceptionRoutes);
 v1Router.use('/orders', orderRoutes);
 v1Router.use('/suppliers', supplierRoutes);
 v1Router.use('/suppliers', financeSupplierRoutes);

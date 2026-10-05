@@ -1,6 +1,16 @@
+import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
-import { findIssueRows, markDevicePulled, withPullSnapshot } from './sync.repository.js';
+import type { Actor } from '../../types/express.js';
+import { resolveMoneyPeriod } from '../finance/finance.schemas.js';
+import {
+  type FlaggedLine,
+  findFlaggedOrders,
+  findIssueRows,
+  markDevicePulled,
+  withPullSnapshot,
+} from './sync.repository.js';
+import { syncExceptionsQuerySchema } from './sync.schemas.js';
 import { getAdapters } from './sync.registry.js';
 import type { TableChange, Viewer } from './sync.types.js';
 
@@ -146,4 +156,104 @@ export async function listIssues(
         ? encodeCursor({ createdAt: last.createdAt, id: last.id })
         : null,
   };
+}
+
+/** One cause of flag: how many orders carry it, the money at stake and who made them. */
+export type SyncExceptionItem = {
+  code: string;
+  count: number;
+  amount: number;
+  persons: string[];
+};
+
+/** Start of a code in an issue text: at the start or after " ; ", upper case, then a colon. */
+const CODE_START = /(?:^| ; )([A-Z][A-Z0-9_]*): /g;
+const OVER_LIMIT = /plafond dépassé de ([\d\s\u00a0\u202f]+)/;
+
+/** Splits an order's issue text into its `CODE: message` parts (a message may hold " ; "). */
+function issueParts(text: string): Array<{ code: string; message: string }> {
+  const starts = [...text.matchAll(CODE_START)];
+  return starts.map((match, index) => ({
+    code: match[1],
+    message: text.slice(match.index + match[0].length, starts[index + 1]?.index ?? text.length),
+  }));
+}
+
+/** Francs lost on the lines sold below the price the server now holds, quantities in thousandths. */
+function priceChangedAmount(lines: FlaggedLine[]): bigint {
+  let total = 0n;
+  for (const line of lines) {
+    // Only lines whose reference price is stale were caught by the control.
+    if (line.referencePrice === line.currentPrice) continue;
+    const gap = line.currentPrice - line.unitPriceApplied;
+    if (gap <= 0n) continue;
+    total += (gap * BigInt(Math.round(line.quantity.mul(1000).toNumber())) + 500n) / 1000n;
+  }
+  return total;
+}
+
+/**
+ * The owner reads the flagged operations of a period grouped by cause (SYNC-021). OWNER only: any
+ * other role is refused with a logged 403 before the query is read (ASVS v5.0.0-8.2.1); the
+ * organization is the actor's, never a client value. Each order counts once per code it carries.
+ * `PRICE_CHANGED` adds, for the lines sold below the price the server holds now, the gap times the
+ * quantity; `CREDIT_EXCEEDED` adds the amount over the limit written in the issue text; other
+ * codes have amount 0. `persons` lists who entered the orders (the deliverer for a credit overrun,
+ * which the delivery caused). Fields are listed one by one (ASVS v5.0.0-15.3.1). Largest amount
+ * first, then code.
+ *
+ * @param actor - Person, organization and role from `loadActor`.
+ * @param query - Raw `from` and `to` (`YYYY-MM-DD`); default the last 7 days, at most 92 days apart.
+ * @throws HttpError 403 `FORBIDDEN` below OWNER; 400 `VALIDATION_ERROR` for a bad or too long period.
+ */
+export async function syncExceptions(
+  actor: Actor,
+  query: { from?: string; to?: string }
+): Promise<{ items: SyncExceptionItem[] }> {
+  if (actor.role !== 'OWNER') {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'read',
+        subjectType: 'SyncExceptions',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+  const period = resolveMoneyPeriod(syncExceptionsQuerySchema.parse(query));
+  const orders = await findFlaggedOrders(actor.organizationId, period);
+
+  const groups = new Map<string, { count: number; amount: bigint; persons: Set<string> }>();
+  for (const order of orders) {
+    const seen = new Set<string>();
+    for (const part of issueParts(order.syncIssue)) {
+      if (seen.has(part.code)) continue;
+      seen.add(part.code);
+      const group = groups.get(part.code) ?? { count: 0, amount: 0n, persons: new Set() };
+      group.count += 1;
+      if (part.code === 'PRICE_CHANGED') {
+        group.amount += priceChangedAmount(order.lines);
+      } else if (part.code === 'CREDIT_EXCEEDED') {
+        const digits = OVER_LIMIT.exec(part.message)?.[1].replace(/\D/g, '');
+        if (digits) group.amount += BigInt(digits);
+      }
+      group.persons.add(
+        part.code === 'CREDIT_EXCEEDED'
+          ? (order.deliveredById ?? order.enteredById)
+          : order.enteredById
+      );
+      groups.set(part.code, group);
+    }
+  }
+
+  const items = [...groups.entries()].map(([code, group]) => ({
+    code,
+    count: group.count,
+    amount: Number(group.amount),
+    persons: [...group.persons].sort(),
+  }));
+  items.sort((a, b) => b.amount - a.amount || a.code.localeCompare(b.code));
+  return { items };
 }

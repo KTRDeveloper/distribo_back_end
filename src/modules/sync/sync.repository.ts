@@ -1,6 +1,7 @@
 import type { CollaborationRole, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { newId } from '../../shared/ids.js';
+import { getReferencePrice } from '../catalog/catalog.repository.js';
 
 /** Reads a person's scope version and ACTIVE memberships; null when the person does not exist. */
 export async function findViewerData(personId: string): Promise<{
@@ -322,4 +323,81 @@ export async function findIssueRows(
       createdAt: d.order.createdAt,
     })),
   ];
+}
+
+/** A line of a flagged order with the price the server holds for it now. */
+export type FlaggedLine = {
+  quantity: Prisma.Decimal;
+  unitPriceApplied: bigint;
+  referencePrice: bigint;
+  currentPrice: bigint;
+};
+
+/** An order of the organization flagged in `sync_issue`, with who entered and delivered it. */
+export type FlaggedOrder = {
+  syncIssue: string;
+  enteredById: string;
+  deliveredById: string | null;
+  lines: FlaggedLine[];
+};
+
+/**
+ * Reads the organization's orders created in the period that carry a non-empty `sync_issue`. The
+ * organization is the supplier of the order's relationship, never a client value (ASVS
+ * v5.0.0-8.2.2). Orders flagged `PRICE_CHANGED` come with their lines and the reference price the
+ * server holds now; other orders carry no lines.
+ *
+ * @param organizationId - The caller's organization, from `loadActor`.
+ * @param period - `from` inclusive, `toExclusive` exclusive.
+ */
+export async function findFlaggedOrders(
+  organizationId: string,
+  period: { from: Date; toExclusive: Date }
+): Promise<FlaggedOrder[]> {
+  const orders = await prisma.order.findMany({
+    where: {
+      deletedAt: null,
+      AND: [{ syncIssue: { not: null } }, { NOT: { syncIssue: '' } }],
+      createdAt: { gte: period.from, lt: period.toExclusive },
+      customerRelationship: { is: { supplierOrganizationId: organizationId } },
+    },
+    select: {
+      customerRelationshipId: true,
+      syncIssue: true,
+      enteredById: true,
+      deliveredById: true,
+      lines: {
+        where: { deletedAt: null },
+        select: { productId: true, quantity: true, unitPriceApplied: true, referencePrice: true },
+        orderBy: { id: 'asc' },
+      },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+  });
+
+  return prisma.$transaction(async (tx) => {
+    const flagged: FlaggedOrder[] = [];
+    for (const order of orders) {
+      const issue = order.syncIssue ?? '';
+      const lines: FlaggedLine[] = [];
+      if (issue.includes('PRICE_CHANGED:')) {
+        for (const line of order.lines) {
+          const current = await getReferencePrice(tx, order.customerRelationshipId, line.productId);
+          lines.push({
+            quantity: line.quantity,
+            unitPriceApplied: line.unitPriceApplied,
+            referencePrice: line.referencePrice,
+            currentPrice: current.price,
+          });
+        }
+      }
+      flagged.push({
+        syncIssue: issue,
+        enteredById: order.enteredById,
+        deliveredById: order.deliveredById,
+        lines,
+      });
+    }
+    return flagged;
+  });
 }

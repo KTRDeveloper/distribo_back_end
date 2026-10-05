@@ -203,7 +203,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-018 | blocked | | Story code done and its 8 tests pass, but the sync.refused notification breaks push-payments.test.ts 'forbids a phone creating or deleting a notification' (counts all notifications = 2, now 3); not listed under Tests to update: may it count only sync.test notifications? |
 | SYNC-019 | todo | | |
 | SYNC-020 | done | | GET /sync/issues: orders and deliveries with sync_issue, scoped by author or OWNER |
-| SYNC-021 | todo | | |
+| SYNC-021 | done | | GET exceptions/sync grouped by cause; orders only; reuses FIN-019 period rules |
 | SYNC-022 | todo | | |
 | SYNC-023 | todo | | |
 | PRIV-001 | done | | GET /users/me/deletion-check implemented; suite 2207 green |

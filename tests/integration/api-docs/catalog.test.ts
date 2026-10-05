@@ -224,6 +224,9 @@ describe('GET /docs/openapi.json', () => {
     // SYNC-020: the list of things to resolve
     expect(paths).toContain('/api/v1/sync/issues');
 
+    // SYNC-021: the owner's synchronization exceptions
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/exceptions/sync');
+
     // ADM-007: the recovery email routes
     expect(paths).toContain('/api/v1/admin/recovery-email/request');
     expect(paths).toContain('/api/v1/admin/recovery-email/confirm');

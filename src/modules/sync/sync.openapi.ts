@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { openApiRegistry, errorResponseSchema } from '../../lib/openapi/registry.js';
+import { uuidV7Schema } from '../../shared/ids.js';
+import { syncExceptionsQuerySchema } from './sync.schemas.js';
 
 const rowSchema = z.record(z.string(), z.unknown());
 
@@ -202,6 +204,58 @@ openApiRegistry.registerPath({
     },
     404: {
       description: 'Not found',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/exceptions/sync',
+  tags: ['sync'],
+  summary: 'Flagged synchronization operations grouped by cause (OWNER only)',
+  description:
+    'Orders of the organization created in the period whose `sync_issue` is not empty, counted per ' +
+    'code. `PRICE_CHANGED` carries the francs lost on lines sold below the current price, ' +
+    '`CREDIT_EXCEEDED` the amount over the limit; other codes have amount 0. Same period rules as ' +
+    'the money exceptions: `from` and `to` as dates, default the last 7 days, at most 92 days apart.',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema }),
+    query: syncExceptionsQuerySchema,
+  },
+  responses: {
+    200: {
+      description: 'One item per cause, largest amount first',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(
+              z.object({
+                code: z.string(),
+                count: z.number().int(),
+                amount: z.number().int(),
+                persons: z.array(z.string().uuid()),
+              })
+            ),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'Malformed date, from after to, or more than 92 days',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'The caller is not the owner',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Not a member of the organization',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

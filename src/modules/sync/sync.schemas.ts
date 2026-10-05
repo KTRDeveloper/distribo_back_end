@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { paginationQuerySchema } from '../../shared/pagination.js';
+import { moneyExceptionsQuerySchema } from '../finance/finance.schemas.js';
 
 /** Epoch milliseconds stay far below 16 digits; the cap bounds the input (ASVS v5.0.0-2.2.1). */
 const EPOCH_MS_DIGITS = /^\d{1,15}$/;
@@ -117,3 +118,11 @@ export const issuesQuerySchema = paginationQuerySchema
   .strict();
 
 export type IssuesQuery = z.infer<typeof issuesQuerySchema>;
+
+/**
+ * Strict query of the synchronization exceptions (SYNC-021): optional `from` and `to` as ISO dates,
+ * at most 92 days apart, with the same rules and defaults as the money exceptions (FIN-019).
+ */
+export const syncExceptionsQuerySchema = moneyExceptionsQuerySchema;
+
+export type SyncExceptionsQuery = z.infer<typeof syncExceptionsQuerySchema>;

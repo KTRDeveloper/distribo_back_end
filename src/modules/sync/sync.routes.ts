@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../../middleware/auth.js';
+import { loadActor } from '../../middleware/load-actor.js';
 import { registerCatalogAdapters } from './adapters/catalog.adapter.js';
 import { registerIdentityAdapters } from './adapters/identity.adapter.js';
 import { registerMoneyAdapters } from './adapters/money.adapter.js';
@@ -15,7 +16,7 @@ import {
   pushQuerySchema,
   scopeVersionHeaderSchema,
 } from './sync.schemas.js';
-import { listIssues, pull } from './sync.service.js';
+import { listIssues, pull, syncExceptions } from './sync.service.js';
 import { buildViewer } from './sync.viewer.js';
 import './sync.openapi.js';
 
@@ -74,5 +75,17 @@ syncRoutes.get('/issues', (req, res, next) => {
       res.set('Cache-Control', 'no-store');
       res.json(await listIssues(viewer, query));
     })
+    .catch(next);
+});
+
+/** Synchronization exceptions of an organization, mounted at `/organizations/:organizationId`. */
+export const syncExceptionRoutes = Router({ mergeParams: true });
+
+// GET /api/v1/organizations/:organizationId/exceptions/sync - the OWNER reads the flagged
+// operations grouped by cause. The service answers 403 below OWNER before it reads the query; the
+// organization is the actor's, from the path through `loadActor`.
+syncExceptionRoutes.get('/exceptions/sync', authMiddleware, loadActor, (req, res, next) => {
+  syncExceptions(req.actor!, req.query as { from?: string; to?: string })
+    .then((view) => res.json(view))
     .catch(next);
 });

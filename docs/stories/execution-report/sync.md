@@ -691,3 +691,38 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - Confirm the code/message split for issues without a colon (whole text as code) if the phone needs stable codes.
 <!-- end SYNC-020 -->
+
+<!-- begin SYNC-021 -->
+## SYNC-021 — Owner reads the synchronization exceptions grouped by cause
+
+- Filed: 2026-10-05 04:53 UTC
+- Status: **done**: GET exceptions/sync grouped by cause; orders only; reuses FIN-019 period rules
+- Risk: medium · story: [SYNC-021-owner-reads-the-synchronization-exceptions.md](../modules/sync/SYNC-021-owner-reads-the-synchronization-exceptions.md)
+- Agent: 82,662 tokens, 26 tool uses, 11 min 14 s
+
+### Agent report
+
+**Summary:** Added GET /organizations/{id}/exceptions/sync (OWNER only), grouping flagged orders by code with count, amount and persons.
+
+**Decisions:**
+- Scope: only orders' `sync_issue` (created in the period); delivery issues carry no code, so they are not grouped.
+- PRICE_CHANGED amount: per line with a stale reference price and applied < current price, (current - applied) x quantity, reported as a positive loss (AC-1 says 1400); lines sold above count 0.
+- CREDIT_EXCEEDED amount: parsed from the text "plafond dépassé de N" (no structured field exists); an order with several codes counts once per code.
+- persons: enteredById; for CREDIT_EXCEEDED deliveredById when set (the delivery caused it). Items sorted by amount desc then code.
+- Period: reused `resolveMoneyPeriod` and `moneyExceptionsQuerySchema` from finance.schemas (not in finance contracts.md; imported directly to keep FIN-019 rules identical).
+- Router `syncExceptionRoutes` exported from sync.routes.ts and mounted in src/app.ts under /organizations/:organizationId.
+
+**Tests added beyond the story:**
+- `exceptions.test.ts` › several causes on one order: one order with 3 codes counts once per code, other codes amount 0 (story context)
+- `exceptions.test.ts` › line sold above the current price adds nothing (story "when negative")
+- `exceptions.test.ts` › corrected or unflagged orders not counted (SYNC-020 AC-3 semantics)
+- `exceptions.test.ts` › unauthenticated call gets 401 (CONVENTIONS errors)
+
+**Other additions:**
+- SYNC-021 path added to tests/integration/api-docs/catalog.test.ts (convention); per-001.test.ts has no matching route list.
+
+**Evidence:** story tests 9/9; full suite 3056/3056, failing: none; typecheck clean; lint 0 errors, 118 warnings (same as before)
+
+**Follow-ups:**
+- Sync imports finance.schemas outside a contract; consider moving the period helper to src/shared.
+<!-- end SYNC-021 -->
