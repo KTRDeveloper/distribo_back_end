@@ -20381,6 +20381,145 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/exceptions/unsettled-deliveries": {
+      "get": {
+        "tags": [
+          "delivery"
+        ],
+        "summary": "Deliveries of a day not fully paid, grouped by deliverer (OWNER only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "date",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One item per person other than an owner who delivered an order of the day (Africa/Douala) with collected payments below its total",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "driver_person_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "orders": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "order_id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "customer_label": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "total_amount": {
+                                  "type": "integer"
+                                },
+                                "collected_amount": {
+                                  "type": "integer"
+                                },
+                                "unpaid_amount": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "order_id",
+                                "customer_label",
+                                "total_amount",
+                                "collected_amount",
+                                "unpaid_amount"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "driver_person_id",
+                          "orders"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed date or unknown query field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not the owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a member of the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/customers/{relationshipId}/payments": {
       "post": {
         "tags": [

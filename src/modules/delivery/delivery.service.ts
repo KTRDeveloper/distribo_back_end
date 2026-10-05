@@ -1,5 +1,6 @@
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { httpError } from '../../lib/http-error.js';
+import { logger } from '../../lib/logger.js';
 import type { Actor } from '../../types/express.js';
 import { newId } from '../../shared/ids.js';
 import { parseQuantity } from '../../shared/money.js';
@@ -11,6 +12,7 @@ import { findSupplierRelationshipLocked } from '../relationship/relationship.rep
 import { transitionOrder } from '../order/order.state.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
+  findDeliveredOrdersWithCollection,
   findDeliveryInProgress,
   findRegisteredCustomerRecipient,
   insertDelivery,
@@ -43,7 +45,9 @@ import type {
   FailDeliveryInput,
   MineQuery,
   PageQuery,
+  UnsettledQuery,
 } from './delivery.schemas.js';
+import { unsettledQuerySchema } from './delivery.schemas.js';
 import {
   projectDeliveredEntry,
   projectDeliveredOrder,
@@ -638,4 +642,84 @@ export function sellAtCounter(
       payment: projectDeliveredEntry(payment),
     };
   });
+}
+
+/** One delivered order whose collected payments are below its total. */
+export type UnsettledOrder = {
+  order_id: string;
+  customer_label: string | null;
+  total_amount: number;
+  collected_amount: number;
+  unpaid_amount: number;
+};
+
+/** The unsettled orders one person delivered. */
+export type UnsettledItem = { driver_person_id: string; orders: UnsettledOrder[] };
+
+/** Africa/Douala is UTC+1 all year (no daylight saving time). */
+const DOUALA_OFFSET_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+
+/**
+ * The UTC window `[from, toExclusive)` of a Douala calendar day: `date` (`YYYY-MM-DD`), or today
+ * in Douala when absent.
+ */
+function doualaDayWindow(date: string | undefined): { from: Date; toExclusive: Date } {
+  const day = date ?? new Date(Date.now() + DOUALA_OFFSET_MS).toISOString().slice(0, 10);
+  const from = Date.parse(`${day}T00:00:00.000Z`) - DOUALA_OFFSET_MS;
+  return { from: new Date(from), toExclusive: new Date(from + DAY_MS) };
+}
+
+/**
+ * The owner reads, for one day, the orders delivered by anyone but an owner whose collected
+ * payments are below the order total, grouped by deliverer (DLV-011). OWNER only: any other role
+ * gets a logged 403 before the query is read (deny by default, ASVS v5.0.0-8.2.1). The day is
+ * read in the Africa/Douala time zone and defaults to today; the organization is the actor's,
+ * never a client value (v5.0.0-8.2.2). Credit deliveries are listed with their full total as
+ * unpaid, so a driver cannot hide them (CWE-778). Only person ids, a customer label and amounts
+ * leave (v5.0.0-15.3.1). Items are ordered by person id, orders by delivery time.
+ *
+ * @param actor - Person, organization and role from `loadActor`.
+ * @param query - Raw `date` (`YYYY-MM-DD`); default today.
+ * @throws 403 `FORBIDDEN` below OWNER; 400 `VALIDATION_ERROR` for a bad date or an unknown field.
+ */
+export async function unsettledDeliveries(
+  actor: Actor,
+  query: UnsettledQuery
+): Promise<{ items: UnsettledItem[] }> {
+  if (actor.role !== 'OWNER') {
+    logger.warn(
+      {
+        event: 'permission_refused',
+        personId: actor.personId,
+        action: 'read',
+        subjectType: 'UnsettledDeliveries',
+      },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Permission denied');
+  }
+  const window = doualaDayWindow(unsettledQuerySchema.parse(query).date);
+  const delivered = await findDeliveredOrdersWithCollection(actor.organizationId, window);
+
+  const items: UnsettledItem[] = [];
+  for (const { order, collected } of delivered) {
+    if (order.deliveredById === null || collected >= order.totalAmount) continue;
+    const relationship = order.customerRelationship;
+    const entry: UnsettledOrder = {
+      order_id: order.id,
+      customer_label:
+        relationship.customerLabel ??
+        relationship.customerPerson?.fullName ??
+        relationship.customerOrganization?.name ??
+        null,
+      total_amount: Number(order.totalAmount),
+      collected_amount: Number(collected),
+      unpaid_amount: Number(order.totalAmount - collected),
+    };
+    const last = items[items.length - 1];
+    if (last?.driver_person_id === order.deliveredById) last.orders.push(entry);
+    else items.push({ driver_person_id: order.deliveredById, orders: [entry] });
+  }
+  return { items };
 }

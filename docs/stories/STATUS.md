@@ -181,7 +181,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-008 | done | | Partial delivery with LATER child order / ABANDON; 48/48 story tests, full suite green |
 | DLV-009 | done | | counter sale route, 15 tests, full suite green |
 | DLV-010 | done | | unstarted deliveries removed on both cancels and shop delivery |
-| DLV-011 | todo | | |
+| DLV-011 | done | | 13 story tests pass, full suite 2864 pass, typecheck clean |
 | DLV-012 | todo | | |
 | SYNC-001 | done | | types, registry, viewer; 7 tests pass |
 | SYNC-002 | done | | sync_archives table, FKs, immutability grants; admin-action-table fixture updated |

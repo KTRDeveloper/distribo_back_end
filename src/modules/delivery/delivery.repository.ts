@@ -1,8 +1,11 @@
-import type { Delivery, Prisma } from '@prisma/client';
+import type { Delivery, Order, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { resolveMergedRelation } from '../relationship/relationship.repository.js';
-import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
+import {
+  visibleRelationsWhere,
+  type RelationshipRow,
+} from '../relationship/relationship.visibility.js';
 import type { DeliveryForDriver, OrderForDriver } from './delivery.views.js';
 
 type Viewer = { personId: string; organizationId: string };
@@ -566,4 +569,58 @@ export function insertCounterSaleOrder(
     },
     select: { id: true },
   });
+}
+
+/** An order delivered in the window by a non-owner, with the sum of the payments collected for it. */
+export type DeliveredOrderWithCollection = {
+  order: Order & { customerRelationship: RelationshipRow };
+  collected: bigint;
+};
+
+/**
+ * Reads the orders of the organization delivered in `[from, toExclusive)` by anyone except an
+ * OWNER of the organization, each with the payments collected for it: PAYMENT entries add up and
+ * the entries reversing a payment subtract. The organization comes from the actor, through the
+ * order's customer relationship (v5.0.0-8.2.2). Ordered by deliverer, then delivery time, then id.
+ *
+ * @param organizationId - The actor's organization, never a client value.
+ * @param window - Start inclusive and end exclusive of the day, in UTC.
+ */
+export async function findDeliveredOrdersWithCollection(
+  organizationId: string,
+  window: { from: Date; toExclusive: Date }
+): Promise<DeliveredOrderWithCollection[]> {
+  const owners = await prisma.collaboration.findMany({
+    where: { organizationId, role: 'OWNER' },
+    select: { personId: true },
+  });
+  const orders = await prisma.order.findMany({
+    where: {
+      status: 'DELIVERED',
+      deletedAt: null,
+      deliveredAt: { gte: window.from, lt: window.toExclusive },
+      deliveredById: { not: null, notIn: owners.map((owner) => owner.personId) },
+      customerRelationship: { is: { supplierOrganizationId: organizationId } },
+    },
+    include: {
+      customerRelationship: {
+        include: {
+          customerPerson: true,
+          customerOrganization: { select: { name: true, description: true } },
+        },
+      },
+    },
+    orderBy: [{ deliveredById: 'asc' }, { deliveredAt: 'asc' }, { id: 'asc' }],
+  });
+  const entries = await prisma.ledgerEntry.findMany({
+    where: { kind: 'PAYMENT', orderId: { in: orders.map((order) => order.id) } },
+    select: { orderId: true, amount: true, reversesEntryId: true },
+  });
+  const collected = new Map<string, bigint>();
+  for (const entry of entries) {
+    if (entry.orderId === null) continue;
+    const signed = entry.reversesEntryId === null ? entry.amount : -entry.amount;
+    collected.set(entry.orderId, (collected.get(entry.orderId) ?? 0n) + signed);
+  }
+  return orders.map((order) => ({ order, collected: collected.get(order.id) ?? 0n }));
 }

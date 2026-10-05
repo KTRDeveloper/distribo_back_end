@@ -23,6 +23,7 @@ import {
   listMyDeliveries,
   listToDeliver,
   sellAtCounter,
+  unsettledDeliveries,
 } from './delivery.service.js';
 import './delivery.openapi.js';
 
@@ -192,6 +193,22 @@ deliveryRoutes.post(
       counterSaleSchema.parse(req.body)
     )
       .then((result) => res.status(201).json(result))
+      .catch(next);
+  }
+);
+
+// GET /api/v1/organizations/:organizationId/exceptions/unsettled-deliveries - the OWNER reads the
+// deliveries of one day (Africa/Douala) not fully paid, grouped by deliverer. The service answers
+// 403 below OWNER before the query is read; the organization is the actor's, from the path
+// through `loadActor`.
+deliveryRoutes.get(
+  '/exceptions/unsettled-deliveries',
+  authMiddleware,
+  loadActor,
+  (req, res, next) => {
+    // The raw query goes to the service, which refuses a non-owner first and then validates it strictly.
+    unsettledDeliveries(req.actor!, req.query as { date?: string })
+      .then((view) => res.json(view))
       .catch(next);
   }
 );

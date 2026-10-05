@@ -403,3 +403,35 @@ Also in this run: relationship, admin, catalog, order, finance.
 **Follow-ups:**
 - The first full-suite run showed 2 failures that did not repeat in two later runs; I did not capture which tests. Probably a flake under load, worth watching.
 <!-- end DLV-010 -->
+
+<!-- begin DLV-011 -->
+## DLV-011 — Owner reviews unsettled deliveries of the day
+
+- Filed: 2026-10-05 00:01 UTC
+- Status: **done**: 13 story tests pass, full suite 2864 pass, typecheck clean
+- Risk: medium · story: [DLV-011-owner-reviews-unsettled-deliveries-of-the-day.md](../modules/delivery/DLV-011-owner-reviews-unsettled-deliveries-of-the-day.md)
+- Agent: 76,007 tokens, 27 tool uses, 5 min 58 s
+
+### Agent report
+
+**Summary:** Added GET /exceptions/unsettled-deliveries (owner only): delivered orders of a Douala day with collected payments below the total, grouped by deliverer.
+
+**Decisions:**
+- "Non-owner" deliverer: excluded anyone holding an OWNER collaboration in the org (any status), so a former owner stays excluded.
+- Driver id: `orders.delivered_by_id`; day window is delivered_at in [D 00:00+01:00, next day), Douala fixed at UTC+1.
+- collected_amount: PAYMENT entries with the order_id, entries with reverses_entry_id subtract; orders with collected >= total are left out.
+- customer_label: customer_label, else customer person full name, else customer org name, else null (nullable in the response).
+- 403 is decided in the service (logged `permission_refused`) before the query is validated, same as FIN-019 `moneyExceptions`; no new ability in the rules table.
+- Date schema duplicated in delivery.schemas.ts rather than exporting finance's private `isoDateSchema` (file not listed).
+
+**Tests added beyond the story:**
+- `tests/integration/delivery/unsettled.test.ts` › default today, DRIVER 403, "2026-02-30" and unknown query field 400, other business's orders not listed, reversed payment subtracts: scope, fail-closed validation, reversal rule (CONVENTIONS, Context "reversals subtract"); all passed at once after the endpoint existed (written first, failed on 404).
+
+**Other additions:**
+- `tests/integration/api-docs/catalog.test.ts`: path entry (CONVENTIONS rule). `per-001.test.ts` has no route list, so untouched.
+
+**Evidence:** story tests 13/13; full suite 2864/2864, failing: none; typecheck clean; lint 0 errors, 67 warnings (existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- `openapi/openapi.json` not regenerated (Bash denied my check on it); run `npm run openapi:generate` if the file is kept in sync per story.
+<!-- end DLV-011 -->

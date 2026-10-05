@@ -10,6 +10,7 @@ import {
   departSchema,
   mineQuerySchema,
   toDeliverQuerySchema,
+  unsettledQuerySchema,
 } from './delivery.schemas.js';
 
 const errorContent = { 'application/json': { schema: errorResponseSchema } };
@@ -314,5 +315,47 @@ openApiRegistry.registerPath({
         'COUNTER_PAYMENT_INCOMPLETE (collected amount differs from the total), RELATIONSHIP_NOT_ACTIVE, ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
       content: errorContent,
     },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/exceptions/unsettled-deliveries',
+  tags: ['delivery'],
+  summary: 'Deliveries of a day not fully paid, grouped by deliverer (OWNER only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema }),
+    query: unsettledQuerySchema,
+  },
+  responses: {
+    200: {
+      description:
+        'One item per person other than an owner who delivered an order of the day (Africa/Douala) with collected payments below its total',
+      content: {
+        'application/json': {
+          schema: z.object({
+            items: z.array(
+              z.object({
+                driver_person_id: z.string().uuid(),
+                orders: z.array(
+                  z.object({
+                    order_id: z.string().uuid(),
+                    customer_label: z.string().nullable(),
+                    total_amount: z.number().int(),
+                    collected_amount: z.number().int(),
+                    unpaid_amount: z.number().int(),
+                  })
+                ),
+              })
+            ),
+          }),
+        },
+      },
+    },
+    400: { description: 'Malformed date or unknown query field', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'The caller is not the owner', content: errorContent },
+    404: { description: 'Not a member of the organization', content: errorContent },
   },
 });

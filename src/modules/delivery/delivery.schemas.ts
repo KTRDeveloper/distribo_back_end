@@ -166,3 +166,20 @@ export type CounterSaleInput = z.infer<typeof counterSaleSchema>;
 
 /** Path of the counter-sale gesture: the relationship id is a UUID (never reaches the database malformed). */
 export const counterParamSchema = z.object({ relationshipId: uuidV7Schema }).strict();
+
+/** True for a real calendar date written `YYYY-MM-DD` (no `2026-02-30`). */
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === value;
+}
+
+/**
+ * Strict query of the unsettled deliveries (DLV-011): one optional `date` (`YYYY-MM-DD`, a real
+ * calendar day, read in the Africa/Douala time zone). Any other field is a 400 (ASVS v5.0.0-2.2.1).
+ */
+export const unsettledQuerySchema = z
+  .object({ date: z.string().refine(isCalendarDate, 'invalid_date').optional() })
+  .strict();
+
+export type UnsettledQuery = z.infer<typeof unsettledQuerySchema>;

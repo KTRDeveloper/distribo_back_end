@@ -210,6 +210,10 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain(
       '/api/v1/organizations/{organizationId}/counters/{relationshipId}/sales'
     );
+    // DLV-011: the owner reviews the unsettled deliveries of a day
+    expect(paths).toContain(
+      '/api/v1/organizations/{organizationId}/exceptions/unsettled-deliveries'
+    );
 
     // SYNC-006: the pull route
     expect(paths).toContain('/api/v1/sync/pull');
