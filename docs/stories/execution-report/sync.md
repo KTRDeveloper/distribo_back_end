@@ -234,6 +234,36 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - Confirm the truncated DRIVER sentence in the story with its author.
 <!-- end SYNC-006 -->
 
+<!-- begin SYNC-007 -->
+## SYNC-007 — Pull the ledger, money records and notifications
+
+- Filed: 2026-10-05 00:08 UTC
+- Status: **done**: money adapter registered in sync.routes.ts; 10 tests, full suite 2874 green
+- Risk: high · story: [SYNC-007-pull-the-ledger-money-records-and-notifications.md](../modules/sync/SYNC-007-pull-the-ledger-money-records-and-notifications.md)
+- Agent: 72,373 tokens, 20 tool uses, 6 min 13 s
+
+### Agent report
+
+**Summary:** Added money.adapter.ts (ledger_entries, expenses, handovers, credit_limit_changes, notifications) and registered it in sync routes; all green.
+
+**Decisions:**
+- Registration: done in `sync.routes.ts` (where the other adapters register), not `sync.service.ts` which the story lists; the service needed no change.
+- Expense/handover retention: kept when `occurred_at` OR `cancelled_at` is within 90 days, so a recent cancellation of an older record is learnt (story lists cancelled_at as a retention date, rule not spelled out).
+- Ledger shape: SELLER gets `transaction_reference` but not `recorded_by_id`; customer gets neither; customer view wins when the person is also a collaborator (as in orders).
+- Handovers: OWNER/MANAGER all rows of the org; SELLER/DRIVER only own, per active membership organization.
+- ledger_entries and credit_limit_changes have no `deleted_at`: mapped to null, "created" uses `server_updated_at` (immutable rows); expenses/handovers: uncancelled = created, cancelled = updated (no created_at column).
+- Notifications omit `pushed_at` (server delivery detail); include `recipient_id` (own only).
+
+**Tests added beyond the story:**
+- `pull-money.test.ts` › revoked membership receives nothing: fail-closed on non-ACTIVE membership (ASVS 8.2.2); passed at once after implementation (written with the others, red before adapter existed)
+- `pull-money.test.ts` › incremental pull lists a cancelled expense as updated (C-35)
+
+**Evidence:** story tests 10/10; full suite 2874/2874, failing: none; typecheck clean; lint 0 errors, 68 warnings (existing)
+
+**Follow-ups:**
+- Retention rule for cancelled expenses/handovers is my reading; confirm with the owner of the design.
+<!-- end SYNC-007 -->
+
 <!-- begin SYNC-008 -->
 ## SYNC-008 — Device tracking and full resynchronization
 

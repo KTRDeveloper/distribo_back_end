@@ -189,7 +189,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-004 | done | | customer_relationships and customer_prices pull adapters; suite 2170/2170 |
 | SYNC-005 | done | | products adapter: full catalog for OWNER/MANAGER/SELLER, 3 columns for DRIVER, none for customer |
 | SYNC-006 | done | | orders, order_lines, deliveries pull adapters; 11 tests green |
-| SYNC-007 | todo | | |
+| SYNC-007 | done | | money adapter registered in sync.routes.ts; 10 tests, full suite 2874 green |
 | SYNC-008 | done | | Pull checks X-Scope-Version, revoked device 401, records last_synced_at and scope_version_seen |
 | SYNC-009 | todo | | |
 | SYNC-010 | todo | | |
