@@ -435,3 +435,27 @@ Also in this run: relationship, admin, catalog, order, finance.
 **Follow-ups:**
 - `openapi/openapi.json` not regenerated (Bash denied my check on it); run `npm run openapi:generate` if the file is kept in sync per story.
 <!-- end DLV-011 -->
+
+<!-- begin DLV-012 -->
+## DLV-012 — Abandoned rests join the owner's money exceptions
+
+- Filed: 2026-10-05 00:01 UTC
+- Status: **blocked**: Adding abandoned_rests to every item breaks 2 existing money-exceptions tests (exact-object toEqual, exact key list) and the story has no Tests to update: may they be updated, or must abandoned_rests be omitted when count is 0?
+- Risk: medium · story: [DLV-012-abandoned-rests-join-the-owner-s-money.md](../modules/delivery/DLV-012-abandoned-rests-join-the-owner-s-money.md)
+- Agent: 50,363 tokens, 13 tool uses, 43 s
+
+### Agent report
+
+**Summary:** Blocked before any code: the story contradicts the Agent rules on existing tests, so I did not guess.
+
+**Decisions:**
+- Stopped instead of editing tests: the story has no "Tests to update" section, and CONVENTIONS forbids changing existing tests without one.
+
+**Evidence:** no code written; tests not run (analysis only, nothing changed in src or tests).
+
+**Follow-ups:**
+- Conflict: "each item also has abandoned_rests" means every item of `GET .../exceptions/money` gains a key. `tests/integration/finance/money-exceptions.test.ts` (listed in the story's command) has an exact-object `toEqual` on the full items (~line 232) and an exact key-list check (~line 416). Both fail once the key is added.
+- Question for a human: (a) add `tests/integration/finance/money-exceptions.test.ts` under "Tests to update" so the two assertions gain `abandoned_rests` (my recommendation, matches the story text), or (b) omit `abandoned_rests` when count is 0 (keeps old tests green, contradicts "each item also has").
+- Open detail to settle with it: whether a person with only abandoned rests (no other gesture) gets an item; I would say yes (AB-1 wants the driver named).
+- Design hint for the implementer: `finance.service.ts` must not import `delivery.repository.ts` unless the delivery contracts.md exposes the function; contracts.md does not list one yet, and `finance.repository.ts` is the only finance file that calls prisma.
+<!-- end DLV-012 -->
