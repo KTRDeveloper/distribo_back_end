@@ -103,6 +103,23 @@ export async function archiveBatch(
   return archive.id;
 }
 
+/** An archived batch as a replay reads it: its author, device, receipt time and the stored changes. */
+export type ArchivedBatch = {
+  id: string;
+  personId: string;
+  deviceId: string;
+  receivedAt: Date;
+  changes: unknown;
+};
+
+/** Reads one archived batch by id; null when none exists (SYNC-022). */
+export async function findArchive(archiveId: string): Promise<ArchivedBatch | null> {
+  return prisma.syncArchive.findUnique({
+    where: { id: archiveId },
+    select: { id: true, personId: true, deviceId: true, receivedAt: true, changes: true },
+  });
+}
+
 /** Runs the conflict check and the judging of one push in a single transaction (ASVS v5.0.0-2.3.3). */
 export async function withPushTransaction<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>

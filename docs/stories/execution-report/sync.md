@@ -768,3 +768,40 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - Sync imports finance.schemas outside a contract; consider moving the period helper to src/shared.
 <!-- end SYNC-021 -->
+
+<!-- begin SYNC-022 -->
+## SYNC-022 — Super administrator replays an archived batch
+
+- Filed: 2026-10-05 05:36 UTC
+- Status: **done**: replay route, REPLAY_SYNC journal + notices in one transaction; suite 3089/3089
+- Risk: high · story: [SYNC-022-super-administrator-replays-an-archived-batch.md](../modules/sync/SYNC-022-super-administrator-replays-an-archived-batch.md)
+- Agent: 92,722 tokens, 28 tool uses, 10 min 22 s
+
+### Agent report
+
+**Summary:** Added POST /api/v1/admin/sync-archives/{archiveId}/replay (SUPER_ADMIN): author's current rights, REPLAY_SYNC journal and notices in one transaction.
+
+**Decisions:**
+- Route mount: new `syncArchiveRoutes` router in sync.routes.ts mounted in `src/app.ts` before `/admin` (admin must not import sync).
+- Author viewer: rebuilt from the database with no `scopeVersionSeen`, so no SYNC-019 grace applies (current rights only, AC-2).
+- Journal and notices: `judgeBatch` got an `afterApply(tx, result)` hook; the journal insert runs in `beforeApply`, the notices in `afterApply`, same transaction.
+- Notice recipients: the author and the ACTIVE OWNERs of every organization the author has a non-deleted membership in (any status), one notice per owner and organization, FR/EN by preference, date = archive `received_at` in UTC.
+- Role check done in the service as well as `requireAdminRole`, and before reading the archive or body (moderator with empty reason gets 403).
+- Stored batch that no longer passes the push schema: plain Error, so 500 (fail closed).
+- A replay does not call `recordPush`: `last_synced_at` is untouched.
+- Each replay writes its own journal row and notices; idempotence applies to the batch's records.
+
+**Tests added beyond the story:**
+- `replay.test.ts` › refusals (blank reason, no reason, over 2000 chars, unknown field; no token): validation limits and fail-closed paths (AC-4, Validation conventions); passed at once
+- `replay.test.ts` › does not move the author's device last_synced_at (CM-32); passed at once
+
+**Other additions:**
+- `findArchive` in sync.repository.ts, `archiveIdParamsSchema`, `replayBodySchema`, `archivedChangesSchema` in sync.schemas.ts, `notifyReplayed` in sync.judge.ts.
+- Catalog route list entry in `tests/integration/api-docs/catalog.test.ts` and regenerated `openapi/openapi.json`; `src/app.ts` edited though not listed.
+
+**Evidence:** story tests 15/15; full suite 3089/3089, failing: none; typecheck clean; lint 0 errors, 129 warnings (existing)
+
+**Follow-ups:**
+- I wrote the story's tests before the code but did not run them red first; they all passed on the first run after implementing.
+- `per-001.test.ts` has no sync route list, so nothing was added there.
+<!-- end SYNC-022 -->

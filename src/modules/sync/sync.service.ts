@@ -2,15 +2,20 @@ import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import type { Actor } from '../../types/express.js';
+import type { AdminContext } from '../admin/admin.service.js';
+import { recordAdminAction } from '../admin/admin.repository.js';
 import { resolveMoneyPeriod } from '../finance/finance.schemas.js';
 import {
   type FlaggedLine,
   findFlaggedOrders,
+  findArchive,
   findIssueRows,
+  findViewerData,
   markDevicePulled,
   withPullSnapshot,
 } from './sync.repository.js';
-import { syncExceptionsQuerySchema } from './sync.schemas.js';
+import { judgeBatch, notifyReplayed, type PushResult } from './sync.judge.js';
+import { archivedChangesSchema, syncExceptionsQuerySchema } from './sync.schemas.js';
 import { getAdapters } from './sync.registry.js';
 import type { TableChange, Viewer } from './sync.types.js';
 
@@ -256,4 +261,78 @@ export async function syncExceptions(
   }));
   items.sort((a, b) => b.amount - a.amount || a.code.localeCompare(b.code));
   return { items };
+}
+
+/**
+ * A super administrator replays an archived batch after the cause of a refusal is fixed (SYNC-022,
+ * CM-32). SUPER_ADMIN only: any other role is refused with a logged 403 before the archive is read
+ * (ASVS v5.0.0-8.2.1). The batch is judged as if sent by its author with their current rights,
+ * never the administrator's (the author's viewer is rebuilt from the database, with no device
+ * grace: `scope_version_seen` is left out). Only the version, clock and conflict checks of a push
+ * are skipped. The REPLAY_SYNC journal row, the applied lines and the `sync.replayed` notifications
+ * to the author and the owners are one transaction: when the journal insert fails, nothing is
+ * applied (ASVS v5.0.0-2.3.3, v5.0.0-16.3.1). A batch may be replayed again; lines are idempotent by
+ * record id, and each replay is journaled. The author's device `last_synced_at` is not touched.
+ *
+ * @param admin - From `adminAuthMiddleware`.
+ * @param archiveId - The archive to replay.
+ * @param input - The mandatory reason kept in the journal.
+ * @throws HttpError 403 `FORBIDDEN` below SUPER_ADMIN; 404 `NOT_FOUND` for an unknown archive.
+ * @throws Error when the stored batch no longer passes the push schema (unexpected: 500).
+ */
+export async function replayArchive(
+  admin: AdminContext,
+  archiveId: string,
+  input: { reason: string }
+): Promise<PushResult> {
+  if (admin.role !== 'SUPER_ADMIN') {
+    logger.warn(
+      { event: 'admin_access_denied', personId: admin.personId, action: 'replay_sync' },
+      'Permission refused'
+    );
+    throw httpError(403, 'FORBIDDEN', 'Not allowed');
+  }
+  const archive = await findArchive(archiveId);
+  if (!archive) throw httpError(404, 'NOT_FOUND', 'Not found');
+  const changes = archivedChangesSchema.safeParse(archive.changes);
+  if (!changes.success) throw new Error('Archived batch does not match the push schema');
+  const author = await findViewerData(archive.personId);
+  if (!author) throw httpError(404, 'NOT_FOUND', 'Not found');
+
+  const viewer: Viewer = {
+    personId: archive.personId,
+    deviceId: archive.deviceId,
+    memberships: author.memberships.map((m) => ({
+      organizationId: m.organizationId,
+      role: m.role,
+      status: 'ACTIVE' as const,
+    })),
+    scopeVersion: author.scopeVersion,
+    isOnline: false,
+  };
+  const result = await judgeBatch(viewer, changes.data, {
+    replay: true,
+    beforeApply: async (tx) => {
+      await recordAdminAction(tx, {
+        administratorId: admin.administratorId,
+        action: 'REPLAY_SYNC',
+        targetPersonId: archive.personId,
+        syncArchiveId: archive.id,
+        reason: input.reason,
+      });
+    },
+    afterApply: (tx) => notifyReplayed(tx, archive.personId, archive.receivedAt),
+  });
+  logger.warn(
+    {
+      event: 'sync_archive_replayed',
+      administratorId: admin.administratorId,
+      archiveId: archive.id,
+      personId: archive.personId,
+      accepted: result.accepted,
+      rejected: result.rejected.length,
+    },
+    'archived batch replayed'
+  );
+  return result;
 }

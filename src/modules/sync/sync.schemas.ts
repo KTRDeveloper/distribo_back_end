@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { uuidV7Schema } from '../../shared/ids.js';
 import { paginationQuerySchema } from '../../shared/pagination.js';
 import { moneyExceptionsQuerySchema } from '../finance/finance.schemas.js';
 
@@ -126,3 +127,17 @@ export type IssuesQuery = z.infer<typeof issuesQuerySchema>;
 export const syncExceptionsQuerySchema = moneyExceptionsQuerySchema;
 
 export type SyncExceptionsQuery = z.infer<typeof syncExceptionsQuerySchema>;
+
+/** Path of POST /admin/sync-archives/{archiveId}/replay: the archive's UUIDv7 (SYNC-022). */
+export const archiveIdParamsSchema = z.object({ archiveId: uuidV7Schema }).strict();
+
+/**
+ * Body of the replay: the reason kept in the journal, 1 to 2000 characters once trimmed; unknown
+ * fields are refused (SYNC-022, ASVS v5.0.0-15.3.3).
+ */
+export const replayBodySchema = z.object({ reason: z.string().trim().min(1).max(2000) }).strict();
+
+export type ReplayBody = z.infer<typeof replayBodySchema>;
+
+/** The `changes` of an archived batch, checked again with the push rules before a replay. */
+export const archivedChangesSchema = pushBodySchema.shape.changes;

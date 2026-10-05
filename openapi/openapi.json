@@ -25550,6 +25550,146 @@
         }
       }
     },
+    "/api/v1/admin/sync-archives/{archiveId}/replay": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Replay an archived batch after the cause of a refusal is fixed (super administrator only)",
+        "description": "The batch is judged as if sent by its author with their current rights, never the administrator's: only the version, clock and conflict checks of a push are skipped. A REPLAY_SYNC journal row (archive id and reason) is written in the same transaction, and the author and the owners get a notification. A batch can be replayed more than once; lines are idempotent by record id.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "archiveId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the replay came to, as a push reports it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "table": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "table",
+                          "id",
+                          "code",
+                          "message"
+                        ]
+                      }
+                    },
+                    "aside": {
+                      "type": "integer"
+                    },
+                    "resync_required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "accepted",
+                    "rejected",
+                    "aside",
+                    "resync_required"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing, empty or too long reason, or a malformed archive id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or non-administration token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The administrator is not a super administrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown archive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/me/deletion-check": {
       "get": {
         "tags": [

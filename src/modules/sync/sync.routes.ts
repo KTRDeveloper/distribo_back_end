@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { adminAuthMiddleware, requireAdminRole } from '../../middleware/admin-auth.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { registerCatalogAdapters } from './adapters/catalog.adapter.js';
@@ -9,14 +10,16 @@ import { registerRelationshipAdapters } from './adapters/relationship.adapter.js
 import { pushChanges } from './sync.push.js';
 import {
   appVersionHeaderSchema,
+  archiveIdParamsSchema,
   clientTimeHeaderSchema,
   issuesQuerySchema,
   pullQuerySchema,
   pushBodySchema,
   pushQuerySchema,
+  replayBodySchema,
   scopeVersionHeaderSchema,
 } from './sync.schemas.js';
-import { listIssues, pull, syncExceptions } from './sync.service.js';
+import { listIssues, pull, replayArchive, syncExceptions } from './sync.service.js';
 import { buildViewer } from './sync.viewer.js';
 import './sync.openapi.js';
 
@@ -89,3 +92,25 @@ syncExceptionRoutes.get('/exceptions/sync', authMiddleware, loadActor, (req, res
     .then((view) => res.json(view))
     .catch(next);
 });
+
+/** Archived batches, mounted at `/admin/sync-archives`; administration tokens only. */
+export const syncArchiveRoutes = Router();
+
+// POST /api/v1/admin/sync-archives/:archiveId/replay - a SUPER_ADMIN replays an archived batch,
+// judged with its author's current rights; the role is checked before the body is read
+syncArchiveRoutes.post(
+  '/:archiveId/replay',
+  adminAuthMiddleware,
+  requireAdminRole('SUPER_ADMIN'),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(async () => {
+        const { archiveId } = archiveIdParamsSchema.parse(req.params);
+        const { reason } = replayBodySchema.parse(req.body);
+        const result = await replayArchive(req.admin!, archiveId, { reason });
+        res.set('Cache-Control', 'no-store');
+        res.status(200).json(result);
+      })
+      .catch(next);
+  }
+);

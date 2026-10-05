@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import { openApiRegistry, errorResponseSchema } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
-import { syncExceptionsQuerySchema } from './sync.schemas.js';
+import {
+  archiveIdParamsSchema,
+  replayBodySchema,
+  syncExceptionsQuerySchema,
+} from './sync.schemas.js';
 
 const rowSchema = z.record(z.string(), z.unknown());
 
@@ -256,6 +260,63 @@ openApiRegistry.registerPath({
     },
     404: {
       description: 'Not a member of the organization',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/sync-archives/{archiveId}/replay',
+  tags: ['sync'],
+  summary:
+    'Replay an archived batch after the cause of a refusal is fixed (super administrator only)',
+  description:
+    'The batch is judged as if sent by its author with their current rights, never the ' +
+    "administrator's: only the version, clock and conflict checks of a push are skipped. A " +
+    'REPLAY_SYNC journal row (archive id and reason) is written in the same transaction, and the ' +
+    'author and the owners get a notification. A batch can be replayed more than once; lines are ' +
+    'idempotent by record id.',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: archiveIdParamsSchema,
+    body: { content: { 'application/json': { schema: replayBodySchema } } },
+  },
+  responses: {
+    200: {
+      description: 'What the replay came to, as a push reports it',
+      content: {
+        'application/json': {
+          schema: z.object({
+            accepted: z.number().int(),
+            rejected: z.array(
+              z.object({
+                table: z.string(),
+                id: z.string(),
+                code: z.string(),
+                message: z.string(),
+              })
+            ),
+            aside: z.number().int(),
+            resync_required: z.boolean(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'Missing, empty or too long reason, or a malformed archive id',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing, invalid or non-administration token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'The administrator is not a super administrator',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Unknown archive',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

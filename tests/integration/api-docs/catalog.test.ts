@@ -227,6 +227,9 @@ describe('GET /docs/openapi.json', () => {
     // SYNC-021: the owner's synchronization exceptions
     expect(paths).toContain('/api/v1/organizations/{organizationId}/exceptions/sync');
 
+    // SYNC-022: a super administrator replays an archived batch
+    expect(paths).toContain('/api/v1/admin/sync-archives/{archiveId}/replay');
+
     // ADM-007: the recovery email routes
     expect(paths).toContain('/api/v1/admin/recovery-email/request');
     expect(paths).toContain('/api/v1/admin/recovery-email/confirm');

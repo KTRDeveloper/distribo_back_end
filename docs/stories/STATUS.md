@@ -204,7 +204,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-019 | done | | Grace for stale devices: seller ops kept and reported, rest refused; owners told |
 | SYNC-020 | done | | GET /sync/issues: orders and deliveries with sync_issue, scoped by author or OWNER |
 | SYNC-021 | done | | GET exceptions/sync grouped by cause; orders only; reuses FIN-019 period rules |
-| SYNC-022 | todo | | |
+| SYNC-022 | done | | replay route, REPLAY_SYNC journal + notices in one transaction; suite 3089/3089 |
 | SYNC-023 | todo | | |
 | PRIV-001 | done | | GET /users/me/deletion-check implemented; suite 2207 green |
 | PRIV-002 | done | | DELETE /users/me anonymizes in one transaction; Task table column mismatch worked around with raw SQL |

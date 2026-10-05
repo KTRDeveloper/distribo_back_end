@@ -53,6 +53,8 @@ export type JudgeOptions = {
   replay?: boolean;
   /** Runs first in the batch's transaction (the push uses it for the conflict check). */
   beforeApply?: (tx: Prisma.TransactionClient) => Promise<void>;
+  /** Runs last in the batch's transaction, with the result (the replay uses it to notify). */
+  afterApply?: (tx: Prisma.TransactionClient, result: PushResult) => Promise<void>;
 };
 
 /** Tables judged line by line, parents before children (AC-5). */
@@ -777,7 +779,8 @@ async function reportGracedOperations(
  *
  * @param viewer - Built from the database for this exchange (the batch's author, on a replay).
  * @param batch - Already validated by the push schema.
- * @param options - `beforeApply` runs first, inside the transaction; an error it throws rolls back.
+ * @param options - `beforeApply` runs first and `afterApply` last, inside the transaction; an
+ * error either throws rolls the whole batch back.
  */
 export async function judgeBatch(
   viewer: Viewer,
@@ -934,6 +937,62 @@ export async function judgeBatch(
     // A refused line means the phone holds something the server did not keep: it pulls again (CM-28).
     await reportUnwritten(viewer, tx, unwritten, stale);
     if (stale) await reportGracedOperations(viewer, tx, judge.gracedOps, outcomes);
-    return { accepted, rejected, aside, resync_required: rejected.length > 0 };
+    const result = { accepted, rejected, aside, resync_required: rejected.length > 0 };
+    await options.afterApply?.(tx, result);
+    return result;
   });
+}
+
+const REPLAYED_WORDS = {
+  FR: (date: string) =>
+    `Des opérations envoyées le ${date} depuis votre téléphone ont été réintégrées par l'équipe de la plateforme.`,
+  EN: (date: string) =>
+    `Operations sent on ${date} from your phone were reintegrated by the platform team.`,
+};
+
+/**
+ * Tells the batch's author and the OWNERs of every organization the author belongs or belonged to
+ * that a super administrator replayed the batch, one `sync.replayed` notification each, in the
+ * recipient's language (SYNC-022, CM-32). The text names the date the batch was received and
+ * nothing else. Runs in the replay's transaction: no notification outlives a rolled-back replay.
+ *
+ * @param tx - The replay's transaction.
+ * @param authorId - The person who sent the batch.
+ * @param receivedAt - When the server archived the batch (UTC date shown).
+ */
+export async function notifyReplayed(
+  tx: Prisma.TransactionClient,
+  authorId: string,
+  receivedAt: Date
+): Promise<void> {
+  const date = receivedAt.toISOString().slice(0, 10);
+  const memberships = await tx.collaboration.findMany({
+    where: { personId: authorId, deletedAt: null },
+    select: { organizationId: true },
+  });
+  const language = await recipientLanguage(authorId, tx);
+  await notify(
+    {
+      recipientId: authorId,
+      sourceEvent: 'sync.replayed',
+      content: REPLAYED_WORDS[language](date),
+    },
+    tx
+  );
+  const organizations = [...new Set(memberships.map((m) => m.organizationId))].sort();
+  for (const organizationId of organizations) {
+    for (const ownerId of await ownersOf(tx, organizationId)) {
+      if (ownerId === authorId) continue;
+      const ownerLanguage = await recipientLanguage(ownerId, tx);
+      await notify(
+        {
+          recipientId: ownerId,
+          organizationId,
+          sourceEvent: 'sync.replayed',
+          content: REPLAYED_WORDS[ownerLanguage](date),
+        },
+        tx
+      );
+    }
+  }
 }
