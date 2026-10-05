@@ -379,3 +379,37 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - Rows of the six tables that name no parent are handed to the adapter unscoped (adapter must refuse the malformed row).
 - `forbidden` still reports resync_required: false; full resync plus notification to the author (CM-28) is not in this story's ACs.
 <!-- end SYNC-010 -->
+
+<!-- begin SYNC-011 -->
+## SYNC-011 — Push new and edited customers, and merge duplicates
+
+- Filed: 2026-10-05 03:09 UTC
+- Status: **done**: Push side of customer_relationships: create, merge, redirect, edit
+- Risk: high · story: [SYNC-011-push-new-and-edited-customers-and-merge.md](../modules/sync/SYNC-011-push-new-and-edited-customers-and-merge.md)
+- Agent: 104,228 tokens, 31 tool uses, 11 min 57 s
+
+### Agent report
+
+**Summary:** Push side of customer_relationships: create by phone number, merge duplicates, redirect later lines, edit three fields.
+
+**Decisions:**
+- Hook-up: `relationship.adapter.ts` push now delegates to `pushRelationships` (not in the story's Modify list; needed to register the push side).
+- Redirect: `LineOutcome.mergedInto` (sync.types.ts); the judge keeps a per-batch map and rewrites `customer_relationship_id` of later lines before judging them.
+- Insert: raw `INSERT ... ON CONFLICT DO NOTHING` with the client id (ensureCustomerRelationship cannot take an id); a conflict never aborts the batch.
+- Duplicate path: stored as phone-only row (label falls back to the kept label, then the number, since C-06 needs a label without a customer), then `mergeDuplicateRelation`.
+- AB-2: a created row with credit_limit != 0, status != ACTIVE, or any other non-null field outside the allowed list is refused FIELD_NOT_ALLOWED and nothing is stored (story said "forbidden").
+- Unusable text (type, length, empty label, null label on a counter) is set aside with INVALID_FIELD; edits of a deleted row are set aside; deletions stay refused (SYNC_TABLE_READ_ONLY).
+- INVALID_PHONE and MERGED are `issue` outcomes: the push answer does not list issues yet (SYNC-020), so tests read them by calling the adapter directly.
+
+**Tests added beyond the story:**
+- `push-relationships.test.ts` › counter from a phone: COUNTER_ONLINE_ONLY (story Context)
+- `push-relationships.test.ts` › other organization / DRIVER create: OUT_OF_SCOPE and FIELD_NOT_ALLOWED, no person created (ASVS 8.2.1); passed at once (judge)
+- `push-relationships.test.ts` › same id owned by another organization: not overwritten (scope); passed at once
+- `push-relationships.test.ts` › two same-number rows in one batch merge; edit aimed at a merged duplicate lands on the survivor; repeat of a merged row (AC-6, C-36)
+
+**Evidence:** story tests 16/16; full suite 2946/2946, failing: none; typecheck clean; lint 0 errors, 93 warnings (existing style)
+
+**Follow-ups:**
+- Issues (MERGED, INVALID_PHONE) are not yet returned to the phone: SYNC-020.
+- Cross-batch orders naming a merged id need `resolveMergedRelation` in SYNC-012.
+<!-- end SYNC-011 -->

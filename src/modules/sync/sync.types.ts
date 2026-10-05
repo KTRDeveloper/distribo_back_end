@@ -56,6 +56,11 @@ export type LineOutcome = {
   kind: 'accepted' | 'issue' | 'forbidden' | 'aside';
   code?: string;
   message?: string;
+  /**
+   * Set when the line was a duplicate folded into this relationship id: the judge points the
+   * later lines of the batch that name the duplicate's id to it (SYNC-011).
+   */
+  mergedInto?: string;
 };
 
 /** One table's way into pull and push; exactly one adapter per table. */

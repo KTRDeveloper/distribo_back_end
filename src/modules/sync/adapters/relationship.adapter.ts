@@ -9,6 +9,7 @@ import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
 import type { Row, SyncAdapter, Viewer } from '../sync.types.js';
 import { refuseEveryLine } from './identity.adapter.js';
+import { pushRelationships } from './relationship.push.js';
 
 type Changes = { created: Row[]; updated: Row[]; deleted: string[] };
 
@@ -133,7 +134,8 @@ function toSyncRow(
 /**
  * `customer_relationships`: supplier view for OWNER, MANAGER and SELLER, the available credit only
  * for a DRIVER (and only for customers with a confirmed order to deliver), customer view for the
- * customer person. Deleted and merged rows are listed in `deleted` (C-35, CM-30, AC-5).
+ * customer person. Deleted and merged rows are listed in `deleted` (C-35, CM-30, AC-5). Pushed
+ * customers are created, merged and edited by `relationship.push.ts` (SYNC-011).
  */
 export const customerRelationshipsAdapter: SyncAdapter = {
   table: 'customer_relationships',
@@ -156,7 +158,7 @@ export const customerRelationshipsAdapter: SyncAdapter = {
       (r) => toSyncRow(r, viewer, supplierViewOrgs)
     );
   },
-  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+  push: pushRelationships,
 };
 
 /**

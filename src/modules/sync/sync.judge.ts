@@ -366,6 +366,26 @@ async function judgeTable(judge: Judge, table: JudgedTable, change: TableChange)
   return { passed, forbidden };
 }
 
+/**
+ * Points the lines that name a merged duplicate's relationship to the surviving one, for the rest
+ * of the batch (SYNC-011 AC-3). Rows are copied; the input is not changed.
+ */
+function redirectRelationshipRefs(
+  change: TableChange,
+  redirects: Map<string, string>
+): TableChange {
+  const FIELD = 'customer_relationship_id';
+  const redirect = (row: Row): Row => {
+    const target = typeof row[FIELD] === 'string' ? redirects.get(row[FIELD]) : undefined;
+    return target ? { ...row, [FIELD]: target } : row;
+  };
+  return {
+    ...change,
+    created: change.created.map(redirect),
+    updated: change.updated.map(redirect),
+  };
+}
+
 const countRows = (t: { created: unknown[]; updated: unknown[]; deleted: unknown[] }): number =>
   t.created.length + t.updated.length + t.deleted.length;
 
@@ -376,6 +396,9 @@ const countRows = (t: { created: unknown[]; updated: unknown[]; deleted: unknown
  * table with the server context (v5.0.0-8.2.3), its computed fields are removed and its author set
  * to the viewer (v5.0.0-15.3.3) before the table's adapter sees it. A refused line never stops
  * the others (CM-28). A table without adapter is set aside, line by line (C-36).
+ *
+ * A customer pushed twice and merged by its adapter (SYNC-011) sends its id to the survivor: the
+ * later lines of the batch that name the duplicate are redirected before they are judged.
  *
  * Tables outside the six judged ones go to their adapter as sent: their adapters own the rules.
  * Rows that name no parent are not scope-checked here, only handed over; the adapter refuses them.
@@ -396,6 +419,7 @@ export async function judgeBatch(
     const judge: Judge = { viewer, tx, abilities: new Map() };
     const outcomes: LineOutcome[] = [];
     let aside = 0;
+    const redirects = new Map<string, string>();
 
     for (const [name, change] of Object.entries(batch)) {
       if (!adapters.has(name as SyncTable)) aside += countRows(change);
@@ -406,13 +430,20 @@ export async function judgeBatch(
       const adapter = adapters.get(table);
       if (!change || !adapter) continue;
       let toApply: TableChange = { table, ...change };
+      if (redirects.size > 0) toApply = redirectRelationshipRefs(toApply, redirects);
       if (isJudged(table)) {
         const { passed, forbidden } = await judgeTable(judge, table, toApply);
         outcomes.push(...forbidden);
         toApply = passed;
       }
       if (countRows(toApply) > 0) {
-        outcomes.push(...(await adapter.push({ viewer, tx }, toApply)));
+        const pushed = await adapter.push({ viewer, tx }, toApply);
+        outcomes.push(...pushed);
+        for (const line of pushed) {
+          if (line.mergedInto && table === 'customer_relationships') {
+            redirects.set(line.id, line.mergedInto);
+          }
+        }
       }
     }
 
