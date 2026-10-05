@@ -14,6 +14,7 @@ import {
   takeOrders,
   type ClosingBook,
 } from './adapters/closing.push.js';
+import { notify, recipientLanguage } from '../notification/notification.service.js';
 import { runBatchControls, runLongAbsence } from './sync.controls.js';
 import { getAdapters } from './sync.registry.js';
 import {
@@ -372,17 +373,6 @@ async function judgeTable(judge: Judge, table: JudgedTable, change: TableChange)
   const passed: TableChange = { table, created: [], updated: [], deleted: [] };
   const forbidden: LineOutcome[] = [];
   const refuseLine = (id: string, verdict: Verdict & { ok: false }) => {
-    logger.warn(
-      {
-        event: 'sync_line_forbidden',
-        personId: judge.viewer.personId,
-        deviceId: judge.viewer.deviceId,
-        table,
-        recordId: id,
-        code: verdict.code,
-      },
-      'pushed line refused by the judge'
-    );
     forbidden.push({ table, id, kind: 'forbidden', code: verdict.code, message: verdict.message });
   };
 
@@ -452,6 +442,66 @@ function withoutLinesOfUnstoredOrders(
 const countRows = (t: { created: unknown[]; updated: unknown[]; deleted: unknown[] }): number =>
   t.created.length + t.updated.length + t.deleted.length;
 
+/** A line the server did not store: refused (forbidden) or set aside. */
+type Unwritten = { table: string; id: string; code: string };
+
+/** At most this many lines are named in the notification; the count covers them all. */
+const NAMED_LINES = 5;
+
+/** Code of a line no rule can write (C-36). */
+const NO_RULE = 'NO_RULE';
+
+const REFUSED_WORDS = {
+  FR: (n: number, codes: string, lines: string) =>
+    `${n} opération(s) non enregistrée(s). Motif : ${codes}. Lignes : ${lines}`,
+  EN: (n: number, codes: string, lines: string) =>
+    `${n} operation(s) not recorded. Reason: ${codes}. Lines: ${lines}`,
+};
+
+/**
+ * The lines of a batch no rule wrote: each is logged at `warn` (table, row id, code, person id;
+ * never row content, ASVS v5.0.0-16.3.2) and the author gets one `sync.refused` notification for
+ * the batch, in their language, naming `table:code` for the first 5 lines, never amounts or names
+ * (CM-28, ASVS v5.0.0-16.3.3). A table name outside the sync tables is shown as `unknown`, so a
+ * phone's text never reaches a notification.
+ */
+async function reportUnwritten(
+  viewer: Viewer,
+  tx: Prisma.TransactionClient,
+  lines: Unwritten[]
+): Promise<void> {
+  if (lines.length === 0) return;
+  for (const line of lines) {
+    logger.warn(
+      {
+        event: 'sync_line_refused',
+        personId: viewer.personId,
+        deviceId: viewer.deviceId,
+        table: line.table,
+        recordId: line.id,
+        code: line.code,
+      },
+      'pushed line not recorded'
+    );
+  }
+  const known = (name: string): string =>
+    (SYNC_TABLES as readonly string[]).includes(name) ? name : 'unknown';
+  const codes = [...new Set(lines.map((line) => line.code))].join(', ');
+  const named = lines
+    .slice(0, NAMED_LINES)
+    .map((line) => `${known(line.table)}:${line.code}`)
+    .join(', ');
+  const language = await recipientLanguage(viewer.personId, tx);
+  await notify(
+    {
+      recipientId: viewer.personId,
+      sourceEvent: 'sync.refused',
+      content: REFUSED_WORDS[language](lines.length, codes, named),
+    },
+    tx
+  );
+}
+
 /**
  * The only way a batch is applied, from a push or a replay (SYNC-009, SYNC-022). In one
  * transaction, tables run in `JUDGE_TABLE_ORDER` then the others in sync order; each line of a
@@ -474,6 +524,10 @@ const countRows = (t: { created: unknown[]; updated: unknown[]; deleted: unknown
  * A ledger line the phone may not write (any kind but a payment, an update, a delete) is answered
  * `ONLINE_ONLY` before the role check (SYNC-015).
  *
+ * Every refused line and every line set aside is logged as `sync_line_refused` and told to the
+ * author in one `sync.refused` notification; a refused line makes `resync_required` true
+ * (SYNC-018, CM-28). A line set aside alone does not: the phone's copy matches what was kept.
+ *
  * Tables outside the six judged ones go to their adapter as sent: their adapters own the rules.
  * Rows that name no parent are not scope-checked here, only handed over; the adapter refuses them.
  *
@@ -493,6 +547,7 @@ export async function judgeBatch(
     const closings: ClosingBook = new Map();
     const judge: Judge = { viewer, tx, abilities: new Map(), closings };
     const outcomes: LineOutcome[] = [];
+    const unwritten: Unwritten[] = [];
     let aside = 0;
     const redirects = new Map<string, string>();
     const unstoredOrders = new Map<string, LineOutcome>();
@@ -500,8 +555,14 @@ export async function judgeBatch(
     const restOrders = findRestOrders(batch.orders && { table: 'orders', ...batch.orders });
 
     for (const [name, change] of Object.entries(batch)) {
-      if (!adapters.has(name as SyncTable)) aside += countRows(change);
+      if (adapters.has(name as SyncTable)) continue;
+      // Nothing can write this table: every line is set aside, the rest of the batch passes (C-36).
+      const ids = [...change.created, ...change.updated].map((row) => row['id']);
+      for (const id of [...ids, ...change.deleted]) {
+        unwritten.push({ table: name, id: typeof id === 'string' ? id : '', code: NO_RULE });
+      }
     }
+    aside += unwritten.length;
     const order: SyncTable[] = [...JUDGE_TABLE_ORDER, ...SYNC_TABLES.filter((t) => !isJudged(t))];
     for (const table of order) {
       const change = batch[table];
@@ -579,16 +640,22 @@ export async function judgeBatch(
     let accepted = 0;
     for (const outcome of outcomes) {
       if (outcome.kind === 'accepted' || outcome.kind === 'issue') accepted += 1;
-      else if (outcome.kind === 'aside') aside += 1;
-      else {
+      else if (outcome.kind === 'aside') {
+        aside += 1;
+        unwritten.push({ table: outcome.table, id: outcome.id, code: outcome.code ?? NO_RULE });
+      } else {
+        const code = outcome.code ?? 'REFUSED';
         rejected.push({
           table: outcome.table,
           id: outcome.id,
-          code: outcome.code ?? 'REFUSED',
+          code,
           message: outcome.message ?? 'Line refused',
         });
+        unwritten.push({ table: outcome.table, id: outcome.id, code });
       }
     }
-    return { accepted, rejected, aside, resync_required: false };
+    // A refused line means the phone holds something the server did not keep: it pulls again (CM-28).
+    await reportUnwritten(viewer, tx, unwritten);
+    return { accepted, rejected, aside, resync_required: rejected.length > 0 };
   });
 }

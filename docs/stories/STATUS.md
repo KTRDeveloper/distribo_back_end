@@ -200,7 +200,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-015 | done | | ledger.push + notification reads; judge ONLINE_ONLY for non-payment ledger gestures |
 | SYNC-016 | done | | controls on arrival: PRICE_CHANGED, DATE_*, owner notification; suite 3010 green |
 | SYNC-017 | done | | controls: CREDIT_EXCEEDED, RESTRICTED_MODE, long-absence notice; 9 tests |
-| SYNC-018 | blocked | | Story code done and its 8 tests pass, but the sync.refused notification breaks push-payments.test.ts 'forbids a phone creating or deleting a notification' (counts all notifications = 2, now 3); not listed under Tests to update: may it count only sync.test notifications? |
+| SYNC-018 | done | | Refused and set-aside lines logged, resync on refusal, sync.refused notice; push-payments test updated |
 | SYNC-019 | todo | | |
 | SYNC-020 | done | | GET /sync/issues: orders and deliveries with sync_issue, scoped by author or OWNER |
 | SYNC-021 | done | | GET exceptions/sync grouped by cause; orders only; reuses FIN-019 period rules |

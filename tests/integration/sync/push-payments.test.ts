@@ -397,7 +397,9 @@ describe('push of payments and notification reads (SYNC-015)', () => {
       });
 
       expect(bodyOf<PushBody>(response).rejected).toHaveLength(2);
-      expect(await prisma.notification.count()).toBe(2);
+      expect(
+        await prisma.notification.count({ where: { sourceEvent: { not: 'sync.refused' } } })
+      ).toBe(2);
     });
   });
 });
