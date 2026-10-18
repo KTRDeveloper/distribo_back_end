@@ -3,7 +3,7 @@
 Status: accepted
 
 ## Context
-The design `data-model/modele-donnees-livraisons-v10.md` defines 24 entities, flows for online routes, an offline synchronization server and a policy table. The project already has a modular monolith (`src/modules/<name>/`) with auth, user, tasks, remote-config, health and api-docs modules, and an older delivery schema that no endpoint uses. Entities are grouped by aggregate, and no module depends on a later one in the order below, so a story can only need stories that come before it.
+The design `data-model/modele-donnees-livraisons-v16.md` defines 24 entities, flows for online routes, an offline synchronization server and a policy table. The project already has a modular monolith (`src/modules/<name>/`) with auth, user, tasks, remote-config, health and api-docs modules, and an older delivery schema that no endpoint uses. Entities are grouped by aggregate, and no module depends on a later one in the order below, so a story can only need stories that come before it.
 
 ## Decision
 One module per aggregate, one owning module per entity, acyclic dependencies. `foundation` owns no entity. `access`, `privacy` own none either: `access` is the pure policy engine (rules table, role order, ability builder, idempotency helper), `privacy` runs cross-cutting retention and account deletion at the end.

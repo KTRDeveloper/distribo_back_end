@@ -1,6 +1,6 @@
 kind: project
 name: Distribo back end
-design: data-model/modele-donnees-livraisons-v10.md
+design: data-model/modele-donnees-livraisons-v16.md
 out: docs/stories
 asvs_level: L2
 roles:

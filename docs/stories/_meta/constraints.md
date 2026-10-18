@@ -1,6 +1,6 @@
 # Constraints
 
-One line per constraint, from `data-model/modele-donnees-livraisons-v10.md`. Extracted rows are rebuilt by extract_model.py; the Manual section is never touched by scripts.
+One line per constraint, from `data-model/modele-donnees-livraisons-v16.md`. Extracted rows are rebuilt by extract_model.py; the Manual section is never touched by scripts.
 
 ## Extracted
 

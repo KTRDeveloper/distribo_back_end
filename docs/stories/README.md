@@ -1,6 +1,6 @@
 # Stories: Distribo back end
 
-Specifications generated from `data-model/modele-donnees-livraisons-v10.md` by design-to-user-stories. One story = one change = one fresh agent session.
+Specifications generated from `data-model/modele-donnees-livraisons-v16.md` by design-to-user-stories. One story = one change = one fresh agent session.
 
 ## Hand one story to the agent
 1. Pick the first entry under "Next implementable" in `STORY_MAP.md` (full order: `_meta/order.md`).

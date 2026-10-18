@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 // so a fake project root is enough.
 const HOOK = '.claude/hooks/protect-data-model.cjs';
 const ROOT = '/repo';
-const DESIGN = 'data-model/modele-donnees-livraisons-v10.md';
+const DESIGN = 'data-model/modele-donnees-livraisons-v16.md';
 
 function decide(
   toolName: string,

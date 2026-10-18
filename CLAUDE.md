@@ -12,7 +12,7 @@ import line of CONVENTIONS.md below.
 
 ## Where things are
 - Stories: `docs/stories/`; implement them with `/implement-stories`. Generating or syncing stories: the `design-to-user-stories` skill.
-- Design, the source of truth (read-only, about 200 KB): `data-model/modele-donnees-livraisons-v10.md`. Never read it whole: `grep -n` the heading you need, then read only that line range.
+- Design, the source of truth (read-only, about 200 KB): `data-model/modele-donnees-livraisons-v16.md`. Never read it whole: `grep -n` the heading you need, then read only that line range.
 - Decisions: `docs/stories/decisions/`.
 - Execution reports: `docs/stories/execution-report/<module>.md`, one per module, written only by `/implement-stories` through `.../report.mjs`: its runs first, then each story's agent report (decisions, tests and additions beyond the story).
 

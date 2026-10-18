@@ -1,6 +1,6 @@
 # Project Profile
 
-Facts about the existing back end, each with its evidence. The design is `data-model/modele-donnees-livraisons-v10.md`. Scanner noise ignored: the 25 Python files and `django-migrations` come from `skills_prompts/`, not from the application.
+Facts about the existing back end, each with its evidence. The design is `data-model/modele-donnees-livraisons-v16.md`. Scanner noise ignored: the 25 Python files and `django-migrations` come from `skills_prompts/`, not from the application.
 
 ## Stack
 - Node.js >=22.0.0 (`package.json:8`)
