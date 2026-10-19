@@ -140,7 +140,7 @@ function saleBody(n: number, collected: number, extra: Record<string, unknown> =
     id: gestureId(n),
     sale_entry_id: saleId(n),
     payment_entry_id: paymentId(n),
-    lines: [{ id: lineId(n), product_id: PRODUCT, quantity: '2' }],
+    lines: [{ id: lineId(n), product_variant_id: PRODUCT, quantity: '2' }],
     collected_amount: collected,
     mode: 'CASH',
     ...extra,
@@ -218,7 +218,7 @@ describe('DLV-009 seller validates a counter sale', () => {
       OWNER,
       COUNTER,
       saleBody(1, 8000, {
-        lines: [{ id: lineId(1), product_id: PRODUCT, quantity: '2', unit_price_applied: 4000 }],
+        lines: [{ id: lineId(1), product_variant_id: PRODUCT, quantity: '2', unit_price_applied: 4000 }],
       })
     );
 
@@ -278,8 +278,8 @@ describe('DLV-009 seller validates a counter sale', () => {
       COUNTER,
       saleBody(1, 9000, {
         lines: [
-          { id: lineId(1), product_id: PRODUCT, quantity: '2' },
-          { id: lineId(2), product_id: OTHER_PRODUCT, quantity: '1' },
+          { id: lineId(1), product_variant_id: PRODUCT, quantity: '2' },
+          { id: lineId(2), product_variant_id: OTHER_PRODUCT, quantity: '1' },
         ],
       })
     );

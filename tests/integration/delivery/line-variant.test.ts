@@ -188,7 +188,7 @@ describe('DLV-014 the rest of a delivery and a counter sale keep the variant', (
         id: gestureId(2),
         sale_entry_id: saleId(2),
         payment_entry_id: paymentId(2),
-        lines: [{ id: lineId(2), product_id: RED_L, quantity: '2' }],
+        lines: [{ id: lineId(2), product_variant_id: RED_L, quantity: '2' }],
         collected_amount: 6000,
         mode: 'CASH',
       });

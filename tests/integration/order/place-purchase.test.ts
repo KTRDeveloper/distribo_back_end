@@ -69,8 +69,8 @@ const goodBody = (over: Record<string, unknown> = {}) => ({
   id: ORDER_ID,
   supplier_organization_id: SUPPLIER,
   lines: [
-    { id: LINE_1, product_id: PRODUCT_A, quantity: '10' },
-    { id: LINE_2, product_id: PRODUCT_B, quantity: 2.5 },
+    { id: LINE_1, product_variant_id: PRODUCT_A, quantity: '10' },
+    { id: LINE_2, product_variant_id: PRODUCT_B, quantity: 2.5 },
   ],
   ...over,
 });
@@ -177,7 +177,7 @@ describe('ORD-010 organization manager orders from a supplier', () => {
           lines: [
             {
               id: '0199c010-0000-7000-8000-0000000000d3',
-              product_id: PRODUCT_A,
+              product_variant_id: PRODUCT_A,
               quantity: '1',
             },
           ],
@@ -244,7 +244,7 @@ describe('ORD-010 organization manager orders from a supplier', () => {
 
   describe('same rules as a person (AC-3, C-17)', () => {
     it('applies the business negotiated price and notifies the supplier team', async () => {
-      await purchase(goodBody({ lines: [{ id: LINE_1, product_id: PRODUCT_A, quantity: '1' }] }));
+      await purchase(goodBody({ lines: [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: '1' }] }));
       const relationship = await prisma.customerRelationship.findFirstOrThrow();
       await prisma.customerPrice.create({
         data: {
@@ -261,7 +261,7 @@ describe('ORD-010 organization manager orders from a supplier', () => {
         goodBody({
           id: '0199c010-0000-7000-8000-0000000000c3',
           lines: [
-            { id: '0199c010-0000-7000-8000-0000000000d4', product_id: PRODUCT_A, quantity: '10' },
+            { id: '0199c010-0000-7000-8000-0000000000d4', product_variant_id: PRODUCT_A, quantity: '10' },
           ],
         })
       );

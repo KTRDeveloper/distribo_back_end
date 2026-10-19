@@ -24,7 +24,7 @@ type PartyView = {
 
 export type OrderLineView = {
   id: string;
-  product_id: string;
+  product_variant_id: string;
   label_applied: string;
   quantity: string;
   delivered_quantity: string | null;
@@ -75,7 +75,7 @@ function commonFields(order: Order): PartyView {
 function commonLine(line: OrderLine): OrderLineView {
   return {
     id: line.id,
-    product_id: line.productId,
+    product_variant_id: line.productVariantId,
     label_applied: line.labelApplied,
     quantity: line.quantity.toString(),
     delivered_quantity: line.deliveredQuantity === null ? null : line.deliveredQuantity.toString(),

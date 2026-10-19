@@ -85,7 +85,7 @@ function bodyWith(extra: Record<string, unknown> = {}, lines?: unknown[]) {
   return {
     id: ORDER_ID,
     customer_relationship_id: REL,
-    lines: lines ?? [{ id: LINE_1, product_id: PRODUCT_A, quantity: 10 }],
+    lines: lines ?? [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: 10 }],
     ...extra,
   };
 }
@@ -230,7 +230,7 @@ describe('ORD-013 seller enters an order for a customer', () => {
 
   it('records the author and time of a price gap, amount at the entered price (AC-2)', async () => {
     const response = await enter(
-      bodyWith({}, [{ id: LINE_1, product_id: PRODUCT_A, quantity: 10, unit_price_applied: 2800 }])
+      bodyWith({}, [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: 10, unit_price_applied: 2800 }])
     );
 
     expect(response.status).toBe(201);
@@ -249,8 +249,8 @@ describe('ORD-013 seller enters an order for a customer', () => {
   it('accepts a price above the reference or equal to 0, and ignores the minimum quantity (AC-2)', async () => {
     const response = await enter(
       bodyWith({}, [
-        { id: LINE_1, product_id: PRODUCT_A, quantity: 1, unit_price_applied: 3500 },
-        { id: LINE_2, product_id: PRODUCT_B, quantity: 1, unit_price_applied: 0 },
+        { id: LINE_1, product_variant_id: PRODUCT_A, quantity: 1, unit_price_applied: 3500 },
+        { id: LINE_2, product_variant_id: PRODUCT_B, quantity: 1, unit_price_applied: 0 },
       ])
     );
 
@@ -290,8 +290,8 @@ describe('ORD-013 seller enters an order for a customer', () => {
     for (const productId of [PRODUCT_OFF, OTHER_PRODUCT]) {
       const response = await enter(
         bodyWith({}, [
-          { id: LINE_1, product_id: PRODUCT_A, quantity: 1 },
-          { id: LINE_2, product_id: productId, quantity: 1 },
+          { id: LINE_1, product_variant_id: PRODUCT_A, quantity: 1 },
+          { id: LINE_2, product_variant_id: productId, quantity: 1 },
         ])
       );
       expect(response.status).toBe(404);
@@ -337,7 +337,7 @@ describe('ORD-013 seller enters an order for a customer', () => {
         {},
         Array.from({ length: 101 }, (_, index) => ({
           id: `0199c013-0000-7000-8000-${String(index + 1000).padStart(12, '0')}`,
-          product_id: PRODUCT_A,
+          product_variant_id: PRODUCT_A,
           quantity: 1,
         }))
       )
@@ -351,8 +351,8 @@ describe('ORD-013 seller enters an order for a customer', () => {
     for (const body of [
       bodyWith({ delivery_cost: -1 }),
       bodyWith({ delivery_cost: 1.5 }),
-      bodyWith({}, [{ id: LINE_1, product_id: PRODUCT_A, quantity: 1, unit_price_applied: -1 }]),
-      bodyWith({}, [{ id: LINE_1, product_id: PRODUCT_A, quantity: 1, unit_price_applied: 1.5 }]),
+      bodyWith({}, [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: 1, unit_price_applied: -1 }]),
+      bodyWith({}, [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: 1, unit_price_applied: 1.5 }]),
     ]) {
       const response = await enter(body);
       expect(response.status).toBe(400);
@@ -386,11 +386,11 @@ describe('ORD-013 seller enters an order for a customer', () => {
       expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
     }
     const lineExtra = await enter(
-      bodyWith({}, [{ id: LINE_1, product_id: PRODUCT_A, quantity: 1, reference_price: 1 }])
+      bodyWith({}, [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: 1, reference_price: 1 }])
     );
     expect(lineExtra.status).toBe(400);
     const lineAmount = await enter(
-      bodyWith({}, [{ id: LINE_1, product_id: PRODUCT_A, quantity: 1, amount: 1 }])
+      bodyWith({}, [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: 1, amount: 1 }])
     );
     expect(lineAmount.status).toBe(400);
     await nothingStored();
@@ -398,14 +398,14 @@ describe('ORD-013 seller enters an order for a customer', () => {
 
   it('keeps the price author away from the SELLER view (v5.0.0-8.2.3)', async () => {
     const asSeller = await enter(
-      bodyWith({}, [{ id: LINE_1, product_id: PRODUCT_A, quantity: 1, unit_price_applied: 2000 }])
+      bodyWith({}, [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: 1, unit_price_applied: 2000 }])
     );
     expect(asSeller.status).toBe(201);
     expect(bodyOf<OrderBody>(asSeller).lines[0]).not.toHaveProperty('price_set_by_id');
 
     const asOwner = await enter(
       bodyWith({ id: '0199c013-0000-7000-8000-0000000000c2' }, [
-        { id: LINE_3, product_id: PRODUCT_A, quantity: 1, unit_price_applied: 2000 },
+        { id: LINE_3, product_variant_id: PRODUCT_A, quantity: 1, unit_price_applied: 2000 },
       ]),
       OWNER
     );

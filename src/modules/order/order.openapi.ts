@@ -18,7 +18,7 @@ const errorContent = { 'application/json': { schema: errorResponseSchema } };
 
 const orderLineViewSchema = z.object({
   id: z.string().uuid(),
-  product_id: z.string().uuid(),
+  product_variant_id: z.string().uuid(),
   label_applied: z.string(),
   quantity: z.string(),
   delivered_quantity: z.string().nullable(),

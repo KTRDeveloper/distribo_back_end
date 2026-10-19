@@ -258,8 +258,8 @@ describe('ORD-014 seller edits an order before departure', () => {
     const response = await edit(
       patchOf({
         lines: [
-          { id: LINE_2, product_id: PRODUCT_A, quantity: 2 },
-          { id: LINE_3, product_id: PRODUCT_B, quantity: 1, unit_price_applied: 400 },
+          { id: LINE_2, product_variant_id: PRODUCT_A, quantity: 2 },
+          { id: LINE_3, product_variant_id: PRODUCT_B, quantity: 1, unit_price_applied: 400 },
         ],
       })
     );
@@ -287,7 +287,7 @@ describe('ORD-014 seller edits an order before departure', () => {
 
   it('ignores the minimum order quantity, like a seller entry (AC-2)', async () => {
     const response = await edit(
-      patchOf({ lines: [{ id: LINE_2, product_id: PRODUCT_B, quantity: 1 }] })
+      patchOf({ lines: [{ id: LINE_2, product_variant_id: PRODUCT_B, quantity: 1 }] })
     );
 
     expect(response.status).toBe(200);
@@ -296,7 +296,7 @@ describe('ORD-014 seller edits an order before departure', () => {
 
   it('refuses a line id already used by the order with 400, changing nothing (AC-4)', async () => {
     const response = await edit(
-      patchOf({ lines: [{ id: LINE_1, product_id: PRODUCT_A, quantity: 2 }] })
+      patchOf({ lines: [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: 2 }] })
     );
 
     expect(response.status).toBe(400);
@@ -337,7 +337,7 @@ describe('ORD-014 seller edits an order before departure', () => {
       expect(response.status).toBe(409);
       expect(bodyOf<ErrorBody>(response).error.code).toBe('ORDER_FROZEN');
       const lines = await edit(
-        patchOf({ id: LINE_4, lines: [{ id: LINE_2, product_id: PRODUCT_A, quantity: 1 }] })
+        patchOf({ id: LINE_4, lines: [{ id: LINE_2, product_variant_id: PRODUCT_A, quantity: 1 }] })
       );
       expect(lines.status).toBe(409);
       const order = await prisma.order.findUniqueOrThrow({ where: { id: ORDER_ID } });
@@ -372,11 +372,11 @@ describe('ORD-014 seller edits an order before departure', () => {
       patchOf({ placed_by_party: 'CUSTOMER' }),
       patchOf({ delivery_cost: -1 }),
       patchOf({ delivery_cost: 1.5 }),
-      patchOf({ lines: [{ id: LINE_2, product_id: PRODUCT_A, quantity: 1, amount: 1 }] }),
+      patchOf({ lines: [{ id: LINE_2, product_variant_id: PRODUCT_A, quantity: 1, amount: 1 }] }),
       patchOf({
         lines: [
-          { id: LINE_2, product_id: PRODUCT_A, quantity: 1 },
-          { id: LINE_2, product_id: PRODUCT_A, quantity: 2 },
+          { id: LINE_2, product_variant_id: PRODUCT_A, quantity: 1 },
+          { id: LINE_2, product_variant_id: PRODUCT_A, quantity: 2 },
         ],
       }),
     ]) {
@@ -393,8 +393,8 @@ describe('ORD-014 seller edits an order before departure', () => {
         patchOf({
           delivery_cost: 1500,
           lines: [
-            { id: LINE_2, product_id: PRODUCT_A, quantity: 1 },
-            { id: LINE_3, product_id: productId, quantity: 1 },
+            { id: LINE_2, product_variant_id: PRODUCT_A, quantity: 1 },
+            { id: LINE_3, product_variant_id: productId, quantity: 1 },
           ],
         })
       );
@@ -438,7 +438,7 @@ describe('ORD-014 seller edits an order before departure', () => {
   });
 
   it('keeps the price author away from the SELLER view and shows it to the OWNER (v5.0.0-8.2.3)', async () => {
-    const lines = [{ id: LINE_2, product_id: PRODUCT_A, quantity: 1, unit_price_applied: 2000 }];
+    const lines = [{ id: LINE_2, product_variant_id: PRODUCT_A, quantity: 1, unit_price_applied: 2000 }];
     const asSeller = await edit(patchOf({ lines }));
     expect(bodyOf<OrderBody>(asSeller).lines[0]).not.toHaveProperty('price_set_by_id');
 

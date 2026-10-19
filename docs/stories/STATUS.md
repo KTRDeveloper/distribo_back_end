@@ -309,7 +309,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-037 | done | | resolveVariantForLine added; 10 story tests, suite 4386 green |
 | ORD-027 | done | | Order lines priced and labelled from the variant; productVariantId stored |
 | DLV-014 | done | | Rest lines carry the variant; counter sale already did via spread |
-| ORD-028 | todo | | |
+| ORD-028 | done | | line schemas and views use product_variant_id; product_id refused with 400 |
 | ORD-023 | todo | | |
 | CAT-029 | todo | | |
 | CAT-030 | todo | | |

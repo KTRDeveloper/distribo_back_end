@@ -15770,7 +15770,7 @@
                           "type": "string",
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                         },
-                        "product_id": {
+                        "product_variant_id": {
                           "type": "string",
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                         },
@@ -15788,7 +15788,7 @@
                       },
                       "required": [
                         "id",
-                        "product_id",
+                        "product_variant_id",
                         "quantity"
                       ],
                       "additionalProperties": false
@@ -15909,7 +15909,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -15937,7 +15937,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -16199,7 +16199,7 @@
                                   "type": "string",
                                   "format": "uuid"
                                 },
-                                "product_id": {
+                                "product_variant_id": {
                                   "type": "string",
                                   "format": "uuid"
                                 },
@@ -16227,7 +16227,7 @@
                               },
                               "required": [
                                 "id",
-                                "product_id",
+                                "product_variant_id",
                                 "label_applied",
                                 "quantity",
                                 "delivered_quantity",
@@ -16465,7 +16465,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -16493,7 +16493,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -16737,7 +16737,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -16765,7 +16765,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -17027,7 +17027,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -17069,7 +17069,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -17342,7 +17342,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -17384,7 +17384,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -17657,7 +17657,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -17699,7 +17699,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -17877,7 +17877,7 @@
                           "type": "string",
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                         },
-                        "product_id": {
+                        "product_variant_id": {
                           "type": "string",
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                         },
@@ -17900,7 +17900,7 @@
                       },
                       "required": [
                         "id",
-                        "product_id",
+                        "product_variant_id",
                         "quantity"
                       ],
                       "additionalProperties": false
@@ -18021,7 +18021,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -18063,7 +18063,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -18353,7 +18353,7 @@
                                   "type": "string",
                                   "format": "uuid"
                                 },
-                                "product_id": {
+                                "product_variant_id": {
                                   "type": "string",
                                   "format": "uuid"
                                 },
@@ -18395,7 +18395,7 @@
                               },
                               "required": [
                                 "id",
-                                "product_id",
+                                "product_variant_id",
                                 "label_applied",
                                 "quantity",
                                 "delivered_quantity",
@@ -18593,7 +18593,7 @@
                           "type": "string",
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                         },
-                        "product_id": {
+                        "product_variant_id": {
                           "type": "string",
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                         },
@@ -18616,7 +18616,7 @@
                       },
                       "required": [
                         "id",
-                        "product_id",
+                        "product_variant_id",
                         "quantity"
                       ],
                       "additionalProperties": false
@@ -18735,7 +18735,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -18777,7 +18777,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -19023,7 +19023,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -19065,7 +19065,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -19325,7 +19325,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -19367,7 +19367,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -19640,7 +19640,7 @@
                                   "type": "string",
                                   "format": "uuid"
                                 },
-                                "product_id": {
+                                "product_variant_id": {
                                   "type": "string",
                                   "format": "uuid"
                                 },
@@ -19668,7 +19668,7 @@
                               },
                               "required": [
                                 "id",
-                                "product_id",
+                                "product_variant_id",
                                 "label_applied",
                                 "quantity",
                                 "delivered_quantity",
@@ -19862,7 +19862,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -19890,7 +19890,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -20090,7 +20090,7 @@
                             "type": "string",
                             "format": "uuid"
                           },
-                          "product_id": {
+                          "product_variant_id": {
                             "type": "string",
                             "format": "uuid"
                           },
@@ -20118,7 +20118,7 @@
                         },
                         "required": [
                           "id",
-                          "product_id",
+                          "product_variant_id",
                           "label_applied",
                           "quantity",
                           "delivered_quantity",
@@ -21483,7 +21483,7 @@
                           "type": "string",
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                         },
-                        "product_id": {
+                        "product_variant_id": {
                           "type": "string",
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
                         },
@@ -21506,7 +21506,7 @@
                       },
                       "required": [
                         "id",
-                        "product_id",
+                        "product_variant_id",
                         "quantity"
                       ],
                       "additionalProperties": false
@@ -21645,7 +21645,7 @@
                                 "type": "string",
                                 "format": "uuid"
                               },
-                              "product_id": {
+                              "product_variant_id": {
                                 "type": "string",
                                 "format": "uuid"
                               },
@@ -21687,7 +21687,7 @@
                             },
                             "required": [
                               "id",
-                              "product_id",
+                              "product_variant_id",
                               "label_applied",
                               "quantity",
                               "delivered_quantity",

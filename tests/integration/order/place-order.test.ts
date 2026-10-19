@@ -26,7 +26,7 @@ const REG = new Date('2026-01-01T00:00:00.000Z');
 
 type LineBody = {
   id: string;
-  product_id: string;
+  product_variant_id: string;
   label_applied: string;
   quantity: string;
   reference_price: number;
@@ -112,8 +112,8 @@ const goodBody = (over: Record<string, unknown> = {}) => ({
   id: ORDER_ID,
   supplier_organization_id: ORG,
   lines: [
-    { id: LINE_1, product_id: PRODUCT_A, quantity: '10' },
-    { id: LINE_2, product_id: PRODUCT_B, quantity: 2.5 },
+    { id: LINE_1, product_variant_id: PRODUCT_A, quantity: '10' },
+    { id: LINE_2, product_variant_id: PRODUCT_B, quantity: 2.5 },
   ],
   ...over,
 });
@@ -272,7 +272,7 @@ describe('ORD-009 place an order', () => {
       ['an unknown product', '0199c009-0000-7000-8000-0000000000ff'],
     ])('refuses %s with 404', async (_name, productId) => {
       const response = await place(
-        goodBody({ lines: [{ id: LINE_1, product_id: productId, quantity: '1' }] })
+        goodBody({ lines: [{ id: LINE_1, product_variant_id: productId, quantity: '1' }] })
       );
       expect(response.status).toBe(404);
       expect(bodyOf<ErrorBody>(response).error.code).toBe('NOT_FOUND');
@@ -314,22 +314,22 @@ describe('ORD-009 place an order', () => {
       }
     );
 
-    const line = { id: LINE_1, product_id: PRODUCT_A, quantity: '1' };
+    const line = { id: LINE_1, product_variant_id: PRODUCT_A, quantity: '1' };
     const manyLines = (count: number) =>
       Array.from({ length: count }, (_, i) => ({
         id: `0199c009-0000-7000-8000-${String(100000000000 + i)}`,
-        product_id: PRODUCT_A,
+        product_variant_id: PRODUCT_A,
         quantity: '1',
       }));
 
     it.each([
       ['zero lines', []],
       ['101 lines', manyLines(101)],
-      ['quantity 0', [{ id: LINE_1, product_id: PRODUCT_A, quantity: 0 }]],
-      ['quantity "0"', [{ id: LINE_1, product_id: PRODUCT_A, quantity: '0' }]],
-      ['4 decimals', [{ id: LINE_1, product_id: PRODUCT_A, quantity: '1.0001' }]],
-      ['a negative quantity', [{ id: LINE_1, product_id: PRODUCT_A, quantity: '-1' }]],
-      ['a malformed quantity', [{ id: LINE_1, product_id: PRODUCT_A, quantity: '1e3' }]],
+      ['quantity 0', [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: 0 }]],
+      ['quantity "0"', [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: '0' }]],
+      ['4 decimals', [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: '1.0001' }]],
+      ['a negative quantity', [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: '-1' }]],
+      ['a malformed quantity', [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: '1e3' }]],
       ['a duplicate line id', [line, line]],
     ])('refuses %s with 400', async (_name, lines) => {
       const response = await place(goodBody({ lines }));
@@ -371,7 +371,7 @@ describe('ORD-009 place an order', () => {
       ['amount', { amount: 1 }],
     ])('refuses a line carrying %s', async (_field, extra) => {
       const response = await place(
-        goodBody({ lines: [{ id: LINE_1, product_id: PRODUCT_A, quantity: '1', ...extra }] })
+        goodBody({ lines: [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: '1', ...extra }] })
       );
       expect(response.status).toBe(400);
       expect(await stored()).toEqual({ orders: 0, lines: 0, relationships: 0, notifications: 0 });

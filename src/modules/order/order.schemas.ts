@@ -40,7 +40,7 @@ const dateSchema = z
  * server freezes them from the catalog (ASVS v5.0.0-2.2.1, v5.0.0-15.3.3, CWE-915).
  */
 const placeOrderLineSchema = z
-  .object({ id: uuidV7Schema, product_id: uuidV7Schema, quantity: quantitySchema })
+  .object({ id: uuidV7Schema, product_variant_id: uuidV7Schema, quantity: quantitySchema })
   .strict();
 
 /**
@@ -139,7 +139,7 @@ export type CancelAsCustomerInput = z.infer<typeof cancelOrderAsCustomerSchema>;
 export const enterOrderLineSchema = z
   .object({
     id: uuidV7Schema,
-    product_id: uuidV7Schema,
+    product_variant_id: uuidV7Schema,
     quantity: quantitySchema,
     unit_price_applied: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
   })

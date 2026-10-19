@@ -81,7 +81,7 @@ function enter(variantId: string, quantity: number | string, price?: number) {
       lines: [
         {
           id: LINE_ID,
-          product_id: variantId,
+          product_variant_id: variantId,
           quantity,
           ...(price === undefined ? {} : { unit_price_applied: price }),
         },
@@ -95,7 +95,7 @@ function place(variantId: string, quantity: number | string) {
     .send({
       id: ORDER_ID,
       supplier_organization_id: SUPPLIER,
-      lines: [{ id: LINE_ID, product_id: variantId, quantity }],
+      lines: [{ id: LINE_ID, product_variant_id: variantId, quantity }],
     });
 }
 
