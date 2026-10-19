@@ -699,3 +699,34 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - ADM-020 must re-check the target and the number at confirmation time: nothing here is stored besides the two challenges.
 <!-- end ADM-019 -->
+
+<!-- begin ADM-020 -->
+## ADM-020 — Support gives the account back on the new number
+
+- Filed: 2026-10-19 21:50 UTC
+- Status: **done**: Complete restoration: two codes checked before either is spent, move + sign-out + journal + notice in one transaction
+- Risk: high · story: [ADM-020-support-gives-the-account-back-on-the-new-number.md](../modules/admin/ADM-020-support-gives-the-account-back-on-the-new-number.md)
+- Agent: 70,166 tokens, 25 tool uses, 4 min 53 s
+
+### Agent report
+
+**Summary:** Added POST /admin/people/{personId}/restore-access/complete (SUPER_ADMIN, 204); account moves to the new number, sessions revoked, journal row and notice in one transaction.
+
+**Decisions:**
+- Shared checks: extracted `checkRestorable` from `startAccessRestore` so start and complete run the same ADM-019 checks in the same order.
+- Code handling: both codes are checked with `spend: false` (each bound to the person), then both spent; one wrong proof spends nothing, so the right code stays usable (AB-1).
+- Codes are spent before the transaction (`spendCode` takes no tx): a journal failure (AC-3) keeps number and sessions but the person must restart.
+- Code fields accept any string of 1 to 16 chars, so a malformed code answers OTP_INVALID, not VALIDATION_ERROR.
+- `moveAccountToNumber` false (no number) maps to 404 NOT_FOUND, the only fitting listed error; P2002 in the transaction maps to 409 PHONE_TAKEN.
+
+**Tests added beyond the story:**
+- `restore-access-complete.test.ts` › five wrong tries: 429 OTP_LOCKED (story error list)
+- › checks of ADM-019 run again (404, suspended, no verified email) (story Context)
+- › email/SMS codes swapped and a code with person_id null: 400 (v5.0.0-6.4.4, 6.6.2)
+- › a consumed SMS code, a code used twice, no token 401, local number format; several passed at once
+
+**Other additions:**
+- Catalog and per-001 route entries (CONVENTIONS rule).
+
+**Evidence:** story tests 21/21 (+45 api-docs and per-001); full suite 4544/4545 before a lint fix, the one failure (quality-gates, lint exit 0) was my 2 test-file lint errors, now fixed and rerun green; typecheck clean; lint 0 errors.
+<!-- end ADM-020 -->

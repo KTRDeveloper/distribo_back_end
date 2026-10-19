@@ -248,6 +248,15 @@ describe('PER-001: Retire the old sign-in module', () => {
       expect(Object.keys(doc.paths)).toContain(path);
       expect(Object.keys(doc.paths[path])).toEqual(expect.arrayContaining(['post']));
     });
+
+    it('/api/v1/admin/people/{personId}/restore-access/complete is listed in OpenAPI with POST (ADM-020)', async () => {
+      const response = await request(app).get('/api/v1/docs/openapi.json');
+      const doc = bodyOf<OpenApiDoc>(response);
+      const path = '/api/v1/admin/people/{personId}/restore-access/complete';
+
+      expect(Object.keys(doc.paths)).toContain(path);
+      expect(Object.keys(doc.paths[path])).toEqual(expect.arrayContaining(['post']));
+    });
   });
 
   describe('AC-3: Profile still works with a signed token', () => {

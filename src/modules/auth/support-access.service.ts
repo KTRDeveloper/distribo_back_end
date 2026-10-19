@@ -1,6 +1,11 @@
 import type { Prisma } from '@prisma/client';
 import { firePhoneReleased } from '../person/phone-released.js';
-import { findRegisteredActiveNumber, releaseRegisteredHolder } from './auth.repository.js';
+import { newId } from '../../shared/ids.js';
+import {
+  findRegisteredActiveNumber,
+  movePhoneNumber,
+  releaseRegisteredHolder,
+} from './auth.repository.js';
 
 /**
  * Releases the active number of a registered person the way a recycled-number claim does
@@ -25,4 +30,24 @@ export async function releaseNumberOfPerson(
   if (released === null) return null;
   await firePhoneReleased(phone, tx);
   return phone;
+}
+
+/**
+ * Replaces the active number of a person by `newPhone`, verified now, the way a number change
+ * does (CM-40, CM-04): the person row is locked, a PhoneNumberChangeLog row keeps the old and
+ * the new number, and both stand or fall with the caller's transaction. The caller has already
+ * checked the two codes; this function checks no code. Sessions are left to the caller.
+ *
+ * @param tx - The transaction the caller also uses for its journal row, notice and sign-out.
+ * @param personId - The person whose number is replaced.
+ * @param newPhone - The new number (E.164).
+ * @returns false when the person has no number to replace.
+ * @throws a Prisma P2002 error when another person holds the number (the caller maps it to PHONE_TAKEN).
+ */
+export function moveAccountToNumber(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  newPhone: string
+): Promise<boolean> {
+  return movePhoneNumber(tx, personId, newPhone, newId());
 }

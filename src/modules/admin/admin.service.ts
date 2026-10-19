@@ -7,9 +7,9 @@ import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { checkAndConsume, resetKey } from '../../lib/rate-limit.js';
 import { createTotpSecret, decryptSecret, encryptSecret, verifyTotp } from '../../lib/totp.js';
 import { normalizeE164 } from '../../shared/phone.js';
-import { issueCode, verifyCode } from '../auth/otp.service.js';
+import { issueCode, spendCode, verifyCode } from '../auth/otp.service.js';
 import { revokeSessions } from '../auth/session.service.js';
-import { releaseNumberOfPerson } from '../auth/support-access.service.js';
+import { moveAccountToNumber, releaseNumberOfPerson } from '../auth/support-access.service.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   findByActivePhone,
@@ -60,6 +60,7 @@ import type {
   ModerationReasonInput,
   RemoveInput,
   ResolveReportInput,
+  RestoreCompleteInput,
   RestoreStartInput,
   TotpRecoveryConfirmInput,
   TotpRecoveryRequestInput,
@@ -962,11 +963,48 @@ export async function releasePhone(
 }
 
 /**
+ * The checks shared by both steps of the restoration of an access (CM-40), in a fixed order:
+ * the person exists and is registered, is not anonymized or suspended, has a verified email,
+ * the new number is a +237 mobile, and it is not held by anyone (the person included). The
+ * person comes from the path and the email from the database, never from the request.
+ *
+ * @returns The verified email of the person and the new number in E.164.
+ * @throws 404 NOT_FOUND; 409 TARGET_ANONYMIZED; 409 INVALID_STATE; 409 NO_VERIFIED_EMAIL;
+ *   400 VALIDATION_ERROR; 409 PHONE_TAKEN; 400 SAME_NUMBER
+ */
+async function checkRestorable(
+  personId: string,
+  newPhoneNumber: string
+): Promise<{ email: string; phone: string }> {
+  const target = await findPersonForRestore(personId);
+  if (target === null || !target.registered) throw httpError(404, 'NOT_FOUND', 'Person not found');
+  if (target.status === 'ANONYMIZED') {
+    throw httpError(409, 'TARGET_ANONYMIZED', 'The target is anonymized');
+  }
+  if (target.status === 'SUSPENDED') {
+    throw httpError(409, 'INVALID_STATE', 'The person is suspended');
+  }
+  if (target.email === null || !target.emailVerified) {
+    throw httpError(409, 'NO_VERIFIED_EMAIL', 'The person has no verified email');
+  }
+  const phone = normalizeE164(newPhoneNumber);
+  if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  const holder = await findByActivePhone(phone);
+  if (holder !== null && holder.id !== personId) {
+    throw httpError(409, 'PHONE_TAKEN', 'This number is held by another person');
+  }
+  if (holder !== null) {
+    throw httpError(400, 'SAME_NUMBER', 'This is already the number of the person');
+  }
+  return { email: target.email, phone };
+}
+
+/**
  * Starts the restoration of an access after a lost SIM (CM-40): sends a code to the person's
  * verified email and a code to the new number, both for ACCESS_RESTORE. The administrator
  * never sees a code (v5.0.0-6.4.6). The person comes from the path and the email from the
  * database, never from the request (v5.0.0-8.2.1); access moves only on the two proofs
- * (v5.0.0-6.4.4, ADM-020). Checks run in a fixed order and every one passes before the first
+ * (v5.0.0-6.4.4, ADM-020). Checks (`checkRestorable`) run in a fixed order and every one passes before the first
  * code is sent; nothing is journaled here. The email code goes first, so a cooldown or limit
  * hit stops the SMS. Logs ids only.
  *
@@ -979,30 +1017,11 @@ export async function startAccessRestore(
   personId: string,
   input: RestoreStartInput
 ): Promise<void> {
-  const target = await findPersonForRestore(personId);
-  if (target === null || !target.registered) throw httpError(404, 'NOT_FOUND', 'Person not found');
-  if (target.status === 'ANONYMIZED') {
-    throw httpError(409, 'TARGET_ANONYMIZED', 'The target is anonymized');
-  }
-  if (target.status === 'SUSPENDED') {
-    throw httpError(409, 'INVALID_STATE', 'The person is suspended');
-  }
-  if (target.email === null || !target.emailVerified) {
-    throw httpError(409, 'NO_VERIFIED_EMAIL', 'The person has no verified email');
-  }
-  const phone = normalizeE164(input.new_phone_number);
-  if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
-  const holder = await findByActivePhone(phone);
-  if (holder !== null && holder.id !== personId) {
-    throw httpError(409, 'PHONE_TAKEN', 'This number is held by another person');
-  }
-  if (holder !== null) {
-    throw httpError(400, 'SAME_NUMBER', 'This is already the number of the person');
-  }
+  const { email, phone } = await checkRestorable(personId, input.new_phone_number);
 
   await issueCode({
     personId,
-    target: target.email,
+    target: email,
     purpose: 'ACCESS_RESTORE',
     channel: 'EMAIL',
   });
@@ -1014,6 +1033,83 @@ export async function startAccessRestore(
       targetPersonId: personId,
     },
     'Access restoration started by support'
+  );
+}
+
+const ACCESS_RESTORED_NOTICE = {
+  FR: "Le support a rendu l'accès à votre compte sur un nouveau numéro. Ce n'était pas vous ? Contactez-nous.",
+  EN: 'Support has given your account back on a new number. Not you? Contact us.',
+};
+
+/**
+ * Gives the account back on the new number once support holds the two codes (CM-40;
+ * v5.0.0-6.4.4, v5.0.0-6.6.2, v5.0.0-7.4.1; the route only lets SUPER_ADMIN in). The checks of
+ * the start run again, then the EMAIL code (target: the verified email) and the SMS code
+ * (target: the new number) are both checked, each bound to the person, before either is spent:
+ * a request with one wrong proof spends nothing. In one transaction the number is replaced
+ * (PhoneNumberChangeLog), every device is signed out, the RESTORE_ACCESS row and the
+ * `admin.access_restored` notice are written, so a failed insert leaves number and sessions in
+ * place. A number won by someone else meanwhile answers PHONE_TAKEN. The log holds ids only.
+ *
+ * @throws 404 NOT_FOUND; 409 TARGET_ANONYMIZED, INVALID_STATE, NO_VERIFIED_EMAIL, PHONE_TAKEN;
+ *   400 VALIDATION_ERROR, SAME_NUMBER, OTP_INVALID, OTP_EXPIRED; 429 OTP_LOCKED
+ */
+export async function completeAccessRestore(
+  admin: AdminContext,
+  personId: string,
+  input: RestoreCompleteInput
+): Promise<void> {
+  const { email, phone } = await checkRestorable(personId, input.new_phone_number);
+
+  const emailProof = await verifyCode(
+    { target: email, purpose: 'ACCESS_RESTORE', code: input.email_code },
+    { spend: false }
+  );
+  const smsProof = await verifyCode(
+    { target: phone, purpose: 'ACCESS_RESTORE', code: input.sms_code },
+    { spend: false }
+  );
+  if (emailProof.personId !== personId || smsProof.personId !== personId) {
+    throw httpError(400, 'OTP_INVALID', 'Invalid code');
+  }
+  await spendCode(emailProof.challengeId);
+  await spendCode(smsProof.challengeId);
+
+  try {
+    await inTransaction(async (tx) => {
+      if (!(await moveAccountToNumber(tx, personId, phone))) {
+        throw httpError(404, 'NOT_FOUND', 'Person not found');
+      }
+      await revokeSessions(personId, 'LOGOUT_ALL', { tx });
+      await recordAdminAction(tx, {
+        administratorId: admin.administratorId,
+        action: 'RESTORE_ACCESS',
+        targetPersonId: personId,
+        reason: input.reason,
+      });
+      const language = await recipientLanguage(personId, tx);
+      await notify(
+        {
+          recipientId: personId,
+          sourceEvent: 'admin.access_restored',
+          content: ACCESS_RESTORED_NOTICE[language],
+        },
+        tx
+      );
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code === 'P2002') {
+      throw httpError(409, 'PHONE_TAKEN', 'This number is held by another person');
+    }
+    throw e;
+  }
+  logger.warn(
+    {
+      event: 'access_restored',
+      administratorId: admin.administratorId,
+      targetPersonId: personId,
+    },
+    'Access restored by support'
   );
 }
 

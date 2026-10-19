@@ -10,6 +10,7 @@ import {
   personIdParamsSchema,
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
+  restoreCompleteSchema,
   restoreStartSchema,
   removeAdministratorSchema,
   totpRecoveryConfirmSchema,
@@ -27,6 +28,7 @@ import {
   removeAdministrator,
   requestRecoveryEmail,
   requestTotpRecovery,
+  completeAccessRestore,
   startAccessRestore,
   suspendOrganization,
   suspendPerson,
@@ -201,6 +203,21 @@ adminRoutes.post(
     const { personId } = personIdParamsSchema.parse(req.params);
     const body = restoreStartSchema.parse(req.body);
     startAccessRestore(req.admin!, personId, body)
+      .then(() => res.status(204).end())
+      .catch(next);
+  }
+);
+
+// POST /api/v1/admin/people/{personId}/restore-access/complete - SUPER_ADMIN only: the two codes
+// move the account to the new number (CM-40)
+adminRoutes.post(
+  '/people/:personId/restore-access/complete',
+  adminAuthMiddleware,
+  requireAdminRole('SUPER_ADMIN'),
+  (req, res, next) => {
+    const { personId } = personIdParamsSchema.parse(req.params);
+    const body = restoreCompleteSchema.parse(req.body);
+    completeAccessRestore(req.admin!, personId, body)
       .then(() => res.status(204).end())
       .catch(next);
   }

@@ -7,6 +7,7 @@ import {
   listActionsQuerySchema,
   listReportsQuerySchema,
   moderationReasonSchema,
+  restoreCompleteSchema,
   restoreStartSchema,
   organizationIdParamsSchema,
   personIdParamsSchema,
@@ -339,6 +340,28 @@ openApiRegistry.registerPath({
     404: err('NOT_FOUND'),
     409: err('TARGET_ANONYMIZED, INVALID_STATE, NO_VERIFIED_EMAIL or PHONE_TAKEN'),
     429: err('OTP_RATE_LIMITED'),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/people/{personId}/restore-access/complete',
+  tags: ['admin'],
+  summary:
+    'Move the account of a person to the new number with the email code and the SMS code (super administrator token only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: personIdParamsSchema,
+    body: { content: { 'application/json': { schema: restoreCompleteSchema } } },
+  },
+  responses: {
+    204: { description: 'Account moved, sessions ended, journaled and notified' },
+    400: err('VALIDATION_ERROR, SAME_NUMBER, OTP_INVALID or OTP_EXPIRED'),
+    401: err('UNAUTHORIZED'),
+    403: err('FORBIDDEN'),
+    404: err('NOT_FOUND'),
+    409: err('TARGET_ANONYMIZED, INVALID_STATE, NO_VERIFIED_EMAIL or PHONE_TAKEN'),
+    429: err('OTP_LOCKED'),
   },
 });
 

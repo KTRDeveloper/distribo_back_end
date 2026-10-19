@@ -160,6 +160,23 @@ export const restoreStartSchema = z
 export type RestoreStartInput = z.infer<typeof restoreStartSchema>;
 
 /**
+ * Body of POST /admin/people/{personId}/restore-access/complete: the new number, the two codes
+ * the person gave and the reason kept in the journal (1 to 2000 characters once trimmed). A code
+ * of any shape is accepted here and answers OTP_INVALID when wrong, so a malformed code is not
+ * told apart from a wrong one; unknown fields are refused (v5.0.0-15.3.3).
+ */
+export const restoreCompleteSchema = z
+  .object({
+    new_phone_number: z.string().min(1).max(32),
+    email_code: z.string().min(1).max(16),
+    sms_code: z.string().min(1).max(16),
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict();
+
+export type RestoreCompleteInput = z.infer<typeof restoreCompleteSchema>;
+
+/**
  * Query of GET /admin/actions: the shared page parameters and four optional filters; unknown
  * parameters are refused. `action` lists the journal's action kinds.
  */
