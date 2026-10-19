@@ -12,7 +12,12 @@ export type AdminActionType =
   | 'APPOINT_ADMIN'
   | 'REMOVE_ADMIN'
   | 'REPLAY_SYNC'
-  | 'RECOVER_2FA';
+  | 'RECOVER_2FA'
+  | 'GIFT_DAYS'
+  | 'RECORD_PAYMENT'
+  | 'REFUND_PAYMENT'
+  | 'RELEASE_PHONE'
+  | 'RESTORE_ACCESS';
 
 /** Fields a caller supplies; the id and the server time are never client-provided. */
 export interface AdminActionInput {

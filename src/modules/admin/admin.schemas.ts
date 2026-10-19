@@ -163,6 +163,11 @@ export const listActionsQuerySchema = paginationQuerySchema
         'REMOVE_ADMIN',
         'REPLAY_SYNC',
         'RECOVER_2FA',
+        'GIFT_DAYS',
+        'RECORD_PAYMENT',
+        'REFUND_PAYMENT',
+        'RELEASE_PHONE',
+        'RESTORE_ACCESS',
       ])
       .optional(),
     administrator_id: uuidV7Schema.optional(),

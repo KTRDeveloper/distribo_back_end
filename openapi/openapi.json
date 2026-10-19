@@ -4349,7 +4349,12 @@
                 "APPOINT_ADMIN",
                 "REMOVE_ADMIN",
                 "REPLAY_SYNC",
-                "RECOVER_2FA"
+                "RECOVER_2FA",
+                "GIFT_DAYS",
+                "RECORD_PAYMENT",
+                "REFUND_PAYMENT",
+                "RELEASE_PHONE",
+                "RESTORE_ACCESS"
               ]
             },
             "required": false,
@@ -4412,7 +4417,12 @@
                               "APPOINT_ADMIN",
                               "REMOVE_ADMIN",
                               "REPLAY_SYNC",
-                              "RECOVER_2FA"
+                              "RECOVER_2FA",
+                              "GIFT_DAYS",
+                              "RECORD_PAYMENT",
+                              "REFUND_PAYMENT",
+                              "RELEASE_PHONE",
+                              "RESTORE_ACCESS"
                             ]
                           },
                           "target_person_id": {

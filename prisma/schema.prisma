@@ -206,6 +206,11 @@ enum AdminActionType {
   REMOVE_ADMIN
   REPLAY_SYNC
   RECOVER_2FA
+  GIFT_DAYS
+  RECORD_PAYMENT
+  REFUND_PAYMENT
+  RELEASE_PHONE
+  RESTORE_ACCESS
 }
 
 enum ReportStatus {
@@ -962,16 +967,22 @@ model Administrator {
 }
 
 // Rules the database enforces on the journal of administrator actions, beyond
-// what this model declares. All come from migration
-// 20261004180000_adm_002_admin_actions.
+// what this model declares. They come from migration
+// 20261004180000_adm_002_admin_actions, extended by
+// 20261019170000_adm_016_admin_actions_five_more.
 // - The journal can only grow: the application can add and read entries but
 //   never change, delete or empty them.
 // - An entry has exactly one target: a person or an organization, never both
 //   and never none.
 // - The reason is required and cannot be empty or only spaces.
-// - A sync archive is attached exactly when the action is REPLAY_SYNC, and
-//   only an administrator whose role is SUPER_ADMIN can record a REPLAY_SYNC
+// - A sync archive is attached exactly when the action is REPLAY_SYNC.
+// - Only an administrator whose role is SUPER_ADMIN can record one of six
+//   actions: REPLAY_SYNC, GIFT_DAYS, RECORD_PAYMENT, REFUND_PAYMENT,
+//   RELEASE_PHONE and RESTORE_ACCESS. A moderator trying it is refused
 //   (checked on the administrator's role at the time of the insert).
+// - The target must be of the right kind: a business (organization) for
+//   GIFT_DAYS, RECORD_PAYMENT and REFUND_PAYMENT, a person for RELEASE_PHONE
+//   and RESTORE_ACCESS. Other actions accept either kind.
 // - report_id must point to an existing report (foreign key added by migration
 //   20261004190000_adm_003_reports). sync_archive_id must point to an existing
 //   sync archive (foreign key added by migration 20261004320000_sync_002_sync_archives).

@@ -609,3 +609,29 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - None.
 <!-- end ADM-015 -->
+
+<!-- begin ADM-016 -->
+## ADM-016 — The journal accepts five more actions
+
+- Filed: 2026-10-19 21:32 UTC
+- Status: **done**: Migration adm_016: 5 enum values, super-admin trigger, target_kind check; code lists twelve actions
+- Risk: high · story: [ADM-016-the-journal-accepts-five-more-actions.md](../modules/admin/ADM-016-the-journal-accepts-five-more-actions.md)
+- Agent: 45,249 tokens, 16 tool uses, 3 min 25 s
+
+### Agent report
+
+**Summary:** Migration adds the five enum values, replaces the replay trigger with admin_actions_check_super_admin_role and adds admin_actions_target_kind; code lists twelve actions.
+
+**Decisions:**
+- Old trigger and function dropped (not kept alongside): the new one covers REPLAY_SYNC with the same 23514.
+- Target-kind check only constrains the five new actions; older actions keep accepting either target (AC-4).
+
+**Other additions:**
+- `openapi/openapi.json` regenerated (committed file compared with the live document by an existing test).
+- Schema comment above AdminAction rewritten; sections on the new rules added.
+
+**Evidence:** story tests 38/38 (3 files); full suite 4489/4490, failing: quality-gates lint check (my first lint error in the test, fixed; file rerun passes); typecheck clean; lint 0 errors (192 warnings, existing)
+
+**Follow-ups:**
+- ADM-002 story text still says seven values (docs not touched).
+<!-- end ADM-016 -->
