@@ -519,8 +519,9 @@ model OrganizationContact {
   serverUpdatedAt    DateTime                   @default(now()) @map("server_updated_at") @db.Timestamptz
   deletedAt          DateTime?                  @map("deleted_at") @db.Timestamptz
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  createdBy    Person       @relation("OrganizationContactCreatedBy", fields: [createdById], references: [id])
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  createdBy     Person         @relation("OrganizationContactCreatedBy", fields: [createdById], references: [id])
+  otpChallenges OtpChallenge[]
 
   @@index([organizationId])
   @@map("organization_contacts")
@@ -817,19 +818,27 @@ model CustomerRelationshipReassignment {
 // declares. Both come from migration 20261003150000_auth_001_otp_challenges.
 // - A code can be tried at most 5 times.
 // - A code sent by SMS can only go to a Cameroon number, starting with +237.
+// - A code for a business contact (purpose ORG_CONTACT_VERIFICATION) belongs
+//   to that one contact, because two businesses may show the same number. The
+//   contact is set exactly for that purpose and for no other, and it must
+//   exist. That the code's target equals the contact's value spans two tables,
+//   so the code that issues and checks it enforces it, not the database
+//   (migration 20261019120000_org_023_otp_contact_link).
 model OtpChallenge {
-  id         String     @id @db.Uuid
-  personId   String?    @map("person_id") @db.Uuid
-  target     String
-  purpose    OtpPurpose
-  channel    OtpChannel @default(SMS)
-  codeHash   String     @map("code_hash")
-  expiresAt  DateTime   @map("expires_at") @db.Timestamptz
-  attempts   Int        @default(0)
-  consumedAt DateTime?  @map("consumed_at") @db.Timestamptz
-  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  id                    String     @id @db.Uuid
+  personId              String?    @map("person_id") @db.Uuid
+  target                String
+  purpose               OtpPurpose
+  channel               OtpChannel @default(SMS)
+  codeHash              String     @map("code_hash")
+  expiresAt             DateTime   @map("expires_at") @db.Timestamptz
+  attempts              Int        @default(0)
+  consumedAt            DateTime?  @map("consumed_at") @db.Timestamptz
+  createdAt             DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  organizationContactId String?    @map("organization_contact_id") @db.Uuid
 
-  person Person? @relation(fields: [personId], references: [id])
+  person              Person?              @relation(fields: [personId], references: [id])
+  organizationContact OrganizationContact? @relation(fields: [organizationContactId], references: [id])
 
   @@index([target, purpose, createdAt(sort: Desc)])
   @@map("otp_challenges")

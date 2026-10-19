@@ -80,3 +80,25 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 7/7 (+27 in collaboration-table); full suite 3685/3685, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings
 <!-- end ORG-022 -->
+
+<!-- begin ORG-023 -->
+## ORG-023 — A one-time code can be tied to a business contact
+
+- Filed: 2026-10-19 16:34 UTC
+- Status: **done**: CHECK ties organization_contact_id to ORG_CONTACT_VERIFICATION; otp-purposes test adapted
+- Risk: high · story: [ORG-023-a-one-time-code-can-be-tied-to-a-business.md](../modules/organization/ORG-023-a-one-time-code-can-be-tied-to-a-business.md)
+- Agent: 23,746 tokens, 8 tool uses, 1 min 48 s
+
+### Agent report
+
+**Summary:** Added otp_challenges.organization_contact_id (FK) and a CHECK tying it to ORG_CONTACT_VERIFICATION; schema and comment updated.
+
+**Decisions:**
+- CHECK compares purpose as text: stays valid whatever enum values are added later.
+- FK is ON DELETE RESTRICT (Prisma default), so a contact with codes cannot be deleted.
+
+**Existing tests edited (approved by user):**
+- `tests/integration/auth/otp-purposes.test.ts`: the `insert` helper now passes a contact id for ORG_CONTACT_VERIFICATION (null otherwise); a fixture person, organization and contact are created in beforeEach and cleaned in afterAll. Assertions unchanged. No other existing test broke.
+
+**Evidence:** story tests 3/3 (+ otp-table, otp-purposes: 12/12); full suite 3688/3688, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings
+<!-- end ORG-023 -->
