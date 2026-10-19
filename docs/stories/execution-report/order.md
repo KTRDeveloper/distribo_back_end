@@ -420,6 +420,33 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 5/5 (+ order-line-table, unit order pass); full suite 4093/4093, failing: none, 0 known; typecheck clean; lint 0 errors, 185 warnings
 <!-- end ORD-024 -->
 
+<!-- begin ORD-025 -->
+## ORD-025 — Every order line names its variant
+
+- Filed: 2026-10-19 20:02 UTC
+- Status: **done**: variant required; migration audit+copy+NOT NULL; ORD-024 AC-1 nullable assertion updated with user authorization
+- Risk: high · story: [ORD-025-every-order-line-names-its-variant.md](../modules/order/ORD-025-every-order-line-names-its-variant.md)
+- Agent: 18,069 tokens, 6 tool uses, 1 min 29 s
+
+### Agent report
+
+**Summary:** Migration fills old order lines' variant from product_id (audited), makes the column NOT NULL; schema field and comment updated.
+
+**Decisions:**
+- Audit raises 23514 listing at most 20 line ids, no label or amount: bounded message, ids only (AB-1).
+
+**Tests added beyond the story:**
+- `tests/integration/order/order-line-variant-required.test.ts` › audit passes when every empty line has a variant; client create may omit the variant: guard the happy audit path and the Prisma default (AC-2, schema note); may have passed at once
+
+**Other additions:**
+- None.
+
+**Evidence:** story tests 11/11 (with ORD-024 file); full suite 4099/4099, failing: none, 0 known; typecheck clean; lint 0 errors, 186 warnings
+
+**Follow-ups:**
+- Changed one existing test with the user's authorization: `tests/integration/order/order-line-variant.test.ts` is_nullable 'YES' -> 'NO' (ORD-024 AC-1, now outdated by this story).
+<!-- end ORD-025 -->
+
 <!-- begin ORD-009 -->
 ## ORD-009 — Customer places an order
 

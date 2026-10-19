@@ -152,7 +152,7 @@ describe('order line variant', () => {
       WHERE table_schema = 'public' AND table_name = 'order_lines'
         AND column_name = 'product_variant_id'
     `;
-    expect(column.is_nullable).toBe('YES');
+    expect(column.is_nullable).toBe('NO');
     const keys = await prisma.$queryRaw<Array<{ target: string; on_delete: string }>>`
       SELECT confrelid::regclass::text AS target, confdeltype::text AS on_delete
       FROM pg_constraint

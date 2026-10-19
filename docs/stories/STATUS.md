@@ -290,7 +290,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-038 | done | | countProductsOnSale and assertRoomForProduct added; 9 tests green |
 | ORD-022 | done | | accepted_at column and C-51 checks in migration 20261019130000 |
 | ORD-024 | done | | order_lines.product_variant_id with FK, index and fill trigger; 4093 tests pass |
-| ORD-025 | todo | | |
+| ORD-025 | done | | variant required; migration audit+copy+NOT NULL; ORD-024 AC-1 nullable assertion updated with user authorization |
 | ORD-026 | todo | | |
 | ORD-029 | todo | | |
 | ORD-030 | todo | | |
