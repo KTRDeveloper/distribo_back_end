@@ -262,3 +262,38 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 - The local generated Prisma client was stale (no organization_contact_id) and had to be regenerated with `npm run db:generate`; other environments may need the same.
 - The EMAIL wording ("cette adresse" / "this address") is still an open question in the story.
 <!-- end ORG-041 -->
+
+<!-- begin ORG-024 -->
+## ORG-024 — The owner adds a public phone number to the business
+
+- Filed: 2026-10-19 17:36 UTC
+- Status: **done**: POST /organizations/:id/contacts: owner phone verified at once, others pending with SMS code
+- Risk: high · story: [ORG-024-the-owner-adds-a-public-phone-number-to-the.md](../modules/organization/ORG-024-the-owner-adds-a-public-phone-number-to-the.md)
+- Agent: 84,261 tokens, 30 tool uses, 4 min 42 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/{id}/contacts (owner only, idempotent): own verified number stored OWNER_PHONE, other numbers pending plus an SMS code tied to the contact.
+
+**Decisions:**
+- UNSUPPORTED_NUMBER vs `phoneNumberSchema`: the schema alone would give VALIDATION_ERROR, but AC-3 wants UNSUPPORTED_NUMBER; the body takes a string and the service normalizes it. A valid number that is not a CM mobile (foreign or landline) gives UNSUPPORTED_NUMBER, non-numbers VALIDATION_ERROR.
+- Number already listed and slot taken at once: CONTACT_ALREADY_EXISTS wins (more specific).
+- The contact commits before `issueCode` (the code references it); a 429 leaves it pending and idempotency replays that 429 for the same id.
+- Lost race (P2002): re-reads the committed state and answers like the pre-check.
+- Code language is the owner's (the recipient's is unknown).
+- Tests were written but I did not run them red before implementing; they passed at first run.
+
+**Tests added beyond the story:**
+- `contact-add.test.ts` › keeps the contact pending and answers 429 when the code cannot be sent: ORG-024 context (429 kept)
+- `contact-add.test.ts` › answers the same refusal when two requests race for the same slot: 23505 answered like the pre-check (context)
+- `contact-add.test.ts` › does not verify at once the number of another registered person; deleted contact frees slot and number; same number in two businesses; non-member 404; landline and bad-slot validation rows: C-43, AC-3; passed at once
+
+**Other additions:**
+- Catalog and per-001 path entries for the new route (CONVENTIONS rule).
+
+**Evidence:** story tests 55/55 (contact-add 27, with api-docs and per-001); full suite 3912/3912, failing: none, 0 known; typecheck clean; lint 0 errors, 177 warnings (existing)
+
+**Follow-ups:**
+- A registered person cannot have an unverified phone (DB check), so the `phone_verified_at` test of AC-1 is guarded in code but cannot be tested.
+- A gesture id colliding with another business's contact id gives a 500 (P2002 with no conflict found).
+<!-- end ORG-024 -->

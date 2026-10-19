@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
+import { addContactSchema } from './organization-contact.schemas.js';
 import {
   changeRoleSchema,
   closeOrganizationSchema,
@@ -225,6 +226,50 @@ openApiRegistry.registerPath({
       content: errorContent,
     },
     429: { description: 'Too many person lookups', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/contacts',
+  tags: ['organization'],
+  summary: 'The owner adds a public phone number to the business',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationIdParamsSchema,
+    body: { content: { 'application/json': { schema: addContactSchema } } },
+  },
+  responses: {
+    201: {
+      description:
+        'The contact; verified at once (OWNER_PHONE) for the owner own number, else pending with a code sent by SMS',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string().uuid(),
+            kind: z.enum(['PHONE', 'EMAIL']),
+            slot: z.number().int().nullable(),
+            value: z.string(),
+            verified_at: z.string().datetime().nullable(),
+            verification_method: z.enum(['CODE', 'OWNER_PHONE']).nullable(),
+            created_at: z.string().datetime(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'Malformed id or invalid body (VALIDATION_ERROR), or UNSUPPORTED_NUMBER',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: { description: 'Not found or not a member', content: errorContent },
+    409: {
+      description:
+        'CONTACT_SLOT_TAKEN, CONTACT_ALREADY_EXISTS, ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
+      content: errorContent,
+    },
+    429: { description: 'OTP_RATE_LIMITED: the contact stays pending', content: errorContent },
   },
 });
 

@@ -57,6 +57,7 @@ describe('GET /docs/openapi.json', () => {
       '/api/v1/organizations/{organizationId}/collaborators/{collaborationId}'
     );
     expect(paths).toContain('/api/v1/organizations/{organizationId}/collaborators/me');
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/contacts');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/subscription');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/transfer-ownership');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/close');

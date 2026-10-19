@@ -38,6 +38,8 @@ import {
   startSubscription,
   transferOwnership,
 } from './organization.service.js';
+import { addContactSchema } from './organization-contact.schemas.js';
+import { addContact } from './organization-contact.service.js';
 import './organization.openapi.js';
 
 /** Organization routes; all require authentication. */
@@ -113,6 +115,27 @@ organizationRoutes.post(
   idempotent(),
   (req, res, next) => {
     inviteCollaborator(req.actor!, inviteCollaboratorSchema.parse(req.body))
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/contacts - the owner adds a public phone number;
+// needs the network (`create OrganizationContact`). Verification is set by the server (C-44).
+organizationRoutes.post(
+  '/:organizationId/contacts',
+  loadActor,
+  requireAbility('create', 'OrganizationContact'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = addContactSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    addContact(req.actor!, addContactSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
       .catch(next);
   }
