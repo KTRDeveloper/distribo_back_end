@@ -126,6 +126,13 @@ enum OrganizationStatus {
   CLOSED
 }
 
+enum OrganizationPlan {
+  FREE
+  ESSENTIAL
+  PRO
+  ENTERPRISE
+}
+
 enum CollaborationRole {
   OWNER
   MANAGER
@@ -392,15 +399,33 @@ model Notification {
 // Rule the database enforces on organizations, beyond what this model declares:
 // - server_updated_at is set by the database on every change.
 //   (Migration 20261004090000_org_001_organizations)
+// - The plan, its end dates, the two limits and the business code are written
+//   by the server only, and shown to the team of the business only. The logo
+//   key is also written by the server only.
+// - A business is on the free plan exactly when it has no plan end date. A
+//   grace end date needs a plan end date and comes after it. A limit left
+//   empty means no limit, a set limit is zero or more.
+// - Two businesses never share a business code or a logo file. Any number of
+//   businesses may have no logo. The database draws a new code of 8 characters
+//   when none is given (SQL function organization_payment_code); the schema
+//   only points at that function.
+//   (Migration 20261019060000_org_020_organization_plan_fields)
 model Organization {
-  id              String             @id @db.Uuid
-  name            String
-  description     String?            @db.Text
-  email           String?
-  status          OrganizationStatus @default(ACTIVE)
-  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz
-  serverUpdatedAt DateTime           @default(now()) @map("server_updated_at") @db.Timestamptz
-  deletedAt       DateTime?          @map("deleted_at") @db.Timestamptz
+  id               String             @id @db.Uuid
+  name             String
+  description      String?            @db.Text
+  email            String?
+  status           OrganizationStatus @default(ACTIVE)
+  logoKey          String?            @unique @map("logo_key")
+  paymentCode      String             @unique @default(dbgenerated("organization_payment_code()")) @map("payment_code")
+  plan             OrganizationPlan   @default(FREE)
+  planEndsAt       DateTime?          @map("plan_ends_at") @db.Timestamptz
+  graceEndsAt      DateTime?          @map("grace_ends_at") @db.Timestamptz
+  maxCollaborators Int?               @default(2) @map("max_collaborators")
+  maxProducts      Int?               @default(30) @map("max_products")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  serverUpdatedAt  DateTime           @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt        DateTime?          @map("deleted_at") @db.Timestamptz
 
   notifications  Notification[]
   collaborations Collaboration[]
