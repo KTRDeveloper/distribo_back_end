@@ -112,6 +112,13 @@ beforeEach(async () => {
       (${PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Rice', 'sack', 3000),
       (${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'Fixture Oil', 'can', 1500)
   `;
+  // CAT-015: the uniqueness is per variant, so each product has its variant (same id, CAT-013).
+  await prisma.$executeRaw`
+    INSERT INTO product_variants (id, product_id, organization_id, unit, price)
+    VALUES
+      (${PRODUCT_ID}::uuid, ${PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'sack', 3000),
+      (${FOREIGN_PRODUCT_ID}::uuid, ${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'can', 1500)
+  `;
   await prisma.$executeRaw`
     INSERT INTO customer_relationships (id, supplier_organization_id, customer_person_id, created_by_id)
     VALUES (${REL_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, ${CUSTOMER_ID}::uuid, ${OWNER_ID}::uuid)

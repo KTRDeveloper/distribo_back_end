@@ -360,9 +360,15 @@ export async function findSupplierRelationshipForPrice(
 }
 
 /**
- * Creates the live negotiated price of a relationship and product, or replaces the one that
- * exists (the last writer wins), in a single statement. The partial unique index of C-11
- * arbitrates a race, so no second live row can appear. `set_at` is the server time.
+ * Creates the live negotiated price of a relationship and variant, or replaces the one that
+ * exists (the last writer wins). The partial unique index of C-11, on the relationship and
+ * the variant, arbitrates a race, so no second live row can appear. `set_at` is the server
+ * time.
+ *
+ * The variant is the one that has the id of the product (CAT-013), which the database fills
+ * in at insert. A product that has no variant yet leaves it empty, and the index cannot see
+ * such rows: for them the live row of the pair is replaced first, under a lock on the pair,
+ * until a later story creates every variant with its product and drops `product_id`.
  *
  * @param data - Row id for a creation (kept row id on a replace), relationship, product,
  * price and author, all validated by the service.
@@ -377,12 +383,23 @@ export async function upsertCustomerPrice(
     setById: string;
   }
 ): Promise<{ productId: string; price: bigint; setById: string; setAt: Date }> {
-  const rows = await tx.$queryRaw<
-    Array<{ product_id: string; price: bigint; set_by_id: string; set_at: Date }>
-  >`
+  type Returned = Array<{ product_id: string; price: bigint; set_by_id: string; set_at: Date }>;
+  await tx.$executeRaw`
+    SELECT pg_advisory_xact_lock(hashtextextended(${data.relationshipId} || ':' || ${data.productId}, 0))`;
+  const legacy = await tx.$queryRaw<Returned>`
+    UPDATE "customer_prices"
+    SET "price" = ${data.price}::bigint, "set_by_id" = ${data.setById}::uuid, "set_at" = clock_timestamp()
+    WHERE "customer_relationship_id" = ${data.relationshipId}::uuid
+      AND "product_id" = ${data.productId}::uuid
+      AND "product_variant_id" IS NULL AND "deleted_at" IS NULL
+    RETURNING "product_id", "price", "set_by_id", "set_at"`;
+  const rows =
+    legacy.length > 0
+      ? legacy
+      : await tx.$queryRaw<Returned>`
     INSERT INTO "customer_prices" ("id", "customer_relationship_id", "product_id", "price", "set_by_id", "set_at")
     VALUES (${data.id}::uuid, ${data.relationshipId}::uuid, ${data.productId}::uuid, ${data.price}::bigint, ${data.setById}::uuid, clock_timestamp())
-    ON CONFLICT ("customer_relationship_id", "product_id") WHERE "deleted_at" IS NULL
+    ON CONFLICT ("customer_relationship_id", "product_variant_id") WHERE "deleted_at" IS NULL
     DO UPDATE SET "price" = EXCLUDED."price", "set_by_id" = EXCLUDED."set_by_id", "set_at" = clock_timestamp()
     RETURNING "product_id", "price", "set_by_id", "set_at"`;
   const row = rows[0];

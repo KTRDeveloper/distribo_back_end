@@ -188,6 +188,37 @@ Also in this run: relationship, admin, order, finance, delivery.
 - Work is left uncommitted in the tree (migration, schema.prisma, new test).
 <!-- end CAT-014 -->
 
+<!-- begin CAT-015 -->
+## CAT-015 — Negotiated prices point at a variant
+
+- Filed: 2026-10-19 15:37 UTC
+- Status: **done**: Variant column, fill and supplier triggers, per-variant unique index; upsert handles products without variant
+- Risk: high · story: [CAT-015-negotiated-prices-point-at-a-variant.md](../modules/catalog/CAT-015-negotiated-prices-point-at-a-variant.md)
+- Agent: 64,164 tokens, 21 tool uses, 4 min 35 s
+
+### Agent report
+
+**Summary:** Added customer_prices.product_variant_id (FK, copy, fill and supplier triggers, per-variant live unique index) and moved the upsert to the variant.
+
+**Decisions:**
+- Fill trigger fills only when a variant with the product's id exists, else leaves NULL: fixtures and routes still create products with no variant, an unconditional fill would give 23503 and break old tests ("old code and tests keep working").
+- Copy statement skips prices whose product has no variant (would hit the FK); idempotent (only NULL rows).
+- Unique index ignores NULL variants, so `upsertCustomerPrice` first updates the live legacy row (variant NULL) of the pair under an advisory lock, then does the ON CONFLICT on (relationship, variant): story said "the rest is unchanged", but set-customer-price and copy-prices replace tests failed otherwise.
+- Updated customer-price-table.test.ts fixture to give each product its variant (listed under "Tests to update").
+
+**Tests added beyond the story:**
+- `customer-price-variant.test.ts` › copy second run: idempotent, price without variant stays empty (C-35, story Context)
+- same file › old insert: a given variant is kept (AC-2 context)
+- same file › old-style repeat for same product → 23505 (AC-3, C-11); passed at once
+- same file › replace for a product without variant keeps one live row (legacy path of the upsert)
+- same file › UPDATE to another business's variant → 23514; person-supplied relationship → 23514 (AB-1, C-11); passed at once
+
+**Evidence:** story tests 14+existing price table passed; full suite 3388/3388, failing: none, 0 known; typecheck clean; lint 0 errors, 146 warnings
+
+**Follow-ups:**
+- Rows with NULL variant escape C-11 uniqueness; the later story that creates variants with products and drops product_id must backfill them.
+<!-- end CAT-015 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 
