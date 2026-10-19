@@ -23,6 +23,7 @@
     "openapi:generate": "tsx scripts/generate-openapi.ts",
     "job:reconcile": "tsx src/jobs/reconcile.ts",
     "job:purge": "tsx src/jobs/purge.ts",
+    "job:image-cleanup": "tsx src/jobs/image-cleanup.ts",
     "admin:create-super": "tsx scripts/create-super-admin.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",

@@ -178,3 +178,28 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 7/7; full suite 3804/3804, failing: none, 0 known; typecheck clean; lint 0 errors, 162 warnings (existing)
 <!-- end IMG-006 -->
+
+<!-- begin IMG-007 -->
+## IMG-007 — Nightly cleanup of photo files that no card cites
+
+- Filed: 2026-10-19 17:06 UTC
+- Status: **done**: 9 story tests pass; full suite 3813 pass
+- Risk: medium · story: [IMG-007-nightly-cleanup-of-photo-files-that-no-card.md](../modules/images/IMG-007-nightly-cleanup-of-photo-files-that-no-card.md)
+- Agent: 35,301 tokens, 16 tool uses, 2 min 13 s
+
+### Agent report
+
+**Summary:** Added `cleanupOrphanImages`, the `runImageCleanupJob` job and the `job:image-cleanup` script; all tests green.
+
+**Decisions:**
+- Age rule: a file is deleted only if stored strictly more than 24 h before `now` (exactly 24 h is kept).
+- Non-canonical keys found in storage are counted in `scanned` but never sent to deletion nor counted in `deleted` (matches `deleteImageFiles`, ASVS 5.3.2).
+- The service calls `findCitedKeys` itself to compute `deleted`; `deleteImageFiles` re-checks citations (second, safer check).
+- Tests age files with fake `Date` while storing (the storage singleton has a fixed clock); the citation failure is simulated by wrapping `findCitedKeys` with `vi.mock`.
+
+**Tests added beyond the story:**
+- `image-cleanup.test.ts` › keeps a file stored exactly 24 hours before now: age boundary (C-50, "more than 24 hours"); passed at once
+- `image-cleanup.test.ts` › throws and deletes nothing more when the storage list fails: fail closed (Context); passed at once
+
+**Evidence:** story tests 9/9; full suite 3813/3813, failing: none, 0 known; typecheck clean; lint 0 errors, 162 warnings (existing)
+<!-- end IMG-007 -->
