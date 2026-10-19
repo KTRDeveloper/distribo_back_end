@@ -1029,3 +1029,108 @@ export async function setLogoKey(
   await tx.organization.update({ where: { id: organizationId }, data: { logoKey: key } });
   return row.logo_key;
 }
+
+const MAX_PAGE_SIZE = 500;
+
+function assertPageSize(limit: number): void {
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) {
+    throw new RangeError(`limit must be an integer from 1 to ${MAX_PAGE_SIZE}`);
+  }
+}
+
+/**
+ * Reads the five plan fields of a non-deleted business, for billing to compare with the new
+ * rights before it journals a change (C-41). Server code only: the organization never comes from
+ * a request (ASVS v5.0.0-8.2.1).
+ *
+ * @param tx - The caller's transaction.
+ * @returns The plan fields, or null when the business is absent or deleted.
+ */
+export async function readPlanFields(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<PlanFields | null> {
+  const row = await tx.organization.findFirst({
+    where: { id: organizationId, deletedAt: null },
+    select: {
+      plan: true,
+      planEndsAt: true,
+      graceEndsAt: true,
+      maxCollaborators: true,
+      maxProducts: true,
+    },
+  });
+  return row;
+}
+
+/**
+ * Lists, page by page, the ids of non-deleted businesses whose rights need a refresh: a paid plan
+ * whose grace end (else plan end) is not after `now` (C-41), or more ACTIVE or INVITED non-owner
+ * collaborations than `max_collaborators` (C-42). Ids only and read only; the caller treats each
+ * business in its own transaction. No route exposes it (ASVS v5.0.0-8.2.1).
+ *
+ * @param now - Reference instant.
+ * @param limit - Page size, an integer from 1 to 500.
+ * @param afterId - Last id of the previous page.
+ * @returns Ids in ascending order.
+ * @throws RangeError when `limit` is out of range.
+ */
+export async function listOrganizationsToRefresh(
+  now: Date,
+  limit: number,
+  afterId?: string
+): Promise<string[]> {
+  assertPageSize(limit);
+  const after = afterId === undefined ? Prisma.empty : Prisma.sql`AND o.id > ${afterId}::uuid`;
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT o.id FROM organizations o
+    WHERE o.deleted_at IS NULL
+      ${after}
+      AND (
+        (o.plan <> 'FREE' AND COALESCE(o.grace_ends_at, o.plan_ends_at) <= ${now})
+        OR (
+          o.max_collaborators IS NOT NULL
+          AND (
+            SELECT count(*) FROM collaborations c
+            WHERE c.organization_id = o.id
+              AND c.deleted_at IS NULL
+              AND c.role <> 'OWNER'
+              AND c.status IN ('ACTIVE', 'INVITED')
+          ) > o.max_collaborators
+        )
+      )
+    ORDER BY o.id ASC
+    LIMIT ${limit}
+  `;
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Lists, page by page, the ids of non-deleted businesses on a paid plan whose `plan_ends_at` is in
+ * [from, to), so billing can warn them before the end. Ids only and read only (ASVS v5.0.0-8.2.1).
+ *
+ * @param limit - Page size, an integer from 1 to 500.
+ * @param afterId - Last id of the previous page.
+ * @returns Ids in ascending order.
+ * @throws RangeError when `limit` is out of range.
+ */
+export async function listOrganizationsEnding(
+  from: Date,
+  to: Date,
+  limit: number,
+  afterId?: string
+): Promise<string[]> {
+  assertPageSize(limit);
+  const after = afterId === undefined ? Prisma.empty : Prisma.sql`AND o.id > ${afterId}::uuid`;
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT o.id FROM organizations o
+    WHERE o.deleted_at IS NULL
+      ${after}
+      AND o.plan <> 'FREE'
+      AND o.plan_ends_at >= ${from}
+      AND o.plan_ends_at < ${to}
+    ORDER BY o.id ASC
+    LIMIT ${limit}
+  `;
+  return rows.map((row) => row.id);
+}

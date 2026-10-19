@@ -536,3 +536,25 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 
 **Evidence:** story tests 7/7; full suite 4008/4008, failing: none, 0 known; typecheck clean; lint 0 errors, 183 warnings
 <!-- end ORG-044 -->
+
+<!-- begin ORG-045 -->
+## ORG-045 — Billing reads the plan fields and lists businesses by plan date
+
+- Filed: 2026-10-19 18:17 UTC
+- Status: **done**: readPlanFields, listOrganizationsToRefresh, listOrganizationsEnding added; 20 tests pass
+- Risk: low · story: [ORG-045-billing-reads-the-plan-fields-and-lists.md](../modules/organization/ORG-045-billing-reads-the-plan-fields-and-lists.md)
+- Agent: 38,052 tokens, 14 tool uses, 2 min 18 s
+
+### Agent report
+
+**Summary:** Added readPlanFields, listOrganizationsToRefresh and listOrganizationsEnding to the organization repository, with raw parameterized SQL for the lists.
+
+**Decisions:**
+- Out-of-range `limit` (not an integer 1 to 500): throw RangeError, as setLogoKey does; the story gives the range but no error.
+- "Not after now" implemented as `COALESCE(grace_ends_at, plan_ends_at) <= now` (a plan ending exactly now is listed).
+
+**Tests added beyond the story:**
+- `tests/integration/organization/refresh-list.test.ts` › plan ending exactly now is listed; no limit (null) never lists on seats; page-size bounds (0, 501, 1.5, NaN) refused; ending list pages after an id: boundary guards (AC-1 wording, signatures); written with the tests, all passed once implemented.
+
+**Evidence:** story tests 20/20; full suite 4071/4071, failing: none, 0 known; typecheck clean; lint 0 errors, 185 warnings (existing)
+<!-- end ORG-045 -->
