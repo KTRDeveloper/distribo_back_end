@@ -6,6 +6,22 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-19 11:57 UTC: `/implement-stories ACC-008,AUTH-027..AUTH-038`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ACC-008 Availability values say who may act offline | done | d766874 | Where values renamed, unknown value denied; 3206 tests pass |
+
+Also in this run: auth.
+
+- Skipped, dependency not done: AUTH-029, AUTH-033, AUTH-036 (need AUTH-028, blocked); AUTH-031 (needs AUTH-029), AUTH-032 (needs AUTH-031), AUTH-034 (needs AUTH-033), AUTH-035 (needs AUTH-036), AUTH-037 (needs AUTH-031). All stay todo.
+- Stash: "AUTH-028 blocked: partial changes".
+- Run completed: every PLAN line reached; 4 done (ACC-008, AUTH-027, AUTH-030, AUTH-038), 1 blocked (AUTH-028), 8 skipped.
+- AUTH-028 needs a decision: tests/integration/privacy/anonymize.test.ts AC-5 (not in its "Tests to update") expects 401 for an anonymized number, now 404 ACCOUNT_NOT_FOUND. PRIV-002 AC-5 says "generic 401" and would need the same wording.
+- Baseline failing count: 0.
+- Nothing unexpected: all report files found, figures filed, every hand-back matched STATUS.md.
+- Next command: once AUTH-028's "Tests to update" is amended, `git stash pop` the AUTH-028 stash, then `/implement-stories AUTH-028,AUTH-029,AUTH-031..AUTH-037`.
+
 <!-- begin ACC-008 -->
 ## ACC-008 — Availability values say who may act offline
 
