@@ -11,6 +11,7 @@
       "Bash(node .claude/skills/implement-stories/scripts/set-status.mjs *)",
       "Bash(node .claude/skills/implement-stories/scripts/report.mjs *)",
       "Bash(node .claude/skills/implement-stories/scripts/set-aside.mjs *)",
+      "Bash(node .claude/skills/implement-stories/scripts/baseline.mjs *)",
       "Bash(sleep 60)"
     ],
     "deny": [

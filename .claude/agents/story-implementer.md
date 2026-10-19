@@ -6,7 +6,7 @@ model: sonnet
 effort: high
 maxTurns: 40
 ---
-You implement exactly one user story: the file whose path you were given. From /implement-stories, your prompt also names a report file.
+You implement exactly one user story: the file whose path you were given. From /implement-stories, your prompt also names a report file and a baseline failures file.
 Work through to the end without stopping to ask for confirmation. The only reasons to stop early are the blocked cases in step 7.
 `<ID>` below is the story's ID; `set-status` means `node .claude/skills/implement-stories/scripts/set-status.mjs`.
 
@@ -25,7 +25,12 @@ Work through to the end without stopping to ask for confirmation. The only reaso
    - give reusable helpers in `tests/helpers/` brief descriptions, but do not comment individual test cases;
    - when modifying existing code, match its comment style and update comments when behavior changes.
    Keep comments concise and avoid documenting trivial getters, setters, or self-explanatory types.
-6. While iterating, run the story's test command and `npm run lint -- --quiet`; at the end, run `npm run typecheck`, `npm run lint` and the full suite once.
+6. Run commands so the full suite runs once, since it is the slowest step:
+   - While iterating, run only the story's test files and `npm run lint -- --quiet`; never `npm test` in the same command.
+   - At the end, one command, with `<dir>` the report file's folder (your scratchpad without one): `npm run typecheck 2>&1 | tail -5; npm run lint 2>&1 | tail -10; npm test > <dir>/<ID>-suite.txt 2>&1; grep -E "^ FAIL|^ +Tests " <dir>/<ID>-suite.txt | sort -u`. Read failures from that file with grep; never rerun the suite to see its output.
+   - A failure listed in the `Baseline failures:` file your prompt names was already there before you: do not investigate it, rerun it, or stash your work to check it; count it in Evidence as `N known`. Every other failure is yours to fix.
+   - After fixing a failure, rerun only the failed test files and the story's. Rerun the full suite only if the fix changed shared code: `src/lib`, `src/shared`, `src/middleware`, `src/app.ts` or `prisma/`.
+   - Never run `git stash`, `git checkout` or `git restore` on files you did not change.
 7. Record the outcome with `set-status <ID> <status> "<one-line note>"` (the note replaces the previous one):
    - done: all tests pass, whatever the story's risk (you run Sonnet 5.5 at effort high, which the Definition of Done accepts in place of a review);
    - blocked, with a one-line note: after 3 failed attempts on the same error, or when anything is ambiguous (write the question as the note; never guess).
@@ -43,7 +48,7 @@ Work through to the end without stopping to ask for confirmation. The only reaso
    **Other additions:**
    - <code, check, helper or file the story does not mention>: <why>
 
-   **Evidence:** story tests <passed>/<total>; full suite <passed>/<total>, failing: <names or none>; typecheck <clean or N errors>; lint <N errors, N warnings>
+   **Evidence:** story tests <passed>/<total>; full suite <passed>/<total>, failing: <names or none>, <N> known; typecheck <clean or N errors>; lint <N errors, N warnings>
 
    **Follow-ups:**
    - <a doubt, risk or work left for a human>

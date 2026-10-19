@@ -27,12 +27,14 @@ With `--plan`, print these lines and stop.
 
 Before the first story, run `git status --porcelain`. If it lists anything, read the first PLAN story's line with `grep -m1 "| <ID> |" <stories folder>/STATUS.md`: blocked or in_progress means these are that story's partial changes, which its agent resumes; otherwise stop, show the list and file no report, since these changes would end up in a story's commit.
 
+Then, once per run, record the tests already failing: `node .claude/skills/implement-stories/scripts/baseline.mjs <your scratchpad>/baseline-failures.txt`. It runs the full suite and prints `BASELINE <n> failing <file>`; never read that file. If it exits with an error, stop and report its last lines: the suite cannot run.
+
 ## Run every PLAN line, one story at a time
 `report` below means `node .claude/skills/implement-stories/scripts/report.mjs` and `set-aside` means `node .claude/skills/implement-stories/scripts/set-aside.mjs`, each with `--stories <folder>` when the selection has it. `report` writes `<stories folder>/execution-report/<module>.md` and prints `WROTE <path> ...`. Never read or edit those files, nor the agents' report files. Write each file you pass to a script with the Write tool, in your scratchpad: the command then stays one plain line, which the permission rules allow without asking.
 
 A story that does not end done never stops the run by itself. For each PLAN line, in order:
 1. If an earlier story of this run did not end done, first run `select.mjs <ID>` (with `--stories` when given): a `MISSING` line means one of its dependencies is not done, so skip the story, which stays todo, and go to the next line.
-2. Delegate the story to the story-implementer subagent with a two-line prompt: the story's path, then `Report file: <your scratchpad>/<ID>-report.md`. Nothing else, and no model override (its Sonnet, effort high setup is what lets a risk: high story skip review). Each story gets a fresh subagent.
+2. Delegate the story to the story-implementer subagent with a three-line prompt: the story's path, then `Report file: <your scratchpad>/<ID>-report.md`, then `Baseline failures: <your scratchpad>/baseline-failures.txt`. Nothing else, and no model override (its Sonnet, effort high setup is what lets a risk: high story skip review). Each story gets a fresh subagent.
 3. Wait until the subagent has finished before doing anything else. In the background, it ends with two messages: its hand-back (`<agent-message>`), the one line `<ID> <status>`, then a task notification, which holds its figures in `<usage>`. Once the hand-back has arrived, the notification never wakes you: it comes attached to the result of your next tool call, or is added silently when your turn ends. So go on to step 4 in the same turn; never end your turn to wait for the notification. In the foreground, its tool result holds both.
 4. Read only the story's line: `grep -m1 "| <ID> |" <stories folder>/STATUS.md`.
 5. Run `report story <ID> --file <its report file>` with its figures: from the task notification's `<usage>`, `<subagent_tokens>` as `--tokens`, `<tool_uses>` as `--tool-uses` and `<duration_ms>` as `--duration-ms` (a foreground result shows the same three). The notification normally comes with step 4's result. If it is still missing, wait one minute at most: run `sleep 60` with Bash `run_in_background`, then end your turn; the timer's notice wakes you. Run the command then, with the figures if the notification has come, without them otherwise. Leave out a figure you cannot find; never estimate one.
@@ -48,6 +50,7 @@ After the last PLAN line, or when you stop, write your own report to a scratchpa
 - the stories skipped because a dependency is not done, or not reached because the run stopped;
 - the name of each stash;
 - why the run stopped, or that it completed;
+- the baseline's failing count, when it is not 0;
 - anything unexpected: a missing report file, figures filed without the notification, a hand-back status that STATUS.md contradicts, a refused command, a failed commit;
 - the next command to run.
 

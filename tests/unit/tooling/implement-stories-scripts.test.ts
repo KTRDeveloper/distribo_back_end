@@ -20,6 +20,7 @@ const SELECT = '.claude/skills/implement-stories/scripts/select.mjs';
 const SET_STATUS = '.claude/skills/implement-stories/scripts/set-status.mjs';
 const REPORT = '.claude/skills/implement-stories/scripts/report.mjs';
 const SET_ASIDE = '.claude/skills/implement-stories/scripts/set-aside.mjs';
+const BASELINE = '.claude/skills/implement-stories/scripts/baseline.mjs';
 const STORIES = 'tests/fixtures/implement-stories';
 
 function run(script: string, args: string[]): { code: number | null; lines: string[] } {
@@ -272,6 +273,59 @@ describe('report.mjs', () => {
 
     expect(report(['story', 'FX-003'], 'report of three')).toBe(2);
     expect(reportOf('fx')).toBe(broken);
+  });
+});
+
+describe('baseline.mjs', () => {
+  // --from reads a saved Vitest output, so the test never runs the suite.
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'baseline-'));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  function baseline(output: string): { code: number | null; stdout: string; out: string } {
+    const from = join(dir, 'suite.txt');
+    const out = join(dir, 'failures.txt');
+    writeFileSync(from, output);
+    const result = spawnSync(process.execPath, [BASELINE, out, '--from', from], {
+      encoding: 'utf8',
+    });
+    return { code: result.status, stdout: result.stdout, out };
+  }
+
+  it('lists each failing test once, sorted, without colours', () => {
+    const { code, stdout, out } = baseline(
+      [
+        '·····x··',
+        ' FAIL  tests/b.test.ts > b > fails',
+        ' \u001b[31mFAIL\u001b[39m  tests/a.test.ts > a > fails',
+        'AssertionError: expected 1 to be 2',
+        ' FAIL  tests/b.test.ts > b > fails',
+        ' Test Files  2 failed | 5 passed (7)',
+        '      Tests  2 failed | 40 passed (42)',
+      ].join('\n')
+    );
+
+    expect(code).toBe(0);
+    expect(stdout).toBe(`BASELINE 2 failing ${out}\n`);
+    expect(readFileSync(out, 'utf8')).toBe(
+      'FAIL tests/a.test.ts > a > fails\nFAIL tests/b.test.ts > b > fails\n'
+    );
+  });
+
+  it('writes an empty file for a green suite', () => {
+    const { code, out } = baseline(' Test Files  7 passed (7)\n      Tests  42 passed (42)\n');
+
+    expect(code).toBe(0);
+    expect(readFileSync(out, 'utf8')).toBe('');
+  });
+
+  it('writes nothing when the output has no Vitest summary', () => {
+    const { code, out } = baseline('Error: Cannot connect to the test database\n');
+
+    expect(code).toBe(1);
+    expect(existsSync(out)).toBe(false);
   });
 });
 
