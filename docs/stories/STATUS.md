@@ -221,7 +221,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | PER-013 | done | | setAvatarKey added; 6 tests, suite green |
 | PER-014 | done | | registry in phone-released.ts, 12 tests green |
 | ACC-008 | done | | Where values renamed, unknown value denied; 3206 tests pass |
-| AUTH-027 | todo | | |
+| AUTH-027 | done | | OtpPurpose gains ORG_CONTACT_VERIFICATION and ACCESS_RESTORE; 3212 tests pass |
 | AUTH-028 | todo | | |
 | AUTH-029 | todo | | |
 | AUTH-030 | todo | | |
