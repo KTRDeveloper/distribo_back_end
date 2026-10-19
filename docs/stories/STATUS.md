@@ -242,7 +242,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-015 | done | | Variant column, fill and supplier triggers, per-variant unique index; upsert handles products without variant |
 | CAT-018 | done | | variant name/unit unique index and merged-is-deleted CHECK; 3474 tests pass |
 | CAT-016 | done | | variantLabel and simplifyText in src/shared/variant.ts, agree with CAT-018 index |
-| CAT-021 | todo | | |
+| CAT-021 | done | | trigger product_variants_touch_product; 3498 tests pass |
 | CAT-032 | todo | | |
 | CAT-033 | todo | | |
 | CAT-034 | todo | | |

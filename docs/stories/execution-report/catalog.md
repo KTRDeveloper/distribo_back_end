@@ -271,6 +271,26 @@ Also in this run: relationship, admin, order, finance, delivery.
 - Implementation was written before watching the tests fail (TDD order not strictly followed); tests are tight against the story examples.
 <!-- end CAT-016 -->
 
+<!-- begin CAT-021 -->
+## CAT-021 — A variant change also moves its product's server date
+
+- Filed: 2026-10-19 15:58 UTC
+- Status: **done**: trigger product_variants_touch_product; 3498 tests pass
+- Risk: high · story: [CAT-021-a-variant-change-also-moves-its-product-s.md](../modules/catalog/CAT-021-a-variant-change-also-moves-its-product-s.md)
+- Agent: 34,640 tokens, 16 tool uses, 2 min 10 s
+
+### Agent report
+
+**Summary:** Added an AFTER INSERT/UPDATE trigger on product_variants that updates the product's server_updated_at; schema comment updated.
+
+**Decisions:**
+- Product date set with CURRENT_TIMESTAMP in the trigger: the existing BEFORE trigger on products stamps it anyway, so the value is the database time.
+- Old product dates in tests: products' user triggers disabled briefly (as product-new-columns does), then re-enabled.
+- AB-1 run through the distribo_app role (getAppRolePrisma) to show the trigger works with the application account's privileges.
+
+**Evidence:** story tests 9/9; full suite 3498/3498, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings
+<!-- end CAT-021 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 

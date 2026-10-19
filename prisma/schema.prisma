@@ -1003,6 +1003,11 @@ model Product {
 // - A merged variant (merged_into_id set) is always deleted (deleted_at set), so
 //   the code that merges must delete and point in one write (23514). Same
 //   migration.
+// - Saving a variant (creating it, changing it, deleting it) also marks its
+//   product as changed (its server_updated_at moves), so that the phones receive
+//   the product together with its variants. A database trigger does it, not the
+//   code, so even a raw write cannot skip it. From migration
+//   20261019080000_cat_021_variant_touches_product.
 model ProductVariant {
   id               String        @id @db.Uuid
   productId        String        @map("product_id") @db.Uuid
