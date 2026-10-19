@@ -24,6 +24,7 @@ import {
   findSupplierRelationshipForPrice,
   getProductCopyableBy,
   getProductOfOrganization,
+  getVariantOfOrganization,
   insertActiveVariant,
   insertProduct,
   insertProductForVariants,
@@ -601,21 +602,22 @@ async function notifyPriceChanged(
 }
 
 /**
- * An owner, or a manager online, sets the negotiated price of one customer for one article.
+ * An owner, or a manager online, sets the negotiated price of one customer for one size.
  *
  * The role is decided by the route (`create CustomerPrice`, ASVS v5.0.0-8.2.1). One transaction
  * then selects the relationship through the visibility predicate and the actor's organization
- * (404 outside it) and the product through the same organization (404 when it is another
- * business's, any status; v5.0.0-8.2.2), and refuses, in order: the caller's own record (403
- * `OWN_RECORD`: the caller is the customer person, or manages the customer organization, owner
- * included) and a relationship that is not ACTIVE (409 `RELATIONSHIP_NOT_ACTIVE`). A live price
- * for the pair is replaced, else one is created (C-11); the author is the caller (C-04) and the
- * time is the server's. A registered customer person is notified `price.negotiated_changed` in
- * the same transaction. A price above the article's price is stored as is.
+ * (404 outside it) and the variant through the same organization (404 when it is another
+ * business's or deleted, any status; v5.0.0-8.2.2), and refuses, in order: the caller's own
+ * record (403 `OWN_RECORD`: the caller is the customer person, or manages the customer
+ * organization, owner included) and a relationship that is not ACTIVE (409
+ * `RELATIONSHIP_NOT_ACTIVE`). A live price for the pair is replaced, else one is created (C-11);
+ * the author is the caller (C-04) and the time is the server's. A registered customer person is
+ * notified `price.negotiated_changed`, naming the variant label, in the same transaction. A price
+ * above the variant's price is stored as is.
  *
  * @param actor - Actor loaded from the path.
  * @param relationshipId - Validated relationship id from the path.
- * @param productId - Validated product id from the path.
+ * @param variantId - Validated variant id from the path.
  * @param input - Validated body: gesture id and the price in XAF.
  * @throws 403 `OWN_RECORD`; 404 `NOT_FOUND`; 409 `RELATIONSHIP_NOT_ACTIVE` or
  * `ORGANIZATION_NOT_ACTIVE`.
@@ -623,7 +625,7 @@ async function notifyPriceChanged(
 export async function setCustomerPrice(
   actor: Actor,
   relationshipId: string,
-  productId: string,
+  variantId: string,
   input: SetCustomerPriceInput
 ): Promise<CustomerPriceView> {
   return runInTransaction(async (tx) => {
@@ -634,28 +636,37 @@ export async function setCustomerPrice(
       relationshipId
     );
     if (!relationship) throw httpError(404, 'NOT_FOUND', 'Not found');
-    const product = await getProductOfOrganization(tx, actor.organizationId, productId);
+    const variant = await getVariantOfOrganization(tx, actor.organizationId, variantId);
 
     await refuseOwnRecord(actor, relationship, 'create');
     if (relationship.status !== 'ACTIVE') {
       throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'The relationship is not active');
     }
 
-    const saved = await upsertCustomerPrice(tx, {
+    // Taken after the relationship lock, so two writers of one customer get ordered times.
+    const now = new Date();
+    await upsertCustomerPrice(tx, {
       id: input.id,
       relationshipId: relationship.id,
-      productId: product.id,
-      price: BigInt(input.price),
+      variantId: variant.id,
+      productId: variant.productId,
+      price: input.price,
       setById: actor.personId,
+      now,
     });
 
-    await notifyPriceChanged(actor, relationship, product.name, tx);
+    await notifyPriceChanged(
+      actor,
+      relationship,
+      variantLabel(variant.product.name, variant.name, variant.unit),
+      tx
+    );
 
     return {
-      product_id: saved.productId,
-      price: Number(saved.price),
-      set_by_id: saved.setById,
-      set_at: saved.setAt.toISOString(),
+      product_variant_id: variant.id,
+      price: input.price,
+      set_by_id: actor.personId,
+      set_at: now.toISOString(),
     };
   });
 }
@@ -758,7 +769,7 @@ export async function removeCustomerPrice(
  * (v5.0.0-2.3.3) selects both relationships through the actor's organization (404 outside it,
  * or for a PENDING one; v5.0.0-8.2.2), refuses the same relationship twice (400) and the
  * caller's own record as target (403 `OWN_RECORD`), then upserts each live source price onto
- * the target: an existing live target price is replaced (C-11) and the author is the caller
+ * the target by variant, with the variant's product: an existing live target price is replaced (C-11) and the author is the caller
  * (C-04). The source is read only. Any failing row aborts the whole copy. The relationships
  * are locked in id order so two opposite copies cannot deadlock.
  *
@@ -791,13 +802,16 @@ export async function copyCustomerPrices(
     await refuseOwnRecord(actor, target, 'copy');
 
     const prices = await listLiveCustomerPricesForCopy(tx, source.id);
+    const now = new Date();
     for (const price of prices) {
       await upsertCustomerPrice(tx, {
         id: newId(),
         relationshipId: target.id,
+        variantId: price.variantId,
         productId: price.productId,
         price: price.price,
         setById: actor.personId,
+        now,
       });
     }
     return { copied: prices.length };

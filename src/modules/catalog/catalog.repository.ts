@@ -245,6 +245,25 @@ export async function getProductOfOrganization(
 }
 
 /**
+ * Returns the live variant, with its product's name, selected by id and organization together
+ * (ASVS v5.0.0-8.2.2). Any status answers: an INACTIVE variant can still carry a price.
+ *
+ * @throws 404 NOT_FOUND when the variant is absent, deleted or another organization's.
+ */
+export async function getVariantOfOrganization(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  variantId: string
+): Promise<ProductVariant & { product: { name: string } }> {
+  const variant = await tx.productVariant.findFirst({
+    where: { id: variantId, organizationId, deletedAt: null },
+    include: { product: { select: { name: true } } },
+  });
+  if (!variant) throw notFound();
+  return variant;
+}
+
+/**
  * Updates the listed text fields of a product already loaded for its organization. Nothing else
  * is touched: the unit, price and status live on the variants.
  *
@@ -565,16 +584,19 @@ export async function findSupplierRelationshipForPrice(
 /**
  * Creates the live negotiated price of a relationship and variant, or replaces the one that
  * exists (the last writer wins). The partial unique index of C-11, on the relationship and
- * the variant, arbitrates a race, so no second live row can appear. `set_at` is the server
- * time.
+ * the variant, arbitrates a race, so no second live row can appear. A pair is serialized by an
+ * advisory lock for the transaction's length.
  *
- * The variant is the one that has the id of the product (CAT-013), which the database fills
- * in at insert. A product that has no variant yet leaves it empty, and the index cannot see
- * such rows: for them the live row of the pair is replaced first, under a lock on the pair,
- * until a later story creates every variant with its product and drops `product_id`.
+ * The old `product_id` column is still required, so the caller passes the variant's product too
+ * (until a later story drops it). `set_at` is `now` when given, else the database clock.
  *
- * @param data - Row id for a creation (kept row id on a replace), relationship, product,
- * price and author, all validated by the service.
+ * Without `variantId` (the old-style call of CAT-015) the variant is the one that has the id of
+ * the product, which the database fills in at insert. A product that has no variant yet leaves
+ * it empty, and the index cannot see such rows: for them the live row of the pair is replaced
+ * first, under a lock on the pair.
+ *
+ * @param data - Row id for a creation (kept row id on a replace), relationship, variant, its
+ * product, price and author, all validated by the service.
  */
 export async function upsertCustomerPrice(
   tx: Prisma.TransactionClient,
@@ -582,29 +604,43 @@ export async function upsertCustomerPrice(
     id: string;
     relationshipId: string;
     productId: string;
-    price: bigint;
+    variantId?: string;
+    price: bigint | number;
     setById: string;
+    now?: Date;
   }
 ): Promise<{ productId: string; price: bigint; setById: string; setAt: Date }> {
   type Returned = Array<{ product_id: string; price: bigint; set_by_id: string; set_at: Date }>;
+  const price = BigInt(data.price);
+  const setAt = data.now ?? new Date();
   await tx.$executeRaw`
-    SELECT pg_advisory_xact_lock(hashtextextended(${data.relationshipId} || ':' || ${data.productId}, 0))`;
-  const legacy = await tx.$queryRaw<Returned>`
-    UPDATE "customer_prices"
-    SET "price" = ${data.price}::bigint, "set_by_id" = ${data.setById}::uuid, "set_at" = clock_timestamp()
-    WHERE "customer_relationship_id" = ${data.relationshipId}::uuid
-      AND "product_id" = ${data.productId}::uuid
-      AND "product_variant_id" IS NULL AND "deleted_at" IS NULL
-    RETURNING "product_id", "price", "set_by_id", "set_at"`;
-  const rows =
-    legacy.length > 0
-      ? legacy
-      : await tx.$queryRaw<Returned>`
-    INSERT INTO "customer_prices" ("id", "customer_relationship_id", "product_id", "price", "set_by_id", "set_at")
-    VALUES (${data.id}::uuid, ${data.relationshipId}::uuid, ${data.productId}::uuid, ${data.price}::bigint, ${data.setById}::uuid, clock_timestamp())
-    ON CONFLICT ("customer_relationship_id", "product_variant_id") WHERE "deleted_at" IS NULL
-    DO UPDATE SET "price" = EXCLUDED."price", "set_by_id" = EXCLUDED."set_by_id", "set_at" = clock_timestamp()
-    RETURNING "product_id", "price", "set_by_id", "set_at"`;
+    SELECT pg_advisory_xact_lock(hashtextextended(${data.relationshipId} || ':' || ${data.variantId ?? data.productId}, 0))`;
+  let rows: Returned;
+  if (data.variantId !== undefined) {
+    rows = await tx.$queryRaw<Returned>`
+      INSERT INTO "customer_prices" ("id", "customer_relationship_id", "product_id", "product_variant_id", "price", "set_by_id", "set_at")
+      VALUES (${data.id}::uuid, ${data.relationshipId}::uuid, ${data.productId}::uuid, ${data.variantId}::uuid, ${price}::bigint, ${data.setById}::uuid, ${setAt}::timestamptz)
+      ON CONFLICT ("customer_relationship_id", "product_variant_id") WHERE "deleted_at" IS NULL
+      DO UPDATE SET "price" = EXCLUDED."price", "set_by_id" = EXCLUDED."set_by_id", "set_at" = EXCLUDED."set_at"
+      RETURNING "product_id", "price", "set_by_id", "set_at"`;
+  } else {
+    const legacy = await tx.$queryRaw<Returned>`
+      UPDATE "customer_prices"
+      SET "price" = ${price}::bigint, "set_by_id" = ${data.setById}::uuid, "set_at" = ${setAt}::timestamptz
+      WHERE "customer_relationship_id" = ${data.relationshipId}::uuid
+        AND "product_id" = ${data.productId}::uuid
+        AND "product_variant_id" IS NULL AND "deleted_at" IS NULL
+      RETURNING "product_id", "price", "set_by_id", "set_at"`;
+    rows =
+      legacy.length > 0
+        ? legacy
+        : await tx.$queryRaw<Returned>`
+      INSERT INTO "customer_prices" ("id", "customer_relationship_id", "product_id", "price", "set_by_id", "set_at")
+      VALUES (${data.id}::uuid, ${data.relationshipId}::uuid, ${data.productId}::uuid, ${price}::bigint, ${data.setById}::uuid, ${setAt}::timestamptz)
+      ON CONFLICT ("customer_relationship_id", "product_variant_id") WHERE "deleted_at" IS NULL
+      DO UPDATE SET "price" = EXCLUDED."price", "set_by_id" = EXCLUDED."set_by_id", "set_at" = EXCLUDED."set_at"
+      RETURNING "product_id", "price", "set_by_id", "set_at"`;
+  }
   const row = rows[0];
   if (!row) throw new Error('Customer price upsert returned no row');
   return { productId: row.product_id, price: row.price, setById: row.set_by_id, setAt: row.set_at };
@@ -716,18 +752,27 @@ export async function softDeleteCustomerPrice(
 }
 
 /**
- * Reads the live negotiated prices of one relationship, ordered by product, for a copy. The
- * caller has already selected the relationship through the actor's organization.
+ * Reads the live negotiated prices of one relationship that name a variant, ordered by variant,
+ * for a copy. The caller has already selected the relationship through the actor's organization.
  */
 export async function listLiveCustomerPricesForCopy(
   tx: Prisma.TransactionClient,
   relationshipId: string
-): Promise<Array<{ productId: string; price: bigint }>> {
-  return tx.customerPrice.findMany({
-    where: { customerRelationshipId: relationshipId, deletedAt: null },
-    orderBy: { productId: 'asc' },
-    select: { productId: true, price: true },
+): Promise<Array<{ productId: string; variantId: string; price: bigint }>> {
+  const rows = await tx.customerPrice.findMany({
+    where: {
+      customerRelationshipId: relationshipId,
+      deletedAt: null,
+      productVariantId: { not: null },
+    },
+    orderBy: { productVariantId: 'asc' },
+    select: { productId: true, productVariantId: true, price: true },
   });
+  return rows.flatMap((row) =>
+    row.productVariantId === null
+      ? []
+      : [{ productId: row.productId, variantId: row.productVariantId, price: row.price }]
+  );
 }
 
 const MAX_IMAGE_KEYS = 5;

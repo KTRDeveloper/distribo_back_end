@@ -9,6 +9,7 @@ import {
   copyCustomerPricesSchema,
   customerPriceParamsSchema,
   customerPricesParamsSchema,
+  customerVariantPriceParamsSchema,
   editProductSchema,
   editVariantSchema,
   listCustomerPricesQuerySchema,
@@ -293,12 +294,12 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'put',
-  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{productId}',
+  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{variantId}',
   tags: ['catalog'],
-  summary: "The owner or an online manager sets a customer's negotiated price for an article",
+  summary: "The owner or an online manager sets a customer's negotiated price for one size",
   security: [{ bearerAuth: [] }],
   request: {
-    params: customerPriceParamsSchema,
+    params: customerVariantPriceParamsSchema,
     body: { content: { 'application/json': { schema: setCustomerPriceSchema } } },
   },
   responses: {
@@ -307,7 +308,7 @@ openApiRegistry.registerPath({
       content: {
         'application/json': {
           schema: z.object({
-            product_id: z.string().uuid(),
+            product_variant_id: z.string().uuid(),
             price: z.number().int(),
             set_by_id: z.string().uuid(),
             set_at: z.string().datetime(),
@@ -319,7 +320,7 @@ openApiRegistry.registerPath({
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'Role not allowed, or OWN_RECORD', content: errorContent },
     404: {
-      description: 'Relationship or product outside the organization, or not a member',
+      description: 'Relationship or variant outside the organization, or not a member',
       content: errorContent,
     },
     409: {

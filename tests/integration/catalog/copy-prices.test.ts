@@ -107,9 +107,13 @@ const live = async (relationshipId: string) =>
   (
     await prisma.customerPrice.findMany({
       where: { customerRelationshipId: relationshipId, deletedAt: null },
-      orderBy: { productId: 'asc' },
+      orderBy: { productVariantId: 'asc' },
     })
-  ).map((row) => ({ productId: row.productId, price: row.price, setById: row.setById }));
+  ).map((row) => ({
+    productVariantId: row.productVariantId,
+    price: row.price,
+    setById: row.setById,
+  }));
 
 const allRows = () => prisma.customerPrice.count();
 
@@ -165,10 +169,10 @@ describe('POST /api/v1/organizations/:organizationId/customers/:relationshipId/p
     expect(response.body).toEqual({ copied: 3 });
     expect(await live(TARGET)).toEqual(
       [
-        { productId: RICE, price: 2800n, setById: MANAGER },
-        { productId: OIL, price: 1400n, setById: MANAGER },
-        { productId: SOAP, price: 450n, setById: MANAGER },
-      ].sort((a, b) => a.productId.localeCompare(b.productId))
+        { productVariantId: RICE, price: 2800n, setById: MANAGER },
+        { productVariantId: OIL, price: 1400n, setById: MANAGER },
+        { productVariantId: SOAP, price: 450n, setById: MANAGER },
+      ].sort((a, b) => a.productVariantId.localeCompare(b.productVariantId))
     );
     expect(await live(SOURCE)).toEqual(sourceBefore);
     expect(await prisma.customerPrice.count({ where: { customerRelationshipId: TARGET } })).toBe(3);
@@ -182,7 +186,7 @@ describe('POST /api/v1/organizations/:organizationId/customers/:relationshipId/p
     const response = await copy(TARGET, { id: G1, from_relationship_id: SOURCE }, OWNER);
 
     expect(response.body).toEqual({ copied: 1 });
-    expect((await live(TARGET)).map((row) => row.productId)).toEqual([RICE]);
+    expect((await live(TARGET)).map((row) => row.productVariantId)).toEqual([RICE]);
   });
 
   it('copies from and to ENDED relationships, and an empty source copies 0', async () => {

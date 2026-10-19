@@ -14,6 +14,7 @@ import {
   createProductSchema,
   customerPriceParamsSchema,
   customerPricesParamsSchema,
+  customerVariantPriceParamsSchema,
   editProductSchema,
   editVariantParamsSchema,
   editVariantSchema,
@@ -214,17 +215,17 @@ catalogRoutes.delete(
   }
 );
 
-// PUT /api/v1/organizations/:organizationId/customers/:relationshipId/prices/:productId - OWNER or
-// an online MANAGER sets one customer's own price for an article; the service answers 404 outside
-// the organization, 403 OWN_RECORD and 409 for a relationship that is not active
+// PUT /api/v1/organizations/:organizationId/customers/:relationshipId/prices/:variantId - OWNER or
+// an online MANAGER sets one customer's own price for one size of an article; the service answers
+// 404 outside the organization, 403 OWN_RECORD and 409 for a relationship that is not active
 catalogRoutes.put(
-  '/customers/:relationshipId/prices/:productId',
+  '/customers/:relationshipId/prices/:variantId',
   authMiddleware,
   loadActor,
   requireAbility('create', 'CustomerPrice'),
   // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
   (req, _res, next) => {
-    const params = customerPriceParamsSchema.safeParse(req.params);
+    const params = customerVariantPriceParamsSchema.safeParse(req.params);
     if (!params.success) return next(params.error);
     const parsed = setCustomerPriceSchema.safeParse(req.body);
     if (!parsed.success) return next(parsed.error);
@@ -235,11 +236,11 @@ catalogRoutes.put(
   (req, res, next) => {
     Promise.resolve()
       .then(() => {
-        const { relationshipId, productId } = customerPriceParamsSchema.parse(req.params);
+        const { relationshipId, variantId } = customerVariantPriceParamsSchema.parse(req.params);
         return setCustomerPrice(
           req.actor!,
           relationshipId,
-          productId,
+          variantId,
           setCustomerPriceSchema.parse(req.body)
         );
       })

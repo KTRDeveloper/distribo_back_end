@@ -15000,12 +15000,12 @@
         }
       }
     },
-    "/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{productId}": {
+    "/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{variantId}": {
       "put": {
         "tags": [
           "catalog"
         ],
-        "summary": "The owner or an online manager sets a customer's negotiated price for an article",
+        "summary": "The owner or an online manager sets a customer's negotiated price for one size",
         "security": [
           {
             "bearerAuth": []
@@ -15036,7 +15036,7 @@
               "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "required": true,
-            "name": "productId",
+            "name": "variantId",
             "in": "path"
           }
         ],
@@ -15073,7 +15073,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "product_id": {
+                    "product_variant_id": {
                       "type": "string",
                       "format": "uuid"
                     },
@@ -15090,7 +15090,7 @@
                     }
                   },
                   "required": [
-                    "product_id",
+                    "product_variant_id",
                     "price",
                     "set_by_id",
                     "set_at"
@@ -15130,7 +15130,7 @@
             }
           },
           "404": {
-            "description": "Relationship or product outside the organization, or not a member",
+            "description": "Relationship or variant outside the organization, or not a member",
             "content": {
               "application/json": {
                 "schema": {
@@ -15141,101 +15141,6 @@
           },
           "409": {
             "description": "Relationship not active, or organization not active",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "catalog"
-        ],
-        "summary": "The owner or an online manager removes a customer's negotiated price",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "required": true,
-            "name": "organizationId",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "required": true,
-            "name": "relationshipId",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "required": true,
-            "name": "productId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "The negotiated price is removed"
-          },
-          "400": {
-            "description": "Invalid path",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Role not allowed, or OWN_RECORD",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No live price, or relationship or product outside the organization",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Organization not active",
             "content": {
               "application/json": {
                 "schema": {
@@ -15398,6 +15303,103 @@
           },
           "404": {
             "description": "Relationship outside the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{productId}": {
+      "delete": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "The owner or an online manager removes a customer's negotiated price",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "relationshipId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "productId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The negotiated price is removed"
+          },
+          "400": {
+            "description": "Invalid path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role not allowed, or OWN_RECORD",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No live price, or relationship or product outside the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Organization not active",
             "content": {
               "application/json": {
                 "schema": {

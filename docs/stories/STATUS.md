@@ -311,7 +311,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-014 | done | | Rest lines carry the variant; counter sale already did via spread |
 | ORD-028 | done | | line schemas and views use product_variant_id; product_id refused with 400 |
 | ORD-023 | done | | accepted_at written by the conditional PENDING-only update; views and OpenAPI list it |
-| CAT-029 | todo | | |
+| CAT-029 | done | | PUT prices/{variantId} and copy by variant; upsertCustomerPrice keeps a legacy no-variant call for CAT-015 tests |
 | CAT-030 | todo | | |
 | CAT-039 | todo | | |
 | ADM-016 | todo | | |

@@ -42,7 +42,7 @@ const G3 = id('f3');
 
 const REG = new Date('2026-01-01T00:00:00.000Z');
 
-type PriceBody = { product_id: string; price: number; set_by_id: string; set_at: string };
+type PriceBody = { product_variant_id: string; price: number; set_by_id: string; set_at: string };
 
 async function seedPerson(personId: string, phone: string, registered = true) {
   await prisma.person.create({
@@ -100,7 +100,7 @@ function put(
 
 const livePrices = (relationshipId = REL, productId = RICE) =>
   prisma.customerPrice.findMany({
-    where: { customerRelationshipId: relationshipId, productId, deletedAt: null },
+    where: { customerRelationshipId: relationshipId, productVariantId: productId, deletedAt: null },
   });
 
 const priceRows = () => prisma.customerPrice.count();
@@ -187,8 +187,13 @@ describe('PUT /api/v1/organizations/:organizationId/customers/:relationshipId/pr
 
     expect(response.status).toBe(200);
     const body = bodyOf<PriceBody>(response);
-    expect(Object.keys(body).sort()).toEqual(['price', 'product_id', 'set_at', 'set_by_id']);
-    expect(body).toMatchObject({ product_id: RICE, price: 2800, set_by_id: MANAGER });
+    expect(Object.keys(body).sort()).toEqual([
+      'price',
+      'product_variant_id',
+      'set_at',
+      'set_by_id',
+    ]);
+    expect(body).toMatchObject({ product_variant_id: RICE, price: 2800, set_by_id: MANAGER });
     const rows = await livePrices();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ price: 2800n, setById: MANAGER });

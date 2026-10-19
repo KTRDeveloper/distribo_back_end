@@ -1107,6 +1107,39 @@ Also in this run: relationship, admin, order, finance, delivery.
 - per-001 route list left untouched: it lists no customer price routes.
 <!-- end CAT-010 -->
 
+<!-- begin CAT-029 -->
+## CAT-029 — Negotiated prices are set and copied by variant
+
+- Filed: 2026-10-19 21:21 UTC
+- Status: **done**: PUT prices/{variantId} and copy by variant; upsertCustomerPrice keeps a legacy no-variant call for CAT-015 tests
+- Risk: medium · story: [CAT-029-negotiated-prices-are-set-and-copied-by-variant.md](../modules/catalog/CAT-029-negotiated-prices-are-set-and-copied-by-variant.md)
+- Agent: 94,227 tokens, 27 tool uses, 4 min 14 s
+
+### Agent report
+
+**Summary:** PUT `.../prices/{variantId}` and the copy now work by variant; answer is `{ product_variant_id, price, set_by_id, set_at }`; all done.
+
+**Decisions:**
+- `upsertCustomerPrice` signature: the story's `{variantId, price: number, now}` is a subset; I kept `variantId`, `now` optional and `price: bigint | number`, the legacy no-variant branch and the row return. Reason: `customer-price-variant.test.ts` (CAT-015) calls the old form and is not in "Tests to update". CAT-043 removes it.
+- New `customerVariantPriceParamsSchema` for the PUT only; DELETE keeps `{productId}` (CAT-030 changes it). OpenAPI now has two templates on one URL until CAT-030.
+- `set_at` is the app clock (`now`, taken after the relationship lock), echoed in the answer; the story's signature returns void.
+- Copy skips live source prices with no variant (legacy rows), so `copied` counts only variant prices.
+- Notification names `variantLabel(product name, variant name, unit)`.
+
+**Tests added beyond the story:**
+- `variant-prices.test.ts` › replace: concurrent puts, a deleted price not blocking, an INACTIVE variant accepted, notification label, a product id as variant id gives 404 (AC-2/AC-3, CAT-029 Context); passed at once once the code existed.
+
+**Other additions:**
+- `getVariantOfOrganization` in the repository (variant by id + organization, with product name): 404 rule of AC-3.
+- `tests/integration/api-docs/catalog.test.ts`: added the `{variantId}` path (convention).
+- `openapi/openapi.json` regenerated.
+
+**Evidence:** story tests 17/17 (variant-prices); full suite 4450/4450, failing: none, 0 known; typecheck clean; lint 0 errors, 192 warnings
+
+**Follow-ups:**
+- The new tests were written with the code in one pass; I did not watch them fail first.
+<!-- end CAT-029 -->
+
 <!-- begin CAT-011 -->
 ## CAT-011 — Reseller copies a purchased article into their catalog
 

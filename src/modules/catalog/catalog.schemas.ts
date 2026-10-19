@@ -226,9 +226,16 @@ export const customerPriceParamsSchema = z.object({
   productId: uuidV7Schema,
 });
 
+/** Path of the negotiated price set gesture: supplier organization, customer relationship, variant. */
+export const customerVariantPriceParamsSchema = z.object({
+  organizationId: uuidV7Schema,
+  relationshipId: uuidV7Schema,
+  variantId: uuidV7Schema,
+});
+
 /**
  * Strict body of the negotiated price gesture (ASVS v5.0.0-15.3.3): the gesture id and a whole
- * XAF price of at least 1. The author, the time and the product come from the session and the
+ * XAF price of at least 1. The author, the time and the variant come from the session and the
  * path, never from the body (CWE-915).
  */
 export const setCustomerPriceSchema = z
@@ -242,7 +249,7 @@ export type SetCustomerPriceInput = z.infer<typeof setCustomerPriceSchema>;
 
 /** Closed response of the negotiated price gesture. */
 export type CustomerPriceView = {
-  product_id: string;
+  product_variant_id: string;
   price: number;
   set_by_id: string;
   set_at: string;

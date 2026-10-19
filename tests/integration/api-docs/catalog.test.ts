@@ -126,6 +126,11 @@ describe('GET /docs/openapi.json', () => {
       '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{productId}'
     );
 
+    // CAT-029: the negotiated price is set by variant
+    expect(paths).toContain(
+      '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{variantId}'
+    );
+
     // CAT-009: the negotiated price list route (the delete shares the CAT-008 path)
     expect(paths).toContain(
       '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices'
