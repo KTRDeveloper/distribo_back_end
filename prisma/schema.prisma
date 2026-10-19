@@ -936,16 +936,28 @@ model Report {
 //   moves only when the price really changes. A value sent by the code is
 //   ignored, so never try to set it yourself.
 // - server_updated_at is set by the database on every change.
+// Rules added by migration 20261019050000_cat_014_product_photos_pause_mirror:
+// - The old columns unit, price, min_order_quantity and status are ignored by new
+//   code: the variants carry them now. An empty unit means the product was
+//   written the new way (its old columns are never read, and price defaults to 1).
+// - Until the story that drops them, two triggers copy a product written the old
+//   way (non-empty unit) to the variant of the same id: an insert creates it, an
+//   update of one of those columns changes it. An empty unit is never copied: the
+//   code inserts the variants of a new-style product itself.
+// - A product carries at most 5 photo keys (an index makes lookups by key fast).
+//   The server alone writes them, and paused_at too.
 model Product {
   id               String        @id @db.Uuid
   organizationId   String        @map("organization_id") @db.Uuid
   name             String
-  unit             String
-  price            BigInt
+  unit             String        @default("")
+  price            BigInt        @default(1)
   priceUpdatedAt   DateTime      @default(now()) @map("price_updated_at") @db.Timestamptz
   minOrderQuantity Decimal?      @map("min_order_quantity") @db.Decimal(12, 3)
   description      String?       @db.Text
   category         String?
+  imageKeys        String[]      @default([]) @map("image_keys")
+  pausedAt         DateTime?     @map("paused_at") @db.Timestamptz
   status           ProductStatus @default(ACTIVE)
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
   serverUpdatedAt  DateTime      @default(now()) @map("server_updated_at") @db.Timestamptz
@@ -961,6 +973,7 @@ model Product {
   // (migration 20261019030000_cat_012_product_variants).
   @@unique([id, organizationId])
   @@index([organizationId])
+  @@index([imageKeys], type: Gin)
   @@map("products")
 }
 

@@ -163,29 +163,29 @@ Also in this run: relationship, admin, order, finance, delivery.
 <!-- begin CAT-014 -->
 ## CAT-014 — Products carry photos and a pause date, and old-style writes reach the variants
 
-- Filed: 2026-10-19 15:32 UTC
-- Status: **blocked**: Mirror triggers break 3 tests of variant-per-product.test.ts (CAT-013) and the cleanUp of product-variant-table.test.ts (CAT-012); CAT-014 lists no Tests to update and CAT-041 only fixes them later: may I adapt them now?
+- Filed: 2026-10-19 15:51 UTC
+- Status: **done**: Photos, pause date and mirror triggers; seeds of CAT-012/013/015 tests disable user triggers
 - Risk: high · story: [CAT-014-products-carry-photos-and-a-pause-date-and-old.md](../modules/catalog/CAT-014-products-carry-photos-and-a-pause-date-and-old.md)
-- Agent: 50,437 tokens, 18 tool uses, 2 min 50 s
+- Agent: 29,021 tokens, 10 tool uses, 1 min 49 s
 
 ### Agent report
 
-**Summary:** Blocked: migration, schema and the story's 12 tests are done and green, but the mirror triggers break 4 existing tests of CAT-012/CAT-013 that CAT-014 does not list under "Tests to update".
+**Summary:** Migration adds image_keys (CHECK <= 5, GIN), paused_at, the unit/price defaults, two mirror triggers and the touch statement; schema and comment updated; all green.
 
 **Decisions:**
-- Variant "empty name": stored as NULL, as in the CAT-013 backfill.
-- "Five old columns": unit, price, price_updated_at, min_order_quantity, status; update trigger fires only when one differs (IS DISTINCT FROM), so a rename leaves the variant alone.
-- Migration 20261019050000_cat_014_product_photos_pause_mirror; CHECK `products_image_keys_max_5`; touch is `UPDATE products SET server_updated_at = now()` between markers.
+- Trigger functions return NULL (AFTER row triggers); update mirror copies only when one of the five old columns changed, so a rename leaves the variant untouched.
+- Insert mirror writes a NULL variant name (the "empty name" of the story), price_updated_at copied from the product.
 
 **Tests added beyond the story:**
-- `tests/integration/catalog/product-new-columns.test.ts` › old update: a change of another column leaves the variant untouched: guards "only when one changed" (Context); passed at once? no, failed before the migration
-- same file › two businesses: mirrored variant takes the business of its product (tenant scope, C-45)
+- none
 
-**Evidence:** story tests 12/12; full suite 3383/3386, failing: variant-per-product.test.ts (copy, dates, skip: the insert trigger already created the variants, so the backfill replay finds old-style rows mirrored with now() dates and an extra variant) and product-variant-table.test.ts (cleanUp deletes products still holding a mirrored variant, FK 23503), 0 known; typecheck clean; lint 0 errors, 147 warnings
+**Other additions:**
+- Existing tests edited with the user's authorization (seed wrapped in `ALTER TABLE products DISABLE/ENABLE TRIGGER USER`, intent unchanged): `product-variant-table.test.ts` (product seed), `variant-per-product.test.ts` (beforeEach seed, and the "variant under another id" test), `customer-price-table.test.ts` (product seed), `customer-price-variant.test.ts` (product seed). Cause: the mirror created variants with the product id that these tests insert themselves.
+
+**Evidence:** story tests 12/12; full suite 3458/3458, failing: none, 0 known; typecheck clean; lint 0 errors, 148 warnings
 
 **Follow-ups:**
-- Question: may I adapt those two existing test files now (seed parent products new-style, or delete variants first in cleanUp)? CAT-041 plans that change later, but until then the suite is red with CAT-014 alone.
-- Work is left uncommitted in the tree (migration, schema.prisma, new test).
+- The triggers and old columns stay until the later "drop old columns" story; its migration must drop both functions and triggers, and the four test seeds above can then lose their trigger toggles.
 <!-- end CAT-014 -->
 
 <!-- begin CAT-015 -->

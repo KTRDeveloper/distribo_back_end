@@ -91,18 +91,18 @@ beforeEach(async () => {
   await cleanUp();
   await prisma.$executeRaw`INSERT INTO organizations (id, name) VALUES (${ORG_A}::uuid, 'Fixture Business A')`;
   await prisma.$executeRaw`INSERT INTO organizations (id, name) VALUES (${ORG_B}::uuid, 'Fixture Business B')`;
-  // Old-shaped rows: the products carry their own unit, price and minimum.
+  // Old-shaped rows: the products carry their own unit, price and minimum. The CAT-014
+  // mirror triggers would give each one a variant at once, so they are off while seeding.
+  await prisma.$executeRaw`ALTER TABLE products DISABLE TRIGGER USER`;
   await prisma.$executeRaw`
     INSERT INTO products (id, organization_id, name, unit, price, min_order_quantity, status)
     VALUES (${PRODUCT_PRICED}::uuid, ${ORG_A}::uuid, 'Rice', 'sack', 3000, 2.5, 'INACTIVE')
   `;
   // The trigger ignores a given price date, so set the 2024 date with a trigger-free update.
-  await prisma.$executeRaw`ALTER TABLE products DISABLE TRIGGER USER`;
   await prisma.$executeRaw`
     UPDATE products SET price_updated_at = '2024-03-01T10:00:00Z', created_at = '2024-01-01T08:00:00Z'
     WHERE id = ${PRODUCT_PRICED}::uuid
   `;
-  await prisma.$executeRaw`ALTER TABLE products ENABLE TRIGGER USER`;
   await prisma.$executeRaw`
     INSERT INTO products (id, organization_id, name, unit, price, deleted_at)
     VALUES (${PRODUCT_DELETED}::uuid, ${ORG_A}::uuid, 'Old oil', 'litre', 900, '2025-02-02T00:00:00Z')
@@ -111,6 +111,7 @@ beforeEach(async () => {
     INSERT INTO products (id, organization_id, name, unit, price)
     VALUES (${PRODUCT_OTHER_BUSINESS}::uuid, ${ORG_B}::uuid, 'Sugar', 'kg', 700)
   `;
+  await prisma.$executeRaw`ALTER TABLE products ENABLE TRIGGER USER`;
 });
 
 afterAll(cleanUp);
@@ -171,10 +172,12 @@ describe('variant per product', () => {
   });
 
   it('skip: a product with a variant under another id gets no second one', async () => {
+    await prisma.$executeRaw`ALTER TABLE products DISABLE TRIGGER USER`;
     await prisma.$executeRaw`
       INSERT INTO products (id, organization_id, name, unit, price)
       VALUES (${PRODUCT_WITH_VARIANT}::uuid, ${ORG_A}::uuid, 'Flour', 'bag', 500)
     `;
+    await prisma.$executeRaw`ALTER TABLE products ENABLE TRIGGER USER`;
     await prisma.$executeRaw`
       INSERT INTO product_variants (id, product_id, organization_id, unit, price)
       VALUES (${EXISTING_VARIANT}::uuid, ${PRODUCT_WITH_VARIANT}::uuid, ${ORG_A}::uuid, 'sack', 4000)
