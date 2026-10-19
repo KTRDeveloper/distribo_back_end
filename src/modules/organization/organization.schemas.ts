@@ -4,10 +4,8 @@ import { NAME_MAX, TEXT_MAX } from '../../shared/limits.js';
 import { paginationQuerySchema } from '../../shared/pagination.js';
 import { phoneNumberSchema } from '../../shared/phone.js';
 
-const EMAIL_MAX = 254;
-
 /**
- * Strict body of the create gesture: exactly four writable fields (ASVS v5.0.0-15.3.3).
+ * Strict body of the create gesture: exactly three writable fields (ASVS v5.0.0-15.3.3).
  * Status, role and owner are never accepted; the server sets them.
  */
 export const createOrganizationSchema = z
@@ -15,7 +13,6 @@ export const createOrganizationSchema = z
     id: uuidV7Schema,
     name: z.string().trim().min(1).max(NAME_MAX),
     description: z.string().max(TEXT_MAX).optional(),
-    email: z.string().max(EMAIL_MAX).email().optional(),
   })
   .strict();
 
@@ -27,15 +24,23 @@ export const listOrganizationsQuerySchema = paginationQuerySchema.strict();
 /** Path parameter of the detail route. */
 export const organizationIdParamsSchema = z.object({ organizationId: uuidV7Schema }).strict();
 
-/** Closed response of the create gesture. */
+/**
+ * Closed response of the create gesture and of the detail read. The plan fields are in this
+ * view only, which only the team of the business can read (C-41; ASVS v5.0.0-15.3.1).
+ */
 export type OrganizationView = {
   id: string;
   name: string;
   description: string | null;
-  email: string | null;
   status: string;
   created_at: string;
   role: string;
+  payment_code: string;
+  plan: 'FREE' | 'ESSENTIAL' | 'PRO' | 'ENTERPRISE';
+  plan_ends_at: string | null;
+  grace_ends_at: string | null;
+  max_collaborators: number | null;
+  max_products: number | null;
 };
 
 /** One item of the list of my organizations. */

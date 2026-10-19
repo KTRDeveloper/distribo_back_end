@@ -14,11 +14,31 @@ type Created = {
   id: string;
   name: string;
   description: string | null;
-  email: string | null;
   status: string;
   created_at: string;
   role: string;
+  payment_code: string;
+  plan: string;
+  plan_ends_at: string | null;
+  grace_ends_at: string | null;
+  max_collaborators: number | null;
+  max_products: number | null;
 };
+
+const VIEW_KEYS = [
+  'created_at',
+  'description',
+  'grace_ends_at',
+  'id',
+  'max_collaborators',
+  'max_products',
+  'name',
+  'payment_code',
+  'plan',
+  'plan_ends_at',
+  'role',
+  'status',
+];
 
 async function seedPeople() {
   await prisma.person.create({
@@ -45,18 +65,15 @@ describe('POST /api/v1/organizations', () => {
 
   it('creates the organization and the caller OWNER collaboration', async () => {
     const id = newId();
-    const response = await post({ id, name: 'Chez Mama', description: 'Boissons', email: 'a@b.cm' });
+    const response = await post({ id, name: 'Chez Mama', description: 'Boissons' });
 
     expect(response.status).toBe(201);
     const body = bodyOf<Created>(response);
-    expect(Object.keys(body).sort()).toEqual(
-      ['created_at', 'description', 'email', 'id', 'name', 'role', 'status'].sort()
-    );
+    expect(Object.keys(body).sort()).toEqual(VIEW_KEYS);
     expect(body).toMatchObject({
       id,
       name: 'Chez Mama',
       description: 'Boissons',
-      email: 'a@b.cm',
       status: 'ACTIVE',
       role: 'OWNER',
     });
@@ -75,11 +92,11 @@ describe('POST /api/v1/organizations', () => {
     expect(collabs[0].acceptedAt).not.toBeNull();
   });
 
-  it('returns null description and email when omitted', async () => {
+  it('returns a null description when omitted', async () => {
     const response = await post({ id: newId(), name: 'Minimal' });
 
     expect(response.status).toBe(201);
-    expect(bodyOf<Created>(response)).toMatchObject({ description: null, email: null });
+    expect(bodyOf<Created>(response)).toMatchObject({ description: null });
   });
 
   it('increases the caller scope_version by 1', async () => {
@@ -99,7 +116,7 @@ describe('POST /api/v1/organizations', () => {
       ['name 101 chars', () => ({ id: newId(), name: 'a'.repeat(101) }), 400],
       ['description 2000 chars', () => ({ id: newId(), name: 'n', description: 'd'.repeat(2000) }), 201],
       ['description 2001 chars', () => ({ id: newId(), name: 'n', description: 'd'.repeat(2001) }), 400],
-      ['email not-mail', () => ({ id: newId(), name: 'n', email: 'not-mail' }), 400],
+      ['email unknown field', () => ({ id: newId(), name: 'n', email: 'a@b.cm' }), 400],
       ['id a UUIDv4', () => ({ id: UUID_V4, name: 'n' }), 400],
       ['id missing', () => ({ name: 'n' }), 400],
     ];

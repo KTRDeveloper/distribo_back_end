@@ -25,10 +25,15 @@ const organizationViewSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   description: z.string().nullable(),
-  email: z.string().nullable(),
   status: statusSchema,
   created_at: z.string().datetime(),
   role: roleSchema,
+  payment_code: z.string(),
+  plan: z.enum(['FREE', 'ESSENTIAL', 'PRO', 'ENTERPRISE']),
+  plan_ends_at: z.string().datetime().nullable(),
+  grace_ends_at: z.string().datetime().nullable(),
+  max_collaborators: z.number().int().nullable(),
+  max_products: z.number().int().nullable(),
 });
 
 const subscriptionViewSchema = z.object({

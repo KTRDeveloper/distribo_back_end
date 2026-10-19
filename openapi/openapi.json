@@ -4776,11 +4776,6 @@
                   "description": {
                     "type": "string",
                     "maxLength": 2000
-                  },
-                  "email": {
-                    "type": "string",
-                    "maxLength": 254,
-                    "format": "email"
                   }
                 },
                 "required": [
@@ -4813,12 +4808,6 @@
                         "null"
                       ]
                     },
-                    "email": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -4839,16 +4828,59 @@
                         "SELLER",
                         "DRIVER"
                       ]
+                    },
+                    "payment_code": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "FREE",
+                        "ESSENTIAL",
+                        "PRO",
+                        "ENTERPRISE"
+                      ]
+                    },
+                    "plan_ends_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "grace_ends_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "max_collaborators": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "max_products": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "id",
                     "name",
                     "description",
-                    "email",
                     "status",
                     "created_at",
-                    "role"
+                    "role",
+                    "payment_code",
+                    "plan",
+                    "plan_ends_at",
+                    "grace_ends_at",
+                    "max_collaborators",
+                    "max_products"
                   ]
                 }
               }
@@ -5146,12 +5178,6 @@
                         "null"
                       ]
                     },
-                    "email": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -5172,16 +5198,59 @@
                         "SELLER",
                         "DRIVER"
                       ]
+                    },
+                    "payment_code": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "FREE",
+                        "ESSENTIAL",
+                        "PRO",
+                        "ENTERPRISE"
+                      ]
+                    },
+                    "plan_ends_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "grace_ends_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "max_collaborators": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "max_products": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "id",
                     "name",
                     "description",
-                    "email",
                     "status",
                     "created_at",
-                    "role"
+                    "role",
+                    "payment_code",
+                    "plan",
+                    "plan_ends_at",
+                    "grace_ends_at",
+                    "max_collaborators",
+                    "max_products"
                   ]
                 }
               }

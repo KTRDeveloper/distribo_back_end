@@ -2,6 +2,8 @@ import type { Actor } from '../../types/express.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { checkAndConsume } from '../../lib/rate-limit.js';
+import { generatePaymentCode } from '../../lib/payment-code.js';
+import { PLANS } from '../../shared/plans.js';
 import { atLeast } from '../../shared/access/roles.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { handOverFormerOwnerMoneyInTx } from '../finance/held-money.js';
@@ -30,6 +32,7 @@ import {
   insertInvitation,
   insertOrganizationWithOwner,
   insertSubscription,
+  isPaymentCodeCollision,
   listActiveOrganizations,
   listInvitations,
   listTeam,
@@ -42,6 +45,7 @@ import {
   updatePublicContact,
   updateRole,
 } from './organization.repository.js';
+import type { CreatedOrganization } from './organization.repository.js';
 import type {
   CloseOrganizationInput,
   CloseOrganizationView,
@@ -62,11 +66,35 @@ import type {
 /** Label of the counter every organization gets at creation, for anonymous sales. */
 const DEFAULT_COUNTER_LABEL = 'Client de passage';
 
+/** Draws allowed for a payment code before the creation fails (C-41). */
+const PAYMENT_CODE_ATTEMPTS = 5;
+
+/** Maps a stored organization to the closed view; `email` is never part of it (C-41). */
+function toOrganizationView(org: CreatedOrganization, role: string): OrganizationView {
+  return {
+    id: org.id,
+    name: org.name,
+    description: org.description,
+    status: org.status,
+    created_at: org.createdAt.toISOString(),
+    role,
+    payment_code: org.paymentCode,
+    plan: org.plan,
+    plan_ends_at: org.planEndsAt?.toISOString() ?? null,
+    grace_ends_at: org.graceEndsAt?.toISOString() ?? null,
+    max_collaborators: org.maxCollaborators,
+    max_products: org.maxProducts,
+  };
+}
+
 /**
- * Creates an organization owned by the caller.
+ * Creates an organization owned by the caller, on the free plan with its own payment code.
  *
- * The owner is always the authenticated person, never a body field (ASVS v5.0.0-8.2.1).
- * The default counter "Client de passage" is created in the same transaction (REL-006).
+ * The owner is always the authenticated person, never a body field (ASVS v5.0.0-8.2.1); the
+ * code, plan and limits come from the server and `PLANS.FREE` (C-41). The default counter
+ * "Client de passage" is created in the same transaction (REL-006). A taken payment code only
+ * draws a new one, each try in a new transaction, 5 tries in all; then the error goes up (500).
+ * Any other error, including another unique violation, is rethrown unchanged.
  *
  * @param personId - Authenticated person who becomes the OWNER.
  * @param input - Validated body.
@@ -76,22 +104,30 @@ export async function createOrganization(
   personId: string,
   input: CreateOrganizationInput
 ): Promise<OrganizationView> {
-  const org = await insertOrganizationWithOwner(personId, input, async (tx, created) => {
-    await createCounter(tx, {
-      supplierOrganizationId: created.id,
-      label: DEFAULT_COUNTER_LABEL,
-      createdById: personId,
-    });
-  });
-  return {
-    id: org.id,
-    name: org.name,
-    description: org.description,
-    email: org.email,
-    status: org.status,
-    created_at: org.createdAt.toISOString(),
-    role: 'OWNER',
-  };
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const org = await insertOrganizationWithOwner(
+        personId,
+        input,
+        {
+          paymentCode: generatePaymentCode(),
+          maxCollaborators: PLANS.FREE.maxCollaborators,
+          maxProducts: PLANS.FREE.maxProducts,
+        },
+        async (tx, created) => {
+          await createCounter(tx, {
+            supplierOrganizationId: created.id,
+            label: DEFAULT_COUNTER_LABEL,
+            createdById: personId,
+          });
+        }
+      );
+      return toOrganizationView(org, 'OWNER');
+    } catch (error) {
+      if (!isPaymentCodeCollision(error) || attempt >= PAYMENT_CODE_ATTEMPTS) throw error;
+      logger.warn({ event: 'organization.payment_code_collision', actorId: personId, attempt });
+    }
+  }
 }
 
 /**
@@ -121,15 +157,7 @@ export async function listMyOrganizations(
 export async function getOrganizationDetails(actor: Actor): Promise<OrganizationView> {
   const org = await findOrganization(actor.organizationId);
   if (!org) throw httpError(404, 'NOT_FOUND', 'Not found');
-  return {
-    id: org.id,
-    name: org.name,
-    description: org.description,
-    email: org.email,
-    status: org.status,
-    created_at: org.createdAt.toISOString(),
-    role: actor.role,
-  };
+  return toOrganizationView(org, actor.role);
 }
 
 // Same allowance and key as the person lookup (PER): the invite resolves a number to a person,

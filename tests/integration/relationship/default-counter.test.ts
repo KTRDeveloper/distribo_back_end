@@ -78,11 +78,24 @@ describe('default counter of a new organization', () => {
   });
 
   it('keeps the response shape unchanged', async () => {
-    const response = await post({ id: newId(), name: 'Shape', description: 'D', email: 'a@b.cm' });
+    const response = await post({ id: newId(), name: 'Shape', description: 'D' });
 
     expect(response.status).toBe(201);
     expect(Object.keys(response.body as object).sort()).toEqual(
-      ['created_at', 'description', 'email', 'id', 'name', 'role', 'status'].sort()
+      [
+        'created_at',
+        'description',
+        'grace_ends_at',
+        'id',
+        'max_collaborators',
+        'max_products',
+        'name',
+        'payment_code',
+        'plan',
+        'plan_ends_at',
+        'role',
+        'status',
+      ].sort()
     );
   });
 

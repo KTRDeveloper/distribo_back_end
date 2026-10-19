@@ -10,10 +10,49 @@ export type CreatedOrganization = {
   id: string;
   name: string;
   description: string | null;
-  email: string | null;
   status: string;
   createdAt: Date;
+  paymentCode: string;
+  plan: 'FREE' | 'ESSENTIAL' | 'PRO' | 'ENTERPRISE';
+  planEndsAt: Date | null;
+  graceEndsAt: Date | null;
+  maxCollaborators: number | null;
+  maxProducts: number | null;
 };
+
+const ORGANIZATION_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  status: true,
+  createdAt: true,
+  paymentCode: true,
+  plan: true,
+  planEndsAt: true,
+  graceEndsAt: true,
+  maxCollaborators: true,
+  maxProducts: true,
+} as const;
+
+/**
+ * Tells whether an error is the unique violation of `payment_code` (C-41), the only one the
+ * creation retries. Any other unique violation (such as the gesture id) is not a collision.
+ * The PostgreSQL driver adapter reports the violated index in `meta.driverAdapterError`.
+ */
+export function isPaymentCodeCollision(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+    return false;
+  }
+  const meta = error.meta as
+    | {
+        target?: unknown;
+        driverAdapterError?: { cause?: { constraint?: { index?: unknown; fields?: unknown } } };
+      }
+    | undefined;
+  const constraint = meta?.driverAdapterError?.cause?.constraint;
+  const named = [meta?.target, constraint?.index, constraint?.fields].flat();
+  return named.some((value) => typeof value === 'string' && value.includes('payment_code'));
+}
 
 /**
  * Inserts an organization, its ACTIVE OWNER collaboration and the owner's scope bump in one
@@ -21,12 +60,14 @@ export type CreatedOrganization = {
  *
  * @param personId - Owner, taken from the token.
  * @param input - Validated body.
+ * @param plan - Payment code and free-plan limits chosen by the server (C-41), never the body.
  * @param inSameTransaction - Extra writes that must commit or roll back with the organization.
  * @returns The stored organization fields.
  */
 export async function insertOrganizationWithOwner(
   personId: string,
   input: CreateOrganizationInput,
+  plan: { paymentCode: string; maxCollaborators: number | null; maxProducts: number | null },
   inSameTransaction?: (tx: Prisma.TransactionClient, org: CreatedOrganization) => Promise<void>
 ): Promise<CreatedOrganization> {
   return prisma.$transaction(async (tx) => {
@@ -35,16 +76,12 @@ export async function insertOrganizationWithOwner(
         id: input.id,
         name: input.name,
         description: input.description ?? null,
-        email: input.email ?? null,
+        paymentCode: plan.paymentCode,
+        plan: 'FREE',
+        maxCollaborators: plan.maxCollaborators,
+        maxProducts: plan.maxProducts,
       },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        email: true,
-        status: true,
-        createdAt: true,
-      },
+      select: ORGANIZATION_SELECT,
     });
 
     await tx.collaboration.create({
@@ -176,14 +213,7 @@ export async function listActiveOrganizations(
 export function findOrganization(organizationId: string): Promise<CreatedOrganization | null> {
   return prisma.organization.findFirst({
     where: { id: organizationId, deletedAt: null },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      email: true,
-      status: true,
-      createdAt: true,
-    },
+    select: ORGANIZATION_SELECT,
   });
 }
 

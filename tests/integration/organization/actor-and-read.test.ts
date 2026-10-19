@@ -31,10 +31,15 @@ type Detail = {
   id: string;
   name: string;
   description: string | null;
-  email: string | null;
   status: string;
   created_at: string;
   role: string;
+  payment_code: string;
+  plan: string;
+  plan_ends_at: string | null;
+  grace_ends_at: string | null;
+  max_collaborators: number | null;
+  max_products: number | null;
 };
 type Page = {
   items: { id: string; name: string; status: string; role: string }[];
@@ -188,7 +193,7 @@ describe('GET /api/v1/organizations', () => {
 });
 
 describe('GET /api/v1/organizations/:organizationId', () => {
-  it('returns the seven fields and my role to a member', async () => {
+  it('returns the twelve fields and my role to a member', async () => {
     await seedOrg({
       id: ORG_A,
       name: 'Chez Mama',
@@ -201,16 +206,35 @@ describe('GET /api/v1/organizations/:organizationId', () => {
     expect(response.status).toBe(200);
     const body = bodyOf<Detail>(response);
     expect(Object.keys(body).sort()).toEqual(
-      ['created_at', 'description', 'email', 'id', 'name', 'role', 'status'].sort()
+      [
+        'created_at',
+        'description',
+        'grace_ends_at',
+        'id',
+        'max_collaborators',
+        'max_products',
+        'name',
+        'payment_code',
+        'plan',
+        'plan_ends_at',
+        'role',
+        'status',
+      ].sort()
     );
+    expect(body.payment_code).toMatch(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/);
     expect(body).toEqual({
       id: ORG_A,
       name: 'Chez Mama',
       description: 'About Chez Mama',
-      email: 'org@example.cm',
       status: 'ACTIVE',
       created_at: '2026-02-01T00:00:00.000Z',
       role: 'MANAGER',
+      payment_code: body.payment_code,
+      plan: 'FREE',
+      plan_ends_at: null,
+      grace_ends_at: null,
+      max_collaborators: 2,
+      max_products: 30,
     });
   });
 

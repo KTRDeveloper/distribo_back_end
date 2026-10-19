@@ -102,3 +102,33 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 3/3 (+ otp-table, otp-purposes: 12/12); full suite 3688/3688, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings
 <!-- end ORG-023 -->
+
+<!-- begin ORG-028 -->
+## ORG-028 — A new business gets its payment code and the free plan
+
+- Filed: 2026-10-19 16:39 UTC
+- Status: **done**: payment code with 5-draw retry, free plan fields, email removed from body and view
+- Risk: high · story: [ORG-028-a-new-business-gets-its-payment-code-and-the.md](../modules/organization/ORG-028-a-new-business-gets-its-payment-code-and-the.md)
+- Agent: 57,051 tokens, 22 tool uses, 4 min 22 s
+
+### Agent report
+
+**Summary:** New businesses get a server-drawn payment code, plan FREE and the PLANS.FREE limits; the body and views drop `email`; a taken code is redrawn up to 5 times.
+
+**Decisions:**
+- Collision detection: `isPaymentCodeCollision` reads the violated index in `meta.driverAdapterError.cause.constraint.index` (the pg adapter shape), also `meta.target`; the retry loop lives in the service, each try a new transaction.
+- Logged each redraw with `warn` and event `organization.payment_code_collision` (ids only).
+- Shared `toOrganizationView` and `ORGANIZATION_SELECT` so POST and GET detail return the same twelve fields.
+
+**Tests added beyond the story:**
+- `tests/integration/organization/create-plan.test.ts` › does not retry another unique violation: a clash on the business id is not retried, one draw only (story: "any other unique violation is rethrown unchanged"); passed at once for the 500, the single draw is guarded.
+
+**Other additions:**
+- `tests/integration/relationship/default-counter.test.ts` › keeps the response shape unchanged: key list and email in the body updated; it broke because of this story but is not in "Tests to update".
+
+**Evidence:** story tests 17/17 (organization + api-docs folders 360/360 with default-counter and quality-gates); full suite 3702/3704 before my lint fix, the 2 failures (default-counter, quality-gates via lint error) both fixed and rerun green, 0 known; typecheck clean; lint 0 errors, 151 warnings (existing)
+
+**Follow-ups:**
+- The story's "Tests to update" omits `tests/integration/relationship/default-counter.test.ts`; I edited it minimally (same expectation as create.test.ts). Add it to the story.
+- Full suite not rerun after the last test-only edits; only module code changed in `src/modules/organization`.
+<!-- end ORG-028 -->
