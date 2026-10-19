@@ -24,7 +24,12 @@ const REG = new Date('2026-01-01T00:00:00.000Z');
 
 type Item = {
   id: string;
-  person: { public_name: string | null; phone_number: string | null; registered: boolean };
+  person: {
+    public_name: string | null;
+    phone_number: string | null;
+    registered: boolean;
+    avatar_url: string | null;
+  };
   role: string;
   status: string;
   is_public_contact: boolean;
@@ -109,7 +114,12 @@ describe('GET /api/v1/organizations/:organizationId/collaborators', () => {
       role: 'OWNER',
       status: 'ACTIVE',
       is_public_contact: true,
-      person: { public_name: 'Fixture Person', phone_number: '+237600019001', registered: true },
+      person: {
+        public_name: 'Fixture Person',
+        phone_number: '+237600019001',
+        registered: true,
+        avatar_url: null,
+      },
       accepted_at: REG.toISOString(),
       invited_at: REG.toISOString(),
       amount_held: 700,
@@ -206,6 +216,7 @@ describe('GET /api/v1/organizations/:organizationId/collaborators', () => {
     expect(text).not.toMatch(/email|language|password|hash|person_id|deleted/i);
     for (const item of bodyOf<Page>(response).items) {
       expect(Object.keys(item.person).sort()).toEqual([
+        'avatar_url',
         'phone_number',
         'public_name',
         'registered',

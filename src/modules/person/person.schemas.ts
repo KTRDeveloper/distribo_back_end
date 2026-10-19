@@ -16,5 +16,6 @@ export const personLookupResponseSchema = z
     phone_number: z.string(),
     registered: z.boolean(),
     public_name: z.string().nullable(),
+    avatar_url: z.string().nullable(),
   })
   .strict();

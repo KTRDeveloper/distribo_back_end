@@ -30,6 +30,7 @@ function person(over: Partial<Person> = {}): Person {
     registeredAt,
     email: 'private@example.test',
     passwordHash: 'hash',
+    avatarKey: null,
     ...over,
   } as Person;
 }
@@ -246,10 +247,16 @@ describe('supplier view (AC-2, CM-19, CM-20)', () => {
     const view = projectForSupplier(relation());
     expect(view.customer).toEqual({
       kind: 'PERSON',
-      person: { public_name: 'Fixture Customer', phone_number: '+2250700006012', registered: true },
+      person: {
+        public_name: 'Fixture Customer',
+        phone_number: '+2250700006012',
+        registered: true,
+        avatar_url: null,
+      },
     });
     if (view.customer?.kind !== 'PERSON') throw new Error('expected a person');
     expect(Object.keys(view.customer.person).sort()).toEqual([
+      'avatar_url',
       'phone_number',
       'public_name',
       'registered',
@@ -279,7 +286,12 @@ describe('supplier view (AC-2, CM-19, CM-20)', () => {
     );
     expect(view.customer).toEqual({
       kind: 'PERSON',
-      person: { public_name: null, phone_number: '+2250700006012', registered: false },
+      person: {
+        public_name: null,
+        phone_number: '+2250700006012',
+        registered: false,
+        avatar_url: null,
+      },
     });
   });
 
@@ -331,6 +343,7 @@ describe('customer view (AC-3, CM-19)', () => {
         public_name: 'Fixture Supplier Person',
         phone_number: '+2250700006012',
         registered: true,
+        avatar_url: null,
       },
     });
   });

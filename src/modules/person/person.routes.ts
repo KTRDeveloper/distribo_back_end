@@ -43,7 +43,7 @@ export async function lookupPerson(callerId: string, phone: string): Promise<Pub
 
   const person = await findByActivePhone(phone);
   if (!person || person.registeredAt === null) {
-    return { phone_number: phone, registered: false, public_name: null };
+    return { phone_number: phone, registered: false, public_name: null, avatar_url: null };
   }
 
   return toPublicPerson(person);

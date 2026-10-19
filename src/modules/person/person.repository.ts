@@ -1,11 +1,13 @@
 import { Prisma, type Person } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
+import { imageUrl } from '../../lib/image-keys.js';
 import { newId } from '../../shared/ids.js';
 
 export type PublicPerson = {
   public_name: string | null;
   phone_number: string | null;
   registered: boolean;
+  avatar_url: string | null;
 };
 
 /**
@@ -65,12 +67,17 @@ export async function findOrCreateByPhone(
   });
 }
 
-/** Builds the closed-list person view permitted outside the identity boundary. */
+/**
+ * Builds the closed-list person view permitted outside the identity boundary (CM-20).
+ * Four explicit fields only (ASVS v5.0.0-8.2.3); the photo is exposed as an address
+ * built by `imageUrl`, never as the stored key.
+ */
 export function toPublicPerson(person: Person): PublicPerson {
   return {
     public_name: person.fullName,
     phone_number: person.phoneNumber,
     registered: person.registeredAt !== null,
+    avatar_url: imageUrl(person.avatarKey),
   };
 }
 

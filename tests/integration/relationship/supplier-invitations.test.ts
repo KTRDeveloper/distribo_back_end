@@ -148,7 +148,12 @@ describe('GET /api/v1/supplier-invitations', () => {
       supplier_label: 'Chez Paul',
       customer: {
         kind: 'PERSON',
-        person: { public_name: 'Customer One', phone_number: '+237600009401', registered: true },
+        person: {
+          public_name: 'Customer One',
+          phone_number: '+237600009401',
+          registered: true,
+          avatar_url: null,
+        },
       },
     });
   });

@@ -990,12 +990,19 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "avatar_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
                     "phone_number",
                     "registered",
-                    "public_name"
+                    "public_name",
+                    "avatar_url"
                   ],
                   "additionalProperties": false
                 }

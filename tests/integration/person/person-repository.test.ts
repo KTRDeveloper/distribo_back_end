@@ -69,7 +69,7 @@ describe.sequential('person repository', () => {
     await expect(prisma.person.count({ where: { phoneNumber: testPhones[3] } })).resolves.toBe(1);
   });
 
-  it('returns an explicit three-field public view without private values', async () => {
+  it('returns an explicit four-field public view without private values', async () => {
     const guest = await findOrCreateByPhone(testPhones[4]);
     const privateValues = {
       email: 'private@example.test',
@@ -89,8 +89,14 @@ describe.sequential('person repository', () => {
       public_name: 'Public Name',
       phone_number: testPhones[4],
       registered: true,
+      avatar_url: null,
     });
-    expect(Object.keys(view).sort()).toEqual(['phone_number', 'public_name', 'registered']);
+    expect(Object.keys(view).sort()).toEqual([
+      'avatar_url',
+      'phone_number',
+      'public_name',
+      'registered',
+    ]);
     const serialized = JSON.stringify(view);
     for (const value of Object.values(privateValues)) {
       expect(serialized).not.toContain(value);
@@ -111,6 +117,7 @@ describe.sequential('person repository', () => {
       public_name: null,
       phone_number: null,
       registered: false,
+      avatar_url: null,
     });
   });
 

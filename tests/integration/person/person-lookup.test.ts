@@ -6,7 +6,12 @@ const state = vi.hoisted(() => ({
   callerId: '0199a710-7b55-7000-8000-000000000001',
   registered: new Map<
     string,
-    { id: string; full_name: string | null; registered_at: Date | null }
+    {
+      id: string;
+      full_name: string | null;
+      registered_at: Date | null;
+      avatar_url?: string | null;
+    }
   >(),
   consumed: new Map<string, number>(),
 }));
@@ -28,10 +33,11 @@ vi.mock('../../../src/middleware/auth.js', () => ({
 
 vi.mock('../../../src/modules/person/person.repository.js', () => ({
   findByActivePhone: vi.fn((phone: string) => Promise.resolve(state.registered.get(phone) ?? null)),
-  toPublicPerson: vi.fn((person: { full_name: string | null }) => ({
+  toPublicPerson: vi.fn((person: { full_name: string | null; avatar_url?: string | null }) => ({
     phone_number: '+237677123456',
     registered: true,
     public_name: person.full_name,
+    avatar_url: person.avatar_url ?? null,
   })),
 }));
 
@@ -66,6 +72,7 @@ describe('GET /api/v1/people/lookup', () => {
       id: '0199a710-7b55-7000-8000-000000000002',
       full_name: 'Béatrice Ngono',
       registered_at: new Date(),
+      avatar_url: 'http://localhost:3000/images/avatars/photo.webp',
     });
 
     const response = await lookup('6 77 12 34 56');
@@ -75,6 +82,7 @@ describe('GET /api/v1/people/lookup', () => {
       phone_number: '+237677123456',
       registered: true,
       public_name: 'Béatrice Ngono',
+      avatar_url: 'http://localhost:3000/images/avatars/photo.webp',
     });
   });
 
@@ -84,7 +92,12 @@ describe('GET /api/v1/people/lookup', () => {
       const response = await lookup(phone);
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ phone_number: phone, registered: false, public_name: null });
+      expect(response.body).toEqual({
+        phone_number: phone,
+        registered: false,
+        public_name: null,
+        avatar_url: null,
+      });
     }
   );
 
@@ -114,7 +127,7 @@ describe('GET /api/v1/people/lookup', () => {
     expect(response.body).toMatchObject({ error: { code: 'RATE_LIMITED' } });
   });
 
-  it('returns exactly the three permitted public fields', async () => {
+  it('returns exactly the four permitted public fields', async () => {
     state.registered.set('+237677123456', {
       id: '0199a710-7b55-7000-8000-000000000002',
       full_name: 'Béatrice Ngono',
@@ -124,6 +137,7 @@ describe('GET /api/v1/people/lookup', () => {
     const response = await lookup('+237677123456');
 
     expect(Object.keys(response.body as Record<string, unknown>).sort()).toEqual([
+      'avatar_url',
       'phone_number',
       'public_name',
       'registered',

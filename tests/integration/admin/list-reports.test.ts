@@ -10,11 +10,17 @@ const { newId } = await import('../../../src/shared/ids.js');
 
 type ReportItem = {
   id: string;
-  reporter: { public_name: string | null; phone_number: string | null; registered: boolean };
+  reporter: {
+    public_name: string | null;
+    phone_number: string | null;
+    registered: boolean;
+    avatar_url: string | null;
+  };
   target_person: {
     public_name: string | null;
     phone_number: string | null;
     registered: boolean;
+    avatar_url: string | null;
   } | null;
   target_organization: { id: string; name: string; status: string } | null;
   reason: string;
@@ -242,11 +248,13 @@ describe('GET /api/v1/admin/reports/{reportId}', () => {
         public_name: 'Reporter Fixture',
         phone_number: '+237600012001',
         registered: true,
+        avatar_url: null,
       },
       target_person: {
         public_name: 'Target Fixture',
         phone_number: '+237600012002',
         registered: true,
+        avatar_url: null,
       },
       target_organization: null,
       reason: report.reason,
@@ -258,6 +266,7 @@ describe('GET /api/v1/admin/reports/{reportId}', () => {
       resolved_at: null,
     });
     expect(Object.keys(item.reporter).sort()).toEqual([
+      'avatar_url',
       'phone_number',
       'public_name',
       'registered',
