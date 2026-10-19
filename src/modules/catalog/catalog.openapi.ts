@@ -74,7 +74,7 @@ openApiRegistry.registerPath({
       content: {
         'application/json': {
           schema: z.object({
-            items: z.array(productViewSchema),
+            items: z.array(createdProductViewSchema),
             next_cursor: z.string().nullable(),
           }),
         },

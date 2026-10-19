@@ -454,10 +454,12 @@ export async function editProduct(
 }
 
 /**
- * Lists the actor's organization products, newest first: SELLER and above only.
+ * Lists the actor's organization products with their variants, newest first: SELLER and above
+ * only.
  *
  * The organization comes from the loaded actor, never from the query (ASVS v5.0.0-8.2.2), and
- * the view is built from an explicit field list (v5.0.0-15.3.1). Deleted products are left out.
+ * the view is built from an explicit field list (v5.0.0-15.3.1). Deleted products and variants are
+ * left out; withdrawn (INACTIVE) variants are kept so the seller sees every size.
  *
  * @param actor - Actor loaded from the path.
  * @param query - Validated page size, cursor and filters.
@@ -478,7 +480,10 @@ export async function listProducts(actor: Actor, query: ListProductsQuery): Prom
     throw httpError(403, 'FORBIDDEN', 'Permission denied');
   }
   const { rows, nextCursor } = await listProductsOfOrganization(actor.organizationId, query);
-  return { items: rows.map(toFlatProductView), next_cursor: nextCursor };
+  return {
+    items: rows.map(({ product, variants }) => toProductView(product, variants)),
+    next_cursor: nextCursor,
+  };
 }
 
 /**

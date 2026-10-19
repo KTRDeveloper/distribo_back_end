@@ -303,7 +303,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-024 | done | | POST variants route, addVariant, findLiveVariantByText; 33 story tests + suite green |
 | CAT-025 | done | | PATCH variant: 34 tests + suite 4298 green |
 | CAT-026 | done | | DELETE variant and product: soft delete, VARIANT_IN_USE and LAST_VARIANT, locks |
-| CAT-027 | todo | | |
+| CAT-027 | done | | list returns ProductView with live variants; 4347 tests pass |
 | CAT-028 | todo | | |
 | CAT-036 | todo | | |
 | CAT-037 | todo | | |

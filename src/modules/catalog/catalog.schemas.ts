@@ -164,7 +164,8 @@ export type FlatProductView = {
 
 /**
  * Strict query of the product list (ASVS v5.0.0-2.2.1): page size and cursor, an optional
- * status or exact category, and `q`, a name search of 1 to 100 characters. Unknown keys are
+ * status (kept if some / none of the live variants is ACTIVE) or exact category, and `q`, a
+ * search of 1 to 100 characters in the product name or a variant name. Unknown keys are
  * rejected.
  */
 export const listProductsQuerySchema = paginationQuerySchema
@@ -178,7 +179,7 @@ export const listProductsQuerySchema = paginationQuerySchema
 export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;
 
 /** Response of the product list. */
-export type ProductPage = { items: FlatProductView[]; next_cursor: string | null };
+export type ProductPage = { items: ProductView[]; next_cursor: string | null };
 
 /**
  * Strict query of the customer's catalog (ASVS v5.0.0-2.2.1): page size, cursor and the

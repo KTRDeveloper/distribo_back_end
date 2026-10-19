@@ -319,11 +319,15 @@ function escapeLike(text: string): string {
 }
 
 /**
- * Lists the live products of one organization, newest first then by id, one page at a time.
+ * Lists the live products of one organization with their live variants, newest product first
+ * then by id, one page at a time.
  *
- * The organization filter is always applied (ASVS v5.0.0-8.2.2). Every filter value is a
- * bound parameter through the ORM; `q` matches the name case-insensitively, with `%` and `_`
- * taken literally (ASVS v5.0.0-1.2.4).
+ * The organization filter is always applied to products and variants (ASVS v5.0.0-8.2.2).
+ * Every filter value is a bound parameter through the ORM. `status` looks at the live variants:
+ * ACTIVE keeps the products with at least one ACTIVE variant, INACTIVE the others. `q` matches
+ * the product name or the name of a live variant, case-insensitively, with `%` and `_` taken
+ * literally (ASVS v5.0.0-1.2.4). The variants of the page come from one query on the page's
+ * ids, oldest first then by id, withdrawn (INACTIVE) ones included.
  *
  * @throws 400 `VALIDATION_ERROR` when the cursor is malformed.
  */
@@ -336,20 +340,43 @@ export async function listProductsOfOrganization(
     category?: string;
     q?: string;
   }
-): Promise<{ rows: Product[]; nextCursor: string | null }> {
+): Promise<{
+  rows: Array<{ product: Product; variants: ProductVariant[] }>;
+  nextCursor: string | null;
+}> {
   const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const liveActiveVariant = { deletedAt: null, status: 'ACTIVE' as const };
   const found = await prisma.product.findMany({
     where: {
       organizationId,
       deletedAt: null,
-      ...(query.status ? { status: query.status } : {}),
+      ...(query.status === 'ACTIVE' ? { variants: { some: liveActiveVariant } } : {}),
+      ...(query.status === 'INACTIVE' ? { variants: { none: liveActiveVariant } } : {}),
       ...(query.category ? { category: query.category } : {}),
-      ...(query.q ? { name: { contains: escapeLike(query.q), mode: 'insensitive' as const } } : {}),
-      ...(cursor
+      ...(query.q
         ? {
             OR: [
-              { createdAt: { lt: cursor.createdAt } },
-              { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+              { name: { contains: escapeLike(query.q), mode: 'insensitive' as const } },
+              {
+                variants: {
+                  some: {
+                    deletedAt: null,
+                    name: { contains: escapeLike(query.q), mode: 'insensitive' as const },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+      ...(cursor
+        ? {
+            AND: [
+              {
+                OR: [
+                  { createdAt: { lt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+                ],
+              },
             ],
           }
         : {}),
@@ -357,10 +384,23 @@ export async function listProductsOfOrganization(
     orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
     take: query.limit + 1,
   });
-  const rows = found.slice(0, query.limit);
-  const last = rows[rows.length - 1];
+  const products = found.slice(0, query.limit);
+  const variants = products.length
+    ? await prisma.productVariant.findMany({
+        where: {
+          organizationId,
+          productId: { in: products.map((product) => product.id) },
+          deletedAt: null,
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      })
+    : [];
+  const last = products[products.length - 1];
   return {
-    rows,
+    rows: products.map((product) => ({
+      product,
+      variants: variants.filter((variant) => variant.productId === product.id),
+    })),
     nextCursor:
       found.length > query.limit && last
         ? encodeCursor({ createdAt: last.createdAt, id: last.id })

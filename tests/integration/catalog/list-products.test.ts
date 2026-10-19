@@ -18,8 +18,8 @@ const REG = new Date('2026-01-01T00:00:00.000Z');
 type Item = {
   id: string;
   name: string;
-  status: string;
   category: string | null;
+  variants: Array<Record<string, unknown>>;
 };
 type Page = { items: Item[]; next_cursor: string | null };
 
@@ -127,11 +127,14 @@ describe('GET /api/v1/organizations/:organizationId/products', () => {
     expect(body.items.map((i) => i.id)).toEqual([idOf(4), idOf(3), idOf(2), idOf(1)]);
     expect(body.next_cursor).toBeNull();
     expect(Object.keys(body.items[0]).sort()).toEqual(
+      ['category', 'description', 'id', 'image_urls', 'name', 'paused', 'variants'].sort()
+    );
+    expect(body.items[0].variants).toHaveLength(1);
+    expect(Object.keys(body.items[0].variants[0]).sort()).toEqual(
       [
-        'category',
-        'created_at',
-        'description',
         'id',
+        'image_urls',
+        'label',
         'min_order_quantity',
         'name',
         'price',

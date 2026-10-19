@@ -13571,22 +13571,6 @@
                           "name": {
                             "type": "string"
                           },
-                          "unit": {
-                            "type": "string"
-                          },
-                          "price": {
-                            "type": "integer"
-                          },
-                          "price_updated_at": {
-                            "type": "string",
-                            "format": "date-time"
-                          },
-                          "min_order_quantity": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
                           "description": {
                             "type": [
                               "string",
@@ -13599,29 +13583,85 @@
                               "null"
                             ]
                           },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "ACTIVE",
-                              "INACTIVE"
-                            ]
+                          "image_urls": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           },
-                          "created_at": {
-                            "type": "string",
-                            "format": "date-time"
+                          "paused": {
+                            "type": "boolean"
+                          },
+                          "variants": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "unit": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "price": {
+                                  "type": "integer"
+                                },
+                                "price_updated_at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "min_order_quantity": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "image_urls": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "ACTIVE",
+                                    "INACTIVE"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "unit",
+                                "label",
+                                "price",
+                                "price_updated_at",
+                                "min_order_quantity",
+                                "image_urls",
+                                "status"
+                              ]
+                            }
                           }
                         },
                         "required": [
                           "id",
                           "name",
-                          "unit",
-                          "price",
-                          "price_updated_at",
-                          "min_order_quantity",
                           "description",
                           "category",
-                          "status",
-                          "created_at"
+                          "image_urls",
+                          "paused",
+                          "variants"
                         ]
                       }
                     },

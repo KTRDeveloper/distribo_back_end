@@ -889,6 +889,35 @@ Also in this run: relationship, admin, order, finance, delivery.
 - Existing api-docs/catalog.test.ts only checks the two paths exist (already there from CAT-006/025); the DELETE methods are asserted in per-001.test.ts.
 <!-- end CAT-026 -->
 
+<!-- begin CAT-027 -->
+## CAT-027 — Seller lists the catalog with its variants
+
+- Filed: 2026-10-19 20:52 UTC
+- Status: **done**: list returns ProductView with live variants; 4347 tests pass
+- Risk: low · story: [CAT-027-seller-lists-the-catalog-with-its-variants.md](../modules/catalog/CAT-027-seller-lists-the-catalog-with-its-variants.md)
+- Agent: 50,385 tokens, 20 tool uses, 3 min 28 s
+
+### Agent report
+
+**Summary:** The product list now answers `ProductView` items with their live variants (withdrawn ones included, oldest first), and the filters work on the variants.
+
+**Decisions:**
+- Deleted variants: they do not count for `status`, do not match `q`, and are not listed; the story says "not deleted" only for listing.
+- A product with no live variant counts as INACTIVE (it has no ACTIVE variant).
+- Variants of a page: one `findMany` on the page's ids, also filtered by the organization id.
+- OpenAPI: the list reuses the existing create-product view schema; the flat `productViewSchema` stays for the edit route.
+
+**Tests added beyond the story:**
+- `list-products-with-variants.test.ts` › deleted variant and product not listed: a deleted row never shows (AC-1 "not deleted"); passed only after the implementation
+- same file › paused product has `paused: true`; deleted variant does not make a product ACTIVE or match `q`; `q` wildcards are literal; a variant of B never matches under A (AC-2, AC-4, 8.2.2)
+- same file › matching a variant name keeps all the product's variants (Context)
+
+**Evidence:** story tests 37/37 (new file and updated list-products); full suite 4347/4347, failing: none, 0 known; typecheck clean; lint 0 errors, 190 warnings
+
+**Follow-ups:**
+- `list-products.test.ts` AC-1 only changed its key list to the product view (listed in "Tests to update"); its old-style seeds work because the CAT-014 trigger mirrors a variant.
+<!-- end CAT-027 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 
