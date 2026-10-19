@@ -494,6 +494,50 @@ export async function revokeInvitation(
   return result.count > 0;
 }
 
+export type OrganizationSummary = {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
+};
+
+const SUMMARY_SELECT = { id: true, name: true, status: true } as const;
+
+/**
+ * Finds the non-deleted organization whose `payment_code` equals `code` exactly (C-41). The code
+ * is neither trimmed nor case-folded: the caller does it (BIL-007). Returns three fields and
+ * nothing of the plan or the team (ASVS v5.0.0-8.2.1).
+ *
+ * @param code - Code typed on the payment site, already cleaned by the caller.
+ * @param tx - Optional transaction client.
+ * @returns The id, name and status, or null when no live business holds the code.
+ */
+export function findOrganizationByPaymentCode(
+  code: string,
+  tx?: Prisma.TransactionClient
+): Promise<OrganizationSummary | null> {
+  return (tx ?? prisma).organization.findFirst({
+    where: { paymentCode: code, deletedAt: null },
+    select: SUMMARY_SELECT,
+  });
+}
+
+/**
+ * Reads the id, name and status of one non-deleted organization chosen by server code.
+ *
+ * @param organizationId - Organization to read.
+ * @param tx - Optional transaction client.
+ * @returns The summary, or null when the organization is absent or deleted.
+ */
+export function findOrganizationSummary(
+  organizationId: string,
+  tx?: Prisma.TransactionClient
+): Promise<OrganizationSummary | null> {
+  return (tx ?? prisma).organization.findFirst({
+    where: { id: organizationId, deletedAt: null },
+    select: SUMMARY_SELECT,
+  });
+}
+
 /**
  * Finds the person id of the organization's ACTIVE OWNER (exactly one by C-05).
  *

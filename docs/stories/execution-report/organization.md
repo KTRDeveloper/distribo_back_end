@@ -514,3 +514,25 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 **Follow-ups:**
 - Resend (ORG-026) already picks the EMAIL channel from the contact kind. Confirming an email is not exercised here (ORG-025 tests).
 <!-- end ORG-042 -->
+
+<!-- begin ORG-044 -->
+## ORG-044 — Billing finds a business by its payment code and its owner
+
+- Filed: 2026-10-19 18:07 UTC
+- Status: **done**: Three PaymentTargets functions added to organization.repository.ts; 7 tests pass
+- Risk: low · story: [ORG-044-billing-finds-a-business-by-its-payment-code.md](../modules/organization/ORG-044-billing-finds-a-business-by-its-payment-code.md)
+- Agent: 46,598 tokens, 22 tool uses, 2 min 16 s
+
+### Agent report
+
+**Summary:** Added findOrganizationByPaymentCode and findOrganizationSummary (plus OrganizationSummary type) to the organization repository; findActiveOwnerId was already there and is covered.
+
+**Decisions:**
+- Used Prisma findFirst with paymentCode equality and deletedAt null: exact, case-sensitive match, no trimming (as the story says).
+
+**Tests added beyond the story:**
+- `tests/integration/organization/payment-code-lookup.test.ts` › absent: right code with a space around it returns null: the lookup does not trim (Context, "does not trim"); passed at once
+- `tests/integration/organization/payment-code-lookup.test.ts` › found inside a transaction: the optional tx argument works; passed at once
+
+**Evidence:** story tests 7/7; full suite 4008/4008, failing: none, 0 known; typecheck clean; lint 0 errors, 183 warnings
+<!-- end ORG-044 -->
