@@ -10,12 +10,18 @@ export function inTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T
 /**
  * Turns the (new or guest) holder of a number into a registered person (C-03).
  * The guarded update (`registered_at IS NULL`) makes the loser of a race see null.
+ * `preferredLanguage` is written only when given, so an absent value leaves the column as it was.
  *
  * @returns The registered person, or null when a registered holder already exists.
  */
 export async function completeRegistration(
   tx: Prisma.TransactionClient,
-  input: { phone: string; fullName: string; passwordHash: string }
+  input: {
+    phone: string;
+    fullName: string;
+    passwordHash: string;
+    preferredLanguage?: 'FR' | 'EN';
+  }
 ): Promise<Person | null> {
   const holder = await findOrCreateByPhone(input.phone, tx);
   const now = new Date();
@@ -24,6 +30,7 @@ export async function completeRegistration(
     data: {
       fullName: input.fullName,
       passwordHash: input.passwordHash,
+      ...(input.preferredLanguage ? { preferredLanguage: input.preferredLanguage } : {}),
       registeredAt: now,
       phoneVerifiedAt: now,
       serverUpdatedAt: now,

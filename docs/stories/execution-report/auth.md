@@ -55,3 +55,29 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - QUESTION: `tests/integration/privacy/anonymize.test.ts` › "AC-5: login with the old number and password answers the generic 401" expects 401 INVALID_CREDENTIALS; an anonymized number is now an unknown number, so it answers 404 ACCOUNT_NOT_FOUND (PRIV-002 AC-5 says "generic 401"). Needs the test (and PRIV-002 AC-5 wording) updated to 404; AUTH-028's "Tests to update" does not list it. Code is left uncommitted in the working tree.
 <!-- end AUTH-028 -->
+
+<!-- begin AUTH-030 -->
+## AUTH-030 — Registration saves the interface language
+
+- Filed: 2026-10-19 11:55 UTC
+- Status: **done**: preferred_language optional FR/EN on register, stored for new and guest; tests green
+- Risk: high · story: [AUTH-030-registration-saves-the-interface-language.md](../modules/auth/AUTH-030-registration-saves-the-interface-language.md)
+- Agent: 28,041 tokens, 11 tool uses, 1 min 37 s
+
+### Agent report
+
+**Summary:** Register accepts optional `preferred_language` (FR/EN), stored for new and completed guest people.
+
+**Decisions:**
+- Absent field on a guest who already has a language: the language is left untouched (conditional spread), not reset to empty.
+- `auth.openapi.ts` needed no edit: it reuses `registerSchema`; regenerated `openapi/openapi.json` instead.
+
+**Tests added beyond the story:**
+- `tests/integration/auth/register-language.test.ts` › a guest language is kept when the field is absent: no silent overwrite (AC-1 "column stays empty" only for new people; story silent on guests); passed at once? no, passes with the conditional write.
+- Invalid-language and free-text cases passed at once (strict enum was already rejected by `.strict()`); kept as guards.
+
+**Other additions:**
+- `openapi/openapi.json` regenerated (7 lines).
+
+**Evidence:** story tests 35/35 (language + register + register-new-holder); full suite 3223/3223, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings
+<!-- end AUTH-030 -->

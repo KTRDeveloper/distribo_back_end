@@ -113,6 +113,7 @@ export type RegisterInput = {
   password: string;
   device: DeviceInfo;
   new_holder?: boolean;
+  preferred_language?: 'FR' | 'EN';
 };
 
 export type SessionResponse = {
@@ -173,6 +174,7 @@ async function registerInternal(input: RegisterInput, release: boolean): Promise
       phone,
       fullName: input.full_name,
       passwordHash,
+      ...(input.preferred_language ? { preferredLanguage: input.preferred_language } : {}),
     });
     if (!person) return null;
     return { person, session: await issueSession(person.id, input.device, tx) };

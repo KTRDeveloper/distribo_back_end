@@ -1219,6 +1219,13 @@
                   },
                   "new_holder": {
                     "type": "boolean"
+                  },
+                  "preferred_language": {
+                    "type": "string",
+                    "enum": [
+                      "FR",
+                      "EN"
+                    ]
                   }
                 },
                 "required": [

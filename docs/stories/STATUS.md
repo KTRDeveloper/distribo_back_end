@@ -224,7 +224,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-027 | done | | OtpPurpose gains ORG_CONTACT_VERIFICATION and ACCESS_RESTORE; 3212 tests pass |
 | AUTH-028 | blocked | | Code and story tests green; tests/integration/privacy/anonymize.test.ts AC-5 (not in Tests to update) expects 401 for an anonymized number, now 404 ACCOUNT_NOT_FOUND: may it be updated? |
 | AUTH-029 | todo | | |
-| AUTH-030 | todo | | |
+| AUTH-030 | done | | preferred_language optional FR/EN on register, stored for new and guest; tests green |
 | AUTH-031 | todo | | |
 | AUTH-032 | todo | | |
 | AUTH-033 | todo | | |

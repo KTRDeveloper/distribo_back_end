@@ -31,6 +31,7 @@ export const registerSchema = z
     password: z.string().min(1).max(256),
     device: deviceSchema,
     new_holder: z.boolean().optional(),
+    preferred_language: z.enum(['FR', 'EN']).optional(),
   })
   .strict();
 
