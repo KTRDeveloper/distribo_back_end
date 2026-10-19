@@ -123,13 +123,19 @@ const MAX_ATTEMPTS = 5;
  * consumption is a guarded UPDATE, so parallel calls cannot exceed 5 tries or
  * use a code twice (v5.0.0-6.5.3, v5.0.0-6.6.3, v5.0.0-2.3.4).
  *
+ * With `spend: false` the code is only checked (the attempt still counts) and stays usable:
+ * the caller must then call `spendCode` with the returned `challengeId` (AUTH-032).
+ *
  * @throws 400 OTP_INVALID, 400 OTP_EXPIRED, 429 OTP_LOCKED
  */
-export async function verifyCode(input: {
-  target: string;
-  purpose: OtpPurpose;
-  code: string;
-}): Promise<{ challengeId: string; personId: string | null }> {
+export async function verifyCode(
+  input: {
+    target: string;
+    purpose: OtpPurpose;
+    code: string;
+  },
+  options: { spend?: boolean } = {}
+): Promise<{ challengeId: string; personId: string | null }> {
   const invalid = () => httpError(400, 'OTP_INVALID', 'Invalid code');
   const row = await otpRepository.findLatest(input.target, input.purpose);
   if (!row || row.consumedAt) throw invalid();
@@ -138,6 +144,18 @@ export async function verifyCode(input: {
     throw httpError(429, 'OTP_LOCKED', 'Too many attempts');
   }
   if (!(await verifyOtp(input.code, row.codeHash))) throw invalid();
-  if (!(await otpRepository.consume(row.id))) throw invalid();
+  if (options.spend !== false) await spendCode(row.id);
   return { challengeId: row.id, personId: row.personId };
+}
+
+/**
+ * Consume a code already checked by `verifyCode(..., { spend: false })`. The guarded UPDATE
+ * means a parallel use of the same code fails here.
+ *
+ * @throws 400 OTP_INVALID when the code was already consumed
+ */
+export async function spendCode(challengeId: string): Promise<void> {
+  if (!(await otpRepository.consume(challengeId))) {
+    throw httpError(400, 'OTP_INVALID', 'Invalid code');
+  }
 }

@@ -226,7 +226,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-029 | done | | registered holder: sent false, no challenge, no job; IP number-check quota counted |
 | AUTH-030 | done | | preferred_language optional FR/EN on register, stored for new and guest; tests green |
 | AUTH-031 | done | | claim route, claimRefusal, latestDeviceActivity; 19 tests; suite green |
-| AUTH-032 | blocked | | register-new-holder.test.ts seedHolder creates a device (created_at now) so claimRefusal answers 409 on 5 of its tests; story says its holders have no device. Fix the fixture (list it as changed) or decide that a never-synced device is idle? |
+| AUTH-032 | done | | re-check before spending the code, firePhoneReleased in tx; register-new-holder fixture backdated |
 | AUTH-033 | done | | Reset code by SMS only; use_email now 400; number quota counted first |
 | AUTH-034 | done | | Reset confirm returns 200 session; suspended refused after code; all tests pass |
 | AUTH-036 | todo | | |

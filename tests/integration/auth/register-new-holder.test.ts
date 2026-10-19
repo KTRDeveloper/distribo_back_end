@@ -68,7 +68,13 @@ async function seedHolder(email: string | null = null) {
     },
   });
   await prisma.device.create({
-    data: { id: newId(), personId: id, platform: 'ANDROID', appVersion: '1.0.0' },
+    data: {
+      id: newId(),
+      personId: id,
+      platform: 'ANDROID',
+      appVersion: '1.0.0',
+      createdAt: new Date(Date.now() - 400 * 24 * 3600 * 1000),
+    },
   });
   return id;
 }

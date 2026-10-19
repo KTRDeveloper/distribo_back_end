@@ -160,26 +160,30 @@ Also in this run: access.
 <!-- begin AUTH-032 -->
 ## AUTH-032 — Registering on a recycled number re-checks the old holder
 
-- Filed: 2026-10-19 12:07 UTC
-- Status: **blocked**: register-new-holder.test.ts seedHolder creates a device (created_at now) so claimRefusal answers 409 on 5 of its tests; story says its holders have no device. Fix the fixture (list it as changed) or decide that a never-synced device is idle?
+- Filed: 2026-10-19 12:16 UTC
+- Status: **done**: re-check before spending the code, firePhoneReleased in tx; register-new-holder fixture backdated
 - Risk: high · story: [AUTH-032-registering-on-a-recycled-number-re-checks-the.md](../modules/auth/AUTH-032-registering-on-a-recycled-number-re-checks-the.md)
+- Agent: 25,880 tokens, 8 tool uses, 1 min 15 s
 
 ### Agent report
 
-**Summary:** Blocked: the story says register-new-holder.test.ts holders have no device, but its seedHolder creates a device (created_at = now), so the new re-check refuses 5 of its 7 tests with 409.
+**Summary:** Registration with new_holder now re-checks the old holder (claimRefusal) before the code is spent and fires firePhoneReleased in the same transaction.
 
 **Decisions:**
-- Added `spend: false` option to `verifyCode` plus `spendCode` in otp.service.ts (not listed): the code must be checked, then the holder re-checked, then the code spent, so a refusal leaves it unspent.
+- `verifyCode(..., { spend: false })` plus `spendCode` in otp.service.ts (not listed): the code must be checked, the holder re-checked, then the code spent, so a refusal leaves it unspent.
+- Refusal logged as `registration_refused_number_in_use` with holder id and reason (v5.0.0-16.3.1).
 
 **Tests added beyond the story:**
-- `tests/integration/auth/register-recycled-recheck.test.ts` › wrong code answers OTP_INVALID, not holder state: no leak of holder activity (CONVENTIONS fail closed); passed at once
-- same file › without new_holder ACCOUNT_EXISTS still: AC "Without new_holder" in Context; passed at once
+- `tests/integration/auth/register-recycled-recheck.test.ts` › wrong code answers OTP_INVALID, not holder state: no leak of holder activity (fail closed); passed at once
+- same file › without new_holder ACCOUNT_EXISTS still: Context of the story; passed at once
 
-**Evidence:** story's new test file 9/9 pass; register-new-holder.test.ts 2/7 pass (5 fail with 409); full suite not run; typecheck/lint not run.
+**Other additions:**
+- `register-new-holder.test.ts` seedHolder device backdated 400 days, as listed under Tests to update.
+
+**Evidence:** story tests 17/17 (both files); full suite 3287/3287, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings
 
 **Follow-ups:**
-- Question: latestDeviceActivity uses COALESCE(last_synced_at, created_at), so a device created now counts as activity. Either list register-new-holder.test.ts under "Tests to update" and backdate its device (or drop it), or state that a never-synced device is idle (changes AUTH-031 rule).
-- Code changes (auth.service.ts, otp.service.ts, new test) are left in the working tree for the orchestrator to set aside.
+- None.
 <!-- end AUTH-032 -->
 
 <!-- begin AUTH-033 -->

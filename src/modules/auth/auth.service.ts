@@ -20,7 +20,9 @@ import {
   updatePasswordHash,
   findPasswordHash,
 } from './auth.repository.js';
-import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
+import { issueCode, spendCode, verifyCode, type ClientKeys } from './otp.service.js';
+import { claimRefusal } from './number-claim.service.js';
+import { firePhoneReleased } from '../person/phone-released.js';
 import { checkNumberQuota } from './number-check-limit.js';
 import { newId } from '../../shared/ids.js';
 import { issueSession, revokeSessions, type DeviceInfo } from './session.service.js';
@@ -151,7 +153,13 @@ export async function register(input: RegisterInput): Promise<SessionResponse> {
  * (`phone.taken_over`, plus an email when verified, without the number) and keeps
  * everything else. Nothing of theirs is reassigned (v5.0.0-8.2.2).
  *
- * @throws 400 OTP_INVALID, OTP_EXPIRED, WEAK_PASSWORD, VALIDATION_ERROR; 409 ACCOUNT_EXISTS
+ * Before the code is spent, the holder's activity is checked again (AUTH-032): a holder
+ * who is suspended or synchronized within six months refuses with 409 NUMBER_NOT_AVAILABLE
+ * and the code stays valid. After the release, `firePhoneReleased` runs in the same
+ * transaction; a failing handler undoes everything.
+ *
+ * @throws 400 OTP_INVALID, OTP_EXPIRED, WEAK_PASSWORD, VALIDATION_ERROR; 409 ACCOUNT_EXISTS,
+ *   NUMBER_NOT_AVAILABLE
  */
 export function releaseHolderAndRegister(input: RegisterInput): Promise<SessionResponse> {
   return registerInternal(input, true);
@@ -166,13 +174,34 @@ async function registerInternal(input: RegisterInput, release: boolean): Promise
   if ((await validatePasswordRules(input.password)).length > 0) {
     throw httpError(400, 'WEAK_PASSWORD', 'Password is too weak');
   }
-  await verifyCode({ target: phone, purpose: 'REGISTRATION', code: input.code });
+  const checked = await verifyCode(
+    { target: phone, purpose: 'REGISTRATION', code: input.code },
+    { spend: false }
+  );
+  if (release) {
+    // The holder may have come back since the claim: a code alone does not give a live
+    // number (v5.0.0-6.4.3). Refused before the code is spent, so it stays valid.
+    const holder = await findByActivePhone(phone);
+    if (holder?.registeredAt != null) {
+      const reason = await claimRefusal(holder, new Date());
+      if (reason !== null) {
+        logger.warn(
+          { event: 'registration_refused_number_in_use', personId: holder.id, reason },
+          'Registration on a recycled number refused'
+        );
+        throw httpError(409, 'NUMBER_NOT_AVAILABLE', 'This number is not available');
+      }
+    }
+  }
+  await spendCode(checked.challengeId);
   const passwordHash = await hashPassword(input.password);
 
   let released: Awaited<ReturnType<typeof releaseRegisteredHolder>> = null;
   const result = await inTransaction(async (tx) => {
     released = release ? await releaseRegisteredHolder(tx, phone) : null;
     if (released) {
+      // A throwing handler rolls back the whole registration: the old holder keeps the number.
+      await firePhoneReleased(phone, tx);
       await notify(
         { recipientId: released.id, sourceEvent: 'phone.taken_over', content: TAKEN_OVER_TEXT },
         tx
