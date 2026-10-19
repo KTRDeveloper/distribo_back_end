@@ -406,8 +406,9 @@ model Organization {
   collaborations Collaboration[]
   subscriptions  Subscription[]
 
-  products  Product[]
-  expenses  Expense[]
+  products        Product[]
+  productVariants ProductVariant[]
+  expenses        Expense[]
   handovers Handover[]
 
   suppliedRelationships CustomerRelationship[] @relation("RelationshipSupplierOrganization")
@@ -866,9 +867,58 @@ model Product {
   organization   Organization    @relation(fields: [organizationId], references: [id])
   customerPrices CustomerPrice[]
   orderLines     OrderLine[]
+  variants       ProductVariant[]
 
+  // Lets a variant point at its product together with the business, so the
+  // database itself refuses a variant under another business's product
+  // (migration 20261019030000_cat_012_product_variants).
+  @@unique([id, organizationId])
   @@index([organizationId])
   @@map("products")
+}
+
+// Rules the database enforces on product variants (the sold level of the
+// catalog: one unit and one price of a product), beyond what this model
+// declares. All come from migration 20261019030000_cat_012_product_variants.
+// - A variant belongs to the business of its product: the product and the
+//   business are checked together, so a variant can never sit under a product
+//   of another business, even for code that skipped validation (23503).
+// - A live product keeps at least one live variant. The database does NOT check
+//   this: the code must ensure it when it creates, deletes or merges variants.
+// - The price must be greater than zero, and the minimum order quantity, when
+//   given, must be greater than zero (rounded to 3 decimals first).
+// - A variant carries at most 5 photo keys (an index makes lookups by key fast).
+//   The server alone writes them.
+// - price_updated_at is set by the database when the variant is created and
+//   moves only when the price really changes. A value sent by the code is
+//   ignored, so never try to set it yourself.
+// - server_updated_at is set by the database on every change.
+model ProductVariant {
+  id               String        @id @db.Uuid
+  productId        String        @map("product_id") @db.Uuid
+  organizationId   String        @map("organization_id") @db.Uuid
+  name             String?
+  unit             String
+  price            BigInt
+  priceUpdatedAt   DateTime      @default(now()) @map("price_updated_at") @db.Timestamptz
+  minOrderQuantity Decimal?      @map("min_order_quantity") @db.Decimal(12, 3)
+  imageKeys        String[]      @default([]) @map("image_keys")
+  status           ProductStatus @default(ACTIVE)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  serverUpdatedAt  DateTime      @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz
+  mergedIntoId     String?       @map("merged_into_id") @db.Uuid
+
+  product      Product          @relation(fields: [productId, organizationId], references: [id, organizationId])
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  mergedInto   ProductVariant?  @relation("VariantMerge", fields: [mergedIntoId], references: [id], onDelete: Restrict)
+  mergedFrom   ProductVariant[] @relation("VariantMerge")
+
+  @@index([productId])
+  @@index([organizationId])
+  @@index([mergedIntoId])
+  @@index([imageKeys], type: Gin)
+  @@map("product_variants")
 }
 
 // Rules the database enforces on negotiated prices (one customer's own price

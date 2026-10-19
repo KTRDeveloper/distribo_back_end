@@ -111,6 +111,31 @@ Also in this run: relationship, admin, order, finance, delivery.
 - `prisma migrate diff` shows existing drift on tasks and reports FKs, unrelated to products (no products diff).
 <!-- end CAT-001 -->
 
+<!-- begin CAT-012 -->
+## CAT-012 — Product variants table
+
+- Filed: 2026-10-19 15:27 UTC
+- Status: **done**: product_variants table, composite FK, checks, triggers; 19 tests + full suite green
+- Risk: high · story: [CAT-012-product-variants-table.md](../modules/catalog/CAT-012-product-variants-table.md)
+- Agent: 42,203 tokens, 15 tool uses, 2 min 56 s
+
+### Agent report
+
+**Summary:** Created product_variants (migration 20261019030000_cat_012_product_variants), schema model with explanatory comment, unique (id, organization_id) on products.
+
+**Decisions:**
+- image_keys is NOT NULL with an empty-array default: the story's required list includes it; Prisma reports no drift.
+- merged_into_id FK uses ON DELETE RESTRICT (explicit in schema) so a merge target is never silently unlinked.
+- Product has no image_keys yet (CAT-014), so only the variant gets the GIN index and the 5-key CHECK.
+- Extra indexes on product_id, organization_id, merged_into_id (Prisma convention for FK columns).
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/product-variant-table.test.ts` › moving a variant under another business's product on UPDATE -> 23503 (AB-1, C-45); passed at once
+- same file › UPDATE to 6 image keys -> 23514, GIN index exists, price_updated_at supplied on update is ignored, merged_into_id accepts/rejects (C-49, C-13, ProductVariant:fk); passed at once
+
+**Evidence:** story tests 19/19; full suite 3368/3368, failing: none, 0 known; typecheck clean; lint 0 errors, 144 warnings (pre-existing)
+<!-- end CAT-012 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 

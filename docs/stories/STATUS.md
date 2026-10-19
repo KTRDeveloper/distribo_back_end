@@ -236,7 +236,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-008 | done | | port, fake adapter and PAYMENT_DRIVER; 15 tests pass |
 | BIL-010 | done | | plan-math.ts pure; 17 unit tests, suite green |
 | IMG-001 | done | | image_copies table, root trigger, insert-only grant; 13 tests |
-| CAT-012 | todo | | |
+| CAT-012 | done | | product_variants table, composite FK, checks, triggers; 19 tests + full suite green |
 | CAT-013 | todo | | |
 | CAT-014 | todo | | |
 | CAT-015 | todo | | |
