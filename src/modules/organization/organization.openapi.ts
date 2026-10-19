@@ -4,6 +4,7 @@ import {
   addContactSchema,
   confirmContactSchema,
   contactParamsSchema,
+  resendContactSchema,
 } from './organization-contact.schemas.js';
 import {
   changeRoleSchema,
@@ -316,6 +317,37 @@ openApiRegistry.registerPath({
       content: errorContent,
     },
     429: { description: 'OTP_LOCKED: five attempts used', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/contacts/{contactId}/resend',
+  tags: ['organization'],
+  summary: 'The owner asks for the code of a pending contact again',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: contactParamsSchema,
+    body: { content: { 'application/json': { schema: resendContactSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'A new code was queued; the former codes no longer work',
+      content: {
+        'application/json': {
+          schema: z.object({ sent: z.literal(true), expires_in: z.number().int() }),
+        },
+      },
+    },
+    400: { description: 'VALIDATION_ERROR', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: { description: 'Contact absent, deleted or of another business', content: errorContent },
+    409: {
+      description: 'CONTACT_ALREADY_VERIFIED or conflicting gesture id',
+      content: errorContent,
+    },
+    429: { description: 'OTP_RATE_LIMITED: a sending limit is reached', content: errorContent },
   },
 });
 

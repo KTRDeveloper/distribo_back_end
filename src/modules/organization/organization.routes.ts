@@ -39,8 +39,12 @@ import {
   startSubscription,
   transferOwnership,
 } from './organization.service.js';
-import { addContactSchema, confirmContactSchema } from './organization-contact.schemas.js';
-import { addContact, confirmContact } from './organization-contact.service.js';
+import {
+  addContactSchema,
+  confirmContactSchema,
+  resendContactSchema,
+} from './organization-contact.schemas.js';
+import { addContact, confirmContact, resendContactCode } from './organization-contact.service.js';
 import './organization.openapi.js';
 
 /** Organization routes; all require authentication. */
@@ -163,6 +167,30 @@ organizationRoutes.post(
     const { code } = confirmContactSchema.parse(req.body);
     confirmContact(req.actor!, uuidV7Schema.parse(req.params.contactId), code)
       .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/contacts/:contactId/resend - the owner asks for the
+// code again. Owner-only and online-only like the add gesture it repeats (C-44); the code limits
+// of every code apply in `issueCode`.
+organizationRoutes.post(
+  '/:organizationId/contacts/:contactId/resend',
+  loadActor,
+  requireAbility('create', 'OrganizationContact'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsedParams = uuidV7Schema.safeParse(req.params.contactId);
+    if (!parsedParams.success) return next(parsedParams.error);
+    const parsed = resendContactSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    resendContactCode(req.actor!, uuidV7Schema.parse(req.params.contactId))
+      .then((result) => res.status(200).json(result))
       .catch(next);
   }
 );

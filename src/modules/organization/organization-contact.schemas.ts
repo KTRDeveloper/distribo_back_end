@@ -32,7 +32,10 @@ export const confirmContactSchema = z
 
 export type ConfirmContactInput = z.infer<typeof confirmContactSchema>;
 
-/** Path parameters of the confirm-contact route. */
+/** Strict body of the resend-code gesture: the gesture id only. */
+export const resendContactSchema = z.object({ id: uuidV7Schema }).strict();
+
+/** Path parameters of the confirm-contact and resend-code routes. */
 export const contactParamsSchema = z
   .object({ organizationId: uuidV7Schema, contactId: uuidV7Schema })
   .strict();

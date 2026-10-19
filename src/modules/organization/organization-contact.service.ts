@@ -145,3 +145,38 @@ export async function confirmContact(
   if (!verified) throw httpError(404, 'NOT_FOUND', 'Not found');
   return toContactView(verified);
 }
+
+/**
+ * Sends a new code to a pending contact (ORG-026, C-33, ASVS v5.0.0-2.4.1, v5.0.0-6.6.3).
+ *
+ * The contact must be live and of this business, else 404; a verified one answers 409. The code
+ * goes to the contact's own value and channel through `issueCode`, which keeps the sending limits
+ * of every code (60 seconds between two codes, 3 per hour per target), so the route cannot flood
+ * a number; a limit hit answers 429 before anything is written or queued. Only the newest code
+ * of the contact counts at verification, so the former ones die by themselves.
+ *
+ * @param actor - Owner loaded from the path.
+ * @param contactId - Contact from the path.
+ * @returns `sent: true` and the lifetime of the new code in seconds.
+ * @throws 404 `NOT_FOUND`, 409 `CONTACT_ALREADY_VERIFIED`, 429 `OTP_RATE_LIMITED`.
+ */
+export async function resendContactCode(
+  actor: Actor,
+  contactId: string
+): Promise<{ sent: true; expires_in: number }> {
+  const contact = await findLiveContact(contactId, actor.organizationId);
+  if (!contact) throw httpError(404, 'NOT_FOUND', 'Not found');
+  if (contact.verifiedAt !== null) {
+    throw httpError(409, 'CONTACT_ALREADY_VERIFIED', 'This contact is already verified');
+  }
+  const organization = await findOrganization(actor.organizationId);
+  if (!organization) throw httpError(404, 'NOT_FOUND', 'Not found');
+  const { expiresAt } = await issueCode({
+    personId: actor.personId,
+    target: contact.value,
+    purpose: 'ORG_CONTACT_VERIFICATION',
+    channel: contact.kind === 'EMAIL' ? 'EMAIL' : 'SMS',
+    contact: { id: contact.id, organizationName: organization.name },
+  });
+  return { sent: true, expires_in: Math.round((expiresAt.getTime() - Date.now()) / 1000) };
+}
