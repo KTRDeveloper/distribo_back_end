@@ -604,6 +604,54 @@ export async function setVariantImageKeys(
   return rows[0].image_keys;
 }
 
+/**
+ * Empties the photo keys of products and variants deleted before `deletedBefore` and returns every
+ * key released, so the images module can delete the files (C-50). Takes up to `limit` products and
+ * up to `limit` variants, oldest deletion first; a row that is live or deleted later keeps its keys
+ * whatever the date. Each table is read, locked and emptied in one statement of the caller's
+ * transaction (ASVS v5.0.0-2.3.3, CWE-362): a row locked by another transaction is skipped, so two
+ * cleanups never release the same key twice. The `deleted_at IS NOT NULL` test is the guard against
+ * wiping a live card, even with a date in the future.
+ *
+ * @returns the released keys; an empty list on a repeat.
+ */
+export async function releaseDeletedImageKeys(
+  tx: Prisma.TransactionClient,
+  deletedBefore: Date,
+  limit: number
+): Promise<string[]> {
+  if (!Number.isInteger(limit) || limit < 1) throw new RangeError('Invalid limit');
+  const products = await tx.$queryRaw<Array<{ key: string }>>`
+    WITH picked AS (
+      SELECT "id", "image_keys" FROM "products"
+      WHERE "deleted_at" IS NOT NULL AND "deleted_at" < ${deletedBefore}
+        AND cardinality("image_keys") > 0
+      ORDER BY "deleted_at", "id"
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
+    ), emptied AS (
+      UPDATE "products" SET "image_keys" = '{}'
+      FROM picked WHERE "products"."id" = picked."id"
+      RETURNING picked."image_keys" AS "keys"
+    )
+    SELECT unnest("keys") AS "key" FROM emptied`;
+  const variants = await tx.$queryRaw<Array<{ key: string }>>`
+    WITH picked AS (
+      SELECT "id", "image_keys" FROM "product_variants"
+      WHERE "deleted_at" IS NOT NULL AND "deleted_at" < ${deletedBefore}
+        AND cardinality("image_keys") > 0
+      ORDER BY "deleted_at", "id"
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
+    ), emptied AS (
+      UPDATE "product_variants" SET "image_keys" = '{}'
+      FROM picked WHERE "product_variants"."id" = picked."id"
+      RETURNING picked."image_keys" AS "keys"
+    )
+    SELECT unnest("keys") AS "key" FROM emptied`;
+  return [...products, ...variants].map((row) => row.key);
+}
+
 /** The photo keys of a variant with the product it belongs to. */
 export type VariantImageKeys = { productId: string; keys: string[] };
 

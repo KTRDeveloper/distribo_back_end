@@ -432,6 +432,28 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Evidence:** story tests 14/14; full suite 3594/3594, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings
 <!-- end CAT-044 -->
 
+<!-- begin CAT-046 -->
+## CAT-046 — The server empties the photo keys of deleted products and variants
+
+- Filed: 2026-10-19 16:18 UTC
+- Status: **done**: releaseDeletedImageKeys added; 6 tests pass, suite 3600 green
+- Risk: medium · story: [CAT-046-the-server-empties-the-photo-keys-of-deleted.md](../modules/catalog/CAT-046-the-server-empties-the-photo-keys-of-deleted.md)
+- Agent: 32,172 tokens, 15 tool uses, 1 min 58 s
+
+### Agent report
+
+**Summary:** Added `releaseDeletedImageKeys` to catalog.repository.ts; one locked CTE statement per table, limit applied per table.
+
+**Decisions:**
+- One `WITH picked (FOR UPDATE SKIP LOCKED) / UPDATE / unnest` statement per table: read, lock and empty are atomic (v5.0.0-2.3.3), and concurrent cleanups skip rows already taken.
+- Invalid `limit` (non-integer or < 1) throws RangeError, like the setters do for bad key lists.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/release-image-keys.test.ts` › limit applies to products and variants separately: up to `limit` of each table (Context of the story); passed at once, since the implementation was written after the tests
+
+**Evidence:** story tests 6/6; full suite 3600/3600, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings
+<!-- end CAT-046 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 
