@@ -12,7 +12,6 @@ import {
   copyCustomerPricesSchema,
   copyProductSchema,
   createProductSchema,
-  customerPriceParamsSchema,
   customerPricesParamsSchema,
   customerVariantPriceParamsSchema,
   editProductSchema,
@@ -271,19 +270,19 @@ catalogRoutes.get(
   }
 );
 
-// DELETE /api/v1/organizations/:organizationId/customers/:relationshipId/prices/:productId -
-// OWNER or an online MANAGER removes a negotiated price. It has no body and so no gesture id: a
+// DELETE /api/v1/organizations/:organizationId/customers/:relationshipId/prices/:variantId -
+// OWNER or an online MANAGER removes the negotiated price of one size. It has no body and so no gesture id: a
 // repeat finds no live price and answers 404.
 catalogRoutes.delete(
-  '/customers/:relationshipId/prices/:productId',
+  '/customers/:relationshipId/prices/:variantId',
   authMiddleware,
   loadActor,
   requireAbility('delete', 'CustomerPrice'),
   (req, res, next) => {
     Promise.resolve()
       .then(() => {
-        const { relationshipId, productId } = customerPriceParamsSchema.parse(req.params);
-        return removeCustomerPrice(req.actor!, relationshipId, productId);
+        const { relationshipId, variantId } = customerVariantPriceParamsSchema.parse(req.params);
+        return removeCustomerPrice(req.actor!, relationshipId, variantId);
       })
       .then(() => res.status(204).end())
       .catch(next);

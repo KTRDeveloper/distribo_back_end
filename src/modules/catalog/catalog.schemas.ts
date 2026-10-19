@@ -219,14 +219,7 @@ export type CatalogItemView = {
 /** Response of the customer's catalog. */
 export type CatalogPage = { items: CatalogItemView[]; next_cursor: string | null };
 
-/** Path of the negotiated price gesture: supplier organization, customer relationship, article. */
-export const customerPriceParamsSchema = z.object({
-  organizationId: uuidV7Schema,
-  relationshipId: uuidV7Schema,
-  productId: uuidV7Schema,
-});
-
-/** Path of the negotiated price set gesture: supplier organization, customer relationship, variant. */
+/** Path of the negotiated price set and remove gestures: supplier organization, customer relationship, variant. */
 export const customerVariantPriceParamsSchema = z.object({
   organizationId: uuidV7Schema,
   relationshipId: uuidV7Schema,
@@ -268,13 +261,13 @@ export type ListCustomerPricesQuery = z.infer<typeof listCustomerPricesQuerySche
 
 /**
  * One live negotiated price as the supplier's staff sees it. `to_review` is true when the
- * article price changed after the negotiated price was set.
+ * variant price changed after the negotiated price was set; `label` is the variant's label.
  */
 export type CustomerPriceListItem = {
-  product_id: string;
-  product_name: string;
+  product_variant_id: string;
+  label: string;
   price: number;
-  product_price: number;
+  variant_price: number;
   set_by_id: string;
   set_at: string;
   to_review: boolean;

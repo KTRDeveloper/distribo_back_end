@@ -672,12 +672,13 @@ export async function setCustomerPrice(
 }
 
 /**
- * Lists the live negotiated prices of one customer, flagged when the article price changed
- * since: SELLER and above only.
+ * Lists the live negotiated prices of one customer per variant, flagged when the variant price
+ * changed since: SELLER and above only.
  *
  * The relationship is selected through the actor's organization, so another business's
- * relationship answers 404 (ASVS v5.0.0-8.2.2). `to_review` is true when the product's
- * `price_updated_at` is later than the price's `set_at`. The view is an explicit field list
+ * relationship answers 404 (ASVS v5.0.0-8.2.2). Each item names its variant by `label`
+ * (`variantLabel`) and carries the variant's current price; `to_review` is true when the
+ * variant's `price_updated_at` is later than the price's `set_at`. The view is an explicit field list
  * (v5.0.0-15.3.1).
  *
  * @param actor - Actor loaded from the path.
@@ -710,38 +711,42 @@ export async function listCustomerPrices(
   if (!page) throw httpError(404, 'NOT_FOUND', 'Not found');
   return {
     items: page.rows.map((row) => ({
-      product_id: row.product.id,
-      product_name: row.product.name,
+      product_variant_id: row.productVariant.id,
+      label: variantLabel(
+        row.productVariant.product.name,
+        row.productVariant.name,
+        row.productVariant.unit
+      ),
       price: Number(row.price),
-      product_price: Number(row.product.price),
+      variant_price: Number(row.productVariant.price),
       set_by_id: row.setById,
       set_at: row.setAt.toISOString(),
-      to_review: row.product.priceUpdatedAt.getTime() > row.setAt.getTime(),
+      to_review: row.productVariant.priceUpdatedAt.getTime() > row.setAt.getTime(),
     })),
     next_cursor: page.nextCursor,
   };
 }
 
 /**
- * An owner, or a manager online, removes one customer's negotiated price for one article.
+ * An owner, or a manager online, removes one customer's negotiated price for one size.
  *
  * The role is decided by the route (`delete CustomerPrice`, ASVS v5.0.0-8.2.1). One transaction
- * selects the relationship through the actor's organization and the product through the same
+ * selects the relationship through the actor's organization and the variant through the same
  * organization (404 outside it; v5.0.0-8.2.2), refuses the caller's own record (403
  * `OWN_RECORD`), then marks the live price deleted (404 when there is none, so a repeat answers
- * 404). The customer then pays the article price again (C-11). A registered customer person is
- * notified `price.negotiated_changed` in the same transaction. An ENDED relationship may still
- * lose a price: removal only restores the article price.
+ * 404). The customer then pays the variant price again (C-11). A registered customer person is
+ * notified `price.negotiated_changed`, naming the variant label, in the same transaction. An ENDED relationship may still
+ * lose a price: removal only restores the variant price.
  *
  * @param actor - Actor loaded from the path.
  * @param relationshipId - Validated relationship id from the path.
- * @param productId - Validated product id from the path.
+ * @param variantId - Validated variant id from the path.
  * @throws 403 `OWN_RECORD`; 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE`.
  */
 export async function removeCustomerPrice(
   actor: Actor,
   relationshipId: string,
-  productId: string
+  variantId: string
 ): Promise<void> {
   await runInTransaction(async (tx) => {
     await assertOrganizationActive(actor.organizationId, tx);
@@ -751,14 +756,19 @@ export async function removeCustomerPrice(
       relationshipId
     );
     if (!relationship) throw httpError(404, 'NOT_FOUND', 'Not found');
-    const product = await getProductOfOrganization(tx, actor.organizationId, productId);
+    const variant = await getVariantOfOrganization(tx, actor.organizationId, variantId);
     await refuseOwnRecord(actor, relationship, 'delete');
 
-    const priceId = await findLiveCustomerPriceId(tx, relationship.id, product.id);
+    const priceId = await findLiveCustomerPriceId(tx, relationship.id, variant.id);
     if (!priceId || !(await softDeleteCustomerPrice(tx, priceId))) {
       throw httpError(404, 'NOT_FOUND', 'Not found');
     }
-    await notifyPriceChanged(actor, relationship, product.name, tx);
+    await notifyPriceChanged(
+      actor,
+      relationship,
+      variantLabel(variant.product.name, variant.name, variant.unit),
+      tx
+    );
   });
 }
 

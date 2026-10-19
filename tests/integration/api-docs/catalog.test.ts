@@ -121,12 +121,7 @@ describe('GET /docs/openapi.json', () => {
     // CAT-007: the customer's catalog route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/catalog');
 
-    // CAT-008: the negotiated price route
-    expect(paths).toContain(
-      '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{productId}'
-    );
-
-    // CAT-029: the negotiated price is set by variant
+    // CAT-008: the negotiated price route, CAT-029 and CAT-030: by variant (set and remove)
     expect(paths).toContain(
       '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{variantId}'
     );

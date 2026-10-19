@@ -653,7 +653,7 @@ export async function upsertCustomerPrice(
  *
  * The relationship is selected through the visibility predicate AND the supplier organization
  * together, so another business's prices are never read (ASVS v5.0.0-8.2.2). Deleted prices are
- * left out; the product comes with the row for its name, price and `price_updated_at`.
+ * left out; the variant comes with the row for its label parts, price and `price_updated_at`.
  *
  * @returns The page, or null when the relationship is absent or outside the organization.
  * @throws 400 `VALIDATION_ERROR` when the cursor is malformed.
@@ -667,7 +667,14 @@ export async function listCustomerPricesOfRelationship(
     price: bigint;
     setById: string;
     setAt: Date;
-    product: { id: string; name: string; price: bigint; priceUpdatedAt: Date };
+    productVariant: {
+      id: string;
+      name: string | null;
+      unit: string;
+      price: bigint;
+      priceUpdatedAt: Date;
+      product: { name: string };
+    };
     id: string;
   }>;
   nextCursor: string | null;
@@ -691,6 +698,7 @@ export async function listCustomerPricesOfRelationship(
     where: {
       customerRelationshipId: relationship.id,
       deletedAt: null,
+      productVariantId: { not: null },
       ...(cursor
         ? {
             OR: [
@@ -707,28 +715,41 @@ export async function listCustomerPricesOfRelationship(
       price: true,
       setById: true,
       setAt: true,
-      product: { select: { id: true, name: true, price: true, priceUpdatedAt: true } },
+      productVariant: {
+        select: {
+          id: true,
+          name: true,
+          unit: true,
+          price: true,
+          priceUpdatedAt: true,
+          product: { select: { name: true } },
+        },
+      },
     },
   });
-  const rows = found.slice(0, query.limit);
+  // The filter above keeps only rows with a variant; this narrows the type for the caller.
+  const withVariant = found.flatMap((row) =>
+    row.productVariant === null ? [] : [{ ...row, productVariant: row.productVariant }]
+  );
+  const rows = withVariant.slice(0, query.limit);
   const last = rows[rows.length - 1];
   return {
     rows,
     nextCursor:
-      found.length > query.limit && last
+      withVariant.length > query.limit && last
         ? encodeCursor({ createdAt: last.setAt, id: last.id })
         : null,
   };
 }
 
-/** Returns the id of the live negotiated price of a relationship and product, or null. */
+/** Returns the id of the live negotiated price of a relationship and variant, or null. */
 export async function findLiveCustomerPriceId(
   tx: Prisma.TransactionClient,
   relationshipId: string,
-  productId: string
+  variantId: string
 ): Promise<string | null> {
   const row = await tx.customerPrice.findFirst({
-    where: { customerRelationshipId: relationshipId, productId, deletedAt: null },
+    where: { customerRelationshipId: relationshipId, productVariantId: variantId, deletedAt: null },
     select: { id: true },
   });
   return row?.id ?? null;

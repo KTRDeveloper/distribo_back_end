@@ -7,7 +7,6 @@ import {
   createProductSchema,
   copyProductSchema,
   copyCustomerPricesSchema,
-  customerPriceParamsSchema,
   customerPricesParamsSchema,
   customerVariantPriceParamsSchema,
   editProductSchema,
@@ -334,7 +333,7 @@ openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices',
   tags: ['catalog'],
-  summary: "A seller lists a customer's negotiated prices, flagged when the article price changed",
+  summary: "A seller lists a customer's negotiated prices, flagged when the variant price changed",
   security: [{ bearerAuth: [] }],
   request: { params: customerPricesParamsSchema, query: listCustomerPricesQuerySchema },
   responses: {
@@ -345,10 +344,10 @@ openApiRegistry.registerPath({
           schema: z.object({
             items: z.array(
               z.object({
-                product_id: z.string().uuid(),
-                product_name: z.string(),
+                product_variant_id: z.string().uuid(),
+                label: z.string(),
                 price: z.number().int(),
-                product_price: z.number().int(),
+                variant_price: z.number().int(),
                 set_by_id: z.string().uuid(),
                 set_at: z.string().datetime(),
                 to_review: z.boolean(),
@@ -368,18 +367,18 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'delete',
-  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{productId}',
+  path: '/api/v1/organizations/{organizationId}/customers/{relationshipId}/prices/{variantId}',
   tags: ['catalog'],
-  summary: "The owner or an online manager removes a customer's negotiated price",
+  summary: "The owner or an online manager removes a customer's negotiated price for one size",
   security: [{ bearerAuth: [] }],
-  request: { params: customerPriceParamsSchema },
+  request: { params: customerVariantPriceParamsSchema },
   responses: {
     204: { description: 'The negotiated price is removed' },
     400: { description: 'Invalid path', content: errorContent },
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'Role not allowed, or OWN_RECORD', content: errorContent },
     404: {
-      description: 'No live price, or relationship or product outside the organization',
+      description: 'No live price, or relationship or variant outside the organization',
       content: errorContent,
     },
     409: { description: 'Organization not active', content: errorContent },

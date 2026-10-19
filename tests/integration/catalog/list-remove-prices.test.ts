@@ -38,10 +38,10 @@ const PAST = new Date('2026-02-01T08:00:00.000Z');
 const FUTURE = new Date('2099-01-01T00:00:00.000Z');
 
 type PriceItem = {
-  product_id: string;
-  product_name: string;
+  product_variant_id: string;
+  label: string;
   price: number;
-  product_price: number;
+  variant_price: number;
   set_by_id: string;
   set_at: string;
   to_review: boolean;
@@ -203,26 +203,26 @@ describe('GET /api/v1/organizations/:organizationId/customers/:relationshipId/pr
     const page = bodyOf<PricePage>(response);
     expect(page.next_cursor).toBeNull();
     expect(page.items).toHaveLength(2);
-    const rice = page.items.find((item) => item.product_id === RICE)!;
-    const oil = page.items.find((item) => item.product_id === OIL)!;
+    const rice = page.items.find((item) => item.product_variant_id === RICE)!;
+    const oil = page.items.find((item) => item.product_variant_id === OIL)!;
     expect(Object.keys(rice).sort()).toEqual([
+      'label',
       'price',
-      'product_id',
-      'product_name',
-      'product_price',
+      'product_variant_id',
       'set_at',
       'set_by_id',
       'to_review',
+      'variant_price',
     ]);
     expect(rice).toMatchObject({
-      product_name: 'Riz',
+      label: 'Riz — sac',
       price: 2800,
-      product_price: 3000,
+      variant_price: 3000,
       set_by_id: OWNER,
       set_at: PAST.toISOString(),
       to_review: true,
     });
-    expect(oil).toMatchObject({ product_name: 'Huile', price: 1400, to_review: false });
+    expect(oil).toMatchObject({ label: 'Huile — litre', price: 1400, to_review: false });
   });
 
   it('leaves out deleted prices and the prices of other relationships', async () => {
@@ -232,7 +232,7 @@ describe('GET /api/v1/organizations/:organizationId/customers/:relationshipId/pr
 
     const page = bodyOf<PricePage>(await list(REL, MANAGER));
 
-    expect(page.items.map((item) => item.product_id)).toEqual([OIL]);
+    expect(page.items.map((item) => item.product_variant_id)).toEqual([OIL]);
   });
 
   it('paginates with limit and cursor', async () => {
@@ -241,13 +241,13 @@ describe('GET /api/v1/organizations/:organizationId/customers/:relationshipId/pr
     await seedPrice('e3', REL, SOAP, 400n, { setAt: new Date('2026-02-03T08:00:00.000Z') });
 
     const first = bodyOf<PricePage>(await list(REL, SELLER, '?limit=2'));
-    expect(first.items.map((item) => item.product_id)).toEqual([SOAP, OIL]);
+    expect(first.items.map((item) => item.product_variant_id)).toEqual([SOAP, OIL]);
     expect(first.next_cursor).not.toBeNull();
 
     const second = bodyOf<PricePage>(
       await list(REL, SELLER, `?limit=2&cursor=${encodeURIComponent(first.next_cursor!)}`)
     );
-    expect(second.items.map((item) => item.product_id)).toEqual([RICE]);
+    expect(second.items.map((item) => item.product_variant_id)).toEqual([RICE]);
     expect(second.next_cursor).toBeNull();
   });
 
@@ -264,7 +264,7 @@ describe('GET /api/v1/organizations/:organizationId/customers/:relationshipId/pr
   });
 });
 
-describe('DELETE /api/v1/organizations/:organizationId/customers/:relationshipId/prices/:productId', () => {
+describe('DELETE /api/v1/organizations/:organizationId/customers/:relationshipId/prices/:variantId', () => {
   it('AC-2 a MANAGER deletes a live price: 204, deleted, the product price applies again', async () => {
     await seedPrice('e1', REL, RICE, 2800n);
     expect(await customerPriceOfRice()).toMatchObject({ price: 2800, price_is_negotiated: true });
@@ -286,7 +286,7 @@ describe('DELETE /api/v1/organizations/:organizationId/customers/:relationshipId
     expect((await remove(REL, RICE, OWNER)).status).toBe(204);
 
     const page = bodyOf<PricePage>(await list(REL, SELLER));
-    expect(page.items.map((item) => item.product_id)).toEqual([OIL]);
+    expect(page.items.map((item) => item.product_variant_id)).toEqual([OIL]);
   });
 
   it('a registered customer gets one price.negotiated_changed; a guest gets none', async () => {

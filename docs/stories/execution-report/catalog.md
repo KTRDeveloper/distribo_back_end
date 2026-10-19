@@ -1140,6 +1140,33 @@ Also in this run: relationship, admin, order, finance, delivery.
 - The new tests were written with the code in one pass; I did not watch them fail first.
 <!-- end CAT-029 -->
 
+<!-- begin CAT-030 -->
+## CAT-030 — Negotiated prices are listed and removed by variant
+
+- Filed: 2026-10-19 21:24 UTC
+- Status: **done**: List and remove negotiated prices by variant; suite 4459 passed
+- Risk: low · story: [CAT-030-negotiated-prices-are-listed-and-removed-by.md](../modules/catalog/CAT-030-negotiated-prices-are-listed-and-removed-by.md)
+- Agent: 69,754 tokens, 26 tool uses, 3 min 35 s
+
+### Agent report
+
+**Summary:** Negotiated price list now returns per-variant items; DELETE takes a variant id; docs and tests updated.
+
+**Decisions:**
+- Stale route assertion: tests/integration/api-docs/catalog.test.ts expected the old `.../prices/{productId}` path, which no longer exists. The story lists only list-remove-prices.test.ts under "Tests to update", and CONVENTIONS says "never remove an entry". I replaced that one assertion with a comment, since the variantId path (CAT-029) is already asserted. Please confirm.
+- List filters out prices with no `product_variant_id` (legacy rows) in the query; the id lookup on removal uses the variant column only.
+- `customerPriceParamsSchema` (productId) removed, as unused; the DELETE route reuses `customerVariantPriceParamsSchema`.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/variant-price-list.test.ts` › removing a variant price leaves the other variant untouched and names the label: deleting one variant does not touch a sibling variant's price; notification content carries the variant label (Context)
+- `tests/integration/catalog/variant-price-list.test.ts` › a variant of another business can't be removed through one's own relationship: 404 (AB-1, 8.2.2); passed at once (the lookup already scoped by organization)
+
+**Evidence:** story tests 9/9 new + list-remove-prices updated; full suite 4459/4459, failing: none, 0 known; typecheck clean; lint 0 errors, 192 warnings (pre-existing)
+
+**Follow-ups:**
+- Confirm the api-docs assertion change above.
+<!-- end CAT-030 -->
+
 <!-- begin CAT-011 -->
 ## CAT-011 — Reseller copies a purchased article into their catalog
 
