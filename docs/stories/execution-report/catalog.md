@@ -219,6 +219,30 @@ Also in this run: relationship, admin, order, finance, delivery.
 - Rows with NULL variant escape C-11 uniqueness; the later story that creates variants with products and drops product_id must backfill them.
 <!-- end CAT-015 -->
 
+<!-- begin CAT-018 -->
+## CAT-018 — Two variants of a product never share a name and a unit
+
+- Filed: 2026-10-19 15:40 UTC
+- Status: **blocked**: New CHECK (merged implies deleted) breaks 2 CAT-012 tests in product-variant-table.test.ts that insert merged_into_id without deleted_at; story lists no Tests to update: allow adding deleted_at to them?
+- Risk: high · story: [CAT-018-two-variants-of-a-product-never-share-a-name.md](../modules/catalog/CAT-018-two-variants-of-a-product-never-share-a-name.md)
+- Agent: 32,166 tokens, 11 tool uses, 2 min 6 s
+
+### Agent report
+
+**Summary:** Blocked: migration, schema comment and story tests are done and green (16/16), but the new CHECK breaks 2 existing CAT-012 tests the story does not list for update.
+
+**Decisions:**
+- Index and CHECK in migration 20261019060000_cat_018_variant_name_unit: names product_variants_live_name_unit_key and product_variants_merged_is_deleted.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/variant-name-unit.test.ts` › null vs '' name, tab/space name, UPDATE making twins, several deleted twins, live variant pointed at another without delete, undelete of a merged variant: C-47 / C-35 edge cases; all passed once the migration existed.
+
+**Evidence:** story tests 16/16; full suite 3402/3404, failing: product-variant-table.test.ts "accepts a merged_into_id naming another variant" and "rejects an unknown merged_into_id with 23503", 0 known; typecheck clean; lint 0 errors, 146 warnings
+
+**Follow-ups:**
+- Question: both failing tests insert merged_into_id with deleted_at empty (now 23514, as C-47 requires). Fix is to add deleted_at = now() to both inserts. The story has no "Tests to update", so I did not touch them. Approve that edit (or add the section to the story), then rerun.
+<!-- end CAT-018 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 
