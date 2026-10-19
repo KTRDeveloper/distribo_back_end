@@ -13,6 +13,7 @@ process.env.SMTP_USER = process.env.SMTP_USER || 'test-smtp-user';
 process.env.SMTP_PASSWORD = process.env.SMTP_PASSWORD || 'test-smtp-password';
 process.env.SMTP_FROM_ADDRESS = process.env.SMTP_FROM_ADDRESS || 'no-reply@test.local';
 process.env.OTP_DELIVERY_QUEUE_NAME = process.env.OTP_DELIVERY_QUEUE_NAME || 'otp-delivery-test';
+process.env.IMAGE_PUBLIC_BASE_URL = 'http://localhost:3000/images';
 // The global express-rate-limit middleware shares one in-memory counter per
 // IP across the entire test run (no reset between tests/files), unrelated
 // to the Redis-backed, per-purpose OTP rate limits exercised deliberately

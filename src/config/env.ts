@@ -57,6 +57,16 @@ const envSchema = z.object({
 
   // OTP delivery queue
   OTP_DELIVERY_QUEUE_NAME: z.string().default('otp-delivery'),
+
+  // Public base address of stored images (ASVS v5.0.0-13.2.4): http(s), no trailing
+  // slash, no query, no fragment. Changing storage provider changes only this value.
+  IMAGE_PUBLIC_BASE_URL: z
+    .string()
+    .url()
+    .max(2048)
+    .refine((value) => /^https?:\/\//i.test(value), 'must start with http:// or https://')
+    .refine((value) => !value.endsWith('/'), 'must not end with /')
+    .refine((value) => !/[?#]/.test(value), 'must not contain a query or a fragment'),
 });
 
 // Validate and export environment variables
