@@ -12,11 +12,14 @@ import {
   insertVariant,
   listLiveVariantsOfProduct,
   lockLiveVariantsOfProduct,
+  restoreProduct,
+  restoreVariantOffSale,
   retireVariants,
   softDeleteProduct,
   softDeleteVariants,
   updateProductText,
   updateVariant,
+  type VariantAnyState,
 } from './catalog.repository.js';
 
 /** The only fields a phone may send for a product. */
@@ -404,4 +407,90 @@ export async function deleteProductFromSync(
     result: 'RETIRED',
     retiredLabels: retired.map((variant) => variantLabel(product.name, variant.name, variant.unit)),
   };
+}
+
+/** The variant a sale line or a negotiated price ends up citing (CAT-037). */
+export type ResolvedVariant = {
+  variantId: string;
+  productId: string;
+  label: string;
+  /** True when this call brought a deleted variant back, off sale (C-48). */
+  restored: boolean;
+  /** The id asked, when another variant is answered instead; else null. */
+  redirectedFrom: string | null;
+};
+
+/** Merge links followed at most this many times (C-36). */
+const MAX_MERGE_LINKS = 5;
+
+/**
+ * Finds, or brings back, the variant that a sale line or a negotiated price sent by a phone
+ * cites, so that no sale is lost because its article was deleted or merged since (C-48, C-36).
+ *
+ * A live variant answers itself. A deleted variant with a merge link answers the live variant at
+ * the end of the links, followed at most 5 times; a link that reaches no live variant (a deleted
+ * end, a missing or foreign row, or the 5 links used up) leaves the last variant reached to be
+ * treated as deleted without a link. A deleted variant without a link is brought back off sale
+ * (`INACTIVE`) with its product, unless a live variant of the same product already has its
+ * simplified name and unit (C-47): that twin is answered and nothing is restored.
+ *
+ * Every variant, link and the product are read through the organization of the session: an
+ * unknown id or another business's variant answers `null` and writes nothing (v5.0.0-8.2.2).
+ * The variant and the product are locked, and the restoration is written, in the caller's
+ * transaction (v5.0.0-2.3.3). It never throws for a business reason (C-36).
+ *
+ * @param tx - Transaction of the synchronization.
+ * @param organizationId - Organization of the session, never taken from the input.
+ * @param variantId - Variant cited by the line, as sent by the phone.
+ * @param now - Part of the synchronization writers' signature; the dates come from the database.
+ */
+export async function resolveVariantForLine(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  variantId: string,
+  now: Date
+): Promise<ResolvedVariant | null> {
+  void now;
+  const asked = await findVariantAnyState(tx, variantId);
+  if (!asked || asked.organizationId !== organizationId) return null;
+
+  let current = asked;
+  for (
+    let links = 0;
+    current.deletedAt && current.mergedIntoId && links < MAX_MERGE_LINKS;
+    links++
+  ) {
+    const next = await findVariantAnyState(tx, current.mergedIntoId);
+    if (!next || next.organizationId !== organizationId) break;
+    current = next;
+  }
+
+  const product = await findProductAnyState(tx, current.productId);
+  // The foreign key keeps the product; its absence is an unexpected state: fail closed.
+  if (!product || product.organizationId !== organizationId) {
+    throw new Error('Variant points to a missing or foreign product');
+  }
+  const redirectedFrom = (id: string) => (id === asked.id ? null : asked.id);
+  const answer = (found: VariantAnyState, restored: boolean): ResolvedVariant => ({
+    variantId: found.id,
+    productId: found.productId,
+    label: variantLabel(product.name, found.name, found.unit),
+    restored,
+    redirectedFrom: redirectedFrom(found.id),
+  });
+
+  if (!current.deletedAt) return answer(current, false);
+
+  // The product is locked above, so no other writer can slip a twin in before the restoration.
+  const twinId = await findLiveTwin(tx, current.productId, current.name, current.unit);
+  if (twinId) {
+    const twin = await findVariantAnyState(tx, twinId);
+    if (!twin || twin.organizationId !== organizationId) {
+      throw new Error('Live twin is missing or foreign');
+    }
+    return answer(twin, false);
+  }
+  await restoreVariantOffSale(tx, current.id);
+  if (product.deletedAt) await restoreProduct(tx, product.id);
+  return answer(current, true);
 }

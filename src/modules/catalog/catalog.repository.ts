@@ -1461,3 +1461,30 @@ export async function retireVariants(
     data: { status: 'INACTIVE' },
   });
 }
+
+/**
+ * Brings a deleted variant back off sale: `deleted_at` emptied, `status` `INACTIVE`, and the merge
+ * link emptied too (a link only exists on a deleted row, C-47). The ids come from server code that
+ * has already checked the organization (v5.0.0-8.2.2). The database moves the variant's and the
+ * product's `server_updated_at`.
+ */
+export async function restoreVariantOffSale(
+  tx: Prisma.TransactionClient,
+  variantId: string
+): Promise<void> {
+  await tx.productVariant.updateMany({
+    where: { id: variantId, deletedAt: { not: null } },
+    data: { deletedAt: null, status: 'INACTIVE', mergedIntoId: null },
+  });
+}
+
+/** Brings a deleted product back (`deleted_at` emptied); a live product is left alone. */
+export async function restoreProduct(
+  tx: Prisma.TransactionClient,
+  productId: string
+): Promise<void> {
+  await tx.product.updateMany({
+    where: { id: productId, deletedAt: { not: null } },
+    data: { deletedAt: null },
+  });
+}

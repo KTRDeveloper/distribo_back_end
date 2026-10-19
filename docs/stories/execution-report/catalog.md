@@ -975,6 +975,36 @@ Also in this run: relationship, admin, order, finance, delivery.
 - None. Functions are not yet wired to the synchronization push (later story).
 <!-- end CAT-036 -->
 
+<!-- begin CAT-037 -->
+## CAT-037 — A sale sent for a deleted or merged variant finds its variant again
+
+- Filed: 2026-10-19 21:04 UTC
+- Status: **done**: resolveVariantForLine added; 10 story tests, suite 4386 green
+- Risk: high · story: [CAT-037-a-sale-sent-for-a-deleted-or-merged-variant.md](../modules/catalog/CAT-037-a-sale-sent-for-a-deleted-or-merged-variant.md)
+- Agent: 47,530 tokens, 12 tool uses, 2 min 47 s
+
+### Agent report
+
+**Summary:** Added `resolveVariantForLine` (sync-writers) with two repository helpers to restore a variant and a product; all tests green.
+
+**Decisions:**
+- Chain end not live (deleted end, foreign row, or 5 links used up): the last variant reached is treated as deleted without a link, restored (or replaced by its live twin); its own link is emptied on restore since a link only exists on a deleted row (C-47).
+- AC-6 answer carries `redirectedFrom` = id asked, `restored` true.
+- Product is locked (findProductAnyState) before the twin search so a concurrent applyVariantFromSync cannot slip in a twin.
+
+**Tests added beyond the story:**
+- `sync-resolve-variant.test.ts` › follows a chain of links and stops after 5: the 5-link limit boundary (story Context); passed at once with the implementation
+- `sync-resolve-variant.test.ts` › never counts a brought-back variant as a product on sale: restored stays INACTIVE (story Context, C-46)
+
+**Other additions:**
+- `restoreVariantOffSale` and `restoreProduct` in catalog.repository.ts: the repository is the only file calling prisma.
+
+**Evidence:** story tests 10/10; full suite 4386/4386, failing: none, 0 known; typecheck clean; lint 0 errors, 191 warnings
+
+**Follow-ups:**
+- The story does not say which variant is restored when the 5-link limit is hit; I restore the fifth target (confirm).
+<!-- end CAT-037 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 
