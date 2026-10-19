@@ -178,6 +178,7 @@ enum CollaborationRole {
 enum CollaborationStatus {
   INVITED
   ACTIVE
+  PAUSED
   REVOKED
 }
 
@@ -646,6 +647,9 @@ model SubscriptionReceipt {
 //   membership is active and they have a current phone number. If they lose
 //   their phone number, they stop being the public contact automatically.
 // - server_updated_at is set by the database on every change.
+// - A paused member keeps their place in the team but has no access. The owner
+//   is never paused: the database refuses it. Only the server sets this status.
+//   Comes from migration 20261019110000_org_022_collaboration_paused.
 model Collaboration {
   id              String              @id @db.Uuid
   personId        String              @map("person_id") @db.Uuid

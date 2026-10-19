@@ -58,3 +58,25 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 30/30; full suite 3678/3678, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings (existing)
 <!-- end ORG-021 -->
+
+<!-- begin ORG-022 -->
+## ORG-022 — A collaboration can be paused
+
+- Filed: 2026-10-19 16:30 UTC
+- Status: **done**: PAUSED enum value + owner-not-paused CHECK (status compared as text)
+- Risk: high · story: [ORG-022-a-collaboration-can-be-paused.md](../modules/organization/ORG-022-a-collaboration-can-be-paused.md)
+- Agent: 33,520 tokens, 16 tool uses, 2 min 12 s
+
+### Agent report
+
+**Summary:** Added PAUSED to CollaborationStatus and a CHECK refusing a paused OWNER; migration 20261019110000_org_022_collaboration_paused.
+
+**Decisions:**
+- CHECK compares `status::text <> 'PAUSED'`: an enum value added in a transaction cannot be used in that same transaction, so the plain literal would fail (story requires one transaction).
+- Named the constraint `collaborations_owner_not_paused`; schema comment added above model Collaboration.
+
+**Tests added beyond the story:**
+- `collaboration-paused.test.ts` › lets an ACTIVE manager be paused and restored by update: a CHECK must not block non-owner pause/restore (C-42); passed at once
+
+**Evidence:** story tests 7/7 (+27 in collaboration-table); full suite 3685/3685, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings
+<!-- end ORG-022 -->
