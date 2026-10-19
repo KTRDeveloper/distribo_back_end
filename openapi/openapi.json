@@ -5665,7 +5665,7 @@
         "tags": [
           "organization"
         ],
-        "summary": "The owner adds a public phone number to the business",
+        "summary": "The owner adds a public phone number or email to the business",
         "security": [
           {
             "bearerAuth": []
@@ -5686,43 +5686,74 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "PHONE"
+                        ]
+                      },
+                      "slot": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3
+                      },
+                      "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "slot",
+                      "value"
+                    ],
+                    "additionalProperties": false
                   },
-                  "kind": {
-                    "type": "string",
-                    "enum": [
-                      "PHONE"
-                    ]
-                  },
-                  "slot": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 3
-                  },
-                  "value": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 32
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "EMAIL"
+                        ]
+                      },
+                      "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 254,
+                        "format": "email"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "value"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "id",
-                  "kind",
-                  "slot",
-                  "value"
-                ],
-                "additionalProperties": false
+                ]
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "The contact; verified at once (OWNER_PHONE) for the owner own number, else pending with a code sent by SMS",
+            "description": "The contact; verified at once (OWNER_PHONE) for the owner own number, else pending with a code sent by SMS (phone) or email (email, never verified at once)",
             "content": {
               "application/json": {
                 "schema": {

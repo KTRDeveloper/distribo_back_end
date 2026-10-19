@@ -235,7 +235,7 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/api/v1/organizations/{organizationId}/contacts',
   tags: ['organization'],
-  summary: 'The owner adds a public phone number to the business',
+  summary: 'The owner adds a public phone number or email to the business',
   security: [{ bearerAuth: [] }],
   request: {
     params: organizationIdParamsSchema,
@@ -244,7 +244,7 @@ openApiRegistry.registerPath({
   responses: {
     201: {
       description:
-        'The contact; verified at once (OWNER_PHONE) for the owner own number, else pending with a code sent by SMS',
+        'The contact; verified at once (OWNER_PHONE) for the owner own number, else pending with a code sent by SMS (phone) or email (email, never verified at once)',
       content: {
         'application/json': {
           schema: z.object({

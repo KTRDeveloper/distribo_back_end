@@ -282,7 +282,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-037 | done | | Handler downgrades verified PHONE contacts on release and notifies ACTIVE owners; 3980 tests pass |
 | ORG-029 | done | | verified PHONE contacts drive the lookup; 4 tests updated |
 | ORG-031 | done | | collaborators/me route and is_public_contact removed from team item; owner created with flag false |
-| ORG-042 | todo | | |
+| ORG-042 | done | | Email contacts added: pending, EMAIL code, one per business |
 | ORG-044 | todo | | |
 | BIL-007 | todo | | |
 | BIL-009 | todo | | |

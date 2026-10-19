@@ -487,3 +487,30 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 **Follow-ups:**
 - `isPublicContact: false` writes in revoke, re-invite and close are kept until ORG-043 drops the column.
 <!-- end ORG-031 -->
+
+<!-- begin ORG-042 -->
+## ORG-042 — The owner adds a public email to the business
+
+- Filed: 2026-10-19 18:05 UTC
+- Status: **done**: Email contacts added: pending, EMAIL code, one per business
+- Risk: high · story: [ORG-042-the-owner-adds-a-public-email-to-the-business.md](../modules/organization/ORG-042-the-owner-adds-a-public-email-to-the-business.md)
+- Agent: 54,566 tokens, 19 tool uses, 3 min 16 s
+
+### Agent report
+
+**Summary:** The add-contact route now accepts `kind: 'EMAIL'`: stored pending in lower case, with an EMAIL code tied to the contact.
+
+**Decisions:**
+- Body schema: a Zod discriminated union on `kind` with strict objects, so an email with a `slot` is refused as an unknown key (400 VALIDATION_ERROR).
+- Place of an email: `findContactConflict` takes `slot: number | null`; null means the single live EMAIL of the business, so a second email answers CONTACT_SLOT_TAKEN.
+- `CONTACT_ALREADY_EXISTS` message changed from "number" to "contact" so it fits emails (no test asserted it).
+- Service split into `addPhoneContact` and `addEmailContact`, sharing `insertOrRefuse` (transaction, pre-check, race handling) and `sendContactCode`.
+
+**Tests added beyond the story:**
+- `contact-add-email.test.ts` › trims the address; deleted email frees its place; two businesses may list the same email; non-owner gets 403; 254-character limit and unknown field give 400; two parallel emails give 201 and 409 CONTACT_SLOT_TAKEN (C-43, ORG-024 pattern, CONVENTIONS validation rules); all passed at once, kept as regression guards.
+
+**Evidence:** story tests 41/41 (contact-add-email 15 + contact-add 26); full suite 4001/4001, failing: none, 0 known; typecheck clean; lint 0 errors, 183 warnings (pre-existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- Resend (ORG-026) already picks the EMAIL channel from the contact kind. Confirming an email is not exercised here (ORG-025 tests).
+<!-- end ORG-042 -->

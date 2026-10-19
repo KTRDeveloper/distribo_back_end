@@ -1,30 +1,36 @@
 import { Prisma, type OrganizationContact } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 
-/** The two live-row conflicts a new phone contact can meet in its business (C-43). */
+/** The two live-row conflicts a new contact can meet in its business (C-43). */
 export type ContactConflict = 'SLOT_TAKEN' | 'ALREADY_EXISTS' | null;
 
 /**
- * Looks for a live contact (not deleted) of the business that already holds this number or this
- * slot. A number already listed wins over a taken slot. Pending contacts count too (C-43).
+ * Looks for a live contact (not deleted) of the business that already holds this value or this
+ * place. A value already listed wins over a taken place. Pending contacts count too (C-43).
+ * The place of a phone is its slot; an email (slot null) has the single email place of the business.
  *
  * @param organizationId - Organization from the loaded actor.
+ * @param slot - Slot of a phone, or null for an email.
  * @param tx - Transaction of the gesture; omit it to read the committed state.
  */
 export async function findContactConflict(
   organizationId: string,
-  slot: number,
+  slot: number | null,
   value: string,
   tx?: Prisma.TransactionClient
 ): Promise<ContactConflict> {
   const client = tx ?? prisma;
   const live = await client.organizationContact.findMany({
-    where: { organizationId, deletedAt: null, OR: [{ value }, { slot }] },
-    select: { slot: true, value: true },
+    where: {
+      organizationId,
+      deletedAt: null,
+      OR: [{ value }, slot === null ? { kind: 'EMAIL' } : { slot }],
+    },
+    select: { kind: true, slot: true, value: true },
   });
   if (live.some((row) => row.value === value)) return 'ALREADY_EXISTS';
-  if (live.some((row) => row.slot === slot)) return 'SLOT_TAKEN';
-  return null;
+  const placeTaken = live.some((row) => (slot === null ? row.kind === 'EMAIL' : row.slot === slot));
+  return placeTaken ? 'SLOT_TAKEN' : null;
 }
 
 /** Inserts a PHONE contact; the database has the last word on the uniqueness rules (C-43). */
@@ -48,6 +54,26 @@ export function insertPhoneContact(
       value: data.value,
       createdById: data.createdById,
       ...(data.verified ? { verifiedAt: new Date(), verificationMethod: 'OWNER_PHONE' } : {}),
+    },
+  });
+}
+
+/**
+ * Inserts an EMAIL contact: no slot, never verified at once (C-43, C-44, CWE-290). The database
+ * has the last word on the uniqueness rules.
+ */
+export function insertEmailContact(
+  tx: Prisma.TransactionClient,
+  data: { id: string; organizationId: string; value: string; createdById: string }
+): Promise<OrganizationContact> {
+  return tx.organizationContact.create({
+    data: {
+      id: data.id,
+      organizationId: data.organizationId,
+      kind: 'EMAIL',
+      slot: null,
+      value: data.value,
+      createdById: data.createdById,
     },
   });
 }

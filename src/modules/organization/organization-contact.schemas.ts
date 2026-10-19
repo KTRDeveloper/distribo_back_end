@@ -1,14 +1,7 @@
 import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
 
-/**
- * Strict body of the add-contact gesture: exactly four writable fields (ASVS v5.0.0-15.3.3).
- * `verified_at`, `verification_method` and `created_by_id` are never accepted: the server sets
- * them (C-44). Only a phone number is added here (the email has its own route). The `value` is
- * checked and normalized to E.164 in the service, so a number that is not a Cameroon mobile
- * answers UNSUPPORTED_NUMBER and not a generic validation error.
- */
-export const addContactSchema = z
+const addPhoneContactSchema = z
   .object({
     id: uuidV7Schema,
     kind: z.literal('PHONE'),
@@ -16,6 +9,29 @@ export const addContactSchema = z
     value: z.string().min(1).max(32),
   })
   .strict();
+
+// An email has no `slot`: the strict object refuses one. The address is trimmed and lower-cased
+// before the format and length checks, so `Shop@Example.cm` and `shop@example.cm` are one value.
+const addEmailContactSchema = z
+  .object({
+    id: uuidV7Schema,
+    kind: z.literal('EMAIL'),
+    value: z.string().trim().toLowerCase().min(1).max(254).email(),
+  })
+  .strict();
+
+/**
+ * Strict body of the add-contact gesture: exactly the writable fields of its kind (ASVS
+ * v5.0.0-15.3.3). A PHONE carries `id`, `kind`, `slot` and `value`; an EMAIL carries `id`, `kind`
+ * and `value` (ORG-042). `verified_at`, `verification_method` and `created_by_id` are never
+ * accepted: the server sets them (C-44). A phone `value` is checked and normalized to E.164 in the
+ * service, so a number that is not a Cameroon mobile answers UNSUPPORTED_NUMBER and not a generic
+ * validation error.
+ */
+export const addContactSchema = z.discriminatedUnion('kind', [
+  addPhoneContactSchema,
+  addEmailContactSchema,
+]);
 
 export type AddContactInput = z.infer<typeof addContactSchema>;
 
