@@ -406,6 +406,12 @@
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "avatar_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -418,7 +424,8 @@
                     "preferred_language",
                     "registered",
                     "scope_version",
-                    "created_at"
+                    "created_at",
+                    "avatar_url"
                   ],
                   "additionalProperties": false
                 }
@@ -542,6 +549,12 @@
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "avatar_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -554,7 +567,8 @@
                     "preferred_language",
                     "registered",
                     "scope_version",
-                    "created_at"
+                    "created_at",
+                    "avatar_url"
                   ],
                   "additionalProperties": false
                 }

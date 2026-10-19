@@ -1,4 +1,5 @@
 import { prisma } from '../../lib/db.js';
+import { imageUrl } from '../../lib/image-keys.js';
 import type { Prisma } from '@prisma/client';
 import type { Profile, UpdateProfileInput } from './user.types.js';
 
@@ -13,6 +14,8 @@ const profileSelect = {
   registeredAt: true,
   scopeVersion: true,
   createdAt: true,
+  // Selected only to build `avatar_url`; the key itself is never copied into the response.
+  avatarKey: true,
 } satisfies Prisma.PersonSelect;
 
 type ProfileRow = Prisma.PersonGetPayload<{ select: typeof profileSelect }>;
@@ -29,6 +32,7 @@ function toProfile(person: ProfileRow): Profile {
     registered: person.registeredAt !== null,
     scope_version: person.scopeVersion,
     created_at: person.createdAt,
+    avatar_url: imageUrl(person.avatarKey),
   };
 }
 

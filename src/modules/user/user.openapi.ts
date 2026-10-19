@@ -14,6 +14,7 @@ const userProfileSchema = z
     registered: z.boolean(),
     scope_version: z.number().int(),
     created_at: z.string().datetime(),
+    avatar_url: z.string().nullable(),
   })
   .strict();
 

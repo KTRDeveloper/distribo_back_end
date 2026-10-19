@@ -9,6 +9,8 @@ export interface Profile {
   registered: boolean;
   scope_version: number;
   created_at: Date;
+  /** Public address of the profile photo, null without one. */
+  avatar_url: string | null;
 }
 
 export type UserProfile = Profile;

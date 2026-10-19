@@ -54,3 +54,28 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - The test DB looks stale or ahead of the schema (a `tasks.accountId` column breaks person-table, anonymize returns 500): a human should reset it (`npm run test:db:up`) and re-run those three files.
 <!-- end PER-011 -->
+
+<!-- begin PER-012 -->
+## PER-012 — Own profile shows the photo address
+
+- Filed: 2026-10-19 10:16 UTC
+- Status: **done**: own profile carries avatar_url; 8 pre-existing failures in anonymize, person-table, appoint (also fail without this change)
+- Risk: low · story: [PER-012-own-profile-shows-the-photo-address.md](../modules/person/PER-012-own-profile-shows-the-photo-address.md)
+- Agent: 35,766 tokens, 21 tool uses, 24 min 40 s
+
+### Agent report
+
+**Summary:** GET and PATCH /users/me now return `avatar_url` (via `imageUrl`); the key is selected only to build it.
+
+**Decisions:**
+- PATCH schema left untouched: it is already strict, so AC-4 and AB-1 passed at once and stay as regression guards.
+- New tests added to the listed profile.test.ts (AC-1..AC-4 plus the existing AC-1 field list updated to eleven fields).
+
+**Other additions:**
+- `openapi/openapi.json` regenerated for the new field.
+
+**Evidence:** story tests 21/21 (profile + user); full suite 3163/3171, failing: 8 pre-existing (privacy/anonymize.test.ts x7 returning 500, person/person-table.test.ts uuid columns, admin/appoint.test.ts expecting three keys without avatar_url); the same 8 fail with my change stashed; typecheck clean; lint 0 errors (133 existing warnings)
+
+**Follow-ups:**
+- Fix the 8 failing tests: appoint.test.ts is a stale PER-011 expectation (avatar_url in the public view); anonymize 500 and person-table column list look like a schema/migration drift to investigate.
+<!-- end PER-012 -->

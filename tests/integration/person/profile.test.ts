@@ -5,6 +5,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
 import { prisma } from '../../setup.js';
+import { newImageKey } from '../../../src/lib/image-keys.js';
 
 const createdPersonIds: string[] = [];
 let phoneSequence = 0;
@@ -15,6 +16,7 @@ async function createRegisteredPerson(
     email: string | null;
     emailVerifiedAt: Date | null;
     preferredLanguage: 'FR' | 'EN';
+    avatarKey: string | null;
   }> = {}
 ) {
   const id = uuidv7();
@@ -58,6 +60,7 @@ describe('person profile', () => {
     const body = bodyOf<Record<string, unknown>>(response);
     expect(Object.keys(body).sort()).toEqual(
       [
+        'avatar_url',
         'created_at',
         'email',
         'email_verified',
@@ -82,7 +85,66 @@ describe('person profile', () => {
       scope_version: 0,
     });
     expect(body).not.toHaveProperty('password_hash');
+    expect(body).not.toHaveProperty('avatar_key');
   });
+
+  it('AC-1 reads the photo address built from the stored key', async () => {
+    const key = newImageKey('avatars');
+    const person = await createRegisteredPerson({ avatarKey: key });
+
+    const response = await createAuthenticatedRequest(app, person.id).get('/api/v1/users/me');
+
+    expect(response.status).toBe(200);
+    const body = bodyOf<Record<string, unknown>>(response);
+    expect(body.avatar_url).toBe(`${process.env.IMAGE_PUBLIC_BASE_URL}/${key}`);
+    expect(Object.keys(body)).toHaveLength(11);
+    expect(Object.keys(body)).not.toContain('avatar_key');
+    expect(JSON.stringify(body).split(key)).toHaveLength(2);
+  });
+
+  it('AC-2 has a null address without a photo', async () => {
+    const person = await createRegisteredPerson();
+
+    const response = await createAuthenticatedRequest(app, person.id).get('/api/v1/users/me');
+
+    expect(response.status).toBe(200);
+    const body = bodyOf<Record<string, unknown>>(response);
+    expect(body.avatar_url).toBeNull();
+  });
+
+  it('AC-3 the PATCH response carries the same address and the new name', async () => {
+    const key = newImageKey('avatars');
+    const person = await createRegisteredPerson({ avatarKey: key });
+
+    const response = await createAuthenticatedRequest(app, person.id)
+      .patch('/api/v1/users/me')
+      .send({ full_name: 'New Name' });
+
+    expect(response.status).toBe(200);
+    const body = bodyOf<Record<string, unknown>>(response);
+    expect(body.full_name).toBe('New Name');
+    expect(body.avatar_url).toBe(`${process.env.IMAGE_PUBLIC_BASE_URL}/${key}`);
+    expect(Object.keys(body)).not.toContain('avatar_key');
+  });
+
+  it.each(['avatar_key', 'avatar_url'])(
+    'AC-4 refuses %s on PATCH and stores nothing',
+    async (field) => {
+      const key = newImageKey('avatars');
+      const person = await createRegisteredPerson({ avatarKey: key });
+      const other = newImageKey('avatars');
+
+      const response = await createAuthenticatedRequest(app, person.id)
+        .patch('/api/v1/users/me')
+        .send({ full_name: 'Not Stored', [field]: other });
+
+      expect(response.status).toBe(400);
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
+      await expect(
+        prisma.person.findUniqueOrThrow({ where: { id: person.id } })
+      ).resolves.toMatchObject({ avatarKey: key, fullName: 'Profile Test Person' });
+    }
+  );
 
   it('updates the signed-in person name and preferred language', async () => {
     const person = await createRegisteredPerson();

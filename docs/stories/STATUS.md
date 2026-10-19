@@ -217,7 +217,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FND-014 | done | | 29 story tests pass; 7 unrelated DB-state failures in person-table and anonymize tests (tasks table absent in test DB) |
 | PER-010 | done | | avatar_key column, unique index, 2 CHECKs; 6 pre-existing failures unrelated (tasks.accountId rename) |
 | PER-011 | done | | toPublicPerson gains avatar_url; 7 unrelated suite failures pre-exist |
-| PER-012 | todo | | |
+| PER-012 | done | | own profile carries avatar_url; 8 pre-existing failures in anonymize, person-table, appoint (also fail without this change) |
 | PER-013 | todo | | |
 | PER-014 | todo | | |
 | ACC-008 | todo | | |
