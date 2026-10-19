@@ -250,7 +250,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-044 | todo | | |
 | CAT-046 | todo | | |
 | ORG-020 | done | | plan fields, logo key and payment code migration; 16 tests + full suite green |
-| BIL-001 | todo | | |
+| BIL-001 | done | | subscription_payments table, enums, trigger and grants; 42 tests |
 | BIL-003 | todo | | |
 | BIL-012 | todo | | |
 | ORG-021 | todo | | |

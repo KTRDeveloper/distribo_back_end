@@ -133,6 +133,26 @@ enum OrganizationPlan {
   ENTERPRISE
 }
 
+enum PaidPlan {
+  ESSENTIAL
+  PRO
+  ENTERPRISE
+}
+
+enum PaymentOperator {
+  MTN_MOMO
+  ORANGE_MONEY
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
 enum CollaborationRole {
   OWNER
   MANAGER
@@ -431,6 +451,8 @@ model Organization {
   collaborations Collaboration[]
   subscriptions  Subscription[]
 
+  subscriptionPayments SubscriptionPayment[]
+
   products        Product[]
   productVariants ProductVariant[]
   expenses        Expense[]
@@ -465,6 +487,46 @@ model Subscription {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@map("subscriptions")
+}
+
+// Rules the database enforces on subscription payments (one row per payment
+// request), beyond what this model declares. All come from migration
+// 20261019070000_bil_001_subscription_payments.
+// - A payment only moves forward: from PENDING to any other status, and from
+//   SUCCEEDED to REFUNDED. Nothing else, and never backwards.
+// - Once stored, only the status, the confirmation from the provider
+//   (provider_payload) and the confirmation date can change. The amount, the
+//   plan, the number of months, the operator, the payer number, the reference,
+//   the terms version, the tax id and the business never change.
+// - The reference is unique, so one payment is never recorded or counted twice.
+// - The amount is above zero, the number of months is 1, 3, 6 or 12.
+// - The confirmation date is set exactly when the status is SUCCEEDED or
+//   REFUNDED. The payer number is empty exactly when the operator is OTHER (a
+//   payment recorded by an administrator), and never blank otherwise.
+// - The application can add, read and update rows but never delete or empty the
+//   table; the purge (PRIV) runs with the migration account.
+// Payments are not synchronized to phones.
+model SubscriptionPayment {
+  id                String          @id @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  plan              PaidPlan
+  months            Int
+  amount            BigInt
+  operator          PaymentOperator
+  payerPhoneNumber  String?         @map("payer_phone_number")
+  providerReference String          @unique @map("provider_reference")
+  status            PaymentStatus   @default(PENDING)
+  providerPayload   Json?           @map("provider_payload")
+  termsVersion      String          @map("terms_version")
+  customerTaxId     String?         @map("customer_tax_id")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  confirmedAt       DateTime?       @map("confirmed_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
+  @@map("subscription_payments")
 }
 
 // Rules the database enforces on collaborations (a person's membership in an
