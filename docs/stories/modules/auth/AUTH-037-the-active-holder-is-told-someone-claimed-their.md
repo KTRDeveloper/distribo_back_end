@@ -78,6 +78,11 @@ Scenario: AB-1 Claims used to bury the holder in notices (denial of service)
 
 Command: `npx vitest run tests/integration/auth/number-claim-warning.test.ts tests/integration/auth/number-claim.test.ts`
 
+### Tests to update
+| existing test | reason | new expectation |
+|---|---|---|
+| tests/integration/auth/number-claim.test.ts | a refused claim now stores a notice for the holder, so its `clean()` can no longer delete the people while their notifications remain (foreign key) | `clean()` deletes the notifications of the test people before the people; every assertion stays as it is |
+
 ## Out of scope
 - Who else is told (the shop owner of a contact on this number is told by ORG-037, when the number is released).
 - An email or SMS to the holder: the notice is in the app only.
