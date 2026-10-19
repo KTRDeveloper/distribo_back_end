@@ -215,7 +215,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FND-012 | done | | validation details reduced to path and code |
 | FND-013 | done | | 23 story tests pass; full suite 7 pre-existing failures (person-table, privacy/anonymize), same without this change |
 | FND-014 | done | | 29 story tests pass; 7 unrelated DB-state failures in person-table and anonymize tests (tasks table absent in test DB) |
-| PER-010 | todo | | |
+| PER-010 | done | | avatar_key column, unique index, 2 CHECKs; 6 pre-existing failures unrelated (tasks.accountId rename) |
 | PER-011 | todo | | |
 | PER-012 | todo | | |
 | PER-013 | todo | | |

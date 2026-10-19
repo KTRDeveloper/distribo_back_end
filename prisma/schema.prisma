@@ -277,6 +277,12 @@ model ConfigHistory {
 // - When a person's phone number is removed, they stop being the public
 //   contact of every organization they belong to.
 //   (Migration 20261004110000_org_003_collaborations)
+// - A guest has no profile photo, and an anonymized person has none either.
+//   (Migration 20261011010000_per_010_person_avatar_key)
+// - One photo file belongs to one person; any number of people may have no
+//   photo. The rule that a file is cited by one card only across people,
+//   organizations, products and variants is kept by the images module.
+//   (Migration 20261011010000_per_010_person_avatar_key)
 model Person {
   id                  String         @id @db.Uuid
   otpChallenges       OtpChallenge[]
@@ -296,6 +302,7 @@ model Person {
   anonymizedAt        DateTime?      @map("anonymized_at")
   serverUpdatedAt     DateTime       @default(now()) @map("server_updated_at") @db.Timestamptz
   scopeVersion        Int            @default(0) @map("scope_version")
+  avatarKey           String?        @unique @map("avatar_key")
 
   tasks                 Task[]
   phoneNumberChangeLogs PhoneNumberChangeLog[]
