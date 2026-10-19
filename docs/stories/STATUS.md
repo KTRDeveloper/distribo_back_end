@@ -297,7 +297,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-013 | done | | driver pool hides orders live-assigned to another driver |
 | CAT-017 | done | | getReferencePrice reads the variant and its negotiated price; 11 new tests + legacy 13 pass |
 | CAT-019 | done | | getActiveVariant added to catalog.repository; 9 tests pass |
-| CAT-020 | todo | | |
+| CAT-020 | done | | listProductsOnSale, listPausedProducts, setProductsPaused in catalog.repository; 14 tests pass |
 | CAT-022 | todo | | |
 | CAT-023 | todo | | |
 | CAT-024 | todo | | |

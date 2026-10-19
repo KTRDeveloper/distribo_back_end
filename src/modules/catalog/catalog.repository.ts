@@ -1093,3 +1093,101 @@ export async function countProductsOnSale(
     },
   });
 }
+
+/** A product on sale or paused, with every not deleted variant it holds. */
+export type SaleProduct = { productId: string; createdAt: Date; variantIds: string[] };
+
+async function listSaleProducts(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  paused: boolean
+): Promise<SaleProduct[]> {
+  const rows = await tx.product.findMany({
+    where: {
+      organizationId,
+      deletedAt: null,
+      pausedAt: paused ? { not: null } : null,
+      variants: { some: { status: 'ACTIVE', deletedAt: null } },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    select: {
+      id: true,
+      createdAt: true,
+      variants: {
+        where: { deletedAt: null },
+        select: { id: true },
+        orderBy: { id: 'asc' },
+      },
+    },
+  });
+  return rows.map((row) => ({
+    productId: row.id,
+    createdAt: row.createdAt,
+    variantIds: row.variants.map((variant) => variant.id),
+  }));
+}
+
+/**
+ * Lists the products a business has on sale (the same rule as `countProductsOnSale`, C-46), newest
+ * first, each with the ids of all its not deleted variants. Bound to the organization id
+ * (ASVS v5.0.0-8.2.2) so billing can read it without touching catalog tables (ADR-004).
+ *
+ * @param tx - The caller's transaction.
+ * @param organizationId - The business, given by server code, never a request.
+ */
+export async function listProductsOnSale(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<SaleProduct[]> {
+  return listSaleProducts(tx, organizationId, false);
+}
+
+/**
+ * Lists the products of a business that are paused but would otherwise be on sale (not deleted,
+ * at least one ACTIVE, not deleted variant), newest first. Billing resumes from this list.
+ *
+ * @param tx - The caller's transaction.
+ * @param organizationId - The business, given by server code, never a request.
+ */
+export async function listPausedProducts(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<SaleProduct[]> {
+  return listSaleProducts(tx, organizationId, true);
+}
+
+/**
+ * Pauses or resumes products of one business (C-46: `paused_at` is written by the server only).
+ * Only ids that belong to the organization, are not deleted and are not already in the requested
+ * state are changed, so an id of another business is silently left alone (ASVS v5.0.0-8.2.2) and
+ * the first `paused_at` of a paused product is kept. `server_updated_at` is also sent so the phones
+ * receive the change; the database trigger sets it to the server time anyway (C-35).
+ *
+ * @param tx - The caller's transaction, so the change commits or rolls back with the caller's work
+ *   (ASVS v5.0.0-2.3.3).
+ * @param organizationId - The business, given by server code, never a request.
+ * @param productIds - The products to change.
+ * @param paused - True to pause, false to resume.
+ * @param now - The instant written as `paused_at` when pausing.
+ * @returns The ids it changed.
+ */
+export async function setProductsPaused(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  productIds: string[],
+  paused: boolean,
+  now: Date
+): Promise<string[]> {
+  if (productIds.length === 0) return [];
+  const rows = await tx.product.updateManyAndReturn({
+    where: {
+      id: { in: productIds },
+      organizationId,
+      deletedAt: null,
+      pausedAt: paused ? null : { not: null },
+    },
+    data: { pausedAt: paused ? now : null, serverUpdatedAt: now },
+    select: { id: true },
+  });
+  return rows.map((row) => row.id);
+}

@@ -699,6 +699,35 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Evidence:** story tests 9/9; full suite 4165/4165, failing: none, 0 known; typecheck clean; lint 0 errors, 186 warnings (existing)
 <!-- end CAT-019 -->
 
+<!-- begin CAT-020 -->
+## CAT-020 — The server can count, list and pause the products on sale
+
+- Filed: 2026-10-19 20:23 UTC
+- Status: **done**: listProductsOnSale, listPausedProducts, setProductsPaused in catalog.repository; 14 tests pass
+- Risk: high · story: [CAT-020-the-server-can-count-list-and-pause-the.md](../modules/catalog/CAT-020-the-server-can-count-list-and-pause-the.md)
+- Agent: 38,037 tokens, 17 tool uses, 2 min 30 s
+
+### Agent report
+
+**Summary:** Added listProductsOnSale, listPausedProducts and setProductsPaused (single UPDATE ... RETURNING) to catalog.repository.
+
+**Decisions:**
+- server_updated_at: the story says it equals `now`, but the DB trigger (C-35) overwrites it with server time; the code still sends `now`, tests assert it moves forward, not that it equals the instant.
+- Tie order on created_at: id ascending (story says "then id").
+- Empty id list returns [] without a query.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/product-pause.test.ts` › breaks a tie on created_at by id: ordering rule (Context); passed at once? no, failed with the rest
+- `product-pause.test.ts` › rolls back with the caller transaction: ASVS 2.3.3 (Security)
+- `product-pause.test.ts` › does not resume business B's paused product, leaves B out of the lists: tenant scope (AB-1, 8.2.2)
+- `product-pause.test.ts` › does not return a product already on sale when resuming: "not already in that state"
+
+**Evidence:** story tests 14/14; full suite 4179/4179, failing: none, 0 known; typecheck clean; lint 0 errors, 186 warnings (pre-existing)
+
+**Follow-ups:**
+- AC-3 wording "server_updated_at is that instant" cannot hold given the trigger; story text could be amended.
+<!-- end CAT-020 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 
