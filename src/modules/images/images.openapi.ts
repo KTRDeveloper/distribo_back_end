@@ -134,3 +134,62 @@ openApiRegistry.registerPath({
     },
   },
 });
+
+const productPhotoParams = z.object({
+  organizationId: z.string().uuid().openapi({ description: 'The business' }),
+  productId: z.string().uuid().openapi({ description: 'The product' }),
+  position: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .openapi({ description: 'Place of the photo, 1 to 5; the one after the last adds' }),
+});
+const productPhotosResponseSchema = z.object({ image_urls: z.array(z.string()).max(5) });
+
+openApiRegistry.registerPath({
+  method: 'put',
+  path: '/api/v1/organizations/{organizationId}/products/{productId}/photos/{position}',
+  tags: ['images'],
+  summary: 'Add or replace a photo of a product (manager or owner)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: productPhotoParams,
+    body: {
+      required: true,
+      content: {
+        'image/jpeg': { schema: photoBodySchema },
+        'image/png': { schema: photoBodySchema },
+        'image/webp': { schema: photoBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'The photo was stored; the public addresses of all photos, in order',
+      content: { 'application/json': { schema: productPhotosResponseSchema } },
+    },
+    400: {
+      description:
+        'UNSUPPORTED_IMAGE, IMAGE_TOO_LARGE or VALIDATION_ERROR (empty body, position out of range or after the next free one)',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'FORBIDDEN: only a manager or the owner changes product photos',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description:
+        'NOT_FOUND: the caller is not an active member of this business, or the product is not in it',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'ORGANIZATION_NOT_ACTIVE: the business is suspended or closed',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});

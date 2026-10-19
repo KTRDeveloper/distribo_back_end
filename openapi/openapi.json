@@ -26583,6 +26583,152 @@
           }
         }
       }
+    },
+    "/api/v1/organizations/{organizationId}/products/{productId}/photos/{position}": {
+      "put": {
+        "tags": [
+          "images"
+        ],
+        "summary": "Add or replace a photo of a product (manager or owner)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The business"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The product"
+            },
+            "required": true,
+            "name": "productId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5,
+              "description": "Place of the photo, 1 to 5; the one after the last adds"
+            },
+            "required": true,
+            "name": "position",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "The raw photo bytes"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "The raw photo bytes"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "The raw photo bytes"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The photo was stored; the public addresses of all photos, in order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "image_urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 5
+                    }
+                  },
+                  "required": [
+                    "image_urls"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "UNSUPPORTED_IMAGE, IMAGE_TOO_LARGE or VALIDATION_ERROR (empty body, position out of range or after the next free one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: only a manager or the owner changes product photos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: the caller is not an active member of this business, or the product is not in it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ORGANIZATION_NOT_ACTIVE: the business is suspended or closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "webhooks": {}

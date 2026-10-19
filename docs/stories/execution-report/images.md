@@ -203,3 +203,36 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 9/9; full suite 3813/3813, failing: none, 0 known; typecheck clean; lint 0 errors, 162 warnings (existing)
 <!-- end IMG-007 -->
+
+<!-- begin IMG-008 -->
+## IMG-008 — A manager adds or replaces a photo of a product
+
+- Filed: 2026-10-19 17:09 UTC
+- Status: **done**: PUT product photo route, change_photos rule, card-photos service; suite green
+- Risk: medium · story: [IMG-008-a-manager-adds-or-replaces-a-photo-of-a-product.md](../modules/images/IMG-008-a-manager-adds-or-replaces-a-photo-of-a-product.md)
+- Agent: 61,516 tokens, 23 tool uses, 3 min 9 s
+
+### Agent report
+
+**Summary:** Added `PUT .../products/{productId}/photos/{position}`, the `change_photos` rule and `card-photos.service.ts`; all tests green.
+
+**Decisions:**
+- Router: a new `productPhotoRoutes` mounted in `app.ts` at `/organizations/:organizationId/products/:productId/photos`, because the existing routers are mounted per path.
+- Path check: a `checkPhotoPath` middleware (UUIDv7 product id, position 1 to 5) runs after `requireAbility` and before `imageBody()`, so a refused caller never gets a 400 and the body is not read for a bad position.
+- Active check: the route calls `assertOrganizationActive` before storing, and `productCard.lock` repeats it inside the transaction, since `putCardPhoto` has no organization id.
+- A position past the next free one is refused inside the transaction, after the lock; the new file is deleted on any transaction error.
+- The `product_photos_changed` log is written by the route handler, because the service has no person id.
+
+**Tests added beyond the story:**
+- `tests/integration/images/product-photos.test.ts` › AC-1 lets the owner change a photo too: the OWNER role also has `change_photos` (story Context); passed at once
+- `tests/integration/images/product-photos.test.ts` › AC-2 refuses a sixth photo: a limit boundary, 5 photos max (C-49); passed at once
+- `tests/integration/images/product-photos.test.ts` › removes the new file when the position is refused after the product is locked: nothing stays in storage on a rejected gap (AC-4 logic); passed at once
+
+**Other additions:**
+- Prettier reformatted the files I touched in `src/modules/images`, `src/app.ts` and the two route-list tests.
+
+**Evidence:** story tests 10/10 (plus api-docs and per-001 green); full suite 3824/3824, failing: none, 0 known; typecheck clean; lint 0 errors, 165 warnings (existing)
+
+**Follow-ups:**
+- IMG-010 (variants) can reuse `putCardPhoto`, but it hard-codes the `products` folder in `storeUploadedImage('products', ...)`; check that is right for variants.
+<!-- end IMG-008 -->

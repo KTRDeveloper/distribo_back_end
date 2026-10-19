@@ -1,8 +1,13 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { authMiddleware } from '../../middleware/auth.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import { imageBody } from '../../middleware/image-body.js';
+import { logger } from '../../lib/logger.js';
+import { httpError } from '../../lib/http-error.js';
+import { uuidV7Schema } from '../../shared/ids.js';
+import { assertOrganizationActive } from '../../middleware/load-actor.js';
+import { PHOTOS_PER_CARD, productCard, putCardPhoto } from './card-photos.service.js';
 import { removeAvatar, replaceAvatar } from './avatar.service.js';
 import { removeLogo, replaceLogo } from './logo.service.js';
 
@@ -52,6 +57,63 @@ logoRoutes.delete(
   (req, res, next) => {
     removeLogo(req.actor!)
       .then(() => res.status(204).end())
+      .catch(next);
+  }
+);
+
+/** Product photo routes, mounted at /organizations/:organizationId/products/:productId/photos. */
+export const productPhotoRoutes = Router({ mergeParams: true });
+
+/**
+ * Checks the path before the body is read: the product id is a UUIDv7 and the position an integer
+ * from 1 to PHOTOS_PER_CARD, written as plain digits. Runs after the role check, so a refused
+ * caller learns nothing about what is valid.
+ */
+const checkPhotoPath: RequestHandler = (req, _res, next) => {
+  const position = String(req.params.position);
+  if (
+    !uuidV7Schema.safeParse(req.params.productId).success ||
+    !/^[1-9]$/.test(position) ||
+    Number(position) > PHOTOS_PER_CARD
+  ) {
+    next(httpError(400, 'VALIDATION_ERROR', 'Invalid request'));
+    return;
+  }
+  next();
+};
+
+// PUT /api/v1/organizations/:organizationId/products/:productId/photos/:position - add or replace
+// a product photo (raw image bytes). The role is judged before the body is read (ASVS v5.0.0-8.2.1).
+productPhotoRoutes.put(
+  '/:position',
+  authMiddleware,
+  loadActor,
+  requireAbility('change_photos', 'Product'),
+  checkPhotoPath,
+  imageBody(),
+  (req, res, next) => {
+    const actor = req.actor!;
+    const productId = String(req.params.productId);
+    assertOrganizationActive(actor.organizationId)
+      .then(() =>
+        putCardPhoto(
+          productCard(actor.organizationId, productId),
+          Number(req.params.position),
+          req.body as Buffer
+        )
+      )
+      .then((result) => {
+        logger.info(
+          {
+            event: 'product_photos_changed',
+            organizationId: actor.organizationId,
+            productId,
+            personId: actor.personId,
+          },
+          'Product photos changed'
+        );
+        res.status(200).json(result);
+      })
       .catch(next);
   }
 );

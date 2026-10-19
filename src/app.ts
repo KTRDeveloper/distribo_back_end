@@ -85,7 +85,7 @@ import { userRoutes } from './modules/user/user.routes.js';
 import { notificationRoutes } from './modules/notification/notification.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import { privacyRoutes, accountRoutes } from './modules/privacy/privacy.routes.js';
-import { avatarRoutes, logoRoutes } from './modules/images/images.routes.js';
+import { avatarRoutes, logoRoutes, productPhotoRoutes } from './modules/images/images.routes.js';
 import { personRoutes } from './modules/person/person.routes.js';
 import { syncArchiveRoutes, syncExceptionRoutes, syncRoutes } from './modules/sync/sync.routes.js';
 import {
@@ -141,6 +141,7 @@ v1Router.use('/people/me/attachments', attachmentsRoutes);
 v1Router.use('/people', personRoutes);
 v1Router.use('/sync', syncRoutes);
 v1Router.use('/organizations/:organizationId/logo', logoRoutes);
+v1Router.use('/organizations/:organizationId/products/:productId/photos', productPhotoRoutes);
 v1Router.use('/organizations', organizationRoutes);
 v1Router.use('/organizations/:organizationId', relationshipRoutes);
 v1Router.use('/organizations/:organizationId', catalogRoutes);
