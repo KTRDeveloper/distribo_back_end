@@ -33,14 +33,24 @@ describe('availability', () => {
     ['DAYS_3', 'SELLER', { daysSinceSync: 3, online: false, onServer: false }, false],
     ['DAYS_3', 'SELLER', { daysSinceSync: 9, online: false, onServer: true }, true],
     ['DAYS_3', 'OWNER', { daysSinceSync: 9, online: false, onServer: false }, true],
-    ['ONLINE', 'MANAGER', { daysSinceSync: 30, online: true, onServer: false }, true],
-    ['ONLINE', 'MANAGER', { daysSinceSync: 30, online: false, onServer: false }, false],
-    ['ONLINE', 'OWNER', { daysSinceSync: 30, online: false, onServer: false }, true],
-    ['NETWORK', 'OWNER', { daysSinceSync: 30, online: false, onServer: false }, false],
-    ['NETWORK', 'OWNER', { daysSinceSync: 30, online: true, onServer: false }, true],
+    ['ONLINE_EXCEPT_OWNER', 'MANAGER', { daysSinceSync: 30, online: true, onServer: false }, true],
+    [
+      'ONLINE_EXCEPT_OWNER',
+      'MANAGER',
+      { daysSinceSync: 30, online: false, onServer: false },
+      false,
+    ],
+    ['ONLINE_EXCEPT_OWNER', 'OWNER', { daysSinceSync: 30, online: false, onServer: false }, true],
+    ['ONLINE_FOR_ALL', 'OWNER', { daysSinceSync: 30, online: false, onServer: false }, false],
+    ['ONLINE_FOR_ALL', 'OWNER', { daysSinceSync: 30, online: true, onServer: false }, true],
     ['ALWAYS', 'DRIVER', { daysSinceSync: 30, online: false, onServer: false }, true],
   ] as const)('evaluates %s for %s', (where, role, context, expected) => {
-    useRule({ who: role === 'DRIVER' ? 'DRIVER' : role === 'SELLER' ? 'SELLER' : 'MANAGER', where, action: 'create', subject: 'Example' });
+    useRule({
+      who: role === 'DRIVER' ? 'DRIVER' : role === 'SELLER' ? 'SELLER' : 'MANAGER',
+      where,
+      action: 'create',
+      subject: 'Example',
+    });
 
     expect(abilityFor(role, context).can('create', 'Example')).toBe(expected);
   });
@@ -78,7 +88,7 @@ describe('relationship, catalog and price rules', () => {
     'answers the examples for %s %s on %s',
     (role, context, action, resource, field, expected) => {
       expect(abilityFor(role, context).can(action, resource, field)).toBe(expected);
-    },
+    }
   );
 
   const contexts = [
@@ -99,8 +109,8 @@ describe('relationship, catalog and price rules', () => {
             rule.where === 'ALWAYS' ||
             (rule.where === 'DAYS_3' &&
               (role === 'OWNER' || context.onServer || context.daysSinceSync < 3)) ||
-            (rule.where === 'ONLINE' && (role === 'OWNER' || context.online)) ||
-            (rule.where === 'NETWORK' && context.online);
+            (rule.where === 'ONLINE_EXCEPT_OWNER' && (role === 'OWNER' || context.online)) ||
+            (rule.where === 'ONLINE_FOR_ALL' && context.online);
           return roleAllowed && whereAllowed;
         };
 
@@ -112,7 +122,7 @@ describe('relationship, catalog and price rules', () => {
               typeof value === 'object' && value !== null && '$in' in value
                 ? (value.$in as unknown[])[0]
                 : value,
-            ]),
+            ])
           );
           const target = subject(rule.subject, attributes);
           const expected = RULES.some(
@@ -124,9 +134,9 @@ describe('relationship, catalog and price rules', () => {
                 Object.entries(candidate.conditions).every(([key, value]) =>
                   typeof value === 'object' && value !== null && '$in' in value
                     ? (value.$in as unknown[]).includes(attributes[key])
-                    : attributes[key] === value,
+                    : attributes[key] === value
                 )) &&
-              expectedRule(candidate),
+              expectedRule(candidate)
           );
           expect(ability.can(rule.action, target, field)).toBe(expected);
         }
@@ -176,7 +186,7 @@ describe('order and delivery rules', () => {
     'answers the order-step example for %s %s in %s',
     (role, context, action, status, expected) => {
       expect(abilityFor(role, context).can(action, subject('Order', { status }))).toBe(expected);
-    },
+    }
   );
 
   it('allows only an online manager to assign a delivery', () => {
@@ -188,7 +198,9 @@ describe('order and delivery rules', () => {
   it('enforces writable fields and frozen terminal orders', () => {
     const seller = abilityFor('SELLER', phoneTwoDays);
 
-    expect(seller.can('update', subject('Order', { status: 'DELIVERED' }), 'supplier_note')).toBe(true);
+    expect(seller.can('update', subject('Order', { status: 'DELIVERED' }), 'supplier_note')).toBe(
+      true
+    );
     expect(seller.can('update', subject('Order', { status: 'DELIVERED' }), 'status')).toBe(false);
     expect(seller.can('update', 'OrderLine', 'unit_price_applied')).toBe(true);
     expect(seller.can('update', 'OrderLine', 'quantity')).toBe(false);
@@ -198,14 +210,14 @@ describe('order and delivery rules', () => {
     'prevents a driver from performing %s on orders',
     (action) => {
       expect(
-        abilityFor('DRIVER', phoneNow).can(action, subject('Order', { status: 'PENDING' })),
+        abilityFor('DRIVER', phoneNow).can(action, subject('Order', { status: 'PENDING' }))
       ).toBe(false);
-    },
+    }
   );
 
   it('prevents a driver from updating order lines', () => {
     expect(abilityFor('DRIVER', phoneNow).can('update', 'OrderLine', 'unit_price_applied')).toBe(
-      false,
+      false
     );
   });
 });
@@ -229,8 +241,10 @@ describe('money rules', () => {
   ] as const)(
     'answers the ledger example for %s %s on %s',
     (role, context, action, kind, expected) => {
-      expect(abilityFor(role, context).can(action, subject('LedgerEntry', { kind }))).toBe(expected);
-    },
+      expect(abilityFor(role, context).can(action, subject('LedgerEntry', { kind }))).toBe(
+        expected
+      );
+    }
   );
 
   it.each(['Expense', 'Handover'] as const)(
@@ -243,14 +257,14 @@ describe('money rules', () => {
         expect(abilityFor('SELLER', online).can(action, resource)).toBe(false);
         expect(abilityFor('DRIVER', online).can(action, resource)).toBe(false);
       }
-    },
+    }
   );
 
   it('implements every money rule across all roles and contexts', () => {
     const roles = ['DRIVER', 'SELLER', 'MANAGER', 'OWNER'] as const;
     const contexts = [phoneNow, phoneThirtyDays, online, { ...phoneThirtyDays, onServer: true }];
     const moneyRules = RULES.filter((rule) =>
-      ['LedgerEntry', 'Expense', 'Handover'].includes(rule.subject),
+      ['LedgerEntry', 'Expense', 'Handover'].includes(rule.subject)
     );
 
     for (const role of roles) {
@@ -267,7 +281,7 @@ describe('money rules', () => {
           const expected = moneyRules.some((candidate) => {
             const candidateAvailable =
               candidate.where === 'ALWAYS' ||
-              (candidate.where === 'ONLINE' && (role === 'OWNER' || context.online));
+              (candidate.where === 'ONLINE_EXCEPT_OWNER' && (role === 'OWNER' || context.online));
             const candidateKind = candidate.conditions?.kind;
             const kindMatches =
               candidate.subject !== 'LedgerEntry' ||
@@ -297,7 +311,7 @@ describe('money rules', () => {
 
   it('requires a permitted kind for every ledger creation', () => {
     const ledgerCreateRules = RULES.filter(
-      (rule) => rule.action === 'create' && rule.subject === 'LedgerEntry',
+      (rule) => rule.action === 'create' && rule.subject === 'LedgerEntry'
     );
 
     expect(ledgerCreateRules).not.toHaveLength(0);
@@ -309,7 +323,7 @@ describe('money rules', () => {
       ['OWNER', phoneNow],
     ] as const) {
       expect(
-        abilityFor(role, context).can('create', subject('LedgerEntry', { kind: 'UNKNOWN' })),
+        abilityFor(role, context).can('create', subject('LedgerEntry', { kind: 'UNKNOWN' }))
       ).toBe(false);
     }
   });
@@ -347,7 +361,7 @@ describe('team, subscription and organization rules', () => {
     'answers the network-only example for %s %s on %s',
     (role, context, action, resource, expected) => {
       expect(abilityFor(role, context).can(action, resource)).toBe(expected);
-    },
+    }
   );
 
   it('implements every new rule across every role and context and denies unlisted actions', () => {
@@ -362,7 +376,7 @@ describe('team, subscription and organization rules', () => {
         'reopen:Organization',
         'order_from_supplier:CustomerRelationship',
         'invite_supplier:CustomerRelationship',
-      ].includes(`${rule.action}:${rule.subject}`),
+      ].includes(`${rule.action}:${rule.subject}`)
     );
 
     expect(teamRules).toHaveLength(7);
@@ -371,7 +385,7 @@ describe('team, subscription and organization rules', () => {
         const ability = abilityFor(role, context);
         for (const rule of teamRules) {
           expect(ability.can(rule.action, rule.subject)).toBe(
-            atLeast(role, rule.who) && context.online,
+            atLeast(role, rule.who) && context.online
           );
         }
 

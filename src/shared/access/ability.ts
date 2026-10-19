@@ -1,7 +1,14 @@
 import { createMongoAbility, type MongoAbility, type RawRuleOf } from '@casl/ability';
 import { atLeast, type Role } from './roles.js';
 
-export type Where = 'ALWAYS' | 'DAYS_3' | 'ONLINE' | 'NETWORK';
+/**
+ * When a rule is available, named by whether the owner may still act offline:
+ * - `ALWAYS`: any context.
+ * - `DAYS_3`: the phone synchronized less than 3 days ago; the server (`onServer`) and the OWNER are not filtered.
+ * - `ONLINE_EXCEPT_OWNER`: only online, but the OWNER may act offline too.
+ * - `ONLINE_FOR_ALL`: only online, the OWNER included.
+ */
+export type Where = 'ALWAYS' | 'DAYS_3' | 'ONLINE_EXCEPT_OWNER' | 'ONLINE_FOR_ALL';
 
 export type AccessRule = {
   who: Role;
@@ -34,63 +41,63 @@ export const RULES: AccessRule[] = [
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'update',
     subject: 'CustomerRelationship',
     fields: ['credit_limit'],
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'reassign',
     subject: 'CustomerRelationship',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'end',
     subject: 'CustomerRelationship',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'reopen',
     subject: 'CustomerRelationship',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'create',
     subject: 'CustomerRelationship',
     conditions: { counter: true },
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'create',
     subject: 'Product',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'update',
     subject: 'Product',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'create',
     subject: 'CustomerPrice',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'update',
     subject: 'CustomerPrice',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'delete',
     subject: 'CustomerPrice',
   },
@@ -165,7 +172,7 @@ export const RULES: AccessRule[] = [
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'assign',
     subject: 'Delivery',
   },
@@ -185,14 +192,14 @@ export const RULES: AccessRule[] = [
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'create',
     subject: 'LedgerEntry',
     conditions: { kind: { $in: ['CREDIT_NOTE', 'REFUND', 'OPENING_BALANCE'] } },
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'reverse',
     subject: 'LedgerEntry',
     conditions: {
@@ -201,82 +208,89 @@ export const RULES: AccessRule[] = [
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'create',
     subject: 'Expense',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'cancel',
     subject: 'Expense',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'create',
     subject: 'Handover',
   },
   {
     who: 'MANAGER',
-    where: 'ONLINE',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'cancel',
     subject: 'Handover',
   },
   {
     who: 'OWNER',
-    where: 'NETWORK',
+    where: 'ONLINE_FOR_ALL',
     action: 'manage',
     subject: 'Collaboration',
   },
   {
     who: 'OWNER',
-    where: 'NETWORK',
+    where: 'ONLINE_FOR_ALL',
     action: 'manage',
     subject: 'Subscription',
   },
   {
     who: 'OWNER',
-    where: 'NETWORK',
+    where: 'ONLINE_FOR_ALL',
     action: 'transfer_ownership',
     subject: 'Organization',
   },
   {
     who: 'OWNER',
-    where: 'NETWORK',
+    where: 'ONLINE_FOR_ALL',
     action: 'close',
     subject: 'Organization',
   },
   {
     who: 'OWNER',
-    where: 'NETWORK',
+    where: 'ONLINE_FOR_ALL',
     action: 'reopen',
     subject: 'Organization',
   },
   {
     who: 'MANAGER',
-    where: 'NETWORK',
+    where: 'ONLINE_FOR_ALL',
     action: 'order_from_supplier',
     subject: 'CustomerRelationship',
   },
   {
     who: 'MANAGER',
-    where: 'NETWORK',
+    where: 'ONLINE_FOR_ALL',
     action: 'invite_supplier',
     subject: 'CustomerRelationship',
   },
 ];
 
+/**
+ * Tells whether a rule's availability holds in a context. A value it does not know (a rule built at
+ * run time with a typo) is unavailable, so it never opens an action (ASVS v5.0.0-8.2.1).
+ * The server judges a synchronization with `online: false`.
+ */
 function isAvailable(where: Where, role: string, context: AccessContext): boolean {
   switch (where) {
     case 'ALWAYS':
       return true;
     case 'DAYS_3':
       return role === 'OWNER' || context.onServer || context.daysSinceSync < 3;
-    case 'ONLINE':
+    case 'ONLINE_EXCEPT_OWNER':
       return role === 'OWNER' || context.online;
-    case 'NETWORK':
+    case 'ONLINE_FOR_ALL':
       return context.online;
+    default:
+      return false;
   }
 }
 
