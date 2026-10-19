@@ -3,7 +3,8 @@ import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { parseQuantity } from '../../shared/money.js';
-import { getActiveProduct, getReferencePrice } from '../catalog/catalog.repository.js';
+import { variantLabel } from '../../shared/variant.js';
+import { getActiveVariant, getReferencePrice } from '../catalog/catalog.repository.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   ensureCustomerRelationship,
@@ -59,10 +60,11 @@ const PLACED_CONTENT = {
 } as const;
 
 /**
- * Prices one requested line from the catalog (C-15): the product must be an ACTIVE product of the
- * supplier (404 otherwise), the quantity must reach its minimum (400), and the reference price is
- * read from the database, never from the request (ASVS v5.0.0-2.2.1). The applied price equals the
- * reference price: a customer never negotiates at order time.
+ * Prices one requested line from the catalog (C-15): the variant must be an ACTIVE variant of the
+ * supplier, of a product that is not paused (404 otherwise, ASVS v5.0.0-8.2.2), the quantity must
+ * reach the variant's minimum (400), and the reference price and label are read from the database,
+ * never from the request (ASVS v5.0.0-2.2.1, C-20). The applied price equals the reference price:
+ * a customer never negotiates at order time. `line.product_id` carries the variant id until ORD-028.
  */
 async function priceLine(
   tx: Prisma.TransactionClient,
@@ -70,19 +72,20 @@ async function priceLine(
   relationshipId: string,
   line: PlaceOrderInput['lines'][number]
 ): Promise<NewOrderLine & { quantityMilli: bigint }> {
-  const product = await getActiveProduct(tx, supplierOrganizationId, line.product_id);
+  const variant = await getActiveVariant(tx, supplierOrganizationId, line.product_id);
   const quantityMilli = parseQuantity(line.quantity);
   if (
-    product.minOrderQuantity !== null &&
-    quantityMilli < parseQuantity(product.minOrderQuantity.toFixed(3))
+    variant.minOrderQuantity !== null &&
+    quantityMilli < parseQuantity(variant.minOrderQuantity.toFixed(3))
   ) {
     throw httpError(400, 'VALIDATION_ERROR', 'Quantity is below the minimum order quantity');
   }
-  const { price } = await getReferencePrice(tx, relationshipId, product.id);
+  const { price } = await getReferencePrice(tx, relationshipId, variant.id);
   return {
     id: line.id,
-    productId: product.id,
-    labelApplied: `${product.name} (${product.unit})`,
+    productId: variant.productId,
+    productVariantId: variant.id,
+    labelApplied: variantLabel(variant.productName, variant.variantName, variant.unit),
     quantity: line.quantity,
     quantityMilli,
     referencePrice: price,
@@ -509,8 +512,9 @@ export function cancelOrderAsCustomer(
 }
 
 /**
- * Prices one line a seller enters (C-15): the product must be an ACTIVE product of the supplier
- * (404 otherwise) and the reference price comes from the database. The minimum order quantity does
+ * Prices one line a seller enters (C-15): the variant must be an ACTIVE variant of the supplier,
+ * of a product that is not paused (404 otherwise), and the reference price and label come from the
+ * database (`product_id` carries the variant id until ORD-028). The minimum order quantity does
  * not apply to a seller. The applied price defaults to the reference; a different one (any price
  * from 0 up) is a gap whose author is the caller and whose time is `now` (C-20). Shared by
  * `enterOrder` and the counter sale (DLV-009), so both price a line the same way.
@@ -522,15 +526,16 @@ export async function priceEnteredLine(
   line: EnterOrderInput['lines'][number],
   now: Date
 ): Promise<NewOrderLine> {
-  const product = await getActiveProduct(tx, actor.organizationId, line.product_id);
+  const variant = await getActiveVariant(tx, actor.organizationId, line.product_id);
   const quantityMilli = parseQuantity(line.quantity);
-  const { price: referencePrice } = await getReferencePrice(tx, relationshipId, product.id);
+  const { price: referencePrice } = await getReferencePrice(tx, relationshipId, variant.id);
   const unitPriceApplied =
     line.unit_price_applied === undefined ? referencePrice : BigInt(line.unit_price_applied);
   return {
     id: line.id,
-    productId: product.id,
-    labelApplied: `${product.name} (${product.unit})`,
+    productId: variant.productId,
+    productVariantId: variant.id,
+    labelApplied: variantLabel(variant.productName, variant.variantName, variant.unit),
     quantity: line.quantity,
     referencePrice,
     unitPriceApplied,

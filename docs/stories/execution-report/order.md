@@ -517,6 +517,32 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 6/6; full suite 4135/4136 on the first run, failing: quality-gates (lint errors from 2 unused constants in my own test, fixed, the file reran green), 0 known; typecheck clean; lint 0 errors, warnings only
 <!-- end ORD-030 -->
 
+<!-- begin ORD-027 -->
+## ORD-027 — Order lines are priced from the variant
+
+- Filed: 2026-10-19 21:07 UTC
+- Status: **done**: Order lines priced and labelled from the variant; productVariantId stored
+- Risk: high · story: [ORD-027-order-lines-are-priced-from-the-variant.md](../modules/order/ORD-027-order-lines-are-priced-from-the-variant.md)
+- Agent: 53,703 tokens, 23 tool uses, 3 min 9 s
+
+### Agent report
+
+**Summary:** priceLine and priceEnteredLine now read getActiveVariant, label with variantLabel and store productVariantId.
+
+**Decisions:**
+- Customer-order test for "minimum accepted at 5" and the seller-also-404 / foreign-variant-by-seller rows: added as extra cases in the story's own test file.
+- place-order.test.ts: changed both labels (Rice — sack and Salt — kg); the story names only Rice but Salt follows the same rule.
+
+**Tests added beyond the story:**
+- `tests/integration/order/order-by-variant.test.ts` › accepts the minimum itself for a customer: limit boundary (C-15); passed at once
+- same file › answers 404 to a seller naming a variant of another business: tenant scope on the seller path (AB-1, v5.0.0-8.2.2); failed first (product lookup)
+
+**Evidence:** story tests 11/11; full suite 4397/4397, failing: none, 0 known; typecheck clean; lint 0 errors, 191 warnings
+
+**Follow-ups:**
+- delivery.service.ts line 500 (rest of a partial delivery) and sync order.push.ts still build lines the old way; out of scope per the story.
+<!-- end ORD-027 -->
+
 <!-- begin ORD-009 -->
 ## ORD-009 — Customer places an order
 

@@ -307,7 +307,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-028 | done | | Variants shape for customer catalog; list-remove-prices helper updated with user's authorization |
 | CAT-036 | done | | deleteVariantFromSync and deleteProductFromSync; 18 tests, suite green |
 | CAT-037 | done | | resolveVariantForLine added; 10 story tests, suite 4386 green |
-| ORD-027 | todo | | |
+| ORD-027 | done | | Order lines priced and labelled from the variant; productVariantId stored |
 | DLV-014 | todo | | |
 | ORD-028 | todo | | |
 | ORD-023 | todo | | |

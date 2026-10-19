@@ -184,14 +184,14 @@ describe('ORD-009 place an order', () => {
       expect(body.delivery_address_applied).toBe('12 Rue du Marche');
       const byId = new Map(body.lines.map((line) => [line.id, line]));
       expect(byId.get(LINE_1)).toMatchObject({
-        label_applied: 'Rice (sack)',
+        label_applied: 'Rice — sack',
         quantity: '10',
         reference_price: 2800,
         unit_price_applied: 2800,
         amount: 28000,
       });
       expect(byId.get(LINE_2)).toMatchObject({
-        label_applied: 'Salt (kg)',
+        label_applied: 'Salt — kg',
         quantity: '2.5',
         reference_price: 500,
         unit_price_applied: 500,
