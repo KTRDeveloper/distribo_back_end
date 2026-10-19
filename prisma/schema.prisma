@@ -1258,3 +1258,24 @@ model SyncArchive {
   @@index([deviceId])
   @@map("sync_archives")
 }
+
+// Rules the database enforces on the registry of copied photos, beyond what
+// this model declares. All come from migration 20261019020000_img_001_image_copies.
+// - The registry only grows: the application can add and read rows but never
+//   change, delete or empty them.
+// - The root of a family never changes: a copy of a copy takes the root of the
+//   copy it was made from, and a copy of an original has that original as root.
+//   The database refuses any other root, so every writer follows the same rule.
+// - Only product and variant photos (keys under products/) are recorded; a
+//   photo is never a copy of itself nor the root of its own family.
+// - The registry names no organization and no person.
+model ImageCopy {
+  copyKey   String   @id @map("copy_key")
+  sourceKey String   @map("source_key")
+  rootKey   String   @map("root_key")
+  copiedAt  DateTime @default(now()) @map("copied_at") @db.Timestamptz
+
+  @@index([rootKey])
+  @@index([sourceKey])
+  @@map("image_copies")
+}

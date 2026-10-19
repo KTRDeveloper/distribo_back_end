@@ -235,7 +235,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-038 | done | | Characterization test for case-insensitive verified email uniqueness; 3 tests pass |
 | BIL-008 | done | | port, fake adapter and PAYMENT_DRIVER; 15 tests pass |
 | BIL-010 | done | | plan-math.ts pure; 17 unit tests, suite green |
-| IMG-001 | todo | | |
+| IMG-001 | done | | image_copies table, root trigger, insert-only grant; 13 tests |
 | CAT-012 | todo | | |
 | CAT-013 | todo | | |
 | CAT-014 | todo | | |
