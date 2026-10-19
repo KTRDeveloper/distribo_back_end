@@ -1007,3 +1007,25 @@ export async function updateVariant(
     },
   });
 }
+
+/**
+ * Counts the products a business has on sale: not deleted, not paused, with at least one variant
+ * that is ACTIVE and not deleted (C-46). A product counts once however many variants it has. The
+ * count is bound to the organization id (ASVS v5.0.0-8.2.2).
+ *
+ * @param tx - The caller's transaction.
+ * @param organizationId - The business, taken from the session or server code, never a request.
+ */
+export async function countProductsOnSale(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<number> {
+  return tx.product.count({
+    where: {
+      organizationId,
+      deletedAt: null,
+      pausedAt: null,
+      variants: { some: { status: 'ACTIVE', deletedAt: null } },
+    },
+  });
+}

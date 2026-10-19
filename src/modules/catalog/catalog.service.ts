@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js';
 import { assertOrganizationActive, getActiveCollaboration } from '../../middleware/load-actor.js';
 import {
   findOrganizationStatus,
+  readPlanFields,
   runInTransaction,
 } from '../organization/organization.repository.js';
 import { newId } from '../../shared/ids.js';
@@ -12,6 +13,7 @@ import type { Actor } from '../../types/express.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   countNegotiatedPricesBefore,
+  countProductsOnSale,
   findLiveCustomerPriceId,
   findSupplierRelationshipForPrice,
   getProductCopyableBy,
@@ -493,4 +495,30 @@ export async function copyCustomerPrices(
     }
     return { copied: prices.length };
   });
+}
+
+/**
+ * Refuses a new product on sale when the plan's product limit is reached (C-46). Online routes
+ * that add a product to the sale (create, add a variant, put back on sale, copy) call it in their
+ * transaction; what arrives by synchronization is never refused here, it is paused afterwards.
+ *
+ * The limit is read from the plan on the server, never from the request (ASVS v5.0.0-2.3.2); a
+ * `max_products` of null means no limit.
+ *
+ * @param tx - The caller's transaction.
+ * @param organizationId - The business, from the loaded actor.
+ * @throws 409 `PRODUCT_LIMIT_REACHED` when the count has reached the limit; 404 `NOT_FOUND` when
+ *   the business is absent or deleted (fail closed).
+ */
+export async function assertRoomForProduct(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<void> {
+  const plan = await readPlanFields(tx, organizationId);
+  if (plan === null) throw httpError(404, 'NOT_FOUND', 'Not found');
+  if (plan.maxProducts === null) return;
+  const onSale = await countProductsOnSale(tx, organizationId);
+  if (onSale >= plan.maxProducts) {
+    throw httpError(409, 'PRODUCT_LIMIT_REACHED', 'The product limit of the plan is reached');
+  }
 }

@@ -287,7 +287,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-007 | done | | GET /billing/shops/{code} public, 30/h per ip |
 | BIL-009 | done | | POST /billing/payments; 4051 tests pass |
 | ORG-045 | done | | readPlanFields, listOrganizationsToRefresh, listOrganizationsEnding added; 20 tests pass |
-| CAT-038 | todo | | |
+| CAT-038 | done | | countProductsOnSale and assertRoomForProduct added; 9 tests green |
 | ORD-022 | todo | | |
 | ORD-024 | todo | | |
 | ORD-025 | todo | | |

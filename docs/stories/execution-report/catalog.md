@@ -454,6 +454,30 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Evidence:** story tests 6/6; full suite 3600/3600, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings
 <!-- end CAT-046 -->
 
+<!-- begin CAT-038 -->
+## CAT-038 — The plan's product limit is checked in one place
+
+- Filed: 2026-10-19 18:20 UTC
+- Status: **done**: countProductsOnSale and assertRoomForProduct added; 9 tests green
+- Risk: medium · story: [CAT-038-the-plan-s-product-limit-is-checked-in-one-place.md](../modules/catalog/CAT-038-the-plan-s-product-limit-is-checked-in-one-place.md)
+- Agent: 38,707 tokens, 23 tool uses, 2 min 57 s
+
+### Agent report
+
+**Summary:** Added `countProductsOnSale` (repository) and `assertRoomForProduct` (service); 9 integration tests green.
+
+**Decisions:**
+- Absent or deleted business in `assertRoomForProduct`: throws 404 NOT_FOUND (readPlanFields returns null), failing closed rather than treating it as no limit.
+- Test fixtures insert products with an empty unit: a non-empty unit makes the CAT-014 mirror trigger add a variant of its own.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/product-limit.test.ts` › counts a product once with several ACTIVE variants: no double count (C-46); passed at once
+- same file › fails closed with 404 when the business is absent (fail-closed convention)
+- same file › A's count and limit ignore B's 40 products, B refused at its own limit (AB-1)
+
+**Evidence:** story tests 9/9; full suite 4080/4080, failing: none, 0 known; typecheck clean; lint 0 errors, 185 warnings
+<!-- end CAT-038 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 
