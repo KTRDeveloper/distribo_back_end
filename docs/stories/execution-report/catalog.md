@@ -246,6 +246,31 @@ Also in this run: relationship, admin, order, finance, delivery.
 - The later merge story must delete and point in one write (23514 otherwise).
 <!-- end CAT-018 -->
 
+<!-- begin CAT-016 -->
+## CAT-016 — Variant label and comparison text shared by the app and the server
+
+- Filed: 2026-10-19 15:55 UTC
+- Status: **done**: variantLabel and simplifyText in src/shared/variant.ts, agree with CAT-018 index
+- Risk: medium · story: [CAT-016-variant-label-and-comparison-text-shared-by-the.md](../modules/catalog/CAT-016-variant-label-and-comparison-text-shared-by-the.md)
+- Agent: 28,463 tokens, 14 tool uses, 2 min 4 s
+
+### Agent report
+
+**Summary:** Added `src/shared/variant.ts` (variantLabel, simplifyText) with unit and database-twin tests; all green.
+
+**Decisions:**
+- Trimming of spaces at both ends: index loop, not a regex, so a million spaces stays linear (CWE-1333) and a non-breaking space is kept.
+- AC-3: compared every pair of 17 texts across four name/unit layouts (about 1150 cases) against the real unique index, plus a direct SQL-vs-TS check of simplified text.
+
+**Tests added beyond the story:**
+- `tests/unit/shared/variant.test.ts` › changes nothing else / keeps a non-breaking space at the ends: no trimming or case change in the label, no trim() in the twin (Context of the story); passed at once
+
+**Evidence:** story tests 15/15; full suite 3489/3489, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings (existing)
+
+**Follow-ups:**
+- Implementation was written before watching the tests fail (TDD order not strictly followed); tests are tight against the story examples.
+<!-- end CAT-016 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 
