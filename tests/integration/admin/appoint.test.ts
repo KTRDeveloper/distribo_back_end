@@ -14,7 +14,12 @@ type Body = {
   id?: string;
   role?: string;
   otpauth_uri?: string;
-  person_public?: { public_name: string | null; phone_number: string | null; registered: boolean };
+  person_public?: {
+    public_name: string | null;
+    phone_number: string | null;
+    registered: boolean;
+    avatar_url: string | null;
+  };
   error?: { code: string };
 };
 
@@ -76,6 +81,7 @@ describe('super administrator appoints an administrator', () => {
       public_name: 'Fixture Candidate',
       phone_number: candidate.phoneNumber,
       registered: true,
+      avatar_url: null,
     });
     expect(body.otpauth_uri).toMatch(/^otpauth:\/\/totp\//);
     expect(Object.keys(body).sort()).toEqual(['id', 'otpauth_uri', 'person_public', 'role']);

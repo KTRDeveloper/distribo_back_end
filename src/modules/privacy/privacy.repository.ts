@@ -89,9 +89,7 @@ export async function anonymizeRows(
     where: { OR: [{ personId }, ...(targets.length > 0 ? [{ target: { in: targets } }] : [])] },
   });
   await tx.device.updateMany({ where: { personId }, data: { pushToken: null } });
-  // Raw SQL on purpose: the Task model maps account_id but the table column is "accountId"
-  // (a gap since PER-002), so the generated client cannot query tasks. Parameterized.
-  await tx.$executeRaw`DELETE FROM tasks WHERE "accountId" = ${personId}::uuid`;
+  await tx.task.deleteMany({ where: { accountId: personId } });
 
   const done = await tx.person.updateMany({
     where: { id: personId, status: { not: 'ANONYMIZED' } },

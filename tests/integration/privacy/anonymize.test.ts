@@ -77,16 +77,16 @@ async function seedSupplierOrg() {
   });
 }
 
-// Raw SQL: the Task model's account_id mapping does not match the table column "accountId".
+// Raw SQL keeps these fixtures independent of the Task model; the column is account_id.
 const seedTask = () =>
-  prisma.$executeRaw`INSERT INTO tasks (id, type, "accountId", parameters, "updatedAt")
+  prisma.$executeRaw`INSERT INTO tasks (id, type, account_id, parameters, "updatedAt")
     VALUES (${newId()}, 'export', ${personId}::uuid, '{}'::jsonb, now())`;
 const taskCount = async () =>
   Number(
     (
       await prisma.$queryRaw<
         Array<{ n: bigint }>
-      >`SELECT count(*) AS n FROM tasks WHERE "accountId" = ${personId}::uuid`
+      >`SELECT count(*) AS n FROM tasks WHERE account_id = ${personId}::uuid`
     )[0]?.n
   );
 

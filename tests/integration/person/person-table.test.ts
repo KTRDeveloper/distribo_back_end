@@ -46,7 +46,7 @@ describe('Person v10 table', () => {
         WHERE table_schema = 'public'
           AND (table_name, column_name) IN (
             ('people', 'id'),
-            ('tasks', 'accountId'),
+            ('tasks', 'account_id'),
             ('phone_number_change_logs', 'person_id')
           )
         ORDER BY table_name, column_name
@@ -55,7 +55,7 @@ describe('Person v10 table', () => {
       expect(result).toEqual([
         { table_name: 'people', column_name: 'id', data_type: 'uuid' },
         { table_name: 'phone_number_change_logs', column_name: 'person_id', data_type: 'uuid' },
-        { table_name: 'tasks', column_name: 'accountId', data_type: 'uuid' },
+        { table_name: 'tasks', column_name: 'account_id', data_type: 'uuid' },
       ]);
 
       await expect(
