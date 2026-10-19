@@ -352,6 +352,25 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/organizations/{organizationId}/contacts/{contactId}',
+  tags: ['organization'],
+  summary: 'The owner deletes a public contact; its place is free again',
+  security: [{ bearerAuth: [] }],
+  request: { params: contactParamsSchema },
+  responses: {
+    204: { description: 'The contact is deleted (soft delete: telephones learn it)' },
+    400: { description: 'VALIDATION_ERROR', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: {
+      description: 'Contact absent, already deleted or of another business',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
   method: 'patch',
   path: '/api/v1/organizations/{organizationId}/collaborators/{collaborationId}',
   tags: ['organization'],

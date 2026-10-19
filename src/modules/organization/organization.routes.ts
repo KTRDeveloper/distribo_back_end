@@ -42,9 +42,15 @@ import {
 import {
   addContactSchema,
   confirmContactSchema,
+  contactParamsSchema,
   resendContactSchema,
 } from './organization-contact.schemas.js';
-import { addContact, confirmContact, resendContactCode } from './organization-contact.service.js';
+import {
+  addContact,
+  confirmContact,
+  deleteContact,
+  resendContactCode,
+} from './organization-contact.service.js';
 import './organization.openapi.js';
 
 /** Organization routes; all require authentication. */
@@ -191,6 +197,21 @@ organizationRoutes.post(
   (req, res, next) => {
     resendContactCode(req.actor!, uuidV7Schema.parse(req.params.contactId))
       .then((result) => res.status(200).json(result))
+      .catch(next);
+  }
+);
+
+// DELETE /api/v1/organizations/:organizationId/contacts/:contactId - the owner deletes a public
+// contact; online only (`delete OrganizationContact`). The body is never read and no `id` is
+// carried: a second delete answers 404. A contact is never edited, so no PATCH or PUT exists.
+organizationRoutes.delete(
+  '/:organizationId/contacts/:contactId',
+  loadActor,
+  requireAbility('delete', 'OrganizationContact'),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() => deleteContact(req.actor!, contactParamsSchema.parse(req.params).contactId))
+      .then(() => res.status(204).end())
       .catch(next);
   }
 );

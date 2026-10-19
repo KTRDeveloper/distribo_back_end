@@ -88,6 +88,27 @@ export async function markContactVerified(
   return findLiveContact(contactId, organizationId);
 }
 
+/**
+ * Soft-deletes a contact with one guarded UPDATE: it changes a row only while the contact is
+ * still live and of this business, so a second delete, a contact of another business and two
+ * parallel deletes all change nothing. The row stays so telephones learn the deletion; the
+ * database sets `server_updated_at` (C-35) and the place is free again (C-43).
+ *
+ * @param now - Server time stored as `deleted_at`.
+ * @returns true when exactly one row was deleted.
+ */
+export async function softDeleteContact(
+  contactId: string,
+  organizationId: string,
+  now: Date
+): Promise<boolean> {
+  const result = await prisma.organizationContact.updateMany({
+    where: { id: contactId, organizationId, deletedAt: null },
+    data: { deletedAt: now },
+  });
+  return result.count === 1;
+}
+
 /** Tells whether an error is a unique violation (PostgreSQL 23505, reported by Prisma as P2002). */
 export function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';

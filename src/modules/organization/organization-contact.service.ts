@@ -10,6 +10,7 @@ import {
   findContactConflict,
   findLiveContact,
   markContactVerified,
+  softDeleteContact,
   insertPhoneContact,
   isUniqueViolation,
   type ContactConflict,
@@ -179,4 +180,22 @@ export async function resendContactCode(
     contact: { id: contact.id, organizationName: organization.name },
   });
   return { sent: true, expires_in: Math.round((expiresAt.getTime() - Date.now()) / 1000) };
+}
+
+/**
+ * Deletes a public contact of the business (ORG-027, C-35, C-44).
+ *
+ * The caller is the OWNER, checked by the route. One guarded UPDATE sets `deleted_at` only while
+ * the contact is live and of this business; an unknown, already deleted or foreign contact
+ * changes nothing and answers the same 404, so the existence of another business's contact is
+ * never confirmed (ASVS v5.0.0-8.2.1, v5.0.0-8.3.1). The row stays so telephones learn the
+ * deletion. A verified contact stops being published at once and its place is free again.
+ *
+ * @param actor - Owner loaded from the path.
+ * @param contactId - Contact from the path.
+ * @throws 404 `NOT_FOUND`.
+ */
+export async function deleteContact(actor: Actor, contactId: string): Promise<void> {
+  const deleted = await softDeleteContact(contactId, actor.organizationId, new Date());
+  if (!deleted) throw httpError(404, 'NOT_FOUND', 'Not found');
 }
