@@ -14,7 +14,6 @@ import { atLeast } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
-  countNegotiatedPricesBefore,
   countProductsOnSale,
   findLiveCustomerPriceId,
   findSupplierRelationshipForPrice,
@@ -25,6 +24,7 @@ import {
   insertProductForVariants,
   listCatalogForCustomer,
   listCustomerPricesOfRelationship,
+  listLiveVariantsOfProduct,
   listLiveCustomerPricesForCopy,
   listProductsOfOrganization,
   softDeleteCustomerPrice,
@@ -84,6 +84,19 @@ function toVariantView(productName: string, variant: ProductVariant): VariantVie
     min_order_quantity: variant.minOrderQuantity?.toString() ?? null,
     image_urls: variant.imageKeys.map((key) => imageUrl(key)!),
     status: variant.status,
+  };
+}
+
+/** Composes the closed product view with its variants; the photo addresses are built here. */
+function toProductView(product: Product, variants: ProductVariant[]): ProductView {
+  return {
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    category: product.category,
+    image_urls: product.imageKeys.map((key) => imageUrl(key)!),
+    paused: product.pausedAt !== null,
+    variants: variants.map((variant) => toVariantView(product.name, variant)),
   };
 }
 
@@ -185,40 +198,33 @@ export async function copyProduct(actor: Actor, input: CopyProductInput): Promis
 }
 
 /**
- * Edits a product of the actor's organization, including its price and its status.
+ * Edits the name, description and category of a product of the actor's organization.
  *
  * The role is decided by the route (`update Product`, ASVS v5.0.0-8.2.1); the product is
  * selected by id and organization together, so another business's product is a 404
- * (v5.0.0-8.2.2). `price_updated_at` moves in the database only when the price changes (C-13);
- * then `negotiated_prices_to_review` counts the live negotiated prices set before that moment,
- * else it is 0. INACTIVE removes the article from sale; frozen order lines are untouched.
+ * (v5.0.0-8.2.2). A paused product can be edited. Unit, price, minimum quantity and status are
+ * not accepted: they belong to the variants (CAT-025). The answer is the product with its live
+ * variants.
  *
  * @param actor - Actor loaded from the path.
  * @param productId - Product from the path.
- * @param input - Validated body, at least one field.
+ * @param input - Validated body, at least one field; `null` clears description or category.
  * @throws 404 `NOT_FOUND` when the product is absent, deleted or another organization's.
  */
 export async function editProduct(
   actor: Actor,
   productId: string,
   input: EditProductInput
-): Promise<FlatProductView & { negotiated_prices_to_review: number }> {
+): Promise<ProductView> {
   return runInTransaction(async (tx) => {
     const before = await getProductOfOrganization(tx, actor.organizationId, productId);
-    const updated = await updateProduct(tx, before.id, {
+    const product = await updateProduct(tx, before.id, {
       name: input.name,
-      unit: input.unit,
-      price: input.price === undefined ? undefined : BigInt(input.price),
-      minOrderQuantity: input.min_order_quantity,
       description: input.description,
       category: input.category,
-      status: input.status,
     });
-    const priceChanged = updated.price !== before.price;
-    const toReview = priceChanged
-      ? await countNegotiatedPricesBefore(tx, updated.id, updated.priceUpdatedAt)
-      : 0;
-    return { ...toFlatProductView(updated), negotiated_prices_to_review: toReview };
+    const variants = await listLiveVariantsOfProduct(tx, product.id);
+    return toProductView(product, variants);
   });
 }
 

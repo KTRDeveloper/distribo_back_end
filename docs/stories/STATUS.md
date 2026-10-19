@@ -299,7 +299,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-019 | done | | getActiveVariant added to catalog.repository; 9 tests pass |
 | CAT-020 | done | | listProductsOnSale, listPausedProducts, setProductsPaused in catalog.repository; 14 tests pass |
 | CAT-022 | done | | POST products takes variants; 201 ProductView; VARIANT_EXISTS, plan limit |
-| CAT-023 | todo | | |
+| CAT-023 | done | | PATCH edits name/description/category only, answers ProductView; tests green |
 | CAT-024 | todo | | |
 | CAT-025 | todo | | |
 | CAT-026 | todo | | |

@@ -101,7 +101,7 @@ catalogRoutes.post(
 );
 
 // PATCH /api/v1/organizations/:organizationId/products/:productId - OWNER or an online MANAGER
-// edits or retires an article. Repeating it sets the same values, so it needs no gesture id.
+// edits an article's name, description and category. Repeating it sets the same values, so it needs no gesture id.
 catalogRoutes.patch(
   '/products/:productId',
   authMiddleware,

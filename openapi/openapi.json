@@ -13952,7 +13952,7 @@
         "tags": [
           "catalog"
         ],
-        "summary": "The owner or an online manager edits or retires an article",
+        "summary": "The owner or an online manager edits an article's name, description and category",
         "security": [
           {
             "bearerAuth": []
@@ -13989,44 +13989,19 @@
                     "minLength": 1,
                     "maxLength": 100
                   },
-                  "unit": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
-                  },
-                  "price": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 9007199254740991
-                  },
-                  "min_order_quantity": {
-                    "anyOf": [
-                      {
-                        "type": "number"
-                      },
-                      {
-                        "type": "string",
-                        "maxLength": 32
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
                   "description": {
-                    "type": "string",
+                    "type": [
+                      "string",
+                      "null"
+                    ],
                     "maxLength": 2000
                   },
                   "category": {
-                    "type": "string",
+                    "type": [
+                      "string",
+                      "null"
+                    ],
                     "maxLength": 100
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "ACTIVE",
-                      "INACTIVE"
-                    ]
                   }
                 },
                 "additionalProperties": false
@@ -14036,7 +14011,7 @@
         },
         "responses": {
           "200": {
-            "description": "The product and the negotiated prices to review after a price change",
+            "description": "The product with its variants",
             "content": {
               "application/json": {
                 "schema": {
@@ -14048,22 +14023,6 @@
                     },
                     "name": {
                       "type": "string"
-                    },
-                    "unit": {
-                      "type": "string"
-                    },
-                    "price": {
-                      "type": "integer"
-                    },
-                    "price_updated_at": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "min_order_quantity": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
                     },
                     "description": {
                       "type": [
@@ -14077,33 +14036,85 @@
                         "null"
                       ]
                     },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "ACTIVE",
-                        "INACTIVE"
-                      ]
+                    "image_urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
-                    "created_at": {
-                      "type": "string",
-                      "format": "date-time"
+                    "paused": {
+                      "type": "boolean"
                     },
-                    "negotiated_prices_to_review": {
-                      "type": "integer"
+                    "variants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "unit": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "price": {
+                            "type": "integer"
+                          },
+                          "price_updated_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "min_order_quantity": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "image_urls": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "ACTIVE",
+                              "INACTIVE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "unit",
+                          "label",
+                          "price",
+                          "price_updated_at",
+                          "min_order_quantity",
+                          "image_urls",
+                          "status"
+                        ]
+                      }
                     }
                   },
                   "required": [
                     "id",
                     "name",
-                    "unit",
-                    "price",
-                    "price_updated_at",
-                    "min_order_quantity",
                     "description",
                     "category",
-                    "status",
-                    "created_at",
-                    "negotiated_prices_to_review"
+                    "image_urls",
+                    "paused",
+                    "variants"
                   ]
                 }
               }

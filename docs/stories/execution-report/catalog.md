@@ -763,6 +763,36 @@ Also in this run: relationship, admin, order, finance, delivery.
 - A reused variant id of another business answers 409 `VARIANT_EXISTS` (P2002), not a dedicated code.
 <!-- end CAT-022 -->
 
+<!-- begin CAT-023 -->
+## CAT-023 — Manager edits a product's name, description and category
+
+- Filed: 2026-10-19 20:34 UTC
+- Status: **done**: PATCH edits name/description/category only, answers ProductView; tests green
+- Risk: medium · story: [CAT-023-manager-edits-a-product-s-name-description-and.md](../modules/catalog/CAT-023-manager-edits-a-product-s-name-description-and.md)
+- Agent: 60,896 tokens, 21 tool uses, 4 min 11 s
+
+### Agent report
+
+**Summary:** PATCH product now accepts only name/description/category (strict, null clears), answers the ProductView with live variants.
+
+**Decisions:**
+- Variants in the answer: live (not deleted) variants, ACTIVE and INACTIVE, ordered by created_at then id; the story did not say which.
+- `category` keeps trim().max(100) like create; empty string stays allowed (as before).
+- `update ProductVariant` rule added with CATALOG_FIELDS; `countNegotiatedPricesBefore` left in the repository, now unused (CAT-025 likely reuses it).
+
+**Tests added beyond the story:**
+- `edit-product-text.test.ts` › paused product can be edited: story says it can (Context); passed at once
+- `edit-product-text.test.ts` › category null clears, blank name 400, variants unchanged after a 400: Context and AC-2/AC-3
+
+**Other additions:**
+- `toProductView` helper and `listLiveVariantsOfProduct` repository function; `updateProduct` narrowed to the three texts.
+
+**Evidence:** story tests 127/127 (3 files); full suite 4228/4229 before a lint fix, failing: quality-gates (lint error in my test, fixed, rerun green); typecheck clean; lint 0 errors, 185 warnings (existing)
+
+**Follow-ups:**
+- None.
+<!-- end CAT-023 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 

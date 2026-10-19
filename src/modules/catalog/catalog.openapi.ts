@@ -111,7 +111,7 @@ openApiRegistry.registerPath({
   method: 'patch',
   path: '/api/v1/organizations/{organizationId}/products/{productId}',
   tags: ['catalog'],
-  summary: 'The owner or an online manager edits or retires an article',
+  summary: "The owner or an online manager edits an article's name, description and category",
   security: [{ bearerAuth: [] }],
   request: {
     params: productParamsSchema,
@@ -119,12 +119,8 @@ openApiRegistry.registerPath({
   },
   responses: {
     200: {
-      description: 'The product and the negotiated prices to review after a price change',
-      content: {
-        'application/json': {
-          schema: productViewSchema.extend({ negotiated_prices_to_review: z.number().int() }),
-        },
-      },
+      description: 'The product with its variants',
+      content: { 'application/json': { schema: createdProductViewSchema } },
     },
     400: { description: 'Invalid body', content: errorContent },
     401: { description: 'Missing or invalid token', content: errorContent },

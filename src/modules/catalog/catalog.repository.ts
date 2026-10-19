@@ -244,25 +244,28 @@ export async function getProductOfOrganization(
 }
 
 /**
- * Updates the listed fields of a product already loaded for its organization. Never writes
- * `price_updated_at`: the database moves it only when the price really changes (C-13).
+ * Updates the listed text fields of a product already loaded for its organization. Nothing else
+ * is touched: the unit, price and status live on the variants.
  *
- * @param data - Only the fields to change; `undefined` keys are left alone.
+ * @param data - Only the fields to change; `undefined` keys are left alone, `null` clears.
  */
 export async function updateProduct(
   tx: Prisma.TransactionClient,
   productId: string,
-  data: {
-    name?: string;
-    unit?: string;
-    price?: bigint;
-    minOrderQuantity?: string | null;
-    description?: string;
-    category?: string;
-    status?: 'ACTIVE' | 'INACTIVE';
-  }
+  data: { name?: string; description?: string | null; category?: string | null }
 ): Promise<Product> {
   return tx.product.update({ where: { id: productId }, data });
+}
+
+/** Lists the live variants of a product, oldest first then by id (the order of creation). */
+export async function listLiveVariantsOfProduct(
+  tx: Prisma.TransactionClient,
+  productId: string
+): Promise<ProductVariant[]> {
+  return tx.productVariant.findMany({
+    where: { productId, deletedAt: null },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
 }
 
 /** Counts the live negotiated prices of a product set before `since`. */

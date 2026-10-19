@@ -91,19 +91,16 @@ export type ProductView = {
 };
 
 /**
- * Strict body of the edit gesture (ASVS v5.0.0-15.3.3): only the listed fields, at least one.
- * `min_order_quantity: null` clears it; every other field keeps the create limits. The
- * organization and `price_updated_at` are never accepted, the server owns them (C-13, CWE-915).
+ * Strict body of the edit gesture (ASVS v5.0.0-15.3.3): the three product texts, at least one.
+ * `description: null` and `category: null` clear them. The unit, price, minimum quantity and
+ * status belong to the variants (CAT-025); the organization, photos and pause date are the
+ * server's (C-13, CWE-915). Limits come from Q-027.
  */
 export const editProductSchema = z
   .object({
     name: z.string().trim().min(1).max(NAME_MAX),
-    unit: z.string().trim().min(1).max(NAME_MAX),
-    price: z.number().int().safe().min(1),
-    min_order_quantity: minOrderQuantitySchema.nullable(),
-    description: z.string().max(TEXT_MAX),
-    category: z.string().trim().max(NAME_MAX),
-    status: z.enum(['ACTIVE', 'INACTIVE']),
+    description: z.string().max(TEXT_MAX).nullable(),
+    category: z.string().trim().max(NAME_MAX).nullable(),
   })
   .partial()
   .strict()

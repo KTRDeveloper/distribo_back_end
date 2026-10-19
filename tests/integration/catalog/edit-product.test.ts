@@ -9,12 +9,6 @@ const MANAGER = '0199c0b5-0000-7000-8000-000000000002';
 const SELLER = '0199c0b5-0000-7000-8000-000000000003';
 const DRIVER = '0199c0b5-0000-7000-8000-000000000004';
 const OTHER_OWNER = '0199c0b5-0000-7000-8000-000000000005';
-const CUSTOMERS = [
-  '0199c0b5-0000-7000-8000-000000000011',
-  '0199c0b5-0000-7000-8000-000000000012',
-  '0199c0b5-0000-7000-8000-000000000013',
-  '0199c0b5-0000-7000-8000-000000000014',
-];
 
 const ORG_A = '0199c0b5-0000-7000-8000-0000000000a1';
 const ORG_B = '0199c0b5-0000-7000-8000-0000000000b1';
@@ -28,15 +22,11 @@ const REG = new Date('2026-01-01T00:00:00.000Z');
 type ProductBody = {
   id: string;
   name: string;
-  unit: string;
-  price: number;
-  price_updated_at: string;
-  min_order_quantity: string | null;
   description: string | null;
   category: string | null;
-  status: string;
-  created_at: string;
-  negotiated_prices_to_review: number;
+  image_urls: string[];
+  paused: boolean;
+  variants: unknown[];
 };
 
 async function seedPerson(id: string, phone: string) {
@@ -70,29 +60,6 @@ async function seedMember(
   });
 }
 
-/** Inserts a negotiated price of a customer on PRODUCT_A, set before now. */
-async function seedNegotiatedPrice(index: number, deleted = false) {
-  const relationshipId = `0199c0b5-0000-7000-8000-0000000001${index}0`;
-  await prisma.customerRelationship.create({
-    data: {
-      id: relationshipId,
-      supplierOrganizationId: ORG_A,
-      customerPersonId: CUSTOMERS[index],
-      createdById: OWNER,
-    },
-  });
-  await prisma.customerPrice.create({
-    data: {
-      id: `0199c0b5-0000-7000-8000-0000000002${index}0`,
-      customerRelationshipId: relationshipId,
-      productId: PRODUCT_A,
-      price: 14000n,
-      setById: OWNER,
-      deletedAt: deleted ? new Date() : null,
-    },
-  });
-}
-
 function patch(orgId: string, productId: string, body: unknown, personId = MANAGER) {
   return createAuthenticatedRequest(app, personId)
     .patch(`/api/v1/organizations/${orgId}/products/${productId}`)
@@ -107,7 +74,6 @@ beforeEach(async () => {
   await seedPerson(SELLER, '+237600009103');
   await seedPerson(DRIVER, '+237600009104');
   await seedPerson(OTHER_OWNER, '+237600009105');
-  for (const [i, id] of CUSTOMERS.entries()) await seedPerson(id, `+23760000912${i}`);
   await prisma.organization.create({ data: { id: ORG_A, name: 'Org A' } });
   await seedMember(ORG_A, OWNER, 'OWNER', 9);
   await seedMember(ORG_A, MANAGER, 'MANAGER', 1);
@@ -133,8 +99,7 @@ beforeEach(async () => {
 });
 
 describe('PATCH /api/v1/organizations/:organizationId/products/:productId', () => {
-  it('AC-1 change fields: 200, new values, price_updated_at unchanged, closed view', async () => {
-    const before = await rowOf(PRODUCT_A);
+  it('AC-1 change fields: 200, new values, closed product view with its variants', async () => {
     const response = await patch(ORG_A, PRODUCT_A, { name: 'Riz long', category: 'Épicerie' });
 
     expect(response.status).toBe(200);
@@ -143,91 +108,20 @@ describe('PATCH /api/v1/organizations/:organizationId/products/:productId', () =
       id: PRODUCT_A,
       name: 'Riz long',
       category: 'Épicerie',
-      unit: 'sac 25 kg',
-      price: 15000,
-      min_order_quantity: '2',
       description: 'Sac',
-      status: 'ACTIVE',
-      price_updated_at: before.priceUpdatedAt.toISOString(),
-      negotiated_prices_to_review: 0,
     });
     expect(Object.keys(body).sort()).toEqual(
-      [
-        'category',
-        'created_at',
-        'description',
-        'id',
-        'min_order_quantity',
-        'name',
-        'negotiated_prices_to_review',
-        'price',
-        'price_updated_at',
-        'status',
-        'unit',
-      ].sort()
+      ['category', 'description', 'id', 'image_urls', 'name', 'paused', 'variants'].sort()
     );
-    const row = await rowOf(PRODUCT_A);
-    expect(row).toMatchObject({ name: 'Riz long', category: 'Épicerie' });
+    expect(await rowOf(PRODUCT_A)).toMatchObject({ name: 'Riz long', category: 'Épicerie' });
   });
 
-  it('AC-1 min_order_quantity null clears it; unit and description change', async () => {
-    const response = await patch(ORG_A, PRODUCT_A, {
-      min_order_quantity: null,
-      unit: 'sac 50 kg',
-      description: 'Gros sac',
-    });
+  it('AC-2 description null clears it', async () => {
+    const response = await patch(ORG_A, PRODUCT_A, { description: null });
 
     expect(response.status).toBe(200);
-    expect(bodyOf<ProductBody>(response)).toMatchObject({
-      min_order_quantity: null,
-      unit: 'sac 50 kg',
-      description: 'Gros sac',
-    });
-    expect((await rowOf(PRODUCT_A)).minOrderQuantity).toBeNull();
-  });
-
-  it('AC-2 price change: price_updated_at moves, 3 negotiated prices to review', async () => {
-    await seedNegotiatedPrice(0);
-    await seedNegotiatedPrice(1);
-    await seedNegotiatedPrice(2);
-    await seedNegotiatedPrice(3, true);
-    const before = await rowOf(PRODUCT_A);
-
-    const response = await patch(ORG_A, PRODUCT_A, { price: 16000 });
-
-    expect(response.status).toBe(200);
-    const body = bodyOf<ProductBody>(response);
-    expect(body.price).toBe(16000);
-    expect(body.negotiated_prices_to_review).toBe(3);
-    expect(Date.parse(body.price_updated_at)).toBeGreaterThan(before.priceUpdatedAt.getTime());
-    const row = await rowOf(PRODUCT_A);
-    expect(row.price).toBe(16000n);
-    expect(row.priceUpdatedAt.toISOString()).toBe(body.price_updated_at);
-  });
-
-  it('a price sent unchanged keeps price_updated_at and reports 0 to review', async () => {
-    await seedNegotiatedPrice(0);
-    const before = await rowOf(PRODUCT_A);
-
-    const response = await patch(ORG_A, PRODUCT_A, { price: 15000 });
-
-    expect(response.status).toBe(200);
-    expect(bodyOf<ProductBody>(response)).toMatchObject({
-      price_updated_at: before.priceUpdatedAt.toISOString(),
-      negotiated_prices_to_review: 0,
-    });
-  });
-
-  it('AC-3 retire and restore: statuses follow', async () => {
-    const retired = await patch(ORG_A, PRODUCT_A, { status: 'INACTIVE' });
-    expect(retired.status).toBe(200);
-    expect(bodyOf<ProductBody>(retired).status).toBe('INACTIVE');
-    expect((await rowOf(PRODUCT_A)).status).toBe('INACTIVE');
-
-    const restored = await patch(ORG_A, PRODUCT_A, { status: 'ACTIVE' });
-    expect(restored.status).toBe(200);
-    expect(bodyOf<ProductBody>(restored).status).toBe('ACTIVE');
-    expect((await rowOf(PRODUCT_A)).status).toBe('ACTIVE');
+    expect(bodyOf<ProductBody>(response).description).toBeNull();
+    expect((await rowOf(PRODUCT_A)).description).toBeNull();
   });
 
   it('OWNER may edit too', async () => {
@@ -236,18 +130,16 @@ describe('PATCH /api/v1/organizations/:organizationId/products/:productId', () =
 
   describe('AC-4 refusals', () => {
     const rows: [string, Record<string, unknown>][] = [
-      ['price 0', { price: 0 }],
-      ['price negative', { price: -1 }],
-      ['price 1.5', { price: 1.5 }],
       ['no field', {}],
-      ['status "DELETED"', { status: 'DELETED' }],
+      ['status sent', { status: 'INACTIVE' }],
+      ['price sent', { price: 100 }],
       ['organization_id sent', { organization_id: ORG_B }],
       ['price_updated_at sent', { price_updated_at: '2020-01-01T00:00:00.000Z' }],
       ['unknown field', { color: 'red' }],
       ['name empty', { name: '' }],
       ['name 101 chars', { name: 'a'.repeat(101) }],
       ['description 2001 chars', { description: 'a'.repeat(2001) }],
-      ['min_order_quantity 0', { min_order_quantity: 0 }],
+      ['min_order_quantity sent', { min_order_quantity: 2 }],
       ['name null', { name: null }],
     ];
 
@@ -287,16 +179,16 @@ describe('PATCH /api/v1/organizations/:organizationId/products/:productId', () =
     });
   });
 
-  it('AB-1 seller changes a price: 403 and the price is unchanged', async () => {
-    const response = await patch(ORG_A, PRODUCT_A, { price: 1 }, SELLER);
+  it('AB-1 seller renames an article: 403 and the name is unchanged', async () => {
+    const response = await patch(ORG_A, PRODUCT_A, { name: 'Renommé' }, SELLER);
 
     expect(response.status).toBe(403);
-    expect((await rowOf(PRODUCT_A)).price).toBe(15000n);
+    expect((await rowOf(PRODUCT_A)).name).toBe('Riz');
   });
 
   it('AB-2 member of A patches a product of B under A path: 404 and B unchanged', async () => {
     const before = await rowOf(PRODUCT_B);
-    const response = await patch(ORG_A, PRODUCT_B, { price: 1, status: 'INACTIVE' });
+    const response = await patch(ORG_A, PRODUCT_B, { name: 'Volé', category: null });
 
     expect(response.status).toBe(404);
     expect(await rowOf(PRODUCT_B)).toEqual(before);
