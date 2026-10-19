@@ -289,6 +289,33 @@ Also in this run: access.
 **Evidence:** story tests 2/2; full suite 3295/3295, failing: none, 0 known; typecheck clean; lint 0 errors, 139 warnings (existing style)
 <!-- end AUTH-035 -->
 
+<!-- begin AUTH-037 -->
+## AUTH-037 — The active holder is told someone claimed their number
+
+- Filed: 2026-10-19 12:22 UTC
+- Status: **blocked**: Service done, 9 new tests pass, but existing number-claim.test.ts (named in the story command) now fails in its clean(): DELETE FROM people hits FK notifications_recipient_id_fkey because the claim now stores a notice. Needs 'DELETE FROM notifications WHERE recipient_id IN (SELECT id FROM people WHERE phone_number LIKE ...)' in its clean(), to be listed under Tests to update.
+- Risk: medium · story: [AUTH-037-the-active-holder-is-told-someone-claimed-their.md](../modules/auth/AUTH-037-the-active-holder-is-told-someone-claimed-their.md)
+- Agent: 39,534 tokens, 18 tool uses, 1 min 29 s
+
+### Agent report
+
+**Summary:** Blocked: warnHolderOfClaim is implemented and its 9 tests pass, but the existing number-claim.test.ts (in the story's command) now fails in its own clean().
+
+**Decisions:**
+- Warning called only for `RECENTLY_ACTIVE`, after the existing refusal log, before the 409; a failure in it propagates (no swallowing), so the 409 would become 500 if Redis or the insert fails.
+- Notice stored without organization or related entity; one `info` log `number_claim_warned` with the holder id only.
+
+**Tests added beyond the story:**
+- `number-claim-warning.test.ts` › empty language preference gives French: default language (recipientLanguage contract); passed at once
+- `number-claim-warning.test.ts` › claimant answer identical whether warned or not: AC "same 409 body"; passed at once
+- `number-claim-warning.test.ts` › log carries holder id, never the number: AC-16.3.1 security text; passed at once
+
+**Evidence:** story tests 9/9 new pass; number-claim.test.ts suite fails at afterAll/beforeEach clean() (FK notifications_recipient_id_fkey); full suite not run; typecheck clean; lint 0 errors, 0 warnings on changed files
+
+**Follow-ups:**
+- Question: may number-claim.test.ts `clean()` get `DELETE FROM notifications WHERE recipient_id IN (SELECT id FROM people WHERE phone_number LIKE '+237677124%')` before the people delete? The story does not list it under Tests to update, so I did not touch it. Add it to the story, then rerun.
+<!-- end AUTH-037 -->
+
 <!-- begin AUTH-038 -->
 ## AUTH-038 — A verified email is unique whatever the letter case
 
