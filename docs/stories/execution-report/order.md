@@ -447,6 +447,32 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - Changed one existing test with the user's authorization: `tests/integration/order/order-line-variant.test.ts` is_nullable 'YES' -> 'NO' (ORD-024 AC-1, now outdated by this story).
 <!-- end ORD-025 -->
 
+<!-- begin ORD-026 -->
+## ORD-026 — Order line rules read the variant
+
+- Filed: 2026-10-19 20:06 UTC
+- Status: **done**: Line rules trigger reads variant and product; 22 tests green
+- Risk: high · story: [ORD-026-order-line-rules-read-the-variant.md](../modules/order/ORD-026-order-line-rules-read-the-variant.md)
+- Agent: 49,383 tokens, 19 tool uses, 3 min 33 s
+
+### Agent report
+
+**Summary:** Replaced order_lines_enforce_rules() so lines are checked against their variant and its product; schema comment updated.
+
+**Decisions:**
+- Variant id: coalesce(product_variant_id, product_id), as the story says; a product with no variant is left to the key (23503).
+- Minimum stays enforced when the sync setting is on (the story says it skips only status, deletion and pause).
+- Product deleted_at and paused_at are read on the product, status and minimum on the variant.
+
+**Tests added beyond the story:**
+- `line-rules-variant.test.ts` › unknown variant: left to the key, 23503 (Context, unchanged rule); passed at once
+- `line-rules-variant.test.ts` › minimum read on the variant, not the product (AC-2); passed at once
+- `line-rules-variant.test.ts` › setting on still refuses a variant of another product and still applies the minimum (Context); the product-mismatch case and sibling cases failed first
+- `line-rules-variant.test.ts` › ACTIVE old-style product accepted, ACTIVE variant control accepted; passed at once
+
+**Evidence:** story tests 22/22 (plus line-rules and push-orders: 56/56); full suite 4120/4121, failing: tests/unit/tooling/quality-gates.test.ts (lint had 2 errors in my test file, fixed, file rerun green), 0 known; typecheck clean; lint 0 errors, 186 warnings (existing)
+<!-- end ORD-026 -->
+
 <!-- begin ORD-009 -->
 ## ORD-009 — Customer places an order
 

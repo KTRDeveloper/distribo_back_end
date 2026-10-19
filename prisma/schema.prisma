@@ -1320,6 +1320,17 @@ model Order {
 //   off for that one insert by setting the transaction-local setting
 //   distribo.allow_retired_product to 'on' (and back to 'off' right after). No
 //   other code may set it; the product must still belong to the supplier.
+// Migration 20261019160000_ord_026_line_rules_by_variant: the insert rules above
+// now check the line's variant and its product, not the product alone. On insert
+// the variant must be the variant of the line's own product and belong to the
+// supplier of the order's relationship, and it must be ACTIVE and not deleted,
+// with a product that is neither deleted nor paused (SQLSTATE 23514 otherwise).
+// On an order placed by the CUSTOMER the quantity must reach the variant's
+// minimum order quantity, when it has one. A variant that does not exist is left
+// to the foreign key (23503). The sync setting above still lets a retired
+// variant through: it skips only the ACTIVE, deletion and pause checks, never
+// the business, the product match or the minimum. An old-style product keeps
+// working because its variant copies its status and minimum.
 // Migration 20261004320000_ord_006_total_check: adding, changing, moving or
 // removing a line (and soft-deleting it) re-checks its order's total at commit.
 // The order's total must equal the sum of its non-deleted line amounts plus its
