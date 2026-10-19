@@ -3,6 +3,13 @@ import { z } from 'zod';
 /** Body of the registration code request; the number is validated in the service (AUTH-009). */
 export const registerRequestSchema = z.object({ phone_number: z.string().min(1).max(32) }).strict();
 
+/** Body of a recycled-number claim; the number is validated in the service (AUTH-031). */
+export const registerClaimSchema = z.object({ phone_number: z.string().min(1).max(32) }).strict();
+
+export const registerClaimResponseSchema = z
+  .object({ sent: z.literal(true), expires_in: z.number().int() })
+  .strict();
+
 export const registerRequestResponseSchema = z
   .object({
     sent: z.boolean(),

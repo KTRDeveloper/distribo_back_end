@@ -1145,6 +1145,92 @@
         }
       }
     },
+    "/api/v1/auth/register/claim": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Ask for a registration code for a number that belonged to someone else",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone_number": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  }
+                },
+                "required": [
+                  "phone_number"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Code queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sent": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "expires_in": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "sent",
+                    "expires_in"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or unsupported number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NUMBER_NOT_AVAILABLE: the holder is active or suspended (one body for both reasons)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Number check or code limits reached (RATE_LIMITED, OTP_RATE_LIMITED)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "tags": [

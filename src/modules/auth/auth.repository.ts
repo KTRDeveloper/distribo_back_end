@@ -181,3 +181,18 @@ export async function findPasswordHash(personId: string): Promise<string | null>
   });
   return p?.registeredAt ? p.passwordHash : null;
 }
+
+/**
+ * Latest device activity of a person: the newest `COALESCE(last_synced_at, created_at)` over
+ * all their devices, revoked ones included (AUTH-031). A device that never synchronized counts
+ * from its creation, so a brand-new account is protected.
+ *
+ * @returns The date, or null when the person has no device.
+ */
+export async function latestDeviceActivity(personId: string): Promise<Date | null> {
+  const rows = await prisma.$queryRaw<{ latest: Date | null }[]>`
+    SELECT MAX(COALESCE(last_synced_at, created_at)) AS latest
+    FROM devices
+    WHERE person_id = ${personId}::uuid`;
+  return rows[0]?.latest ?? null;
+}

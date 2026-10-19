@@ -121,6 +121,42 @@ Also in this run: access.
 **Evidence:** story tests 35/35 (language + register + register-new-holder); full suite 3223/3223, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings
 <!-- end AUTH-030 -->
 
+<!-- begin AUTH-031 -->
+## AUTH-031 — A recycled number can be claimed after six idle months
+
+- Filed: 2026-10-19 12:06 UTC
+- Status: **done**: claim route, claimRefusal, latestDeviceActivity; 19 tests; suite green
+- Risk: high · story: [AUTH-031-a-recycled-number-can-be-claimed-after-six-idle.md](../modules/auth/AUTH-031-a-recycled-number-can-be-claimed-after-six-idle.md)
+- Agent: 51,159 tokens, 17 tool uses, 2 min 49 s
+
+### Agent report
+
+**Summary:** Added POST /api/v1/auth/register/claim, claimRefusal, latestDeviceActivity; all tests green.
+
+**Decisions:**
+- Six months back clamps to month end (31 Aug gives 28 Feb), never rolls into the next month: the story says "same date" without covering short months.
+- Activity exactly at the limit counts as idle (strictly later = RECENTLY_ACTIVE); story is silent on equality, untested at that instant.
+- Number validated before checkNumberQuota, as in requestRegistrationCode (AUTH-029); logic duplicated, not shared, to leave auth.service.ts untouched.
+- A guest holder (registered_at null) is treated like no holder: code sent with personId null.
+
+**Tests added beyond the story:**
+- `number-claim.test.ts` › holder with no device is idle (story Context); passed at once with the implementation.
+- › latest activity over all devices counts (Context: revoked devices included)
+- › refused claim still counts as a number check (Context: checkNumberQuota first)
+- › guest holder treated as no registered holder (Context)
+- › foreign/malformed number and unknown fields rejected (Errors, CONVENTIONS strict schemas)
+- › refusal logged with holder id and reason, never the number (Security 16.3.1)
+- › claimRefusal boundary (ms precision, short month) and suspension precedence (Context)
+
+**Other additions:**
+- registerClaimSchema / registerClaimResponseSchema in auth.schemas.ts; route added to catalog.test.ts and per-001.test.ts lists; openapi/openapi.json regenerated.
+
+**Evidence:** story tests 19/19; full suite 3263/3263, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings
+
+**Follow-ups:**
+- contracts.md does not list claimRefusal yet (stories folder off-limits to me).
+<!-- end AUTH-031 -->
+
 <!-- begin AUTH-038 -->
 ## AUTH-038 — A verified email is unique whatever the letter case
 

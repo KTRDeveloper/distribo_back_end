@@ -225,7 +225,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-028 | done | | 404/401/403 answers, number-check quota; anonymize AC-5 test updated to 404 |
 | AUTH-029 | done | | registered holder: sent false, no challenge, no job; IP number-check quota counted |
 | AUTH-030 | done | | preferred_language optional FR/EN on register, stored for new and guest; tests green |
-| AUTH-031 | todo | | |
+| AUTH-031 | done | | claim route, claimRefusal, latestDeviceActivity; 19 tests; suite green |
 | AUTH-032 | todo | | |
 | AUTH-033 | todo | | |
 | AUTH-034 | todo | | |

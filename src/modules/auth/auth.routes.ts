@@ -11,9 +11,11 @@ import {
   phoneChangeConfirmSchema,
   phoneChangeRequestSchema,
   refreshSchema,
+  registerClaimSchema,
   registerRequestSchema,
   registerSchema,
 } from './auth.schemas.js';
+import { requestNumberClaim } from './number-claim.service.js';
 import { refreshSession, revokeDevice, revokeSessions } from './session.service.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import {
@@ -40,6 +42,15 @@ authRoutes.post('/register/request', (req, res, next) => {
     if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
     const result = await requestRegistrationCode(body.data, { ip: req.ip });
     res.status(202).json(result);
+  })().catch(next);
+});
+
+// Public route: a visitor claims a recycled number; refused while its holder is active or suspended.
+authRoutes.post('/register/claim', (req, res, next) => {
+  void (async () => {
+    const body = registerClaimSchema.safeParse(req.body);
+    if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+    res.status(202).json(await requestNumberClaim(body.data, { ip: req.ip }));
   })().catch(next);
 });
 

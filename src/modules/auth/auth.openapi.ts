@@ -13,6 +13,8 @@ import {
   phoneChangeRequestSchema,
   refreshResponseSchema,
   refreshSchema,
+  registerClaimResponseSchema,
+  registerClaimSchema,
   registerRequestResponseSchema,
   registerRequestSchema,
   registerSchema,
@@ -33,6 +35,33 @@ openApiRegistry.registerPath({
     },
     400: {
       description: 'Invalid or unsupported number',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    429: {
+      description: 'Number check or code limits reached (RATE_LIMITED, OTP_RATE_LIMITED)',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/register/claim',
+  tags: ['auth'],
+  summary: 'Ask for a registration code for a number that belonged to someone else',
+  request: { body: { content: { 'application/json': { schema: registerClaimSchema } } } },
+  responses: {
+    202: {
+      description: 'Code queued',
+      content: { 'application/json': { schema: registerClaimResponseSchema } },
+    },
+    400: {
+      description: 'Invalid or unsupported number',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description:
+        'NUMBER_NOT_AVAILABLE: the holder is active or suspended (one body for both reasons)',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     429: {

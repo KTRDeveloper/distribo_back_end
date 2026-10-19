@@ -285,6 +285,7 @@ describe('GET /docs/openapi.json', () => {
       '/api/v1/auth/phone/change/request',
       '/api/v1/auth/refresh',
       '/api/v1/auth/register',
+      '/api/v1/auth/register/claim',
       '/api/v1/auth/register/request',
     ]);
   });
