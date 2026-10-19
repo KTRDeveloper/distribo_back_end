@@ -81,3 +81,21 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 35/35 (language + register + register-new-holder); full suite 3223/3223, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings
 <!-- end AUTH-030 -->
+
+<!-- begin AUTH-038 -->
+## AUTH-038 — A verified email is unique whatever the letter case
+
+- Filed: 2026-10-19 11:57 UTC
+- Status: **done**: Characterization test for case-insensitive verified email uniqueness; 3 tests pass
+- Risk: medium · story: [AUTH-038-a-verified-email-is-unique-whatever-the-letter.md](../modules/auth/AUTH-038-a-verified-email-is-unique-whatever-the-letter.md)
+- Agent: 22,574 tokens, 8 tool uses, 1 min 16 s
+
+### Agent report
+
+**Summary:** Added the characterization test file; all 3 tests passed at once (no production code, as the story states).
+
+**Decisions:**
+- Phones +237677124466/67 in the new file: distinct from email-verify-confirm.test.ts so parallel files do not collide.
+
+**Evidence:** story tests 10/10 (3 new + 7 existing); full suite 3226/3226, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings (pre-existing)
+<!-- end AUTH-038 -->

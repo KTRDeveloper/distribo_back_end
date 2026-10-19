@@ -232,7 +232,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-036 | todo | | |
 | AUTH-035 | todo | | |
 | AUTH-037 | todo | | |
-| AUTH-038 | todo | | |
+| AUTH-038 | done | | Characterization test for case-insensitive verified email uniqueness; 3 tests pass |
 | BIL-008 | todo | | |
 | BIL-010 | todo | | |
 | IMG-001 | todo | | |
