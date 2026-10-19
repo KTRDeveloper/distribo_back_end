@@ -278,7 +278,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-025 | done | | POST contacts/{contactId}/confirm; verifyCode tied to the contact, guarded UPDATE; 3931 tests green |
 | ORG-026 | done | | resend route, tests green |
 | ORG-027 | done | | DELETE contacts/{contactId}: guarded soft delete, owner only; 3956 tests green |
-| ORG-033 | todo | | |
+| ORG-033 | done | | Review notice with slot mention, 13 tests; suite 3969 green |
 | ORG-037 | todo | | |
 | ORG-029 | todo | | |
 | ORG-031 | todo | | |

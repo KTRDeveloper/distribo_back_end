@@ -48,6 +48,7 @@ import {
   updateRole,
 } from './organization.repository.js';
 import type { CreatedOrganization } from './organization.repository.js';
+import { listLiveContacts } from './organization-contact.repository.js';
 import type {
   CloseOrganizationInput,
   CloseOrganizationView,
@@ -449,6 +450,19 @@ const OWNERSHIP_RECEIVED_CONTENT = {
   EN: (organizationName: string) => `You are now the owner of ${organizationName}.`,
 };
 
+const CONTACTS_REVIEW_CONTENT = {
+  FR: (organizationName: string) =>
+    `Les contacts publics de ${organizationName} restent en place. Revoyez-les dans les reglages.`,
+  EN: (organizationName: string) =>
+    `The public contacts of ${organizationName} stay in place. Review them in the settings.`,
+};
+
+const CONTACTS_REVIEW_MENTION = {
+  FR: (slot: number | null) =>
+    ` Le contact ${slot} est le numero de l'ancien proprietaire. Le garder ?`,
+  EN: (slot: number | null) => ` Contact ${slot} is the former owner's number. Keep it?`,
+};
+
 /**
  * The owner hands the business to another ACTIVE collaborator: the target becomes OWNER and the
  * caller MANAGER, both scope versions are bumped (CM-03) and the new owner is notified, all in
@@ -458,6 +472,10 @@ const OWNERSHIP_RECEIVED_CONTENT = {
  * The former owner's `amount_held`, when above 0, goes back to the business through an automatic
  * handover from and to themselves in the same transaction, so they restart at 0 (CM-18, FIN-017). The target is looked up inside the
  * actor's organization, so another business's row looks absent (ASVS v5.0.0-8.2.1).
+ * When the business has a live public contact, the new owner also gets one
+ * `organization.contacts_review` notice (CM-37). Contacts are never changed. A live PHONE contact
+ * equal to the former owner's number adds a mention of its slot; the notice holds no number, name
+ * or address (ASVS v5.0.0-16.2.5), and the former owner's email is never read.
  *
  * @param actor - Owner loaded from the path and checked for `transfer_ownership Organization`.
  * @param input - Validated body: gesture id and target collaboration.
@@ -513,6 +531,29 @@ export async function transferOwnership(
       },
       tx
     );
+
+    const contacts = await listLiveContacts(tx, actor.organizationId);
+    if (contacts.length > 0) {
+      const former = await findCollaborationWithPerson(tx, own.id, actor.organizationId);
+      const formerNumber = former ? toPublicPerson(former.person).phone_number : null;
+      const matching =
+        formerNumber === null
+          ? undefined
+          : contacts.find((contact) => contact.kind === 'PHONE' && contact.value === formerNumber);
+      const lang = language === 'EN' ? 'EN' : 'FR';
+      await notify(
+        {
+          recipientId: row.personId,
+          organizationId: actor.organizationId,
+          sourceEvent: 'organization.contacts_review',
+          content:
+            CONTACTS_REVIEW_CONTENT[lang](org.name) +
+            (matching ? CONTACTS_REVIEW_MENTION[lang](matching.slot) : ''),
+          related: { type: 'organization', id: actor.organizationId },
+        },
+        tx
+      );
+    }
     return row;
   });
 

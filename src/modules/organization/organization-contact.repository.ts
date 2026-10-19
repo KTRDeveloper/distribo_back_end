@@ -52,6 +52,22 @@ export function insertPhoneContact(
   });
 }
 
+/**
+ * Lists the live (not deleted) contacts of the business, pending ones included, ordered by slot
+ * then id. Only the three fields a notice needs are read (ASVS v5.0.0-8.2.1: the organization
+ * comes from the loaded actor).
+ */
+export async function listLiveContacts(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<{ kind: 'PHONE' | 'EMAIL'; slot: number | null; value: string }[]> {
+  return tx.organizationContact.findMany({
+    where: { organizationId, deletedAt: null },
+    select: { kind: true, slot: true, value: true },
+    orderBy: [{ slot: 'asc' }, { id: 'asc' }],
+  });
+}
+
 /** The stored shape of a contact. */
 export type ContactRow = OrganizationContact;
 

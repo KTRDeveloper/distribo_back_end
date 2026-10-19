@@ -386,3 +386,26 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 **Follow-ups:**
 - Once ORG-029 lands, AC-1's lookup assertion in `contact-delete.test.ts` should use a number held only by the contact to prove the exclusion.
 <!-- end ORG-027 -->
+
+<!-- begin ORG-033 -->
+## ORG-033 — A new owner is asked to review the public contacts
+
+- Filed: 2026-10-19 17:50 UTC
+- Status: **done**: Review notice with slot mention, 13 tests; suite 3969 green
+- Risk: medium · story: [ORG-033-a-new-owner-is-asked-to-review-the-public.md](../modules/organization/ORG-033-a-new-owner-is-asked-to-review-the-public.md)
+- Agent: 43,497 tokens, 17 tool uses, 2 min 44 s
+
+### Agent report
+
+**Summary:** transferOwnership now sends `organization.contacts_review` (FR/EN, slot mention for the former owner's PHONE number) in the same transaction; contacts untouched.
+
+**Decisions:**
+- Mention uses the first live PHONE contact equal to the former owner's number (slots are unique per business); the former owner is read with `findCollaborationWithPerson` on the caller's own collaboration id, after demotion.
+- Language other than EN falls back to FR, as for the existing notice.
+
+**Tests added beyond the story:**
+- `tests/integration/organization/transfer-contacts-review.test.ts` › a contact of another business does not trigger the notice: tenant scope (ASVS 8.2.1); passed at once
+- same file › EN mention, EN notice text: language rule of the story's Context
+
+**Evidence:** story tests 32/32 (13 new + transfer.test.ts); full suite 3969/3969, failing: none, 0 known; typecheck clean; lint 0 errors, 182 warnings
+<!-- end ORG-033 -->
