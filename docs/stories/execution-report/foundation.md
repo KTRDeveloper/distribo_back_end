@@ -6,6 +6,18 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-19 09:10 UTC: `/implement-stories FND-013..FND-014`
+
+| story | status | commit | note |
+|---|---|---|---|
+| FND-013 Image keys and public image addresses | done | 28b87df | 23 story tests pass; full suite 7 pre-existing failures (person-table, privacy/anonymize), same without this change |
+| FND-014 Plan grid and business payment codes | done | 10a9918 | 29 story tests pass; 7 unrelated DB-state failures in person-table and anonymize tests (tasks table absent in test DB) |
+
+- Run completed: both stories done, no skips, no stash.
+- Full suite shows 7 failures (person-table 1, privacy/anonymize 6) on both stories, also on the baseline without the changes. FND-014's agent says the test DB lacks the `tasks` table (stale vs migrations): reset it with `npm run test:db:up` and rerun those two files.
+- The IDE diagnostics on FND-013 files were stale; `npm run typecheck` was clean.
+- Next command: `/implement-stories next:5`, after resetting the test database.
+
 <!-- begin FND-013 -->
 ## FND-013 — Image keys and public image addresses
 
