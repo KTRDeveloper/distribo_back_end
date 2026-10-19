@@ -16,6 +16,7 @@ import { notify, recipientLanguage } from '../notification/notification.service.
 import {
   countProductsOnSale,
   findLiveCustomerPriceId,
+  findLiveVariantByText,
   findSupplierRelationshipForPrice,
   getProductCopyableBy,
   getProductOfOrganization,
@@ -48,6 +49,7 @@ import type {
   ProductPage,
   ProductView,
   SetCustomerPriceInput,
+  VariantInput,
   VariantView,
 } from './catalog.schemas.js';
 
@@ -162,6 +164,61 @@ export async function createProduct(actor: Actor, input: CreateProductInput): Pr
       paused: product.pausedAt !== null,
       variants,
     };
+  });
+}
+
+/**
+ * Adds an ACTIVE variant to a product of the actor's organization.
+ *
+ * The role is decided by the route (`create ProductVariant`, ASVS v5.0.0-8.2.1); the product is
+ * selected by id and organization together, so another business's or a deleted product is a 404
+ * (v5.0.0-8.2.2). One transaction checks that the organization is ACTIVE, refuses a live variant
+ * of the product with the same simplified name and unit (C-47) and, when the product is not
+ * paused and has no ACTIVE variant yet, checks the plan's room because the new variant puts it
+ * back on sale (C-46). A paused product accepts the variant and stays paused. Status and
+ * `price_updated_at` are the server's (C-13). A twin the database still refuses (a race) is
+ * mapped to the same 409.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param productId - Validated product id from the path.
+ * @param input - Validated body.
+ * @throws 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE`, `VARIANT_EXISTS` or
+ * `PRODUCT_LIMIT_REACHED`.
+ */
+export async function addVariant(
+  actor: Actor,
+  productId: string,
+  input: VariantInput
+): Promise<VariantView> {
+  return runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    const product = await getProductOfOrganization(tx, actor.organizationId, productId);
+    if (await findLiveVariantByText(tx, product.id, input.name, input.unit)) {
+      throw httpError(409, 'VARIANT_EXISTS', 'A variant with this name and unit exists');
+    }
+    if (product.pausedAt === null) {
+      const variants = await listLiveVariantsOfProduct(tx, product.id);
+      if (!variants.some((variant) => variant.status === 'ACTIVE')) {
+        await assertRoomForProduct(tx, actor.organizationId);
+      }
+    }
+    try {
+      const row = await insertActiveVariant(tx, {
+        id: input.id,
+        productId: product.id,
+        organizationId: actor.organizationId,
+        name: input.name ?? null,
+        unit: input.unit,
+        price: BigInt(input.price),
+        minOrderQuantity: input.min_order_quantity ?? null,
+      });
+      return toVariantView(product.name, row);
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw httpError(409, 'VARIANT_EXISTS', 'A variant with this name and unit exists');
+      }
+      throw error;
+    }
   });
 }
 

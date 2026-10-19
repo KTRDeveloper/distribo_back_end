@@ -39,6 +39,18 @@ const variantInputSchema = z
   })
   .strict();
 
+/**
+ * Strict body of the add-a-variant gesture (ASVS v5.0.0-15.3.3): the same fields and limits as a
+ * variant of the create gesture. The status, the product, the organization, the photos and
+ * `price_updated_at` come from the server (C-13, CWE-915).
+ */
+export const addVariantSchema = variantInputSchema;
+
+/** Path of the add-a-variant gesture: both ids are UUIDv7. */
+export const addVariantParamsSchema = z
+  .object({ organizationId: uuidV7Schema, productId: uuidV7Schema })
+  .strict();
+
 /** Most variants one product holds when it is created (CAT-004 limits). */
 const VARIANTS_MAX = 50;
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
+  addVariantSchema,
   browseCatalogQuerySchema,
   createProductSchema,
   copyProductSchema,
@@ -102,6 +103,36 @@ openApiRegistry.registerPath({
     409: {
       description:
         'Organization not active (ORGANIZATION_NOT_ACTIVE), plan limit reached (PRODUCT_LIMIT_REACHED) or two variants alike (VARIANT_EXISTS)',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/products/{productId}/variants',
+  tags: ['catalog'],
+  summary: 'The owner or an online manager adds a variant to an article',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: productParamsSchema,
+    body: { content: { 'application/json': { schema: addVariantSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The created variant',
+      content: { 'application/json': { schema: createdVariantViewSchema } },
+    },
+    400: { description: 'Invalid body or path', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Role not allowed', content: errorContent },
+    404: {
+      description: 'Product absent, deleted or outside the organization',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'Organization not active (ORGANIZATION_NOT_ACTIVE), plan limit reached (PRODUCT_LIMIT_REACHED) or a live variant with this name and unit (VARIANT_EXISTS)',
       content: errorContent,
     },
   },

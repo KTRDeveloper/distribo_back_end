@@ -793,6 +793,38 @@ Also in this run: relationship, admin, order, finance, delivery.
 - None.
 <!-- end CAT-023 -->
 
+<!-- begin CAT-024 -->
+## CAT-024 — Manager adds a variant to a product
+
+- Filed: 2026-10-19 20:37 UTC
+- Status: **done**: POST variants route, addVariant, findLiveVariantByText; 33 story tests + suite green
+- Risk: medium · story: [CAT-024-manager-adds-a-variant-to-a-product.md](../modules/catalog/CAT-024-manager-adds-a-variant-to-a-product.md)
+- Agent: 67,502 tokens, 16 tool uses, 3 min 24 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/{org}/products/{product}/variants (route, schema, service `addVariant`, repo `findLiveVariantByText`, OpenAPI); done.
+
+**Decisions:**
+- Room check (C-46): run `assertRoomForProduct` only when the product is not paused and has no live ACTIVE variant; a paused product accepts the variant and stays paused (story context).
+- Reused `variantInputSchema` as `addVariantSchema` (same limits as CAT-022); `findLiveVariantByText` duplicates the SQL of `findLiveTwin` to match the story signature (returns status too, unused by the service).
+- Idempotency through the existing `idempotent()` middleware after strict validation, as for product creation.
+- Echoed `min_order_quantity` is the Decimal string ("2.5"), like product creation.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/add-variant.test.ts` › race on the same text: concurrent twins give one 201 and one 409 VARIANT_EXISTS (story: unique index race); passed at once
+- same file › paused product with INACTIVE variants accepts the variant over the limit; deleted variant of same text is no twin; empty name equals empty name (C-46, C-47); passed at once
+- same file › non-UUID product id gives 400; owner may add (rules table)
+
+**Other additions:**
+- `addVariantParamsSchema` (strict path params); openapi.json regenerated; route added to api-docs/catalog.test.ts and per-001.test.ts as allowed.
+
+**Evidence:** story tests 33/33 (+ api-docs, per-001 green); full suite 4263/4263, failing: none, 0 known; typecheck clean; lint 0 errors, 186 warnings
+
+**Follow-ups:**
+- None.
+<!-- end CAT-024 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 

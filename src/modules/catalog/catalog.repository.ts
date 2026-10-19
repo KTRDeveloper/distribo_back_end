@@ -1016,6 +1016,33 @@ export async function findLiveTwin(
 }
 
 /**
+ * Finds the live variant of a product with the same simplified name and unit as the given ones
+ * (C-47), whatever its status. Same SQL comparison as {@link findLiveTwin}, so the answer agrees
+ * with the unique index of CAT-018.
+ *
+ * @param name - The new variant's name; `undefined` counts as empty text.
+ * @returns The id and status of the twin, or null.
+ */
+export async function findLiveVariantByText(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  name: string | undefined,
+  unit: string
+): Promise<{ id: string; status: 'ACTIVE' | 'INACTIVE' } | null> {
+  const rows = await tx.$queryRaw<Array<{ id: string; status: 'ACTIVE' | 'INACTIVE' }>>`
+    SELECT "id", "status"::text AS "status" FROM "product_variants"
+    WHERE "product_id" = ${productId}::uuid
+      AND "deleted_at" IS NULL
+      AND lower(btrim(regexp_replace(coalesce("name", ''), '[ \t\r\n]+', ' ', 'g')))
+        = lower(btrim(regexp_replace(coalesce(${name ?? null}::text, ''), '[ \t\r\n]+', ' ', 'g')))
+      AND lower(btrim(regexp_replace(coalesce("unit", ''), '[ \t\r\n]+', ' ', 'g')))
+        = lower(btrim(regexp_replace(coalesce(${unit}::text, ''), '[ \t\r\n]+', ' ', 'g')))
+    ORDER BY "created_at", "id"
+    LIMIT 1`;
+  return rows[0] ?? null;
+}
+
+/**
  * Inserts a variant written from a synchronization push: the five phone fields only; the price
  * date, the photos and the merge link keep their database defaults (C-13, C-47). A row that
  * conflicts (the same id, or a live twin created since the read) is left alone, so no uniqueness

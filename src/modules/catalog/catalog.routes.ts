@@ -6,6 +6,8 @@ import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import {
+  addVariantParamsSchema,
+  addVariantSchema,
   browseCatalogQuerySchema,
   copyCustomerPricesSchema,
   copyProductSchema,
@@ -18,6 +20,7 @@ import {
   setCustomerPriceSchema,
 } from './catalog.schemas.js';
 import {
+  addVariant,
   browseCatalog,
   copyCustomerPrices,
   copyProduct,
@@ -95,6 +98,35 @@ catalogRoutes.post(
   idempotent(),
   (req, res, next) => {
     copyProduct(req.actor!, copyProductSchema.parse(req.body))
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/products/:productId/variants - OWNER or an online
+// MANAGER adds a size, colour or format to an article; the service answers 404 for a deleted
+// product or another business's, 409 VARIANT_EXISTS and PRODUCT_LIMIT_REACHED
+catalogRoutes.post(
+  '/products/:productId/variants',
+  authMiddleware,
+  loadActor,
+  requireAbility('create', 'ProductVariant'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const params = addVariantParamsSchema.safeParse(req.params);
+    if (!params.success) return next(params.error);
+    const parsed = addVariantSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() => {
+        const { productId } = addVariantParamsSchema.parse(req.params);
+        return addVariant(req.actor!, productId, addVariantSchema.parse(req.body));
+      })
       .then((view) => res.status(201).json(view))
       .catch(next);
   }
