@@ -656,6 +656,27 @@ Also in this run: relationship, admin, order, finance, delivery.
 - Confirm whether an ENDED relationship should still show its negotiated prices.
 <!-- end CAT-007 -->
 
+<!-- begin CAT-017 -->
+## CAT-017 — Reference price is read by variant
+
+- Filed: 2026-10-19 20:18 UTC
+- Status: **done**: getReferencePrice reads the variant and its negotiated price; 11 new tests + legacy 13 pass
+- Risk: high · story: [CAT-017-reference-price-is-read-by-variant.md](../modules/catalog/CAT-017-reference-price-is-read-by-variant.md)
+- Agent: 35,575 tokens, 14 tool uses, 2 min 23 s
+
+### Agent report
+
+**Summary:** getReferencePrice now reads the supplier's variant and the live negotiated price by product_variant_id; callers unchanged.
+
+**Decisions:**
+- Variant lookup filters only on id and supplier organization (any state, no deleted_at filter): "any state, as the product was".
+
+**Evidence:** story tests 24/24 (11 new + 13 legacy reference-price); full suite 4155/4156, failing: supplier-invitations "repeated gesture id" (flaky under parallel load, passes alone 27/27), 0 known; typecheck clean; lint 0 errors, 186 warnings (existing)
+
+**Follow-ups:**
+- Callers (order, sync) still pass product ids; they work through the legacy variant ids until their own stories.
+<!-- end CAT-017 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 
