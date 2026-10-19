@@ -182,3 +182,38 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - The two numbers (30 lookups, one hour) are provisional per the story; they are constants in billing.service.ts, not in configService.
 <!-- end BIL-007 -->
+
+<!-- begin BIL-009 -->
+## BIL-009 — A payer starts a payment for a business
+
+- Filed: 2026-10-19 18:15 UTC
+- Status: **done**: POST /billing/payments; 4051 tests pass
+- Risk: high · story: [BIL-009-a-payer-starts-a-payment-for-a-business.md](../modules/billing/BIL-009-a-payer-starts-a-payment-for-a-business.md)
+- Agent: 58,996 tokens, 19 tool uses, 3 min 21 s
+
+### Agent report
+
+**Summary:** Added public POST /api/v1/billing/payments (schema, repository, service, route, OpenAPI), the two route lists updated; all green.
+
+**Decisions:**
+- `CURRENT_TERMS_VERSION`: '2026-10', provisional constant exported from `payment.service.ts`.
+- Phone limit key: `billing:pay:phone:<sha256 of E.164>`; the IP limit is checked first, and the phone counter is skipped when the IP is already blocked.
+- Lock on the id: `pg_advisory_xact_lock(hashtextextended('subscription_payment:'||id, 0))` inside the transaction, as in catalog.repository.
+- A repeat returns the stored row's current status (not frozen at PENDING); same body is judged on business, plan, months, operator and number.
+- JSON `amount` is sent as a number (`Number(bigint)`), like prices elsewhere (`z.number().int()`).
+- Aggregator description is generic (`Distribo <PLAN> <n> months`), no personal data.
+
+**Tests added beyond the story:**
+- `payment-create.test.ts` › two concurrent identical requests: one row, one aggregator call (lock on the id, AC-2); passed at once
+- `payment-create.test.ts` › same id for another business is 409 PAYMENT_ID_USED (AC-2 "another body"); passed at once
+- `payment-create.test.ts` › aggregator failure stores nothing, 500 (story Context); passed at once
+- `payment-create.test.ts` › rejected body consumes no limit slot, answer lists six fields, absent NIU stored null, extra 400 cases (landline, OTHER operator, empty NIU, unknown field) (AC-3, 15.3.3); passed at once
+
+**Other additions:**
+- `createPaymentBodyOpenApiSchema` and `paymentResponseSchema` in `billing.schemas.ts` to document the route.
+
+**Evidence:** story tests 61/61 (payment-create, api-docs, per-001); full suite 4051/4051, failing: none, 0 known; typecheck clean; lint 0 errors, 185 warnings (pre-existing kind, none new of note)
+
+**Follow-ups:**
+- Limits (10/h per address, 5/h per number) and the terms version are provisional per the story.
+<!-- end BIL-009 -->

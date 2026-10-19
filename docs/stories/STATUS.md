@@ -285,7 +285,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-042 | done | | Email contacts added: pending, EMAIL code, one per business |
 | ORG-044 | done | | Three PaymentTargets functions added to organization.repository.ts; 7 tests pass |
 | BIL-007 | done | | GET /billing/shops/{code} public, 30/h per ip |
-| BIL-009 | todo | | |
+| BIL-009 | done | | POST /billing/payments; 4051 tests pass |
 | ORG-045 | todo | | |
 | CAT-038 | todo | | |
 | ORD-022 | todo | | |

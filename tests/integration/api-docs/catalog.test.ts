@@ -291,6 +291,9 @@ describe('GET /docs/openapi.json', () => {
     // BIL-007: a payer reads the business name from its payment code
     expect(paths).toContain('/api/v1/billing/shops/{code}');
 
+    // BIL-009: a payer starts a payment for a business
+    expect(paths).toContain('/api/v1/billing/payments');
+
     // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
     expect(authPaths.sort()).toEqual([

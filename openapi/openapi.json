@@ -27874,6 +27874,192 @@
           }
         }
       }
+    },
+    "/api/v1/billing/payments": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Start the payment of a plan for a business (public)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "ESSENTIAL",
+                      "PRO",
+                      "ENTERPRISE"
+                    ]
+                  },
+                  "months": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "enum": [
+                          1
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          3
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          6
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          12
+                        ]
+                      }
+                    ]
+                  },
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "MTN_MOMO",
+                      "ORANGE_MONEY"
+                    ]
+                  },
+                  "payer_phone_number": {
+                    "type": "string"
+                  },
+                  "customer_tax_id": {
+                    "type": "string"
+                  },
+                  "terms_version": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "code",
+                  "plan",
+                  "months",
+                  "operator",
+                  "payer_phone_number",
+                  "terms_version"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The payment, PENDING, with the amount computed by the server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "SUCCEEDED",
+                        "FAILED",
+                        "EXPIRED",
+                        "REFUNDED"
+                      ]
+                    },
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "ESSENTIAL",
+                        "PRO",
+                        "ENTERPRISE"
+                      ]
+                    },
+                    "months": {
+                      "type": "integer"
+                    },
+                    "amount": {
+                      "type": "integer"
+                    },
+                    "operator": {
+                      "type": "string",
+                      "enum": [
+                        "MTN_MOMO",
+                        "ORANGE_MONEY"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "plan",
+                    "months",
+                    "amount",
+                    "operator"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, including an unknown field such as an amount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No ACTIVE business holds this code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "TERMS_CHANGED, or PAYMENT_ID_USED when the id belongs to another body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "More than 10 payments an hour from this address, or 5 for one payer number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "webhooks": {}
