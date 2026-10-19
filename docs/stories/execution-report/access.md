@@ -6,6 +6,23 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-19 12:22 UTC: `/implement-stories ACC-008,AUTH-027..AUTH-038`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ACC-008 Availability values say who may act offline | done | d766874 | Where values renamed, unknown value denied; 3206 tests pass |
+
+Also in this run: auth.
+
+- Not done: AUTH-037, blocked. Its new tests pass, but the existing number-claim.test.ts (run by the story's own command) fails in clean(): a refused claim now stores a notice, so DELETE FROM people hits the notifications foreign key. The test is not under "Tests to update"; the fix is a DELETE FROM notifications before the people delete.
+- Stash: "AUTH-037 blocked: partial changes".
+- Earlier in this run: AUTH-028 and AUTH-032 were blocked the same way (an existing test missing from "Tests to update"); each was resolved by amending its story, popping the stash and re-running, and ended done. AUTH-028 also needed PRIV-002 AC-5 reworded.
+- Run completed: every PLAN line reached; 12 done (ACC-008, AUTH-027..AUTH-036, AUTH-038), 1 blocked (AUTH-037), 0 skipped at the end.
+- Baseline failing count: 0.
+- Unexpected: the AUTH-032 first report was filed without figures (the notification arrived after the command); AUTH-037 was set aside before its report was filed; the AUTH-034, AUTH-032 and AUTH-036 hand-backs gave no or partial test evidence, so the orchestrator re-ran typecheck, lint and the full suite (all green); the AUTH-036 agent saw 2 sync/pull-catalog failures that did not reproduce. A story file was edited at the user's request (AUTH-028, PRIV-002, AUTH-032).
+- Follow-up for a human: contracts.md of the auth module does not list claimRefusal (AUTH-031).
+- Next command: amend AUTH-037's "Tests to update" for number-claim.test.ts, `git stash pop` the AUTH-037 stash, then `/implement-stories AUTH-037`.
+
 ### Run 2026-10-19 11:57 UTC: `/implement-stories ACC-008,AUTH-027..AUTH-038`
 
 | story | status | commit | note |

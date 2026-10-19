@@ -6,6 +6,34 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-19 12:22 UTC: `/implement-stories ACC-008,AUTH-027..AUTH-038`
+
+| story | status | commit | note |
+|---|---|---|---|
+| AUTH-027 Two new purposes for one-time codes | done | 96dea3d | OtpPurpose gains ORG_CONTACT_VERIFICATION and ACCESS_RESTORE; 3212 tests pass |
+| AUTH-028 Sign-in tells the person what to do | done | e52113f | 404/401/403 answers, number-check quota; anonymize AC-5 test updated to 404 |
+| AUTH-029 A registered number gets no registration code | done | 1cca186 | registered holder: sent false, no challenge, no job; IP number-check quota counted |
+| AUTH-030 Registration saves the interface language | done | b564eab | preferred_language optional FR/EN on register, stored for new and guest; tests green |
+| AUTH-031 A recycled number can be claimed after six idle months | done | 003d776 | claim route, claimRefusal, latestDeviceActivity; 19 tests; suite green |
+| AUTH-032 Registering on a recycled number re-checks the old holder | done | 5e90cf5 | re-check before spending the code, firePhoneReleased in tx; register-new-holder fixture backdated |
+| AUTH-033 The reset code comes by SMS only | done | baf5519 | Reset code by SMS only; use_email now 400; number quota counted first |
+| AUTH-034 The new password opens the session on this phone | done | 84d359d | Reset confirm returns 200 session; suspended refused after code; all tests pass |
+| AUTH-036 Sign-in no longer uses the email | done | 019e7c2 | login and verify bodies are phone-only and SMS-only; email paths removed |
+| AUTH-035 Remove the verified-email lookup | done | b5975f0 | findByVerifiedEmail removed; unit test guards export and src scan |
+| AUTH-037 The active holder is told someone claimed their number | blocked | 16cdec5 | Service done, 9 new tests pass, but existing number-claim.test.ts (named in the story command) now fails in its clean(): DELETE FROM people hits FK notifications_recipient_id_fkey because the claim now stores a notice. Needs 'DELETE FROM notifications WHERE recipient_id IN (SELECT id FROM people WHERE phone_number LIKE ...)' in its clean(), to be listed under Tests to update. |
+| AUTH-038 A verified email is unique whatever the letter case | done | 48840e3 | Characterization test for case-insensitive verified email uniqueness; 3 tests pass |
+
+Also in this run: access.
+
+- Not done: AUTH-037, blocked. Its new tests pass, but the existing number-claim.test.ts (run by the story's own command) fails in clean(): a refused claim now stores a notice, so DELETE FROM people hits the notifications foreign key. The test is not under "Tests to update"; the fix is a DELETE FROM notifications before the people delete.
+- Stash: "AUTH-037 blocked: partial changes".
+- Earlier in this run: AUTH-028 and AUTH-032 were blocked the same way (an existing test missing from "Tests to update"); each was resolved by amending its story, popping the stash and re-running, and ended done. AUTH-028 also needed PRIV-002 AC-5 reworded.
+- Run completed: every PLAN line reached; 12 done (ACC-008, AUTH-027..AUTH-036, AUTH-038), 1 blocked (AUTH-037), 0 skipped at the end.
+- Baseline failing count: 0.
+- Unexpected: the AUTH-032 first report was filed without figures (the notification arrived after the command); AUTH-037 was set aside before its report was filed; the AUTH-034, AUTH-032 and AUTH-036 hand-backs gave no or partial test evidence, so the orchestrator re-ran typecheck, lint and the full suite (all green); the AUTH-036 agent saw 2 sync/pull-catalog failures that did not reproduce. A story file was edited at the user's request (AUTH-028, PRIV-002, AUTH-032).
+- Follow-up for a human: contracts.md of the auth module does not list claimRefusal (AUTH-031).
+- Next command: amend AUTH-037's "Tests to update" for number-claim.test.ts, `git stash pop` the AUTH-037 stash, then `/implement-stories AUTH-037`.
+
 ### Run 2026-10-19 11:57 UTC: `/implement-stories ACC-008,AUTH-027..AUTH-038`
 
 | story | status | commit | note |
