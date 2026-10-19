@@ -1,6 +1,7 @@
 import type { Delivery, Order, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { lineAmount, parseQuantity } from '../../shared/money.js';
+import type { Role } from '../../shared/access/roles.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { resolveMergedRelation } from '../relationship/relationship.repository.js';
 import {
@@ -45,15 +46,18 @@ function supplierScope(viewer: Viewer): Prisma.OrderWhereInput {
 
 /**
  * Reads a page of the CONFIRMED orders of the viewer's organization that have an applied delivery
- * address, newest first. Every driver of the organization sees the same pool.
+ * address, newest first. MANAGER, OWNER and SELLER see the whole pool; a DRIVER does not see an
+ * order with a live delivery (not deleted, neither arrived nor failed) assigned to someone else,
+ * so it leaves the pool while assigned and comes back when the assignment ends (CM-38). The role
+ * decides, so a person who is both owner and driver sees what the actor's role allows.
  *
- * @param viewer - Person and organization from the loaded actor, never from the client.
+ * @param viewer - Person, organization and role from the loaded actor, never from the client.
  * @param query - Page size and opaque cursor.
  * @returns Orders (at most limit) and the next cursor or null.
  * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
  */
 export async function listToDeliverOrders(
-  viewer: Viewer,
+  viewer: Viewer & { role: Role },
   query: { limit: number; cursor?: string }
 ): Promise<{ rows: OrderForDriver[]; nextCursor: string | null }> {
   const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
@@ -61,6 +65,18 @@ export async function listToDeliverOrders(
     supplierScope(viewer),
     { status: 'CONFIRMED', deliveryAddressApplied: { not: null } },
   ];
+  if (viewer.role === 'DRIVER') {
+    and.push({
+      deliveries: {
+        none: {
+          assignedToId: { not: viewer.personId },
+          deletedAt: null,
+          arrivedAt: null,
+          failedAt: null,
+        },
+      },
+    });
+  }
   if (cursor) {
     and.push({
       OR: [

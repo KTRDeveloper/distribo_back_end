@@ -263,6 +263,28 @@ Also in this run: relationship, admin, catalog, order, finance.
 **Evidence:** story tests 23/23; full suite 2780/2780, failing: none; typecheck clean; lint 0 errors, 65 warnings (pre-existing security/detect-non-literal-fs-filename)
 <!-- end DLV-006 -->
 
+<!-- begin DLV-013 -->
+## DLV-013 — An order assigned to a driver leaves the pool of the other drivers
+
+- Filed: 2026-10-19 20:15 UTC
+- Status: **done**: driver pool hides orders live-assigned to another driver
+- Risk: medium · story: [DLV-013-an-order-assigned-to-a-driver-leaves-the-pool.md](../modules/delivery/DLV-013-an-order-assigned-to-a-driver-leaves-the-pool.md)
+- Agent: 37,603 tokens, 15 tool uses, 2 min 20 s
+
+### Agent report
+
+**Summary:** For role DRIVER, listToDeliverOrders now excludes orders with a live delivery assigned to someone else; other roles unchanged.
+
+**Decisions:**
+- Live delivery = deletedAt null, arrivedAt null, failedAt null, assignedToId != viewer (Prisma `deliveries: { none }`): matches the story context.
+- Updated the listToDeliver JSDoc in delivery.service.ts, which said every role sees the same pool.
+
+**Tests added beyond the story:**
+- `tests/integration/delivery/pool-assigned.test.ts` › still lists, for driver A, an order assigned to A itself: the assigned driver keeps it (AC-1 "driver B sees it"); passed at once
+
+**Evidence:** story tests 10/10 (with driver-lists 23/23); full suite 4145/4145, failing: none, 0 known; typecheck clean; lint 0 errors, 186 warnings
+<!-- end DLV-013 -->
+
 <!-- begin DLV-007 -->
 ## DLV-007 — "Commande livrée": deliver a whole order and record the sale and the payment
 

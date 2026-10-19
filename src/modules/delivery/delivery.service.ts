@@ -67,7 +67,8 @@ import {
 
 /**
  * Lists the orders waiting for a driver: CONFIRMED, with an applied delivery address, not deleted,
- * newest first. Any active member (DRIVER and above, so every role) sees the same pool; the actor
+ * newest first. Any active member can read it; a DRIVER does not see an order assigned to another
+ * driver (CM-38), the other roles see every order. The actor
  * is loaded from the path and the query starts from its organization (v5.0.0-8.2.2).
  *
  * @param actor - Actor loaded from the path.

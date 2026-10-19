@@ -294,7 +294,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-026 | done | | Line rules trigger reads variant and product; 22 tests green |
 | ORD-029 | done | | countOrderedLinesByVariant added; 9 tests, suite green |
 | ORD-030 | done | | listOrderedVariantIds added to order.repository; 6 tests pass |
-| DLV-013 | todo | | |
+| DLV-013 | done | | driver pool hides orders live-assigned to another driver |
 | CAT-017 | todo | | |
 | CAT-019 | todo | | |
 | CAT-020 | todo | | |
