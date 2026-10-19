@@ -473,6 +473,29 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 22/22 (plus line-rules and push-orders: 56/56); full suite 4120/4121, failing: tests/unit/tooling/quality-gates.test.ts (lint had 2 errors in my test file, fixed, file rerun green), 0 known; typecheck clean; lint 0 errors, 186 warnings (existing)
 <!-- end ORD-026 -->
 
+<!-- begin ORD-029 -->
+## ORD-029 — A supplier's orders are counted by variant over a period
+
+- Filed: 2026-10-19 20:09 UTC
+- Status: **done**: countOrderedLinesByVariant added; 9 tests, suite green
+- Risk: medium · story: [ORD-029-a-supplier-s-orders-are-counted-by-variant-over.md](../modules/order/ORD-029-a-supplier-s-orders-are-counted-by-variant-over.md)
+- Agent: 38,691 tokens, 19 tool uses, 2 min 55 s
+
+### Agent report
+
+**Summary:** Added `countOrderedLinesByVariant` to order.repository.ts (one grouped parameterized SQL query) with its integration test.
+
+**Decisions:**
+- Raw `$queryRaw` with joins order_lines, orders, customer_relationships: grouping in SQL as the story asks; Prisma groupBy cannot filter through the relationship chain.
+- Test fixtures build each order and its lines in one transaction: the deferred total check (ORD-006) and the frozen CANCELLED order forbid updating the total afterwards.
+
+**Tests added beyond the story:**
+- `tests/integration/order/demand-by-variant.test.ts` › AC-1 counts an order created exactly at since: `since` boundary is inclusive (Context: "at or after"); passed at once after implementation
+- same file › counts the other statuses: PENDING and IN_DELIVERY orders are counted, only CANCELLED is left out (Context)
+
+**Evidence:** story tests 9/9; full suite 4130/4130, failing: none, 0 known; typecheck clean; lint 0 errors, 186 warnings (pre-existing)
+<!-- end ORD-029 -->
+
 <!-- begin ORD-009 -->
 ## ORD-009 — Customer places an order
 

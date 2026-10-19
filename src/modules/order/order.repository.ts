@@ -576,3 +576,34 @@ export function findCustomerOrder(
     include: { lines: { where: { deletedAt: null }, orderBy: { id: 'asc' } } },
   });
 }
+
+/**
+ * Counts, per variant, the lines ordered from a supplier since a date, so billing can keep the
+ * most ordered products when a plan runs out. Only undeleted lines of undeleted, non-CANCELLED
+ * orders created at or after `since` count. The supplier is reached through the order's
+ * relationship, and its id comes from server code, never from the client (v5.0.0-8.2.2).
+ *
+ * @param tx - Transaction client.
+ * @param supplierOrganizationId - The supplier whose orders are counted.
+ * @param since - Inclusive lower bound on the order's creation date.
+ * @returns Variant id to line count; a variant with no line is absent.
+ */
+export async function countOrderedLinesByVariant(
+  tx: Prisma.TransactionClient,
+  supplierOrganizationId: string,
+  since: Date
+): Promise<Map<string, number>> {
+  const rows = await tx.$queryRaw<Array<{ product_variant_id: string; line_count: number }>>`
+    SELECT ol.product_variant_id::text AS product_variant_id, count(*)::int AS line_count
+    FROM order_lines ol
+    JOIN orders o ON o.id = ol.order_id
+    JOIN customer_relationships cr ON cr.id = o.customer_relationship_id
+    WHERE cr.supplier_organization_id = ${supplierOrganizationId}::uuid
+      AND o.created_at >= ${since}
+      AND o.deleted_at IS NULL
+      AND o.status <> 'CANCELLED'::public."OrderStatus"
+      AND ol.deleted_at IS NULL
+    GROUP BY ol.product_variant_id
+  `;
+  return new Map(rows.map((row) => [row.product_variant_id, row.line_count]));
+}

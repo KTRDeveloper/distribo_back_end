@@ -292,7 +292,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-024 | done | | order_lines.product_variant_id with FK, index and fill trigger; 4093 tests pass |
 | ORD-025 | done | | variant required; migration audit+copy+NOT NULL; ORD-024 AC-1 nullable assertion updated with user authorization |
 | ORD-026 | done | | Line rules trigger reads variant and product; 22 tests green |
-| ORD-029 | todo | | |
+| ORD-029 | done | | countOrderedLinesByVariant added; 9 tests, suite green |
 | ORD-030 | todo | | |
 | DLV-013 | todo | | |
 | CAT-017 | todo | | |
