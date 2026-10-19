@@ -556,18 +556,23 @@ export type PasswordResetConfirmInput = {
   phone_number: string;
   code: string;
   new_password: string;
-  use_email?: boolean;
+  device: DeviceInfo;
 };
 
 /**
- * Set a new password with a PASSWORD_RESET code bound to the number (or verified
- * email), then end every session of the person (CM-05, v5.0.0-6.4.3, v5.0.0-7.4.3).
- * Password rules are checked before the code is spent, so a weak password keeps it.
- * Unknown or unregistered numbers answer OTP_INVALID. Never logs password or code.
+ * Set a new password with a PASSWORD_RESET code bound to the number, end every
+ * session of the person and open a new one on this phone (CM-05, C-03, v5.0.0-6.4.3,
+ * v5.0.0-7.4.3). Password rules and device info are checked before the code is spent,
+ * so a weak password keeps it. A suspended account learns it only after the code: the
+ * code is spent, then 403, with password and sessions untouched (v5.0.0-6.3.8). Hash,
+ * revocation and the new session share one transaction. Never logs password or code.
  *
- * @throws 400 VALIDATION_ERROR, WEAK_PASSWORD, OTP_INVALID, OTP_EXPIRED; 429 OTP_LOCKED
+ * @throws 400 VALIDATION_ERROR, WEAK_PASSWORD, OTP_INVALID, OTP_EXPIRED; 403 ACCOUNT_SUSPENDED;
+ *   429 OTP_LOCKED
  */
-export async function confirmPasswordReset(input: PasswordResetConfirmInput): Promise<void> {
+export async function confirmPasswordReset(
+  input: PasswordResetConfirmInput
+): Promise<SessionResponse> {
   const invalid = () => httpError(400, 'OTP_INVALID', 'Invalid code');
   const phone = normalizeE164(input.phone_number);
   if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
@@ -576,19 +581,34 @@ export async function confirmPasswordReset(input: PasswordResetConfirmInput): Pr
   }
   const holder = await findByActivePhone(phone);
   if (!holder?.registeredAt || !holder.fullName) throw invalid();
-  const viaEmail = input.use_email === true;
-  const target = viaEmail ? holder.email : phone;
-  if (!target || (viaEmail && !holder.emailVerifiedAt)) throw invalid();
-  const r = await verifyCode({ target, purpose: 'PASSWORD_RESET', code: input.code });
+  const r = await verifyCode({ target: phone, purpose: 'PASSWORD_RESET', code: input.code });
   if (r.personId !== holder.id) throw invalid();
+  if (holder.status === 'SUSPENDED') {
+    logger.warn(
+      { event: 'password_reset_refused_suspended', personId: holder.id },
+      'Reset refused'
+    );
+    throw httpError(403, 'ACCOUNT_SUSPENDED', 'Account suspended');
+  }
   const newHash = await hashPassword(input.new_password);
-  // One transaction: a failed revocation must not leave the new password with sessions live.
-  await inTransaction(async (tx) => {
+  // One transaction: a failed revocation or session must not leave the new password in place.
+  const session = await inTransaction(async (tx) => {
     if (!(await updatePasswordHash(holder.id, newHash, tx))) throw invalid();
     await revokeSessions(holder.id, 'PASSWORD_RESET', { tx });
+    return issueSession(holder.id, input.device, tx);
   });
   await resetKey(`login:fail:${phone}`);
-  logger.info({ event: 'password_reset', personId: holder.id }, 'Password reset');
+  logger.info(
+    { event: 'password_reset', personId: holder.id, deviceId: session.deviceId },
+    'Password reset'
+  );
+  return {
+    access_token: session.accessToken,
+    refresh_token: session.refreshToken,
+    expires_in: session.expiresIn,
+    token_type: 'Bearer',
+    person: { id: holder.id, full_name: holder.fullName },
+  };
 }
 
 /**

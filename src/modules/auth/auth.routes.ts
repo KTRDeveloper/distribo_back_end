@@ -191,13 +191,12 @@ authRoutes.post('/password-reset/request', (req, res, next) => {
   })().catch(next);
 });
 
-// Public route: the code proves the SIM or the verified email.
+// Public route: the code proves the SIM; success opens a session on this phone.
 authRoutes.post('/password-reset/confirm', (req, res, next) => {
   void (async () => {
     const body = passwordResetConfirmSchema.safeParse(req.body);
     if (!body.success) throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
-    await confirmPasswordReset(body.data);
-    res.status(204).end();
+    res.status(200).json(await confirmPasswordReset(body.data));
   })().catch(next);
 });
 

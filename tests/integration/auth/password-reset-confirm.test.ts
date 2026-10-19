@@ -77,7 +77,7 @@ afterAll(clean);
 
 const confirm = (body: Record<string, unknown>) =>
   request(app).post('/api/v1/auth/password-reset/confirm').send(body);
-const good = { phone_number: PHONE, code: '123456', new_password: NEW };
+const good = { phone_number: PHONE, code: '123456', new_password: NEW, device: dev };
 const hashNow = async () =>
   (await prisma.person.findUniqueOrThrow({ where: { id: personId } })).passwordHash ?? '';
 const errCode = (b: unknown) => (b as { error: { code: string } }).error.code;
@@ -86,7 +86,7 @@ describe('password reset confirm', () => {
   it('reset', async () => {
     await code();
     const res = await confirm(good);
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
     expect(await verifyPassword(await hashNow(), NEW)).toBe(true);
     expect(await verifyPassword(await hashNow(), OLD)).toBe(false);
   });
@@ -95,7 +95,7 @@ describe('password reset confirm', () => {
     const a = await issueSession(personId, dev);
     const b = await issueSession(personId, dev);
     await code();
-    expect((await confirm(good)).status).toBe(204);
+    expect((await confirm(good)).status).toBe(200);
     for (const s of [a, b]) {
       const t = await prisma.refreshToken.findMany({ where: { deviceId: s.deviceId } });
       expect(t.length).toBeGreaterThan(0);
@@ -135,13 +135,13 @@ describe('password reset confirm', () => {
   it('weak keeps code', async () => {
     await code();
     expect((await confirm({ ...good, new_password: '1234567' })).status).toBe(400);
-    expect((await confirm(good)).status).toBe(204);
+    expect((await confirm(good)).status).toBe(200);
   });
 
   it('lock cleared', async () => {
     store.set(`login:fail:${PHONE}`, 5);
     await code();
-    expect((await confirm(good)).status).toBe(204);
+    expect((await confirm(good)).status).toBe(200);
     expect(store.get(`login:fail:${PHONE}`) ?? 0).toBe(0);
   });
 

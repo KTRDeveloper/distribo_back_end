@@ -322,12 +322,19 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/api/v1/auth/password-reset/confirm',
   tags: ['auth'],
-  summary: 'Choose a new password with the code',
+  summary: 'Choose a new password with the code and sign in on this phone',
   request: { body: { content: { 'application/json': { schema: passwordResetConfirmSchema } } } },
   responses: {
-    204: { description: 'Password changed, every device signed out' },
+    200: {
+      description: 'Password changed, every other device signed out, this phone signed in',
+      content: { 'application/json': { schema: sessionResponseSchema } },
+    },
     400: {
       description: 'VALIDATION_ERROR, WEAK_PASSWORD, OTP_INVALID, OTP_EXPIRED',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'ACCOUNT_SUSPENDED (only after the right code)',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     429: {

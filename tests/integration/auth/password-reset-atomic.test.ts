@@ -72,7 +72,7 @@ describe('password reset confirm atomicity', () => {
 
     const r = await request(app)
       .post('/api/v1/auth/password-reset/confirm')
-      .send({ phone_number: PHONE, code: '123456', new_password: NEW });
+      .send({ phone_number: PHONE, code: '123456', new_password: NEW, device: dev });
 
     expect(r.status).toBe(500);
     const stored = (await prisma.person.findUniqueOrThrow({ where: { id: personId } }))
