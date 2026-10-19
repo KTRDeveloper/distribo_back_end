@@ -1,6 +1,9 @@
 // IMPORTANT: Set test DATABASE_URL before any imports
+import { isWorkerDatabaseUrl, workerDatabaseUrl } from './test-db';
+
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
+// Each Vitest worker owns its database, so test files can run in parallel.
+process.env.DATABASE_URL = workerDatabaseUrl();
 process.env.LOG_LEVEL = 'fatal'; // Valid enum: trace, debug, info, warn, error, fatal (fatal is highest/quietest)
 process.env.JWT_SECRET = 'test-secret-key-must-be-at-least-32-characters-long';
 process.env.REDIS_URL = 'redis://localhost:6379';
@@ -24,8 +27,6 @@ process.env.RATE_LIMIT_MAX = process.env.RATE_LIMIT_MAX || '100000';
 import { beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-
-const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
 
 // Mock Redis before any imports
 vi.mock('ioredis', () => {
@@ -115,7 +116,7 @@ beforeAll(() => {
 // active owner per organization cannot refuse the cleanup. Setting it needs a
 // superuser: postgres, the test user locally and in CI.
 async function clearDatabase() {
-  if (process.env.NODE_ENV !== 'test' || process.env.DATABASE_URL !== TEST_DATABASE_URL) {
+  if (process.env.NODE_ENV !== 'test' || !isWorkerDatabaseUrl(process.env.DATABASE_URL)) {
     throw new Error('Refusing to clear a non-test database');
   }
 

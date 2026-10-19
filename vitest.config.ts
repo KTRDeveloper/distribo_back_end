@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { TEST_WORKERS } from './tests/test-db';
 
 export default defineConfig({
   test: {
@@ -11,12 +12,10 @@ export default defineConfig({
     // failures, instead of one line per file, to keep agent context small.
     // CI and terminals keep the default reporter.
     reporters: process.env.CLAUDECODE ? ['dot'] : ['default'],
-    // Integration test files share one physical Postgres database and each
-    // file's beforeEach empties shared tables — running files in parallel
-    // lets one file's cleanup wipe rows another concurrently-running file
-    // just created (observed as spurious FK violations / "not found" errors
-    // when the full suite ran in parallel). Force sequential file execution.
-    fileParallelism: false,
+    // Test files run in parallel, and each worker owns a copy of the test
+    // database (tests/test-db.ts): one file's cleanup can never wipe rows
+    // another running file just created. TEST_WORKERS changes the count.
+    maxWorkers: TEST_WORKERS,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

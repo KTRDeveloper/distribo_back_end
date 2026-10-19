@@ -14,6 +14,9 @@ export default [
       '**/*.config.ts',
       '**/*.config.js',
       'tests/fixtures/**',
+      // Scripts a test writes and deletes while it runs (production-gate):
+      // with test files in parallel, lint could list one and fail to read it.
+      'tests/**/__*.mjs',
     ],
   },
   js.configs.recommended,

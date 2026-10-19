@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-
-const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
+import { isWorkerDatabaseUrl } from '../test-db';
 
 /**
  * Return a Prisma client connected through the owner account while executing
@@ -9,13 +8,15 @@ const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db
  *
  * This helper is intentionally test-only. PostgreSQL's superuser owner can
  * SET ROLE to distribo_app without giving that role a password or LOGIN.
+ * It connects to the current worker's test database (tests/test-db.ts).
  */
 export function getAppRolePrisma(): PrismaClient {
-  if (process.env.NODE_ENV !== 'test' || process.env.DATABASE_URL !== TEST_DATABASE_URL) {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (process.env.NODE_ENV !== 'test' || !isWorkerDatabaseUrl(databaseUrl)) {
     throw new Error('Refusing to connect as the application role outside the test database');
   }
 
-  const connectionString = `${TEST_DATABASE_URL}?options=${encodeURIComponent('-c role=distribo_app')}`;
+  const connectionString = `${databaseUrl}?options=${encodeURIComponent('-c role=distribo_app')}`;
   const adapter = new PrismaPg({ connectionString });
 
   return new PrismaClient({ adapter });

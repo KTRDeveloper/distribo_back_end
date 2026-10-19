@@ -8,7 +8,8 @@ import { recordExpenseInTx, recordHandoverInTx } from '../../../src/modules/fina
 import { createTotpSecret, encryptSecret } from '../../../src/lib/totp';
 import { prisma } from '../../setup';
 
-const TEST_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5434/test_db';
+// This worker's test database (tests/setup.ts), also given to the purge script.
+const TEST_DATABASE_URL = process.env.DATABASE_URL;
 const SCRIPT_TIMEOUT = 60_000;
 const NOW = new Date('2026-10-05T00:00:00.000Z');
 const DAY = 24 * 60 * 60 * 1000;
