@@ -245,7 +245,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-021 | done | | trigger product_variants_touch_product; 3498 tests pass |
 | CAT-032 | done | | setProductImageKeys and setVariantImageKeys in catalog.repository; 17 tests green |
 | CAT-033 | done | | applyProductFromSync + repo functions; 15 tests green |
-| CAT-034 | todo | | |
+| CAT-034 | done | | applyVariantFromSync with 4 repository functions; 39 tests green |
 | CAT-035 | todo | | |
 | CAT-044 | todo | | |
 | CAT-046 | todo | | |

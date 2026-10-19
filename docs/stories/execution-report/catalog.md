@@ -348,6 +348,37 @@ Also in this run: relationship, admin, order, finance, delivery.
 - I wrote the tests before the code but did not run them red (the module was missing).
 <!-- end CAT-033 -->
 
+<!-- begin CAT-034 -->
+## CAT-034 — A variant sent by a phone is created or edited without failing the batch
+
+- Filed: 2026-10-19 16:09 UTC
+- Status: **done**: applyVariantFromSync with 4 repository functions; 39 tests green
+- Risk: high · story: [CAT-034-a-variant-sent-by-a-phone-is-created-or-edited.md](../modules/catalog/CAT-034-a-variant-sent-by-a-phone-is-created-or-edited.md)
+- Agent: 57,812 tokens, 22 tool uses, 5 min 18 s
+
+### Agent report
+
+**Summary:** Added applyVariantFromSync and findVariantAnyState, findLiveTwin, insertVariant, updateVariant; all story cases green.
+
+**Decisions:**
+- `invalidFields` uses the input type keys (`minOrderQuantity`, not `min_order_quantity`): same convention as the product writer; the sync adapter maps to wire names.
+- A unit of blanks only counts as empty and is INVALID (CAT-022 trims then requires 1 to 100); a name may be null or empty, at most 100.
+- Twin test runs in SQL with the CAT-018 index expression, not `simplifyText`, so it always agrees with the index (collation-proof).
+- Unchanged check compares the minimum by value ("2.5" equals "2.500"); UNCHANGED writes nothing so no date moves.
+- An edit that makes a twin of another live variant gives COLLISION (as CAT-035 states); a lost insert race (twin or id) is re-judged, never thrown.
+- Creation locks the product row (findProductAnyState) so simultaneous pushes of one product serialize.
+
+**Tests added beyond the story:**
+- `sync-apply-variant.test.ts` › two simultaneous twin creations: one CREATED, one COLLISION (C-36, C-47); passed at once
+- `sync-apply-variant.test.ts` › UNCHANGED moves no date; minimum compared by value; a variant is not its own twin; limit values; photos kept; stored fields on creation (AC-2/AC-4/AC-5); passed at once
+
+**Evidence:** story tests 39/39; full suite 3569/3569, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings (pre-existing kind)
+
+**Follow-ups:**
+- `label` and `mergedInto` of the result type are unused until CAT-035.
+- Ids are not checked as UUIDs here (like the product writer); the caller's schema must.
+<!-- end CAT-034 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 

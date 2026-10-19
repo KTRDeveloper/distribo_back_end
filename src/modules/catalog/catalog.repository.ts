@@ -687,3 +687,145 @@ export async function updateProductText(
     data: { name: data.name, description: data.description, category: data.category },
   });
 }
+
+/** A variant row as the synchronization sees it, whoever owns it and whatever its state. */
+export type VariantAnyState = {
+  id: string;
+  productId: string;
+  organizationId: string;
+  name: string | null;
+  unit: string;
+  price: bigint;
+  /** Canonical text of the `numeric(12,3)` column, such as "2.500", or null. */
+  minOrderQuantity: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+  deletedAt: Date | null;
+};
+
+/**
+ * Reads a variant by id alone, deleted or not, and locks the row for the transaction so two
+ * pushes of the same variant apply one after the other. The caller judges the organization and
+ * the state: the id is never trusted (v5.0.0-8.2.2).
+ *
+ * @returns The row, or null when no variant has this id.
+ */
+export async function findVariantAnyState(
+  tx: Prisma.TransactionClient,
+  variantId: string
+): Promise<VariantAnyState | null> {
+  const rows = await tx.$queryRaw<
+    Array<{
+      id: string;
+      product_id: string;
+      organization_id: string;
+      name: string | null;
+      unit: string;
+      price: bigint;
+      min_order_quantity: string | null;
+      status: 'ACTIVE' | 'INACTIVE';
+      deleted_at: Date | null;
+    }>
+  >`
+    SELECT "id", "product_id", "organization_id", "name", "unit", "price",
+           "min_order_quantity"::text AS "min_order_quantity", "status"::text AS "status",
+           "deleted_at"
+    FROM "product_variants" WHERE "id" = ${variantId}::uuid FOR UPDATE`;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    productId: row.product_id,
+    organizationId: row.organization_id,
+    name: row.name,
+    unit: row.unit,
+    price: BigInt(row.price),
+    minOrderQuantity: row.min_order_quantity,
+    status: row.status,
+    deletedAt: row.deleted_at,
+  };
+}
+
+/**
+ * Finds the live variant of a product that has the same simplified name and unit as the given
+ * ones (C-47). The comparison is the SQL expression of the unique index of CAT-018, so the answer
+ * always agrees with what the index would refuse, whatever the collation.
+ *
+ * @param exceptId - A variant not to count, the one being edited.
+ * @returns The id of the twin, or null.
+ */
+export async function findLiveTwin(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  name: string | null,
+  unit: string,
+  exceptId?: string
+): Promise<string | null> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "product_variants"
+    WHERE "product_id" = ${productId}::uuid
+      AND "deleted_at" IS NULL
+      AND (${exceptId ?? null}::uuid IS NULL OR "id" <> ${exceptId ?? null}::uuid)
+      AND lower(btrim(regexp_replace(coalesce("name", ''), '[ \t\r\n]+', ' ', 'g')))
+        = lower(btrim(regexp_replace(coalesce(${name}::text, ''), '[ \t\r\n]+', ' ', 'g')))
+      AND lower(btrim(regexp_replace(coalesce("unit", ''), '[ \t\r\n]+', ' ', 'g')))
+        = lower(btrim(regexp_replace(coalesce(${unit}::text, ''), '[ \t\r\n]+', ' ', 'g')))
+    ORDER BY "created_at", "id"
+    LIMIT 1`;
+  return rows[0]?.id ?? null;
+}
+
+/**
+ * Inserts a variant written from a synchronization push: the five phone fields only; the price
+ * date, the photos and the merge link keep their database defaults (C-13, C-47). A row that
+ * conflicts (the same id, or a live twin created since the read) is left alone, so no uniqueness
+ * error reaches the synchronization (C-36).
+ *
+ * @returns True when this call created the row.
+ */
+export async function insertVariant(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    productId: string;
+    organizationId: string;
+    name: string | null;
+    unit: string;
+    price: number;
+    minOrderQuantity: string | null;
+    status: 'ACTIVE' | 'INACTIVE';
+  }
+): Promise<boolean> {
+  const created = await tx.productVariant.createMany({
+    data: [{ ...data, price: BigInt(data.price) }],
+    skipDuplicates: true,
+  });
+  return created.count === 1;
+}
+
+/**
+ * Rewrites the five phone fields of a variant. The product, the photos, the merge link and the
+ * deletion date are never touched; the database moves `price_updated_at` only when the price
+ * changes (C-13) and the product's date (CAT-021).
+ */
+export async function updateVariant(
+  tx: Prisma.TransactionClient,
+  variantId: string,
+  data: {
+    name: string | null;
+    unit: string;
+    price: number;
+    minOrderQuantity: string | null;
+    status: 'ACTIVE' | 'INACTIVE';
+  }
+): Promise<void> {
+  await tx.productVariant.update({
+    where: { id: variantId },
+    data: {
+      name: data.name,
+      unit: data.unit,
+      price: BigInt(data.price),
+      minOrderQuantity: data.minOrderQuantity,
+      status: data.status,
+    },
+  });
+}
