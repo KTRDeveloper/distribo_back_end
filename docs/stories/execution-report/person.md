@@ -79,3 +79,22 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - Fix the 8 failing tests: appoint.test.ts is a stale PER-011 expectation (avatar_url in the public view); anonymize 500 and person-table column list look like a schema/migration drift to investigate.
 <!-- end PER-012 -->
+
+<!-- begin PER-013 -->
+## PER-013 — Server-side writer of the profile photo key
+
+- Filed: 2026-10-19 11:03 UTC
+- Status: **done**: setAvatarKey added; 6 tests, suite green
+- Risk: medium · story: [PER-013-server-side-writer-of-the-profile-photo-key.md](../modules/person/PER-013-server-side-writer-of-the-profile-photo-key.md)
+- Agent: 28,811 tokens, 16 tool uses, 2 min 51 s
+
+### Agent report
+
+**Summary:** Added `setAvatarKey` to person.repository.ts (row lock, previous key returned, caller tx or its own) with the 6 story tests.
+
+**Decisions:**
+- Lock: raw `SELECT ... FOR UPDATE` then Prisma `update`, so a missing row gives 404 before any write.
+- Key check runs before any DB call: `imageKeySchema` plus an `avatars/` prefix test, else RangeError.
+
+**Evidence:** story tests 6/6; full suite 3180/3180, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings (existing)
+<!-- end PER-013 -->

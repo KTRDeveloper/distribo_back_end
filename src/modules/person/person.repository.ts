@@ -1,6 +1,7 @@
 import { Prisma, type Person } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
-import { imageUrl } from '../../lib/image-keys.js';
+import { httpError } from '../../lib/http-error.js';
+import { imageKeySchema, imageUrl } from '../../lib/image-keys.js';
 import { newId } from '../../shared/ids.js';
 
 export type PublicPerson = {
@@ -100,4 +101,42 @@ export async function bumpScopeVersion(
   });
 
   return person.scopeVersion;
+}
+
+/**
+ * The one writer of `Person.avatar_key` (C-49, ASVS v5.0.0-15.3.3): sets, replaces or clears
+ * (`null`) the profile photo key and returns the previous key, so the images module can delete
+ * the old file after its commit.
+ *
+ * The person row is locked before the previous key is read, so two concurrent writers never
+ * return the same previous key (v5.0.0-2.2.3). Without `tx` it opens its own transaction.
+ * A guest or an anonymized person cannot hold a key: the database CHECK error is not caught.
+ *
+ * @param personId - Person whose photo key changes.
+ * @param key - Canonical `avatars/<uuid>.webp` key, or null to clear.
+ * @param tx - Optional caller transaction; the write commits or rolls back with it.
+ * @returns The previous key, or null when there was none.
+ * @throws {RangeError} when the key is not canonical or not in the `avatars` folder.
+ * @throws {HttpError} 404 `NOT_FOUND` when the person does not exist.
+ */
+export async function setAvatarKey(
+  personId: string,
+  key: string | null,
+  tx?: Prisma.TransactionClient
+): Promise<string | null> {
+  if (key !== null && (!imageKeySchema.safeParse(key).success || !key.startsWith('avatars/'))) {
+    throw new RangeError('Invalid avatar key');
+  }
+
+  const run = async (client: Prisma.TransactionClient): Promise<string | null> => {
+    const rows = await client.$queryRaw<{ avatar_key: string | null }[]>`
+      SELECT "avatar_key" FROM "people" WHERE "id" = ${personId}::uuid FOR UPDATE
+    `;
+    if (rows.length === 0) throw httpError(404, 'NOT_FOUND', 'Not found');
+
+    await client.person.update({ where: { id: personId }, data: { avatarKey: key } });
+    return rows[0].avatar_key;
+  };
+
+  return tx ? run(tx) : prisma.$transaction(run);
 }
