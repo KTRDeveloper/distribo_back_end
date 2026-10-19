@@ -90,6 +90,7 @@ const challenges = () =>
   >`SELECT person_id, purpose::text AS purpose FROM otp_challenges`;
 
 async function clean() {
+  await prisma.$executeRaw`DELETE FROM notifications WHERE recipient_id IN (SELECT id FROM people WHERE phone_number LIKE '+237677124%')`;
   await prisma.$executeRaw`DELETE FROM otp_challenges`;
   await prisma.$executeRaw`DELETE FROM devices WHERE person_id IN (SELECT id FROM people WHERE phone_number LIKE '+237677124%')`;
   await prisma.$executeRaw`DELETE FROM people WHERE phone_number LIKE '+237677124%'`;

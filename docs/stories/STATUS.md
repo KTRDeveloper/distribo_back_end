@@ -231,7 +231,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-034 | done | | Reset confirm returns 200 session; suspended refused after code; all tests pass |
 | AUTH-036 | done | | login and verify bodies are phone-only and SMS-only; email paths removed |
 | AUTH-035 | done | | findByVerifiedEmail removed; unit test guards export and src scan |
-| AUTH-037 | blocked | | Service done, 9 new tests pass, but existing number-claim.test.ts (named in the story command) now fails in its clean(): DELETE FROM people hits FK notifications_recipient_id_fkey because the claim now stores a notice. Needs 'DELETE FROM notifications WHERE recipient_id IN (SELECT id FROM people WHERE phone_number LIKE ...)' in its clean(), to be listed under Tests to update. |
+| AUTH-037 | done | | warnHolderOfClaim: one phone.claimed notice per active holder per day; 3304 tests pass |
 | AUTH-038 | done | | Characterization test for case-insensitive verified email uniqueness; 3 tests pass |
 | BIL-008 | todo | | |
 | BIL-010 | todo | | |
