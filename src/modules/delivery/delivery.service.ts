@@ -498,6 +498,7 @@ export function deliverOrder(
         return {
           id: newId(),
           productId: line.productId,
+          productVariantId: line.productVariantId,
           labelApplied: line.labelApplied,
           quantity: formatQuantity(remaining),
           referencePrice: line.referencePrice,

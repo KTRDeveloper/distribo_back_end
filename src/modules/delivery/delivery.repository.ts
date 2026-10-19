@@ -499,9 +499,13 @@ export async function setLineDelivered(
   await tx.orderLine.update({ where: { id }, data: { deliveredQuantity, amount } });
 }
 
-/** A line of the order made for the undelivered rest, its amount computed by the caller. */
+/**
+ * A line of the order made for the undelivered rest, its amount computed by the caller. It keeps the
+ * variant of the original line: the database only fills it for a product's legacy variant (ORD-025).
+ */
 export type RestLine = {
   productId: string;
+  productVariantId: string;
   labelApplied: string;
   quantity: string;
   referencePrice: bigint;
@@ -571,6 +575,7 @@ export async function markArrived(
 export type CounterSaleLine = {
   id: string;
   productId: string;
+  productVariantId: string;
   labelApplied: string;
   quantity: string;
   deliveredQuantity: string;

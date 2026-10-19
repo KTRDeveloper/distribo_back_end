@@ -285,6 +285,27 @@ Also in this run: relationship, admin, catalog, order, finance.
 **Evidence:** story tests 10/10 (with driver-lists 23/23); full suite 4145/4145, failing: none, 0 known; typecheck clean; lint 0 errors, 186 warnings
 <!-- end DLV-013 -->
 
+<!-- begin DLV-014 -->
+## DLV-014 — The rest of a delivery and a counter sale keep the variant of each line
+
+- Filed: 2026-10-19 21:10 UTC
+- Status: **done**: Rest lines carry the variant; counter sale already did via spread
+- Risk: medium · story: [DLV-014-the-rest-of-a-delivery-and-a-counter-sale-keep.md](../modules/delivery/DLV-014-the-rest-of-a-delivery-and-a-counter-sale-keep.md)
+- Agent: 45,200 tokens, 16 tool uses, 2 min 23 s
+
+### Agent report
+
+**Summary:** The rest order of a partial delivery now copies productVariantId; the counter sale needed only the type change.
+
+**Decisions:**
+- Test seeds: new-style products (empty unit) with raw-SQL variants, so the trigger cannot fill the variant and the not-null/FK is really exercised.
+
+**Tests added beyond the story:**
+- None. The counter-sale test passed at once (the spread already carried the variant); it stays as a regression guard.
+
+**Evidence:** story tests 3/3 (delivery folder 216/216); full suite 4400/4400, failing: none, 0 known; typecheck clean; lint 0 errors, 191 warnings (pre-existing style)
+<!-- end DLV-014 -->
+
 <!-- begin DLV-007 -->
 ## DLV-007 — "Commande livrée": deliver a whole order and record the sale and the payment
 
