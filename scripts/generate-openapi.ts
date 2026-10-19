@@ -22,6 +22,7 @@ import '../src/modules/remote-config/remote-config.openapi.js';
 import '../src/modules/sync/sync.openapi.js';
 import '../src/modules/privacy/privacy.openapi.js';
 import '../src/modules/images/images.openapi.js';
+import '../src/modules/billing/billing.openapi.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outputPath = resolve(__dirname, '../openapi/openapi.json');

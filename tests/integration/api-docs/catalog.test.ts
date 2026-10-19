@@ -288,6 +288,9 @@ describe('GET /docs/openapi.json', () => {
     // ADM-015: administrators read the action journal
     expect(paths).toContain('/api/v1/admin/actions');
 
+    // BIL-007: a payer reads the business name from its payment code
+    expect(paths).toContain('/api/v1/billing/shops/{code}');
+
     // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));
     expect(authPaths.sort()).toEqual([

@@ -152,3 +152,33 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - I wrote the implementation right after the tests without a separate red run, so no failing run was recorded.
 <!-- end BIL-012 -->
+
+<!-- begin BIL-007 -->
+## BIL-007 — A payer checks the business name from its payment code
+
+- Filed: 2026-10-19 18:11 UTC
+- Status: **done**: GET /billing/shops/{code} public, 30/h per ip
+- Risk: medium · story: [BIL-007-a-payer-checks-the-business-name-from-its.md](../modules/billing/BIL-007-a-payer-checks-the-business-name-from-its.md)
+- Agent: 51,839 tokens, 22 tool uses, 3 min 38 s
+
+### Agent report
+
+**Summary:** Added public GET /api/v1/billing/shops/{code}: trimmed/upper-cased code, 30 lookups an hour per ip, 404 for every hidden state, name-only answer.
+
+**Decisions:**
+- Order of checks: validation (400) first, then the rate limit, then the read; a malformed code is not counted (the story counts "before the lookup"; a 400 does no lookup).
+- Missing `req.ip`: counted under the key `billing:code:unknown` (shared bucket, fails closed) rather than skipping the limit.
+- Status check done in the service (`status !== 'ACTIVE'` gives the same 404) since ORG-044 returns the status.
+
+**Tests added beyond the story:**
+- `tests/integration/billing/shop-lookup.test.ts` › a rejected malformed code does not read the database: no read on a 400 (AC-3); passed at once
+- same file › limit test also checks the warn log has event `payment_code_rate_limited` and no ip (AC-4 text); 429 key prefix `billing:code:`
+
+**Other additions:**
+- `scripts/generate-openapi.ts`: imports `billing.openapi.js`, else generated openapi.json lacked the path and generate-script.test.ts failed; `openapi/openapi.json` regenerated.
+
+**Evidence:** story tests 13/13 (+ api-docs, per-001: 45/45); full suite 4021/4022 on first run, the one failure (generate-script path set) fixed by the script change and rerun green, 0 known; typecheck clean; lint 0 errors, 184 warnings (existing)
+
+**Follow-ups:**
+- The two numbers (30 lookups, one hour) are provisional per the story; they are constants in billing.service.ts, not in configService.
+<!-- end BIL-007 -->

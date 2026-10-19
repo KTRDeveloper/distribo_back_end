@@ -111,6 +111,7 @@ import remoteConfigRoutes from './modules/remote-config/remote-config.routes.js'
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { reportRoutes } from './modules/admin/report.routes.js';
+import { billingRoutes } from './modules/billing/billing.routes.js';
 import { apiDocsRoutes } from './modules/api-docs/api-docs.routes.js';
 
 // Register every module's OpenAPI paths/schemas on the shared registry
@@ -126,6 +127,7 @@ import './modules/notification/notification.openapi.js';
 import './modules/remote-config/remote-config.openapi.js';
 import './modules/privacy/privacy.openapi.js';
 import './modules/images/images.openapi.js';
+import './modules/billing/billing.openapi.js';
 // Attaches the organization's handler to the phone-released registry (PER-014).
 import './modules/organization/phone-released.handler.js';
 
@@ -167,6 +169,7 @@ v1Router.use('/suppliers', financeSupplierRoutes);
 v1Router.use('/supplier-invitations', supplierInvitationRoutes);
 v1Router.use('/collaborations', collaborationRoutes);
 v1Router.use('/auth', authRoutes);
+v1Router.use('/billing', billingRoutes);
 v1Router.use('/admin/sync-archives', syncArchiveRoutes);
 v1Router.use('/admin', adminRoutes);
 v1Router.use('/reports', reportRoutes);
