@@ -126,6 +126,16 @@ enum OrganizationStatus {
   CLOSED
 }
 
+enum OrganizationContactKind {
+  PHONE
+  EMAIL
+}
+
+enum ContactVerificationMethod {
+  CODE
+  OWNER_PHONE
+}
+
 enum OrganizationPlan {
   FREE
   ESSENTIAL
@@ -376,6 +386,8 @@ model Person {
   administrators Administrator[]
   syncArchives   SyncArchive[]
 
+  organizationContactsCreated OrganizationContact[] @relation("OrganizationContactCreatedBy")
+
   adminActionsAsTarget AdminAction[] @relation("AdminActionTargetPerson")
 
   reportsFiled          Report[] @relation("ReportReporter")
@@ -459,6 +471,8 @@ model Organization {
   subscriptionPayments SubscriptionPayment[]
   subscriptionReceipts SubscriptionReceipt[]
 
+  contacts OrganizationContact[]
+
   products        Product[]
   productVariants ProductVariant[]
   expenses        Expense[]
@@ -472,6 +486,43 @@ model Organization {
   reportsAsTarget Report[] @relation("ReportTargetOrganization")
 
   @@map("organizations")
+}
+
+// Rules the database enforces on the public contacts of a business, beyond
+// what this model declares:
+// - A business shows at most three phone numbers and one email. Pending
+//   contacts (not yet verified) count too. A phone number sits in a place
+//   (slot) 1, 2 or 3 and an email has no place; two live contacts of a
+//   business never share a place or a value, and a business has at most one
+//   live email.
+// - A deleted contact frees its place: the rules above only look at live rows
+//   (deleted_at empty). That is why they are not written as @@unique here.
+// - One phone number may be public for several businesses; the rules above
+//   are per business.
+// - A phone number is in international format (+ then 8 to 15 digits). An
+//   email is stored in lower case.
+// - A contact is verified exactly when it has both a verification date and a
+//   verification method, never one without the other.
+// - server_updated_at is set by the database on every change.
+//   (Migration 20261019100000_org_021_organization_contacts)
+model OrganizationContact {
+  id                 String                     @id @db.Uuid
+  organizationId     String                     @map("organization_id") @db.Uuid
+  kind               OrganizationContactKind
+  slot               Int?
+  value              String
+  verifiedAt         DateTime?                  @map("verified_at") @db.Timestamptz
+  verificationMethod ContactVerificationMethod? @map("verification_method")
+  createdById        String                     @map("created_by_id") @db.Uuid
+  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz
+  serverUpdatedAt    DateTime                   @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt          DateTime?                  @map("deleted_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    Person       @relation("OrganizationContactCreatedBy", fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@map("organization_contacts")
 }
 
 // Rule the database enforces on subscriptions (the billing history of an

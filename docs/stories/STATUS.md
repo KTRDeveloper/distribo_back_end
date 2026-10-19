@@ -253,7 +253,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-001 | done | | subscription_payments table, enums, trigger and grants; 42 tests |
 | BIL-003 | done | | receipts table, number function, triggers and grants; 32 tests |
 | BIL-012 | done | | issueReceipt, splitVat and VAT_RATE_BP added; 16 story tests pass |
-| ORG-021 | todo | | |
+| ORG-021 | done | | migration, schema and 30 tests green |
 | ORG-022 | todo | | |
 | ORG-023 | todo | | |
 | ORG-028 | todo | | |

@@ -33,3 +33,28 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - I did not run `prisma migrate diff` (Prisma 7 config), so schema/migration drift is not checked beyond the tests.
 <!-- end ORG-020 -->
+
+<!-- begin ORG-021 -->
+## ORG-021 — Organization contacts table
+
+- Filed: 2026-10-19 16:27 UTC
+- Status: **done**: migration, schema and 30 tests green
+- Risk: high · story: [ORG-021-organization-contacts-table.md](../modules/organization/ORG-021-organization-contacts-table.md)
+- Agent: 38,736 tokens, 18 tool uses, 2 min 36 s
+
+### Agent report
+
+**Summary:** Added the organization_contacts table (migration + Prisma model, enums, plain-language comment); all tests green.
+
+**Decisions:**
+- Unique rules as three partial indexes (live rows only): (org, slot), (org, value), one EMAIL per org; Prisma schema carries only a plain @@index on organization_id.
+- Slot CHECK split in two (slot set iff PHONE; slot 1..3); value rules as separate CHECKs (E.164 regex, lower-case EMAIL).
+- server_updated_at set by the existing set_server_updated_at() trigger; FKs are ON DELETE RESTRICT like the other tables.
+
+**Tests added beyond the story:**
+- `organization-contact-table.test.ts` › slot 0, phone with letters, method without verified_at: extra row-rule boundaries (C-43); passed at once with the migration
+- same file › second EMAIL freed by deletion, EMAIL allowed in two organizations, valid verified contact accepted (C-43, C-35)
+- same file › server_updated_at moves on update (C-35)
+
+**Evidence:** story tests 30/30; full suite 3678/3678, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings (existing)
+<!-- end ORG-021 -->
