@@ -260,3 +260,27 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 5/5 (29/29 with api-docs and per-001); full suite 3830/3830, failing: none, 0 known; typecheck clean; lint 0 errors, 168 warnings
 <!-- end IMG-009 -->
+
+<!-- begin IMG-010 -->
+## IMG-010 — A manager adds, replaces or removes the photos of a variant
+
+- Filed: 2026-10-19 17:15 UTC
+- Status: **done**: variant photo PUT/DELETE routes, change_photos rule for ProductVariant
+- Risk: medium · story: [IMG-010-a-manager-adds-replaces-or-removes-the-photos.md](../modules/images/IMG-010-a-manager-adds-replaces-or-removes-the-photos.md)
+- Agent: 48,191 tokens, 15 tool uses, 2 min 32 s
+
+### Agent report
+
+**Summary:** Added PUT/DELETE variant photo routes, `variantCard`, the MANAGER `change_photos` rule on `ProductVariant`, OpenAPI paths and route-list entries.
+
+**Decisions:**
+- Separate `variantPhotoRoutes` router mounted before the catalog routes: the path has its own params and the product router is mounted at `/photos`.
+- The product-mismatch 404 is raised inside `lock`, so the transaction rolls back and the new file is deleted by `putCardPhoto`.
+- Both routes log `variant_photos_changed` (the story names one event); the product removal uses a separate event, but the story gives only one name.
+
+**Tests added beyond the story:**
+- `tests/integration/images/variant-photos.test.ts` › seller 403 with a 3 MB body: role judged before the body is read (v5.0.0-8.2.1); passed at once
+- `tests/integration/images/variant-photos.test.ts` › new file removed when the variant is under another product: no orphan file (IMG-008 rule, AC-2); passed at once
+
+**Evidence:** story tests 7/7 (plus api-docs and per-001); full suite 3839/3839, failing: none, 0 known; typecheck clean; lint 0 errors, 172 warnings
+<!-- end IMG-010 -->

@@ -8,7 +8,13 @@ import { logger } from '../../lib/logger.js';
 import { httpError } from '../../lib/http-error.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
-import { PHOTOS_PER_CARD, productCard, putCardPhoto, removeCardPhoto } from './card-photos.service.js';
+import {
+  PHOTOS_PER_CARD,
+  productCard,
+  putCardPhoto,
+  removeCardPhoto,
+  variantCard,
+} from './card-photos.service.js';
 import { removeAvatar, replaceAvatar } from './avatar.service.js';
 import { removeLogo, replaceLogo } from './logo.service.js';
 
@@ -154,6 +160,106 @@ productPhotoRoutes.delete(
             personId: actor.personId,
           },
           'Product photo removed'
+        );
+        res.status(200).json(result);
+      })
+      .catch(next);
+  }
+);
+
+/**
+ * Variant photo routes, mounted at
+ * /organizations/:organizationId/products/:productId/variants/:variantId/photos.
+ */
+export const variantPhotoRoutes = Router({ mergeParams: true });
+
+/** Checks the product id, the variant id and the position of an add or replace. */
+const checkVariantPhotoPath: RequestHandler = (req, _res, next) => {
+  const position = String(req.params.position);
+  if (
+    !uuidV7Schema.safeParse(req.params.productId).success ||
+    !uuidV7Schema.safeParse(req.params.variantId).success ||
+    !/^[1-9]$/.test(position) ||
+    Number(position) > PHOTOS_PER_CARD
+  ) {
+    next(httpError(400, 'VALIDATION_ERROR', 'Invalid request'));
+    return;
+  }
+  next();
+};
+
+// PUT .../variants/:variantId/photos/:position - add or replace a variant photo (raw image bytes).
+// The role is judged before the body is read (ASVS v5.0.0-8.2.1).
+variantPhotoRoutes.put(
+  '/:position',
+  authMiddleware,
+  loadActor,
+  requireAbility('change_photos', 'ProductVariant'),
+  checkVariantPhotoPath,
+  imageBody(),
+  (req, res, next) => {
+    const actor = req.actor!;
+    const variantId = String(req.params.variantId);
+    assertOrganizationActive(actor.organizationId)
+      .then(() =>
+        putCardPhoto(
+          variantCard(actor.organizationId, String(req.params.productId), variantId),
+          Number(req.params.position),
+          req.body as Buffer
+        )
+      )
+      .then((result) => {
+        logger.info(
+          {
+            event: 'variant_photos_changed',
+            organizationId: actor.organizationId,
+            variantId,
+            personId: actor.personId,
+          },
+          'Variant photos changed'
+        );
+        res.status(200).json(result);
+      })
+      .catch(next);
+  }
+);
+
+/** Checks the product id, the variant id and the photo id of a removal. */
+const checkVariantPhotoIdPath: RequestHandler = (req, _res, next) => {
+  if (
+    !uuidV7Schema.safeParse(req.params.productId).success ||
+    !uuidV7Schema.safeParse(req.params.variantId).success ||
+    !photoIdSchema.safeParse(req.params.photoId).success
+  ) {
+    next(httpError(400, 'VALIDATION_ERROR', 'Invalid request'));
+    return;
+  }
+  next();
+};
+
+// DELETE .../variants/:variantId/photos/:photoId - remove a variant photo by its id.
+variantPhotoRoutes.delete(
+  '/:photoId',
+  authMiddleware,
+  loadActor,
+  requireAbility('change_photos', 'ProductVariant'),
+  checkVariantPhotoIdPath,
+  (req, res, next) => {
+    const actor = req.actor!;
+    const variantId = String(req.params.variantId);
+    removeCardPhoto(
+      variantCard(actor.organizationId, String(req.params.productId), variantId),
+      String(req.params.photoId)
+    )
+      .then((result) => {
+        logger.info(
+          {
+            event: 'variant_photos_changed',
+            organizationId: actor.organizationId,
+            variantId,
+            personId: actor.personId,
+          },
+          'Variant photos changed'
         );
         res.status(200).json(result);
       })

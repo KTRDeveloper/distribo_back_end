@@ -275,6 +275,12 @@ export const RULES: AccessRule[] = [
   {
     who: 'MANAGER',
     where: 'ONLINE_FOR_ALL',
+    action: 'change_photos',
+    subject: 'ProductVariant',
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE_FOR_ALL',
     action: 'order_from_supplier',
     subject: 'CustomerRelationship',
   },

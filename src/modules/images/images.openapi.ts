@@ -239,3 +239,104 @@ openApiRegistry.registerPath({
     },
   },
 });
+
+const variantPhotoParams = productPhotoParams.extend({
+  variantId: z
+    .string()
+    .uuid()
+    .openapi({ description: 'The variant, under the product of the path' }),
+});
+
+openApiRegistry.registerPath({
+  method: 'put',
+  path: '/api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}/photos/{position}',
+  tags: ['images'],
+  summary: 'Add or replace a photo of a variant (manager or owner)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: variantPhotoParams,
+    body: {
+      required: true,
+      content: {
+        'image/jpeg': { schema: photoBodySchema },
+        'image/png': { schema: photoBodySchema },
+        'image/webp': { schema: photoBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'The photo was stored; the public addresses of all photos, in order',
+      content: { 'application/json': { schema: productPhotosResponseSchema } },
+    },
+    400: {
+      description:
+        'UNSUPPORTED_IMAGE, IMAGE_TOO_LARGE or VALIDATION_ERROR (empty body, position out of range or after the next free one)',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'FORBIDDEN: only a manager or the owner changes variant photos',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description:
+        'NOT_FOUND: the caller is not an active member of this business, or the variant is not in it or not under this product',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'ORGANIZATION_NOT_ACTIVE: the business is suspended or closed',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}/photos/{photoId}',
+  tags: ['images'],
+  summary: 'Remove a photo of a variant by its id (manager or owner)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      organizationId: z.string().uuid().openapi({ description: 'The business' }),
+      productId: z.string().uuid().openapi({ description: 'The product' }),
+      variantId: z.string().uuid().openapi({ description: 'The variant' }),
+      photoId: z
+        .string()
+        .uuid()
+        .openapi({ description: 'The file name of the photo key, at the end of its address' }),
+    }),
+  },
+  responses: {
+    200: {
+      description:
+        'The photo is removed, or the variant did not hold it; the public addresses of the remaining photos, in order',
+      content: { 'application/json': { schema: productPhotosResponseSchema } },
+    },
+    400: {
+      description: 'VALIDATION_ERROR: an id in the path is not a UUID',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'FORBIDDEN: only a manager or the owner changes variant photos',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description:
+        'NOT_FOUND: the caller is not an active member of this business, or the variant is not in it or not under this product',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'ORGANIZATION_NOT_ACTIVE: the business is suspended or closed',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});

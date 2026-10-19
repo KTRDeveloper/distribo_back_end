@@ -2,7 +2,12 @@ import type { Prisma } from '@prisma/client';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { httpError } from '../../lib/http-error.js';
 import { imageUrl } from '../../lib/image-keys.js';
-import { lockProductImageKeys, setProductImageKeys } from '../catalog/catalog.repository.js';
+import {
+  lockProductImageKeys,
+  lockVariantImageKeys,
+  setProductImageKeys,
+  setVariantImageKeys,
+} from '../catalog/catalog.repository.js';
 import { runInTransaction } from '../organization/organization.repository.js';
 import { deleteImageFiles, storeUploadedImage } from './image.service.js';
 
@@ -10,7 +15,7 @@ import { deleteImageFiles, storeUploadedImage } from './image.service.js';
 export const PHOTOS_PER_CARD = 5;
 
 /**
- * A card that holds an ordered list of photo keys (a product now, a variant later). `lock` reads
+ * A card that holds an ordered list of photo keys (a product or a variant). `lock` reads
  * the list under a row lock; `write` replaces it and returns the previous list. Both run in the
  * caller's transaction and answer 404 `NOT_FOUND` when the card is not in the business.
  */
@@ -31,6 +36,28 @@ export function productCard(organizationId: string, productId: string): PhotoCar
       return lockProductImageKeys(tx, organizationId, productId);
     },
     write: (tx, keys) => setProductImageKeys(tx, organizationId, productId, keys),
+  };
+}
+
+/**
+ * The photo list of a live variant (ACTIVE or INACTIVE) of the business. The variant is looked up
+ * by id and business together (ASVS v5.0.0-8.2.2) and must belong to `productId`, the product of
+ * the path; otherwise `lock` answers 404 `NOT_FOUND` and nothing is written. The business must
+ * still be active when the list is locked, in the same transaction as the write.
+ */
+export function variantCard(
+  organizationId: string,
+  productId: string,
+  variantId: string
+): PhotoCard {
+  return {
+    lock: async (tx) => {
+      await assertOrganizationActive(organizationId, tx);
+      const held = await lockVariantImageKeys(tx, organizationId, variantId);
+      if (held.productId !== productId) throw httpError(404, 'NOT_FOUND', 'Not found');
+      return held.keys;
+    },
+    write: (tx, keys) => setVariantImageKeys(tx, organizationId, variantId, keys),
   };
 }
 
