@@ -259,7 +259,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-028 | done | | payment code with 5-draw retry, free plan fields, email removed from body and view |
 | ORG-030 | done | | Collaborator limit enforced under row lock; 409 COLLABORATOR_LIMIT_REACHED |
 | ORG-035 | done | | plan writer, team seats and seat pause added in organization.repository |
-| ORG-038 | todo | | |
+| ORG-038 | done | | getLogoKey and setLogoKey added to organization.repository.ts; 8 tests pass |
 | IMG-002 | todo | | |
 | IMG-003 | todo | | |
 | IMG-004 | todo | | |

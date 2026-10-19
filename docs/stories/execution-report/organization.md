@@ -182,3 +182,27 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 20/20; full suite 3737/3737, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings
 <!-- end ORG-035 -->
+
+<!-- begin ORG-038 -->
+## ORG-038 — Server-side writer of the business logo key
+
+- Filed: 2026-10-19 16:47 UTC
+- Status: **done**: getLogoKey and setLogoKey added to organization.repository.ts; 8 tests pass
+- Risk: medium · story: [ORG-038-server-side-writer-of-the-business-logo-key.md](../modules/organization/ORG-038-server-side-writer-of-the-business-logo-key.md)
+- Agent: 45,935 tokens, 16 tool uses, 2 min 11 s
+
+### Agent report
+
+**Summary:** Added `getLogoKey` and `setLogoKey` to the organization repository, modeled on `setAvatarKey`.
+
+**Decisions:**
+- Locking: `SELECT ... FOR UPDATE` with `deleted_at IS NULL` then `organization.update`, so a deleted business gives 404.
+- AC-3 check: the test accepts the unique-violation code 23505 or Prisma's P2002, because the driver adapter wraps it.
+
+**Tests added beyond the story:**
+- `tests/integration/organization/logo-key-writer.test.ts` › does not return the key of a deleted business: `getLogoKey` is null for a deleted business (AC-2); passed once the function existed.
+
+**Evidence:** story tests 8/8; full suite 3745/3745, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings (existing)
+
+AB-2 (logo_key in the creation body gives 400) passed at once because the existing creation schema is strict; it stays as a regression guard.
+<!-- end ORG-038 -->

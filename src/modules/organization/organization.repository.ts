@@ -1,6 +1,7 @@
 import { Prisma, type Collaboration, type Person, type Subscription } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { httpError } from '../../lib/http-error.js';
+import { imageKeySchema } from '../../lib/image-keys.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { newId } from '../../shared/ids.js';
 import { bumpScopeVersion } from '../person/person.repository.js';
@@ -960,4 +961,54 @@ export async function setSeatPaused(
       ];
   for (const { personId } of changed) await bumpScopeVersion(personId, tx);
   return changed.length > 0;
+}
+
+/**
+ * Reads the logo key of a non-deleted organization (C-49). Server code only: no organization
+ * schema exposes the key.
+ *
+ * @param organizationId - Organization to read.
+ * @returns The key, or null when empty or when the organization is absent or deleted.
+ */
+export async function getLogoKey(organizationId: string): Promise<string | null> {
+  const org = await prisma.organization.findFirst({
+    where: { id: organizationId, deletedAt: null },
+    select: { logoKey: true },
+  });
+  return org?.logoKey ?? null;
+}
+
+/**
+ * The one writer of `Organization.logo_key` (C-49, ASVS v5.0.0-15.3.3): sets, replaces or clears
+ * (`null`) the logo key in the caller's transaction and returns the previous key, so the images
+ * module can delete the old file after its commit.
+ *
+ * The organization row is locked before the previous key is read, so two concurrent writers never
+ * return the same previous key (v5.0.0-2.2.3). A key already held by another business breaks the
+ * unique index; that error is not caught, so the caller's transaction aborts.
+ *
+ * @param tx - The caller's transaction; a rollback restores the previous key.
+ * @param organizationId - Organization chosen by server code.
+ * @param key - Canonical `logos/<uuid>.webp` key, or null to clear.
+ * @returns The previous key, or null when there was none.
+ * @throws {RangeError} when the key is not canonical or not in the `logos` folder.
+ * @throws {HttpError} 404 `NOT_FOUND` when the organization is absent or deleted.
+ */
+export async function setLogoKey(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  key: string | null
+): Promise<string | null> {
+  if (key !== null && (!imageKeySchema.safeParse(key).success || !key.startsWith('logos/'))) {
+    throw new RangeError('Invalid logo key');
+  }
+  const rows = await tx.$queryRaw<{ logo_key: string | null }[]>`
+    SELECT logo_key FROM organizations
+    WHERE id = ${organizationId}::uuid AND deleted_at IS NULL
+    FOR UPDATE
+  `;
+  const row = rows[0];
+  if (!row) throw httpError(404, 'NOT_FOUND', 'Not found');
+  await tx.organization.update({ where: { id: organizationId }, data: { logoKey: key } });
+  return row.logo_key;
 }
