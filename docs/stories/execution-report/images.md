@@ -284,3 +284,28 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 7/7 (plus api-docs and per-001); full suite 3839/3839, failing: none, 0 known; typecheck clean; lint 0 errors, 172 warnings
 <!-- end IMG-010 -->
+
+<!-- begin IMG-011 -->
+## IMG-011 — A manager takes a photo from another variant of the same product
+
+- Filed: 2026-10-19 17:18 UTC
+- Status: **done**: POST variants/:id/photos/copy; takeVariantPhoto; 12 tests
+- Risk: medium · story: [IMG-011-a-manager-takes-a-photo-from-another-variant-of.md](../modules/images/IMG-011-a-manager-takes-a-photo-from-another-variant-of.md)
+- Agent: 56,179 tokens, 18 tool uses, 2 min 57 s
+
+### Agent report
+
+**Summary:** Added POST .../variants/{variantId}/photos/copy and `takeVariantPhoto`; all story tests and the full suite pass.
+
+**Decisions:**
+- Body and path validated (strict Zod, source != destination) before `idempotent()`: a refused request never reserves its gesture id; the service re-checks source != destination.
+- Check order in the transaction: lock destination, read source, 404 on product/photo mismatch, then 409 at 5 photos, then `copyImage`: no file is written for a refusal.
+- If the transaction fails after `copyImage` wrote the file, the new file is deleted at once (like `putCardPhoto`) instead of waiting for the nightly cleanup.
+- Wrote the code and tests together; the first run failed only on my fixture (variant name uniqueness), so I did not see a pure red-on-missing-route run.
+
+**Tests added beyond the story:**
+- `tests/integration/images/take-variant-photo.test.ts` › destination holding 4 photos still takes a fifth: limit boundary (AC-3, C-49); passed at once
+- same file › a copy of a copy keeps the root of the first photo: root_key rule (C-56); passed at once
+
+**Evidence:** story tests 39/39 (new file 12); full suite 3852/3852, failing: none, 0 known; typecheck clean; lint 0 errors, 175 warnings (pre-existing)
+<!-- end IMG-011 -->

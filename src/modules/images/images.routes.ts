@@ -7,12 +7,14 @@ import { imageBody } from '../../middleware/image-body.js';
 import { logger } from '../../lib/logger.js';
 import { httpError } from '../../lib/http-error.js';
 import { uuidV7Schema } from '../../shared/ids.js';
+import { idempotent } from '../../middleware/idempotent.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import {
   PHOTOS_PER_CARD,
   productCard,
   putCardPhoto,
   removeCardPhoto,
+  takeVariantPhoto,
   variantCard,
 } from './card-photos.service.js';
 import { removeAvatar, replaceAvatar } from './avatar.service.js';
@@ -262,6 +264,66 @@ variantPhotoRoutes.delete(
           'Variant photos changed'
         );
         res.status(200).json(result);
+      })
+      .catch(next);
+  }
+);
+
+/** Strict body of a photo taken from another variant: unknown fields are refused. */
+const takePhotoSchema = z
+  .object({
+    id: uuidV7Schema,
+    source_variant_id: z.string().uuid(),
+    source_photo_id: z.string().uuid(),
+  })
+  .strict();
+
+/** Checks the ids of the path and the body before the gesture id is reserved. */
+const checkTakePhoto: RequestHandler = (req, _res, next) => {
+  const parsed = takePhotoSchema.safeParse(req.body);
+  if (
+    !uuidV7Schema.safeParse(req.params.productId).success ||
+    !uuidV7Schema.safeParse(req.params.variantId).success ||
+    !parsed.success ||
+    parsed.data.source_variant_id.toLowerCase() === String(req.params.variantId).toLowerCase()
+  ) {
+    next(httpError(400, 'VALIDATION_ERROR', 'Invalid request'));
+    return;
+  }
+  req.body = parsed.data;
+  next();
+};
+
+// POST .../variants/:variantId/photos/copy - take a photo from another variant of the same product.
+// The role is judged before the body is read (ASVS v5.0.0-8.2.1); the body is validated before
+// the gesture id is reserved, so a refused request never uses up its id.
+variantPhotoRoutes.post(
+  '/copy',
+  authMiddleware,
+  loadActor,
+  requireAbility('change_photos', 'ProductVariant'),
+  checkTakePhoto,
+  idempotent(),
+  (req, res, next) => {
+    const actor = req.actor!;
+    const variantId = String(req.params.variantId);
+    takeVariantPhoto(
+      actor.organizationId,
+      String(req.params.productId),
+      variantId,
+      req.body as z.infer<typeof takePhotoSchema>
+    )
+      .then((result) => {
+        logger.info(
+          {
+            event: 'variant_photo_taken',
+            organizationId: actor.organizationId,
+            variantId,
+            personId: actor.personId,
+          },
+          'Variant photo taken'
+        );
+        res.status(201).json(result);
       })
       .catch(next);
   }

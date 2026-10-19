@@ -5,10 +5,12 @@ import { imageUrl } from '../../lib/image-keys.js';
 import {
   lockProductImageKeys,
   lockVariantImageKeys,
+  readVariantImageKeys,
   setProductImageKeys,
   setVariantImageKeys,
 } from '../catalog/catalog.repository.js';
 import { runInTransaction } from '../organization/organization.repository.js';
+import { copyImage } from './image-copy.service.js';
 import { deleteImageFiles, storeUploadedImage } from './image.service.js';
 
 /** The most photos a product or a variant holds (C-49; the database CHECK says the same). */
@@ -129,4 +131,57 @@ export async function removeCardPhoto(
 
   if (removed) await deleteImageFiles([wanted]);
   return { image_urls: keys.map((held) => imageUrl(held)!) };
+}
+
+/** The body of a photo taken from another variant (already validated by the route). */
+export type TakePhotoInput = { id: string; source_variant_id: string; source_photo_id: string };
+
+/**
+ * Appends to a variant a copy of a photo held by another variant of the same product and
+ * business, and returns the public addresses of the destination in order (C-56). In one
+ * transaction (ASVS v5.0.0-2.3.3): the destination is locked; the source is read without a lock,
+ * so two crossed copies cannot block each other; the photo is found by its id in the source's
+ * keys; `copyImage` stores the new file and writes the registry row; the new key is appended.
+ * The source keeps its photo. Both variants are read inside the business of the session
+ * (ASVS v5.0.0-8.2.2), so a stranger's id is a 404. If the transaction fails after the file was
+ * written, the new file is deleted at once. The caller has already checked the role and the
+ * body's format.
+ * @throws {HttpError} 400 `VALIDATION_ERROR` (source is the destination), 404 `NOT_FOUND`
+ * (no such variant, product pair, photo, or the source file is gone), 409 `PHOTO_LIMIT_REACHED`
+ * or `ORGANIZATION_NOT_ACTIVE`.
+ */
+export async function takeVariantPhoto(
+  organizationId: string,
+  productId: string,
+  variantId: string,
+  input: TakePhotoInput
+): Promise<{ image_urls: string[] }> {
+  if (input.source_variant_id.toLowerCase() === variantId.toLowerCase()) {
+    throw httpError(400, 'VALIDATION_ERROR', 'Invalid request');
+  }
+  const wanted = `products/${input.source_photo_id.toLowerCase()}.webp`;
+  const destination = variantCard(organizationId, productId, variantId);
+
+  let created: string | null = null;
+  try {
+    const keys = await runInTransaction(async (tx) => {
+      const held = await destination.lock(tx);
+      const source = await readVariantImageKeys(tx, organizationId, input.source_variant_id);
+      if (source.productId !== productId || !source.keys.includes(wanted)) {
+        throw httpError(404, 'NOT_FOUND', 'Not found');
+      }
+      if (held.length >= PHOTOS_PER_CARD) {
+        throw httpError(409, 'PHOTO_LIMIT_REACHED', 'The variant already holds the most photos');
+      }
+      created = await copyImage(tx, wanted);
+      if (created === null) throw httpError(404, 'NOT_FOUND', 'Not found');
+      const next = [...held, created];
+      await destination.write(tx, next);
+      return next;
+    });
+    return { image_urls: keys.map((held) => imageUrl(held)!) };
+  } catch (err) {
+    if (created !== null) await deleteImageFiles([created]);
+    throw err;
+  }
 }

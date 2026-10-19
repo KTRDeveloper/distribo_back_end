@@ -38,6 +38,9 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain(
       '/api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}/photos/{photoId}'
     );
+    expect(paths).toContain(
+      '/api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}/photos/copy'
+    );
 
     expect(paths).toContain('/api/v1/tasks');
     expect(paths).toContain('/api/v1/tasks/{id}');
