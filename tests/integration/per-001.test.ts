@@ -73,6 +73,15 @@ describe('PER-001: Retire the old sign-in module', () => {
 
       expect(Object.keys(doc.paths)).toContain('/api/v1/users/me');
     });
+
+    it('/api/v1/users/me/avatar is listed in OpenAPI with PUT and DELETE', async () => {
+      const response = await request(app).get('/api/v1/docs/openapi.json');
+      const doc = bodyOf<OpenApiDoc>(response);
+
+      expect(Object.keys(doc.paths)).toContain('/api/v1/users/me/avatar');
+      const operations = Object.keys(doc.paths['/api/v1/users/me/avatar']);
+      expect(operations).toEqual(expect.arrayContaining(['put', 'delete']));
+    });
   });
 
   describe('AC-3: Profile still works with a signed token', () => {
