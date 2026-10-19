@@ -48,7 +48,7 @@ Scenario Outline: AC-4 Refusals
     | a wrong password                          | 401 INVALID_CREDENTIALS    |
     | no password                               | 400 VALIDATION_ERROR       |
 Scenario: AC-5 Cannot sign in afterwards
-  Then a login with the old number or password answers the generic 401
+  Then a login with the old number answers 404 ACCOUNT_NOT_FOUND, as for any unknown number (AUTH-028)
 Scenario: AC-6 Atomic
   When any step fails
   Then the person is unchanged
@@ -87,7 +87,7 @@ Scenario: AB-2 Personal data left behind (information disclosure)
 | sessions and traces | integration | AC-2 | gone |
 | team and history | integration | AC-3 | as described |
 | refusals | integration | AC-4, CM-02 | each Examples row → status |
-| no sign in | integration | AC-5 | 401 |
+| no sign in | integration | AC-5 | 404 ACCOUNT_NOT_FOUND |
 | atomic | integration | AC-6, CWE-362 | unchanged |
 | wrong password | security | AB-1, CWE-620 | nothing deleted |
 | data left behind | security | AB-2, CWE-212 | nothing remains |

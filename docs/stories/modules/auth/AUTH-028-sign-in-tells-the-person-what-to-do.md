@@ -95,6 +95,7 @@ Command: `npx vitest run tests/integration/auth/login-answers.test.ts tests/inte
 | existing test | reason | new expectation |
 |---|---|---|
 | tests/integration/auth/login-request.test.ts | 'failures alike' expects one 401 INVALID_CREDENTIALS for unknown, guest, released and wrong-password cases, and 'enumeration' expects the same status and code, and one password check, for a known and an unknown number | unknown, guest and released numbers answer 404 ACCOUNT_NOT_FOUND, the wrong password 401 INVALID_CREDENTIALS, and an unknown number runs no password check |
+| tests/integration/privacy/anonymize.test.ts | 'AC-5: login with the old number and password answers the generic 401' expects 401 INVALID_CREDENTIALS after the account is anonymized; the number is then released, so it is an unknown number (PRIV-002 AC-5 reworded to match) | the login answers 404 ACCOUNT_NOT_FOUND |
 
 ## Out of scope
 - The email as a way to sign in: AUTH-036. The lock, the code and the session steps keep their behaviour.
