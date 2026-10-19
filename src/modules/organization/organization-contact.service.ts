@@ -4,10 +4,12 @@ import type { Actor } from '../../types/express.js';
 import { httpError } from '../../lib/http-error.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { normalizeE164 } from '../../shared/phone.js';
-import { issueCode } from '../auth/otp.service.js';
+import { issueCode, verifyCode } from '../auth/otp.service.js';
 import { findByActivePhone } from '../person/person.repository.js';
 import {
   findContactConflict,
+  findLiveContact,
+  markContactVerified,
   insertPhoneContact,
   isUniqueViolation,
   type ContactConflict,
@@ -104,4 +106,42 @@ export async function addContact(actor: Actor, input: AddContactInput): Promise<
     });
   }
   return toContactView(row);
+}
+
+/**
+ * Publishes a pending contact once the owner enters the code sent to it (ORG-025, C-44, C-33).
+ *
+ * The contact must be live and of this business, else 404; a verified one answers 409 before
+ * any code is touched, so no attempt is spent. The code is checked against the challenge tied
+ * to this contact only, so the code of another business listing the same number never works
+ * (ASVS v5.0.0-6.6.3, CWE-290); its errors (400 OTP_INVALID, 400 OTP_EXPIRED, 429 OTP_LOCKED)
+ * pass through. Only then does one guarded UPDATE set `verified_at` and method CODE; if a
+ * parallel request or a deletion got there first, no row changes and the answer is 404.
+ *
+ * @param actor - Owner loaded from the path.
+ * @param contactId - Contact from the path.
+ * @param code - Six digits, already validated.
+ * @returns The closed contact view.
+ * @throws 404 `NOT_FOUND`, 409 `CONTACT_ALREADY_VERIFIED`, 400 `OTP_INVALID`, 400 `OTP_EXPIRED`,
+ *   429 `OTP_LOCKED`.
+ */
+export async function confirmContact(
+  actor: Actor,
+  contactId: string,
+  code: string
+): Promise<ContactView> {
+  const contact = await findLiveContact(contactId, actor.organizationId);
+  if (!contact) throw httpError(404, 'NOT_FOUND', 'Not found');
+  if (contact.verifiedAt !== null) {
+    throw httpError(409, 'CONTACT_ALREADY_VERIFIED', 'This contact is already verified');
+  }
+  await verifyCode({
+    target: contact.value,
+    purpose: 'ORG_CONTACT_VERIFICATION',
+    code,
+    organizationContactId: contact.id,
+  });
+  const verified = await markContactVerified(contact.id, actor.organizationId, new Date());
+  if (!verified) throw httpError(404, 'NOT_FOUND', 'Not found');
+  return toContactView(verified);
 }

@@ -297,3 +297,32 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 - A registered person cannot have an unverified phone (DB check), so the `phone_verified_at` test of AC-1 is guarded in code but cannot be tested.
 - A gesture id colliding with another business's contact id gives a 500 (P2002 with no conflict found).
 <!-- end ORG-024 -->
+
+<!-- begin ORG-025 -->
+## ORG-025 — The owner confirms a contact with its code
+
+- Filed: 2026-10-19 17:39 UTC
+- Status: **done**: POST contacts/{contactId}/confirm; verifyCode tied to the contact, guarded UPDATE; 3931 tests green
+- Risk: high · story: [ORG-025-the-owner-confirms-a-contact-with-its-code.md](../modules/organization/ORG-025-the-owner-confirms-a-contact-with-its-code.md)
+- Agent: 59,740 tokens, 15 tool uses, 3 min 10 s
+
+### Agent report
+
+**Summary:** Added the owner-only confirm route: contact lookup, verifyCode tied to the contact, one guarded UPDATE, OpenAPI and route-list entries.
+
+**Decisions:**
+- Ability: route guarded by `create OrganizationContact` (no `update` rule exists, and owner-rules.test.ts asserts `update` is false); confirming completes the add gesture.
+- Order: contact lookup (404/409) before verifyCode, so no attempt is spent on a deleted, foreign or verified contact.
+- Body and contactId are validated before the idempotency key is reserved, like addContact.
+- Organization status is not checked (the story does not ask for it).
+
+**Tests added beyond the story:**
+- `tests/integration/organization/contact-confirm.test.ts` › malformed body / unknown field / bad contact id: 400 VALIDATION_ERROR and no attempt spent (Validation section of CONVENTIONS.md); passed at once
+- same file › non-member person: 404, contact stays pending (loadActor, 404 outside scope); passed at once
+- same file › AC-2 refusals also assert the code attempts stay at 0 (no code consumed, per Context); right code after lock stays 429
+
+**Evidence:** story tests 47/47 (story file, api-docs, per-001); full suite 3931/3931, failing: none, 0 known; typecheck clean; lint 0 errors, 178 warnings
+
+**Follow-ups:**
+- idempotent() stores 4xx too: after a wrong code, the client must send a new gesture `id` for the next try, or it gets the first 400 replayed.
+<!-- end ORG-025 -->

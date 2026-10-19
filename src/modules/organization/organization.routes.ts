@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { idempotent } from '../../middleware/idempotent.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
+import { uuidV7Schema } from '../../shared/ids.js';
 import {
   changeRoleSchema,
   closeOrganizationSchema,
@@ -38,8 +39,8 @@ import {
   startSubscription,
   transferOwnership,
 } from './organization.service.js';
-import { addContactSchema } from './organization-contact.schemas.js';
-import { addContact } from './organization-contact.service.js';
+import { addContactSchema, confirmContactSchema } from './organization-contact.schemas.js';
+import { addContact, confirmContact } from './organization-contact.service.js';
 import './organization.openapi.js';
 
 /** Organization routes; all require authentication. */
@@ -137,6 +138,31 @@ organizationRoutes.post(
   (req, res, next) => {
     addContact(req.actor!, addContactSchema.parse(req.body))
       .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/organizations/:organizationId/contacts/:contactId/confirm - the owner enters the
+// code sent to a pending contact. Same owner-only, online-only rule as adding a contact: the
+// confirmation completes that gesture, so it is guarded by `create OrganizationContact` (C-44).
+organizationRoutes.post(
+  '/:organizationId/contacts/:contactId/confirm',
+  loadActor,
+  requireAbility('create', 'OrganizationContact'),
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsedParams = uuidV7Schema.safeParse(req.params.contactId);
+    if (!parsedParams.success) return next(parsedParams.error);
+    const parsed = confirmContactSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    const { code } = confirmContactSchema.parse(req.body);
+    confirmContact(req.actor!, uuidV7Schema.parse(req.params.contactId), code)
+      .then((view) => res.status(200).json(view))
       .catch(next);
   }
 );

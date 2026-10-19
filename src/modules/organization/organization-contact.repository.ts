@@ -52,6 +52,42 @@ export function insertPhoneContact(
   });
 }
 
+/** The stored shape of a contact. */
+export type ContactRow = OrganizationContact;
+
+/**
+ * Reads a live (not deleted) contact of the business; a contact of another business is not
+ * found, so its existence is never confirmed (ASVS v5.0.0-8.2.1).
+ */
+export function findLiveContact(
+  contactId: string,
+  organizationId: string
+): Promise<ContactRow | null> {
+  return prisma.organizationContact.findFirst({
+    where: { id: contactId, organizationId, deletedAt: null },
+  });
+}
+
+/**
+ * Marks a contact verified by code with one guarded UPDATE: it changes a row only while the
+ * contact is still pending and live in this business, so two parallel confirmations cannot
+ * both write (C-44). Returns null when no row changed.
+ *
+ * @param now - Server time stored as `verified_at`.
+ */
+export async function markContactVerified(
+  contactId: string,
+  organizationId: string,
+  now: Date
+): Promise<ContactRow | null> {
+  const result = await prisma.organizationContact.updateMany({
+    where: { id: contactId, organizationId, deletedAt: null, verifiedAt: null },
+    data: { verifiedAt: now, verificationMethod: 'CODE' },
+  });
+  if (result.count !== 1) return null;
+  return findLiveContact(contactId, organizationId);
+}
+
 /** Tells whether an error is a unique violation (PostgreSQL 23505, reported by Prisma as P2002). */
 export function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';

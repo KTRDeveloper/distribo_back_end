@@ -19,6 +19,24 @@ export const addContactSchema = z
 
 export type AddContactInput = z.infer<typeof addContactSchema>;
 
+/**
+ * Strict body of the confirm-contact gesture: the gesture id and the six-digit code, nothing
+ * else. `verified_at` and `verification_method` are set by the server (C-44).
+ */
+export const confirmContactSchema = z
+  .object({
+    id: uuidV7Schema,
+    code: z.string().regex(/^\d{6}$/),
+  })
+  .strict();
+
+export type ConfirmContactInput = z.infer<typeof confirmContactSchema>;
+
+/** Path parameters of the confirm-contact route. */
+export const contactParamsSchema = z
+  .object({ organizationId: uuidV7Schema, contactId: uuidV7Schema })
+  .strict();
+
 /** Closed response of a contact: explicit fields only (ASVS v5.0.0-15.3.1). */
 export type ContactView = {
   id: string;

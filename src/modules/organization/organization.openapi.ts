@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
-import { addContactSchema } from './organization-contact.schemas.js';
+import {
+  addContactSchema,
+  confirmContactSchema,
+  contactParamsSchema,
+} from './organization-contact.schemas.js';
 import {
   changeRoleSchema,
   closeOrganizationSchema,
@@ -270,6 +274,48 @@ openApiRegistry.registerPath({
       content: errorContent,
     },
     429: { description: 'OTP_RATE_LIMITED: the contact stays pending', content: errorContent },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/contacts/{contactId}/confirm',
+  tags: ['organization'],
+  summary: 'The owner confirms a contact with the code sent to it',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: contactParamsSchema,
+    body: { content: { 'application/json': { schema: confirmContactSchema } } },
+  },
+  responses: {
+    200: {
+      description: 'The contact, now verified by CODE',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string().uuid(),
+            kind: z.enum(['PHONE', 'EMAIL']),
+            slot: z.number().int().nullable(),
+            value: z.string(),
+            verified_at: z.string().datetime().nullable(),
+            verification_method: z.enum(['CODE', 'OWNER_PHONE']).nullable(),
+            created_at: z.string().datetime(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'VALIDATION_ERROR, OTP_INVALID or OTP_EXPIRED',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Caller is not the owner', content: errorContent },
+    404: { description: 'Contact absent, deleted or of another business', content: errorContent },
+    409: {
+      description: 'CONTACT_ALREADY_VERIFIED or conflicting gesture id',
+      content: errorContent,
+    },
+    429: { description: 'OTP_LOCKED: five attempts used', content: errorContent },
   },
 });
 

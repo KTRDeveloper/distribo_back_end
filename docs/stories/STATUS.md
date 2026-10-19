@@ -275,7 +275,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-041 | done | | issueCode/verifyCode tied to one contact; fixed business text |
 | ADM-018 | done | | ACCESS_RESTORE has its fixed FR/EN text in messageFor; 3 tests green |
 | ORG-024 | done | | POST /organizations/:id/contacts: owner phone verified at once, others pending with SMS code |
-| ORG-025 | todo | | |
+| ORG-025 | done | | POST contacts/{contactId}/confirm; verifyCode tied to the contact, guarded UPDATE; 3931 tests green |
 | ORG-026 | todo | | |
 | ORG-027 | todo | | |
 | ORG-033 | todo | | |
