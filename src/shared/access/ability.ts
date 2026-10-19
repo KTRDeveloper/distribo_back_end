@@ -261,6 +261,12 @@ export const RULES: AccessRule[] = [
     subject: 'Organization',
   },
   {
+    who: 'OWNER',
+    where: 'ONLINE_FOR_ALL',
+    action: 'change_logo',
+    subject: 'Organization',
+  },
+  {
     who: 'MANAGER',
     where: 'ONLINE_FOR_ALL',
     action: 'order_from_supplier',

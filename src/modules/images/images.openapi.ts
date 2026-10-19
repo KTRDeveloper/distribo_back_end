@@ -56,3 +56,81 @@ openApiRegistry.registerPath({
     },
   },
 });
+
+const logoResponseSchema = z.object({ logo_url: z.string() });
+const organizationIdParams = z.object({
+  organizationId: z.string().uuid().openapi({ description: 'The business' }),
+});
+
+openApiRegistry.registerPath({
+  method: 'put',
+  path: '/api/v1/organizations/{organizationId}/logo',
+  tags: ['images'],
+  summary: 'Add or replace the logo of a business (owner only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: organizationIdParams,
+    body: {
+      required: true,
+      content: {
+        'image/jpeg': { schema: photoBodySchema },
+        'image/png': { schema: photoBodySchema },
+        'image/webp': { schema: photoBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'The logo was stored; its public address',
+      content: { 'application/json': { schema: logoResponseSchema } },
+    },
+    400: {
+      description: 'UNSUPPORTED_IMAGE, IMAGE_TOO_LARGE or VALIDATION_ERROR',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'FORBIDDEN: only the owner changes the logo',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'NOT_FOUND: the caller is not an active member of this business',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'ORGANIZATION_NOT_ACTIVE: the business is suspended or closed',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/organizations/{organizationId}/logo',
+  tags: ['images'],
+  summary: 'Remove the logo of a business (owner only)',
+  security: [{ bearerAuth: [] }],
+  request: { params: organizationIdParams },
+  responses: {
+    204: { description: 'The logo is removed, or there was none' },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'FORBIDDEN: only the owner changes the logo',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'NOT_FOUND: the caller is not an active member of this business',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'ORGANIZATION_NOT_ACTIVE: the business is suspended or closed',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});

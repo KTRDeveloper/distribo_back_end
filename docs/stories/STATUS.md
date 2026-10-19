@@ -263,7 +263,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | IMG-002 | done | | ports, fakes, deleteImageFiles, env settings; 22 tests green |
 | IMG-003 | done | | imageBody middleware and storeUploadedImage; 20 tests green |
 | IMG-004 | done | | PUT/DELETE /users/me/avatar; suite 3790 passed |
-| IMG-005 | todo | | |
+| IMG-005 | done | | Owner logo PUT/DELETE; change_logo rule; 6 story tests green |
 | IMG-006 | todo | | |
 | IMG-007 | todo | | |
 | IMG-008 | todo | | |
