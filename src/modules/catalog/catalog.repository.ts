@@ -409,13 +409,16 @@ export async function listProductsOfOrganization(
 }
 
 /**
- * Lists the ACTIVE, not deleted products of one organization with the prices of the customer's
- * own live relationship, newest first then by id, one page at a time.
+ * Lists the products on sale of one organization with their ACTIVE variants and the prices of the
+ * customer's own live relationship, newest product first then by id, one page at a time.
  *
- * The customer is either the caller person (no `asOrganizationId`) or that organization, never
- * both; the relationship is selected by supplier and customer together, so another customer's
- * negotiated prices are never read (ASVS v5.0.0-8.2.2). Only live rows count: not deleted, not
- * merged, and `visibleRelationsWhere` gives that definition. Deleted negotiated prices are ignored.
+ * On sale means: product not deleted and not paused, with at least one ACTIVE, not deleted
+ * variant; only such variants are returned, oldest first then by id. The customer is either the
+ * caller person (no `asOrganizationId`) or that organization, never both; the relationship is
+ * selected by supplier and customer together, so another customer's negotiated prices are never
+ * read (ASVS v5.0.0-8.2.2). Only live rows count: `visibleRelationsWhere` gives that definition,
+ * and deleted negotiated prices are ignored. The variants and prices of the page each come from
+ * one query on the page's ids.
  *
  * @param organizationId - Supplier organization, already checked ACTIVE.
  * @param viewer - The authenticated person, and the organization they were checked to manage.
@@ -426,15 +429,20 @@ export async function listCatalogForCustomer(
   viewer: { personId: string; asOrganizationId?: string },
   query: { limit: number; cursor?: string }
 ): Promise<{
-  rows: Array<{ product: Product; negotiatedPrice: bigint | null }>;
+  rows: Array<{
+    product: Product;
+    variants: Array<{ variant: ProductVariant; negotiatedPrice: bigint | null }>;
+  }>;
   nextCursor: string | null;
 }> {
   const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+  const onSaleVariant = { deletedAt: null, status: 'ACTIVE' as const };
   const found = await prisma.product.findMany({
     where: {
       organizationId,
       deletedAt: null,
-      status: 'ACTIVE',
+      pausedAt: null,
+      variants: { some: onSaleVariant },
       ...(cursor
         ? {
             OR: [
@@ -448,6 +456,17 @@ export async function listCatalogForCustomer(
     take: query.limit + 1,
   });
   const products = found.slice(0, query.limit);
+
+  const variants = products.length
+    ? await prisma.productVariant.findMany({
+        where: {
+          organizationId,
+          productId: { in: products.map((product) => product.id) },
+          ...onSaleVariant,
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      })
+    : [];
 
   const relationship = await prisma.customerRelationship.findFirst({
     where: {
@@ -465,23 +484,25 @@ export async function listCatalogForCustomer(
     select: { id: true },
   });
   const negotiated =
-    relationship && products.length > 0
+    relationship && variants.length > 0
       ? await prisma.customerPrice.findMany({
           where: {
             customerRelationshipId: relationship.id,
-            productId: { in: products.map((product) => product.id) },
+            productVariantId: { in: variants.map((variant) => variant.id) },
             deletedAt: null,
           },
-          select: { productId: true, price: true },
+          select: { productVariantId: true, price: true },
         })
       : [];
-  const priceByProduct = new Map(negotiated.map((row) => [row.productId, row.price]));
+  const priceByVariant = new Map(negotiated.map((row) => [row.productVariantId, row.price]));
 
   const last = products[products.length - 1];
   return {
     rows: products.map((product) => ({
       product,
-      negotiatedPrice: priceByProduct.get(product.id) ?? null,
+      variants: variants
+        .filter((variant) => variant.productId === product.id)
+        .map((variant) => ({ variant, negotiatedPrice: priceByVariant.get(variant.id) ?? null })),
     })),
     nextCursor:
       found.length > query.limit && last

@@ -487,13 +487,15 @@ export async function listProducts(actor: Actor, query: ListProductsQuery): Prom
 }
 
 /**
- * A customer browses a business's catalog with their own prices (CM-11).
+ * A customer browses a business's catalog by product and variant, with their own prices (CM-11).
  *
+ * Lists the products not deleted and not paused that have at least one ACTIVE, not deleted
+ * variant, newest first, each with those variants only, oldest first; pages are of products.
  * Any signed-in person may browse an ACTIVE organization; a CLOSED, SUSPENDED or unknown one is
  * a 404. With `as_organization_id` the customer is that organization: the caller must be its
  * ACTIVE MANAGER or OWNER, else 404 so the organization is never confirmed (ASVS v5.0.0-8.2.2).
- * The negotiated prices come only from the caller's own live relationship with this supplier
- * (the organization's with `as_organization_id`); the view lists only customer-safe fields
+ * The negotiated price of a variant comes only from the caller's own live relationship with this
+ * supplier (the organization's with `as_organization_id`); the view lists only customer-safe fields
  * (v5.0.0-8.2.3, v5.0.0-15.3.1).
  *
  * @param personId - Authenticated person, from the token.
@@ -522,15 +524,22 @@ export async function browseCatalog(
     query
   );
   return {
-    items: rows.map(({ product, negotiatedPrice }) => ({
+    items: rows.map(({ product, variants }) => ({
       id: product.id,
       name: product.name,
-      unit: product.unit,
-      price: Number(negotiatedPrice ?? product.price),
-      min_order_quantity: product.minOrderQuantity?.toString() ?? null,
       description: product.description,
       category: product.category,
-      price_is_negotiated: negotiatedPrice !== null,
+      image_urls: product.imageKeys.map((key) => imageUrl(key)!),
+      variants: variants.map(({ variant, negotiatedPrice }) => ({
+        id: variant.id,
+        name: variant.name,
+        unit: variant.unit,
+        label: variantLabel(product.name, variant.name, variant.unit),
+        price: Number(negotiatedPrice ?? variant.price),
+        min_order_quantity: variant.minOrderQuantity?.toString() ?? null,
+        price_is_negotiated: negotiatedPrice !== null,
+        image_urls: variant.imageKeys.map((key) => imageUrl(key)!),
+      })),
     })),
     next_cursor: nextCursor,
   };

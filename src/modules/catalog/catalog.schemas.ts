@@ -191,16 +191,29 @@ export const browseCatalogQuerySchema = paginationQuerySchema
 
 export type BrowseQuery = z.infer<typeof browseCatalogQuerySchema>;
 
-/** One article as a customer sees it: the caller's own price, nothing of the supplier side. */
+/**
+ * One size of an article as a customer sees it: the caller's own price (negotiated when one
+ * exists, CM-11), nothing of the supplier side. `image_urls` holds the variant's own photos only.
+ */
+export type CatalogVariantView = {
+  id: string;
+  name: string | null;
+  unit: string;
+  label: string;
+  price: number;
+  min_order_quantity: string | null;
+  price_is_negotiated: boolean;
+  image_urls: string[];
+};
+
+/** One product as a customer sees it, with its ACTIVE variants oldest first. */
 export type CatalogItemView = {
   id: string;
   name: string;
-  unit: string;
-  price: number;
-  min_order_quantity: string | null;
   description: string | null;
   category: string | null;
-  price_is_negotiated: boolean;
+  image_urls: string[];
+  variants: CatalogVariantView[];
 };
 
 /** Response of the customer's catalog. */

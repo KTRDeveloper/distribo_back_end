@@ -304,7 +304,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-025 | done | | PATCH variant: 34 tests + suite 4298 green |
 | CAT-026 | done | | DELETE variant and product: soft delete, VARIANT_IN_USE and LAST_VARIANT, locks |
 | CAT-027 | done | | list returns ProductView with live variants; 4347 tests pass |
-| CAT-028 | todo | | |
+| CAT-028 | done | | Variants shape for customer catalog; list-remove-prices helper updated with user's authorization |
 | CAT-036 | todo | | |
 | CAT-037 | todo | | |
 | ORD-027 | todo | | |

@@ -918,6 +918,32 @@ Also in this run: relationship, admin, order, finance, delivery.
 - `list-products.test.ts` AC-1 only changed its key list to the product view (listed in "Tests to update"); its old-style seeds work because the CAT-014 trigger mirrors a variant.
 <!-- end CAT-027 -->
 
+<!-- begin CAT-028 -->
+## CAT-028 — Customer browses a supplier's catalog by product and variant
+
+- Filed: 2026-10-19 20:57 UTC
+- Status: **done**: Variants shape for customer catalog; list-remove-prices helper updated with user's authorization
+- Risk: medium · story: [CAT-028-customer-browses-a-supplier-s-catalog-by.md](../modules/catalog/CAT-028-customer-browses-a-supplier-s-catalog-by.md)
+- Agent: 17,836 tokens, 5 tool uses, 1 min 25 s
+
+### Agent report
+
+**Summary:** Customer catalog now returns products with their variants; done after the user authorized the one helper edit in list-remove-prices.test.ts.
+
+**Decisions:**
+- Negotiated prices are joined by `product_variant_id` (not product id), so each variant gets its own price (CM-11).
+- Product `status` (old column) is ignored; "on sale" = not deleted, not paused, at least one ACTIVE non-deleted variant (same rule as `countProductsOnSale`).
+
+**Tests added beyond the story:**
+- `customer-catalog-variants.test.ts` › image_urls: a variant holds its own photos only (Context); passed once implemented.
+- same file › pages are of products; negotiated price above variant price; negotiated price on a withdrawn variant does not resurrect it; deleted negotiated price ignored (Context, CM-11, AC-3).
+
+**Other additions:**
+- `list-remove-prices.test.ts` helper `customerPriceOfRice` now reads `item.variants` (user-authorized, nothing else changed in that file).
+
+**Evidence:** story tests 37/37; full suite 4358/4358, failing: none, 0 known; typecheck clean; lint 0 errors, 190 warnings
+<!-- end CAT-028 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 

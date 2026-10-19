@@ -246,12 +246,12 @@ openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/organizations/{organizationId}/catalog',
   tags: ['catalog'],
-  summary: "A customer browses a business's articles with their own prices",
+  summary: "A customer browses a business's articles by product and variant with their own prices",
   security: [{ bearerAuth: [] }],
   request: { params: organizationParamsSchema, query: browseCatalogQuerySchema },
   responses: {
     200: {
-      description: 'A page of ACTIVE articles and the next cursor',
+      description: 'A page of products on sale with their ACTIVE variants and the next cursor',
       content: {
         'application/json': {
           schema: z.object({
@@ -259,12 +259,21 @@ openApiRegistry.registerPath({
               z.object({
                 id: z.string().uuid(),
                 name: z.string(),
-                unit: z.string(),
-                price: z.number().int(),
-                min_order_quantity: z.string().nullable(),
                 description: z.string().nullable(),
                 category: z.string().nullable(),
-                price_is_negotiated: z.boolean(),
+                image_urls: z.array(z.string()),
+                variants: z.array(
+                  z.object({
+                    id: z.string().uuid(),
+                    name: z.string().nullable(),
+                    unit: z.string(),
+                    label: z.string(),
+                    price: z.number().int(),
+                    min_order_quantity: z.string().nullable(),
+                    price_is_negotiated: z.boolean(),
+                    image_urls: z.array(z.string()),
+                  })
+                ),
               })
             ),
             next_cursor: z.string().nullable(),

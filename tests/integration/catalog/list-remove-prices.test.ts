@@ -144,9 +144,12 @@ const customerPriceOfRice = async () => {
     `/api/v1/organizations/${SUPPLIER_ORG}/catalog`
   );
   const items = bodyOf<{
-    items: Array<{ id: string; price: number; price_is_negotiated: boolean }>;
+    items: Array<{
+      id: string;
+      variants: Array<{ id: string; price: number; price_is_negotiated: boolean }>;
+    }>;
   }>(response).items;
-  return items.find((item) => item.id === RICE);
+  return items.flatMap((item) => item.variants).find((variant) => variant.id === RICE);
 };
 
 beforeEach(async () => {

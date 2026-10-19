@@ -30,15 +30,23 @@ const OLD = id('b5');
 
 const REG = new Date('2026-01-01T00:00:00.000Z');
 
+type Variant = {
+  id: string;
+  name: string | null;
+  unit: string;
+  label: string;
+  price: number;
+  min_order_quantity: string | null;
+  price_is_negotiated: boolean;
+  image_urls: string[];
+};
 type Item = {
   id: string;
   name: string;
-  unit: string;
-  price: number;
-  min_order_quantity: string | null;
   description: string | null;
   category: string | null;
-  price_is_negotiated: boolean;
+  image_urls: string[];
+  variants: Variant[];
 };
 type Page = { items: Item[]; next_cursor: string | null };
 
@@ -127,7 +135,9 @@ function browse(personId: string, query = '', orgId = SUPPLIER_ORG) {
   );
 }
 
-const priceOf = (page: Page, productId: string) => page.items.find((item) => item.id === productId);
+// A product written the old way has one variant with its own id (CAT-014).
+const priceOf = (page: Page, productId: string) =>
+  page.items.find((item) => item.id === productId)?.variants.find((v) => v.id === productId);
 
 beforeEach(async () => {
   await seedPerson(SUPPLIER_OWNER, '+237600009301');
@@ -165,16 +175,21 @@ describe('GET /api/v1/organizations/:organizationId/catalog', () => {
 
     expect(response.status).toBe(200);
     const page = bodyOf<Page>(response);
-    expect(page.items.map((i) => [i.id, i.price, i.price_is_negotiated])).toEqual([
-      [SALT, 200, false],
-      [OIL, 1500, false],
-      [RICE, 3000, false],
+    expect(
+      page.items.map((i) => [i.id, i.variants.map((v) => [v.id, v.price, v.price_is_negotiated])])
+    ).toEqual([
+      [SALT, [[SALT, 200, false]]],
+      [OIL, [[OIL, 1500, false]]],
+      [RICE, [[RICE, 3000, false]]],
     ]);
     expect(Object.keys(page.items[0]).sort()).toEqual(
+      ['category', 'description', 'id', 'image_urls', 'name', 'variants'].sort()
+    );
+    expect(Object.keys(page.items[0].variants[0]).sort()).toEqual(
       [
-        'category',
-        'description',
         'id',
+        'image_urls',
+        'label',
         'min_order_quantity',
         'name',
         'price',

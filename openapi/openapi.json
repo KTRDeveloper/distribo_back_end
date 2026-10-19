@@ -14801,7 +14801,7 @@
         "tags": [
           "catalog"
         ],
-        "summary": "A customer browses a business's articles with their own prices",
+        "summary": "A customer browses a business's articles by product and variant with their own prices",
         "security": [
           {
             "bearerAuth": []
@@ -14853,7 +14853,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A page of ACTIVE articles and the next cursor",
+            "description": "A page of products on sale with their ACTIVE variants and the next cursor",
             "content": {
               "application/json": {
                 "schema": {
@@ -14871,18 +14871,6 @@
                           "name": {
                             "type": "string"
                           },
-                          "unit": {
-                            "type": "string"
-                          },
-                          "price": {
-                            "type": "integer"
-                          },
-                          "min_order_quantity": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
                           "description": {
                             "type": [
                               "string",
@@ -14895,19 +14883,72 @@
                               "null"
                             ]
                           },
-                          "price_is_negotiated": {
-                            "type": "boolean"
+                          "image_urls": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "variants": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "unit": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "price": {
+                                  "type": "integer"
+                                },
+                                "min_order_quantity": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "price_is_negotiated": {
+                                  "type": "boolean"
+                                },
+                                "image_urls": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "unit",
+                                "label",
+                                "price",
+                                "min_order_quantity",
+                                "price_is_negotiated",
+                                "image_urls"
+                              ]
+                            }
                           }
                         },
                         "required": [
                           "id",
                           "name",
-                          "unit",
-                          "price",
-                          "min_order_quantity",
                           "description",
                           "category",
-                          "price_is_negotiated"
+                          "image_urls",
+                          "variants"
                         ]
                       }
                     },
