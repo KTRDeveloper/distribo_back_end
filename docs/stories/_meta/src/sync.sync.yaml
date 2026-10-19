@@ -1,0 +1,1209 @@
+kind: stories
+module: sync
+constraints:
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+  CM-30: "Sync pull returns only what the user may see; a driver receives, per customer, only the available credit instead of balance and limit; the phone keeps all customers, the catalog, open orders and the last 90 days of the rest."
+  C-46: "`Product.paused_at` is written by the server only; the products on sale (not deleted, not paused, with at least one ACTIVE variant) number at most `Organization.max_products`, checked by the phone and by the online routes; what arrives in excess through synchronization is paused, never refused."
+  C-48: "A variant cited by an order line or a negotiated price is never deleted, only taken off sale (`INACTIVE`); a deletion received for a cited variant becomes a withdrawal from sale, and a line received for a deleted variant restores it, off sale."
+  C-11: "`CustomerPrice` is unique per (relationship, variant) among rows not deleted; the variant belongs to the supplier of the relationship."
+  C-41: "`Organization.plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators` and `max_products` are written by the server only and sent to the team of the business only."
+  CM-42: "Every insert or update of a `ProductVariant` also sets `server_updated_at` of its product to the database time, so that a product and its variants always travel together to the phones."
+stories:
+  - id: SYNC-024
+    title: The catalog pull speaks products and variants
+    kind: change
+    size: M
+    risk: medium
+    amends: [SYNC-005]
+    depends_on: [SYNC-005, CAT-014, CAT-021, FND-013]
+    read_first: [src/modules/sync/adapters/catalog.adapter.ts, tests/integration/sync/pull-catalog.test.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, catalogue/productvariant]
+    constraints: [C-35, CM-42]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: "As a seller, I want my phone to hold each product with its variants, so that I can sell every size at its own price offline."
+    context: |
+      - Exists: the `products` pull (SYNC-005); variants, and `image_keys` and `paused_at` on products (CAT-012, CAT-014); a variant change that also moves its product (CAT-021); `imageUrl` (FND-013).
+      - `product_variants` joins `SYNC_TABLES` (15 tables) with its own adapter in `catalog.adapter.ts`. Its push refuses every line, as `products` does today (the owner's pushes: SYNC-031 to SYNC-034).
+      - For OWNER, MANAGER and SELLER, `products` rows become `id, organization_id, name, description, category, image_urls, paused_at, created_at, server_updated_at`; `unit`, `price`, `price_updated_at`, `min_order_quantity` and `status` leave them. `image_urls` is `imageUrl(key)` for each key.
+      - `product_variants` rows for the same roles: `id, product_id, organization_id, name, unit, price, price_updated_at, min_order_quantity` (decimal string), `status`, `image_urls, created_at, server_updated_at`. Every variant of the organization, any status; a deleted or merged one is listed in `deleted`.
+      - A paused product still arrives, with `paused_at`: the team sees what is paused. The driver and customer branches stay as they are (SYNC-025, SYNC-026); the product query keeps `unit` for the driver.
+    acceptance: |
+      Scenario: AC-1 Product and variants
+        Given a product with a variant "sac 10 kg" at 15000 and an INACTIVE variant "sac 25 kg"
+        When a SELLER of the business pulls
+        Then `products` holds the product with name, description, category, `image_urls` and `paused_at`, and no price, unit or status
+        And `product_variants` holds both variants with unit, price, minimum, status and `image_urls`
+      Scenario: AC-2 A paused product
+        Given a paused product
+        Then it arrives with `paused_at` set, with its variants
+      Scenario: AC-3 A price change moves the product too
+        When a variant's price changes after the last pull
+        Then the variant and its product are both `updated`
+      Scenario: AC-4 A deletion
+        When a variant is deleted or merged into another after the last pull
+        Then its id is in `deleted` of `product_variants`
+      Scenario: AC-5 The new table
+        Then the pull answer has a `product_variants` entry, and `SYNC_TABLES` has 15 names
+    abuse: |
+      Scenario: AB-1 Another business's catalog (horizontal)
+        When a member of A pulls
+        Then no product and no variant of B arrives
+    implementation:
+      modify: [src/modules/sync/adapters/catalog.adapter.ts, src/modules/sync/sync.types.ts]
+      create: [tests/integration/sync/pull-variants.test.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures:
+        - "variantsAdapter: SyncAdapter (table 'product_variants')"
+      types:
+        - "SYNC_TABLES gains 'product_variants' after 'products'"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: products and variants come from the viewer's organizations only."
+      - "v5.0.0-15.3.1: rows are built from an explicit list of fields; a photo is sent as an address, never as a key."
+    tests: |
+      team rows | integration | AC-1 | product without price, variants with it
+      paused | integration | AC-2 | paused_at set
+      price change | integration | AC-3, CM-42 | variant and product updated
+      deletion | integration | AC-4, C-35 | id in deleted
+      new table | integration | AC-5 | entry present, 15 names
+      other business | security | AB-1, WSTG-ATHZ-04 | none of B
+    command: npx vitest run tests/integration/sync/pull-variants.test.ts tests/integration/sync/pull-catalog.test.ts tests/integration/sync/registry-viewer.test.ts
+    out_of_scope:
+      - "The driver and the customer: SYNC-025 and SYNC-026. Pushes: SYNC-031 to SYNC-034."
+    tests_to_update:
+      - "tests/integration/sync/pull-catalog.test.ts | the seller test expects price and min_order_quantity on the product, and the incremental test expects the product updated with a new price | the product has no price; the variant carries it, and the variant is the row updated by a price change"
+      - "tests/integration/sync/registry-viewer.test.ts | it counts 14 tables, in two titles and an assertion | it counts 15"
+  - id: SYNC-025
+    title: A driver pull names variants without prices
+    kind: change
+    size: S
+    risk: medium
+    amends: [SYNC-005]
+    depends_on: [SYNC-024]
+    read_first: [src/modules/sync/adapters/catalog.adapter.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, catalogue/productvariant]
+    constraints: [CM-30]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: "As a driver, I want my phone to hold the names and units of what I deliver, so that I can read an order without knowing its prices."
+    context: |
+      - Exists: the driver branch of `products` (SYNC-005): the products named by lines of orders the driver may see, as `id, name, unit`; `product_variants` for the team (SYNC-024); lines name a variant (ORD-026).
+      - The scope walks from the line to its variant and to the variant's product. For a driver, `products` rows are `id, name`, and `product_variants` rows are `id, product_id, name, unit`. No price, minimum, status, photo or `paused_at`.
+      - A variant stays on the driver's phone when it is `INACTIVE` or its product is paused: the order still names it. A variant that no visible line names is not sent.
+      - Incremental pulls keep the rule of SYNC-005: a variant and its product are sent when they changed, or when a visible line naming them, or its order, changed. A deleted variant is announced by id if some line still names it.
+    acceptance: |
+      Scenario: AC-1 Names only
+        Given a confirmed order with a delivery address whose line names the variant "sac 10 kg", and another variant of the product on no order
+        When the DRIVER of the business pulls
+        Then `products` holds `id` and `name` of the product, and `product_variants` holds only "sac 10 kg" with `id`, `product_id`, `name` and `unit`
+      Scenario: AC-2 Withdrawn or paused
+        Given that variant is INACTIVE and its product paused
+        Then both still arrive, with the same columns
+      Scenario: AC-3 Newly visible
+        When a line naming an unchanged variant appears on an order after the last pull
+        Then the variant and its product arrive on the incremental pull
+      Scenario: AC-4 Not on a visible order
+        Given the only order naming a variant is DELIVERED
+        Then the variant and its product are not sent
+    abuse: |
+      Scenario: AB-1 A driver reads the price list (information disclosure)
+        When a DRIVER pulls
+        Then no row carries `price`, `min_order_quantity`, `status`, `image_urls` or `paused_at`
+    implementation:
+      modify: [src/modules/sync/adapters/catalog.adapter.ts]
+      create: []
+      pattern: src/modules/sync/sync.changes.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: only variants named by lines of orders the driver may see, in the businesses where they are a driver."
+      - "v5.0.0-15.3.1: four columns for a variant, two for a product."
+    tests: |
+      names only | integration | AC-1, CM-30 | columns and scope
+      withdrawn | integration | AC-2 | still sent
+      newly visible | integration | AC-3 | sent while unchanged
+      delivered | integration | AC-4 | not sent
+      no prices | security | AB-1, CWE-213 | forbidden keys absent
+    command: npx vitest run tests/integration/sync/pull-catalog.test.ts
+    out_of_scope:
+      - "Which orders a driver may see: SYNC-006 and SYNC-040."
+    tests_to_update:
+      - "tests/integration/sync/pull-catalog.test.ts | the two driver tests expect id, name and unit on the product | the product has id and name, and its variant in product_variants has id, product_id, name and unit"
+  - id: SYNC-026
+    title: A customer pull holds the supplier's articles on sale
+    kind: change
+    size: M
+    risk: high
+    amends: [SYNC-005]
+    depends_on: [SYNC-024]
+    read_first: [src/modules/sync/adapters/catalog.adapter.ts, src/modules/sync/adapters/relationship.adapter.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, catalogue/product]
+    constraints: [CM-42, C-46]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: "As a customer, I want my phone to hold my suppliers' articles on sale, so that I can build an order offline."
+    context: |
+      - Exists: customers receive no product row (SYNC-005 AC-3, now reversed: design 9.6 gives a customer the catalog of the suppliers they buy from); a customer's own relationships (SYNC-004); online browsing (CAT-028).
+      - A customer person receives the catalog of each supplier of whom they hold a live relationship (ACTIVE, not deleted, not merged) with an ACTIVE business. `products`: `id, organization_id, name, description, category, image_urls`. `product_variants`: ACTIVE ones only, `id, product_id, organization_id, name, unit, price, min_order_quantity, image_urls`; the negotiated price comes with `customer_prices` (SYNC-027).
+      - A product is sent only while it is not deleted, not paused, and has an ACTIVE variant (C-46).
+      - A product and its variants travel together (CM-42): on an incremental pull, a product whose variant came back on sale arrives with its variants. A product, or a variant, that changed and is no longer on sale is announced in `deleted`, so the phone drops it.
+    acceptance: |
+      Scenario: AC-1 The catalog on sale
+        Given a supplier with a product of two ACTIVE variants and one INACTIVE
+        When a customer with a live relationship pulls
+        Then `products` holds the product and `product_variants` holds the two ACTIVE variants, with price and minimum
+      Scenario Outline: AC-2 Left out
+        When the supplier has <case>
+        Then nothing of it is sent
+        Examples:
+          | case                                              |
+          | a paused product                                  |
+          | a product whose variants are all INACTIVE         |
+          | a deleted product                                 |
+          | a SUSPENDED business                              |
+          | a CLOSED relationship with the customer           |
+      Scenario: AC-3 Back on sale
+        When the only variant of a product returns to ACTIVE after the last pull
+        Then the product and the variant arrive on the incremental pull
+      Scenario: AC-4 No longer on sale
+        When the last ACTIVE variant is withdrawn, or the product paused, after the last pull
+        Then the ids of the product and of its variants are in `deleted`
+    abuse: |
+      Scenario: AB-1 A supplier the customer does not buy from (horizontal)
+        When a customer pulls
+        Then no product of a business with which they have no live relationship arrives, nor any `image_keys`, `paused_at`, `status` or INACTIVE variant
+    implementation:
+      modify: [src/modules/sync/adapters/catalog.adapter.ts]
+      create: [tests/integration/sync/pull-customer-catalog.test.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the scope is the viewer's own relationships and the supplier's status, never an id sent by the phone."
+      - "v5.0.0-15.3.1: explicit columns; nothing a supplier keeps private (pause date, withdrawn variants, photo keys)."
+    tests: |
+      on sale | integration | AC-1 | product and two variants
+      left out | integration | AC-2, C-46 | each Examples row → none
+      back on sale | integration | AC-3, CM-42 | product and variant sent
+      no longer on sale | integration | AC-4 | ids in deleted
+      other supplier | security | AB-1, WSTG-ATHZ-04 | none
+    command: npx vitest run tests/integration/sync/pull-customer-catalog.test.ts tests/integration/sync/pull-catalog.test.ts
+    out_of_scope:
+      - "A customer that is an organization: its members do not pull a supplier's catalog yet (open question)."
+    tests_to_update:
+      - "tests/integration/sync/pull-catalog.test.ts | the customer test expects no product row, but that customer has a live relationship with a business that has products | the customer receives the products on sale and their ACTIVE variants"
+  - id: SYNC-027
+    title: Negotiated prices and order lines are pulled by variant
+    kind: change
+    size: S
+    risk: medium
+    amends: [SYNC-004]
+    depends_on: [SYNC-004, CAT-015, ORD-028]
+    read_first: [src/modules/sync/adapters/relationship.adapter.ts, tests/integration/sync/pull-relationships.test.ts]
+    design_refs: [relations-commerciales/customerprice, synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone]
+    constraints: [C-35]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: "As a seller, I want my phone to receive each negotiated price and each order line against its variant, so that the right size is sold at the right price offline."
+    context: |
+      - Exists: `customer_prices` rows carry `product_id` (SYNC-004); negotiated prices name a variant (CAT-015); order lines are built from `OrderLineView`, which says `product_variant_id` (ORD-028).
+      - `customerPricesAdapter` sends `product_variant_id` and no `product_id`. Scope and incremental rules do not change.
+      - `order_lines` rows already spread the ORD-028 view, so they carry `product_variant_id`; a test pins the name on the wire, which is the contract with the phone, for the supplier's team and for the customer.
+    acceptance: |
+      Scenario: AC-1 A price by variant
+        Given a negotiated price of 4500 for the variant "sac 10 kg"
+        When the OWNER, a SELLER and the customer pull
+        Then the row has `product_variant_id`, `price` and `customer_relationship_id`, and no `product_id`
+      Scenario: AC-2 A line by variant
+        Given an order with a line on that variant
+        When the SELLER and the customer pull
+        Then the `order_lines` row has `product_variant_id` and no `product_id`
+      Scenario: AC-3 A deleted price
+        When a price is deleted after the last pull
+        Then its id is in `deleted`
+    implementation:
+      modify: [src/modules/sync/adapters/relationship.adapter.ts]
+      create: [tests/integration/sync/pull-by-variant.test.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: scope is unchanged: the team's relationships and the customer's own."
+      - "v5.0.0-15.3.1: the old name is not sent next to the new one."
+    tests: |
+      price by variant | integration | AC-1 | product_variant_id, no product_id
+      line by variant | integration | AC-2 | product_variant_id, no product_id
+      deleted price | integration | AC-3, C-35 | id in deleted
+    command: npx vitest run tests/integration/sync/pull-by-variant.test.ts tests/integration/sync/pull-relationships.test.ts
+    out_of_scope:
+      - "Pushes of prices: SYNC-034. Pushes of lines: SYNC-029."
+    tests_to_update:
+      - "tests/integration/sync/pull-relationships.test.ts | the customer prices test expects `product_id: PRODUCT` | it expects `product_variant_id: PRODUCT`, the variant that has the product's id"
+  - id: SYNC-028
+    title: Controls on arrival and the list to resolve read the variant
+    kind: technical
+    size: S
+    risk: medium
+    amends: [SYNC-016, SYNC-020]
+    depends_on: [SYNC-016, SYNC-020, CAT-017, ORD-025]
+    read_first: [src/modules/sync/sync.controls.ts, src/modules/sync/sync.repository.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne]
+    constraints: [CM-27]
+    asvs: [v5.0.0-2.3.1, v5.0.0-8.2.2]
+    story: "Technical story: make the price control and the owner's list of orders to review look at each line's variant, so that a price change on one size never flags a line of another."
+    context: |
+      - Exists: `priceControl` in `sync.controls.ts` reads `tx.product` for the status of the products on an order's lines and calls `getReferencePrice(tx, relationshipId, line.productId)`; `findFlaggedOrders` in `sync.repository.ts` does the same for a `PRICE_CHANGED` order (SYNC-016, SYNC-020). Lines now hold `product_variant_id` (ORD-025).
+      - Both read `line.productVariantId` instead of `line.productId`, and `getReferencePrice(tx, relationshipId, variantId)` (CAT-017).
+      - A line is retired when its variant is not ACTIVE or is deleted, or when its product is paused or deleted: `priceControl` reads `tx.productVariant` with its product and adds no `PRICE_CHANGED` part for it, as before.
+      - The part still names the line by `labelApplied`, so two sizes of a product are told apart.
+      - `CM-27`: the phone's reference price is ignored and recomputed from the server's price for the variant.
+    acceptance: |
+      Scenario: AC-1 A price that moved
+        Given an order entered offline with a line on the variant "sac 10 kg" at 15000, and that price moved to 15500 after the order was entered
+        When the batch arrives
+        Then the order's `sync_issue` starts with `PRICE_CHANGED:` and names that line with the old and the new price
+      Scenario: AC-2 Another size
+        Given the price of the product's other variant moved, not the sold one
+        Then the order is not flagged
+      Scenario: AC-3 A false reference price
+        Given the phone's reference price is 14000 while the variant has stood at 15000 since before the order
+        Then the line's reference price is 15000 and the gap against the applied price shows
+      Scenario: AC-4 A withdrawn variant
+        Given the sold variant is INACTIVE and its price also moved
+        Then the order has no `PRICE_CHANGED` part
+      Scenario: AC-5 The list to resolve
+        When the owner opens the flagged orders of a `PRICE_CHANGED` order
+        Then each line shows the current price of its own variant
+    implementation:
+      modify: [src/modules/sync/sync.controls.ts, src/modules/sync/sync.repository.ts]
+      create: [tests/integration/sync/controls-by-variant.test.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.1: the server's price decides, not the phone's, per variant."
+      - "v5.0.0-8.2.2: the flagged orders are those of the caller's organization, as before."
+    tests: |
+      moved | integration | AC-1 | PRICE_CHANGED names the line
+      other size | integration | AC-2 | not flagged
+      false reference | integration | AC-3, CM-27 | corrected to 15000
+      withdrawn | integration | AC-4 | no part
+      list | integration | AC-5 | current price of the variant
+    command: npx vitest run tests/integration/sync/controls-by-variant.test.ts tests/integration/sync/controls-prices.test.ts tests/integration/sync/exceptions.test.ts
+    out_of_scope:
+      - "The wording of the other controls and the credit control: unchanged."
+  - id: SYNC-029
+    title: An order line entered offline names a variant
+    kind: change
+    size: M
+    risk: medium
+    amends: [SYNC-012]
+    depends_on: [SYNC-012, CAT-037, ORD-026]
+    read_first: [src/modules/sync/adapters/order.push.ts, src/modules/catalog/catalog.sync-writers.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, catalogue/productvariant]
+    constraints: [C-48, CM-27]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.2.1]
+    story: "As a seller, I want an order I entered offline to arrive with the size I sold, so that the sale is kept even if that size was merged or withdrawn meanwhile."
+    context: |
+      - Exists: `createLine` in `order.push.ts` reads `product_id`, reads the product, labels the line `<name> (<unit>)`, stores a withdrawn article's line with `PRODUCT_RETIRED` and flags the order; `resolveVariantForLine` (CAT-037); the line rule that honors `distribo.allow_retired_product` (ORD-026).
+      - A pushed line carries `product_variant_id`; the old key is no longer read (a line without it is invalid, set aside as any malformed line). `createLine` calls `resolveVariantForLine(tx, supplier, id, now)`: `null` is `OUT_OF_SCOPE` (forbidden). Else the line stores `productVariantId`, the variant's `productId` and the label given back; a merged variant puts the line on the surviving one, a deleted one is brought back off sale (C-48).
+      - The line is retired when the variant read after that is not ACTIVE or its product is paused; the issue code stays `PRODUCT_RETIRED` and the order's note becomes "Produit retiré de la vente depuis la saisie" (design 9.2).
+      - `CM-27`: the amount is computed here; the label comes from the server.
+    acceptance: |
+      Scenario: AC-1 A line by variant
+        When a seller sends a line for the variant "sac 10 kg" of "Riz parfumé"
+        Then it is stored with that variant, its product, the label "Riz parfumé — sac 10 kg" and the computed amount
+      Scenario: AC-2 A merged variant
+        When the line names a variant merged into another
+        Then it is stored on the surviving variant
+      Scenario: AC-3 A withdrawn variant
+        Given the variant is INACTIVE
+        Then the line is stored, its outcome is `issue` `PRODUCT_RETIRED`, and the order's `sync_issue` is "Produit retiré de la vente depuis la saisie"
+      Scenario: AC-4 A deleted variant
+        When the line names a deleted variant
+        Then the variant comes back INACTIVE, the line is stored with the same issue
+      Scenario: AC-5 The old key
+        When a line sends `product_id` and no `product_variant_id`
+        Then it is set aside as malformed and nothing is stored
+    abuse: |
+      Scenario: AB-1 A variant of another business (horizontal)
+        When a seller of A sends a line naming a variant of B, deleted or not
+        Then the outcome is forbidden `OUT_OF_SCOPE`, nothing is written and the variant of B is not restored
+    implementation:
+      modify: [src/modules/sync/adapters/order.push.ts]
+      create: [tests/integration/sync/push-lines-by-variant.test.ts]
+      pattern: src/modules/sync/sync.push.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: the resolver is given the supplier of the order, so a foreign variant is never read, restored or written."
+      - "v5.0.0-2.2.1: the key must be a UUID; quantity and prices go through the existing readers."
+    tests: |
+      by variant | integration | AC-1, CM-27 | variant, product, label, amount
+      merged | integration | AC-2 | surviving variant
+      withdrawn | integration | AC-3 | issue and note
+      deleted | integration | AC-4, C-48 | restored INACTIVE
+      old key | integration | AC-5 | set aside
+      other business | security | AB-1, CWE-639 | forbidden, B untouched
+    command: npx vitest run tests/integration/sync/push-lines-by-variant.test.ts tests/integration/sync/push-orders.test.ts tests/integration/sync/push-closing.test.ts
+    out_of_scope:
+      - "Edits and deletions of lines: refused as before (SYNC-013)."
+    tests_to_update:
+      - "tests/integration/sync/push-orders.test.ts | the line rows send `product_id`, and the note text is 'Article retiré de la vente depuis la saisie' | they send `product_variant_id` with the same ids; the note is 'Produit retiré de la vente depuis la saisie'"
+      - "tests/integration/sync/push-closing.test.ts | the line rows send `product_id` | they send `product_variant_id` with the same id"
+      - "tests/integration/sync/controls-credit.test.ts | the line rows send `product_id` | they send `product_variant_id` with the same id"
+      - "tests/integration/sync/controls-prices.test.ts | the line rows send `product_id` | they send `product_variant_id` with the same id"
+      - "tests/integration/sync/forbidden-sends.test.ts | the line rows send `product_id` | they send `product_variant_id` with the same id"
+      - "tests/integration/sync/rights-change.test.ts | the line rows send `product_id` | they send `product_variant_id` with the same id"
+      - "tests/integration/sync/replay.test.ts | the line rows send `product_id` | they send `product_variant_id` with the same id"
+  - id: SYNC-030
+    title: The judge knows products, variants and negotiated prices
+    kind: change
+    size: M
+    risk: high
+    amends: [SYNC-010]
+    depends_on: [SYNC-010, SYNC-024, SYNC-027, ACC-008, CAT-023, CAT-024, CAT-026]
+    read_first: [src/modules/sync/sync.judge.ts, src/modules/sync/sync.repository.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, catalogue/product]
+    constraints: [CM-27]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: "As an owner, I want the catalog and the prices I edit offline to be judged by the same rules as every other line, so that no one but me can change them from a phone."
+    context: |
+      - Exists: `JUDGE_TABLE_ORDER` (six tables), `RULES_OF`, `findStoredRow`, `stripComputed`, the verdicts `OUT_OF_SCOPE` and `FIELD_NOT_ALLOWED` (SYNC-010); the rule rows for Product, ProductVariant and CustomerPrice, open offline to the OWNER and, online only, to a MANAGER (ACC-008, CAT-023, CAT-024, CAT-026).
+      - `JUDGE_TABLE_ORDER` becomes customer_relationships, products, product_variants, customer_prices, orders, order_lines, deliveries, ledger_entries, notifications: a price may name a variant of the same batch. `JudgedTable` gains the three tables.
+      - Scope: a product belongs to its `organization_id`; a variant to its product's organization (new `findProductOwner` in `sync.repository.ts`; a stored variant by its own `organization_id`); a price to the supplier of its relationship. Only an ACTIVE member of that organization is in scope; any other id answers `OUT_OF_SCOPE`, known or not.
+      - Rights: create needs `create` on the subject, each changed field `update`, a deletion `delete`. A MANAGER, SELLER or DRIVER therefore gets `FIELD_NOT_ALLOWED`; the OWNER passes.
+      - Computed, removed before the adapter: Product `paused_at`, `image_keys`, `image_urls`; ProductVariant `merged_into_id`, `image_keys`, `image_urls` (`price_updated_at` is already removed); CustomerPrice `set_at`, `set_by_id`. On a create, `set_by_id` is then the viewer's id.
+      - The row handed to the adapter carries `organization_id` set to the organization of the scope, whatever the phone sent, so that no adapter takes it from the phone.
+    acceptance: |
+      Scenario: AC-1 The owner passes
+        When the OWNER pushes a new product, a new variant of it and a new price
+        Then each line reaches its adapter, tables in the order products, product_variants, customer_prices, then orders
+      Scenario: AC-2 Others are refused
+        When a MANAGER, a SELLER or a DRIVER of the business pushes a product creation, a variant update or a price deletion
+        Then each line is forbidden `FIELD_NOT_ALLOWED` and no adapter sees it
+      Scenario: AC-3 Computed fields
+        When the OWNER pushes rows carrying the computed fields above
+        Then the adapter receives none of them
+        And a created price carries the OWNER's id as `set_by_id`
+        And a variant row carries its product's organization as `organization_id`, whatever the phone sent
+      Scenario: AC-4 Scope
+        When a line names a product, a variant, a price or a relationship of another business, or an unknown id
+        Then it is forbidden `OUT_OF_SCOPE`, with the same answer for both
+      Scenario: AC-5 A field outside the catalog list
+        When the OWNER updates a variant's `product_id` or a product's `organization_id`
+        Then that line is forbidden `FIELD_NOT_ALLOWED`
+    abuse: |
+      Scenario: AB-1 A seller or driver edits the catalog by sync (privilege, T9)
+        When a SELLER pushes a new product, or a DRIVER pushes a price change, with the right ids
+        Then the lines are forbidden, nothing is stored, and the usual refusal record and resync follow (SYNC-018)
+      Scenario: AB-2 A forged author on a price (spoofing)
+        When the OWNER pushes a price with `set_by_id` of another person
+        Then the stored author is the OWNER
+    implementation:
+      modify: [src/modules/sync/sync.judge.ts, src/modules/sync/sync.repository.ts]
+      create: [tests/integration/sync/judge-catalog.test.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "findProductOwner(tx: Prisma.TransactionClient, id: string): Promise<RowOwner | null>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: the owner of a new row comes from its parent, never from an organization id the phone adds."
+      - "v5.0.0-8.2.2: the three tables are read by id inside the push transaction, scoped to the viewer's ACTIVE memberships."
+      - "v5.0.0-15.3.3: server-written fields and the author are removed or overwritten before any adapter."
+    tests: |
+      owner passes | integration | AC-1 | three adapters spied, order
+      others refused | integration | AC-2 | three roles, three kinds of line
+      computed removed | integration | AC-3, CM-27 | adapter input, author
+      scope | integration | AC-4 | foreign and unknown ids
+      closed field list | integration | AC-5 | product_id, organization_id
+      seller catalog | security | AB-1, CWE-269 | forbidden, nothing stored
+      forged author | security | AB-2, CWE-290 | OWNER stored
+    command: npx vitest run tests/integration/sync/judge-catalog.test.ts tests/integration/sync/judge.test.ts
+    out_of_scope:
+      - "Writing the rows (the adapters still refuse): SYNC-031 to SYNC-034."
+      - "A variant whose product the batch set aside is out of scope, like any unknown product."
+    tests_to_update:
+      - "tests/integration/sync/judge.test.ts | the order test expects the six table names | it expects the nine names in the order above"
+  - id: SYNC-031
+    title: The owner's phone creates and edits products
+    kind: feature
+    size: M
+    risk: medium
+    amends: []
+    depends_on: [SYNC-030, CAT-033]
+    read_first: [src/modules/sync/adapters/catalog.adapter.ts, src/modules/catalog/catalog.sync-writers.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, catalogue/product]
+    constraints: [C-46]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.2.1, v5.0.0-15.3.3]
+    story: "As an owner, I want the products I create or edit without network to reach the server, so that my catalog is the same on every phone."
+    context: |
+      - Exists: the judge passes the OWNER's `products` lines with the scope's `organization_id` (SYNC-030); `applyProductFromSync` and its results (CAT-033); the `products` adapter, which refuses every push (SYNC-024).
+      - New `adapters/catalog.push.ts` with `pushProducts(ctx, change)`; the `products` adapter calls it instead of refusing. A created and an updated row go through `applyProductFromSync(tx, organization_id, { id, name, description, category }, now)`; the other columns of the row are not read.
+      - Outcomes: CREATED, UPDATED, UNCHANGED are `accepted`; INVALID and GONE are `aside` with the code of the result and the field names only; FOREIGN is `forbidden` `OUT_OF_SCOPE`. Products are deleted by SYNC-033: a line in `deleted` is `aside` until then.
+      - A product with no variant is not on sale and is not pulled by a customer (SYNC-026); its variants follow in SYNC-032.
+    acceptance: |
+      Scenario: AC-1 A new product
+        When the OWNER pushes a created product "Riz parfumé" with a description and a category
+        Then it is stored in the business with an empty unit, no pause and no photo, and the line is `accepted`
+      Scenario: AC-2 An edit
+        When the OWNER pushes an updated name
+        Then the name changes and a repeat of the same row changes nothing
+      Scenario: AC-3 Fields the server owns
+        When a row also carries `paused_at`, `image_keys`, `unit` and `price`
+        Then none of them is written
+      Scenario: AC-4 A row that cannot be written
+        When the name has 101 characters
+        Then that line is `aside` `INVALID`, nothing is stored and the other lines of the batch pass
+    abuse: |
+      Scenario: AB-1 A product of another business (horizontal)
+        When the OWNER of A pushes an update whose id is a product of B
+        Then the line is forbidden `OUT_OF_SCOPE` and B's product is unchanged
+    implementation:
+      modify: [src/modules/sync/adapters/catalog.adapter.ts]
+      create: [src/modules/sync/adapters/catalog.push.ts, tests/integration/sync/push-products.test.ts]
+      pattern: src/modules/sync/sync.push.ts
+      signatures:
+        - "pushProducts(ctx: PushContext, change: TableChange): Promise<LineOutcome[]>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: the organization is the judge's, never the row's; the writer finds an existing product through it."
+      - "v5.0.0-2.2.1: name, description and category are checked by the writer before any write."
+      - "v5.0.0-15.3.3: only four fields are read from the row."
+    tests: |
+      new product | integration | AC-1 | stored row, outcome
+      edit | integration | AC-2 | name, repeat unchanged
+      server fields | integration | AC-3, C-46 | paused_at, image_keys, unit, price untouched
+      invalid name | integration | AC-4 | aside, rest passes
+      other business | security | AB-1, CWE-639 | forbidden, B unchanged
+    command: npx vitest run tests/integration/sync/push-products.test.ts tests/integration/sync/push-envelope.test.ts
+    out_of_scope:
+      - "Variants, deletions and prices: SYNC-032 to SYNC-034. Pausing the excess: SYNC-035."
+  - id: SYNC-032
+    title: The owner's phone creates and edits variants
+    kind: feature
+    size: M
+    risk: medium
+    amends: []
+    depends_on: [SYNC-031, CAT-034, CAT-035]
+    read_first: [src/modules/sync/adapters/catalog.push.ts, src/modules/catalog/catalog.sync-writers.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, catalogue/productvariant]
+    constraints: [C-47]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.2.1, v5.0.0-15.3.3]
+    story: "As an owner, I want the sizes and prices I enter without network to reach the server, so that a size added twice by two people never blocks my phone."
+    context: |
+      - Exists: the judge passes the OWNER's `product_variants` lines with the organization of the product (SYNC-030); `pushProducts` (SYNC-031); `applyVariantFromSync` and its results (CAT-034, CAT-035); the `product_variants` adapter, which refuses every push (SYNC-024).
+      - `pushVariants(ctx, change)` in `catalog.push.ts`; a created or updated row goes through `applyVariantFromSync(tx, organization_id, { id, productId, name, unit, price, minOrderQuantity, status }, now)`; `min_order_quantity` is the decimal text of the wire. A value of the wrong type is `aside` `INVALID` before the writer.
+      - Outcomes: CREATED, UPDATED, UNCHANGED are `accepted`. MERGED is an `issue` `MERGED` carrying `mergedInto`, with the message "<label> ajouté deux fois : variantes réunies" (design 3.2). COLLISION is `aside` `VARIANT_EXISTS`; NO_PRODUCT, GONE and INVALID are `aside` with their code; FOREIGN is `forbidden` `OUT_OF_SCOPE`.
+      - `merged_into_id`, `price_updated_at` and the photos are not read from the row. The product's `server_updated_at` moves with the variant (CM-42, CAT-021), so the product travels with it.
+      - `C-47`: Two variants of one product that are not deleted never share both the same simplified name and unit; `merged_into_id` set implies the variant is deleted.
+    acceptance: |
+      Scenario: AC-1 A new variant
+        When the OWNER pushes a variant "sac 10 kg" at 15000 for a product of the business
+        Then it is stored with that price, a price date set by the server, and the line is `accepted`
+      Scenario: AC-2 An edit
+        When the OWNER pushes a new price for it
+        Then the price and its date change; a name or unit change keeps the product
+      Scenario: AC-3 Created twice
+        Given a manager added "sac 10 kg" online meanwhile
+        When the OWNER pushes the same variant under a new id
+        Then the line is an `issue` `MERGED` with `mergedInto` the first variant and the message above, and the first keeps its price
+      Scenario: AC-4 Lines that cannot be written
+        When a variant has price 0, or an edit makes a twin, or names a deleted product
+        Then each is `aside` (`INVALID`, `VARIANT_EXISTS`, `NO_PRODUCT`), nothing is stored and the rest of the batch passes
+    abuse: |
+      Scenario: AB-1 A variant slipped into another business's product (horizontal)
+        When the OWNER of A pushes a variant whose `product_id` is a product of B
+        Then the line is forbidden `OUT_OF_SCOPE` and B's catalog is unchanged
+    implementation:
+      modify: [src/modules/sync/adapters/catalog.adapter.ts, src/modules/sync/adapters/catalog.push.ts]
+      create: [tests/integration/sync/push-variants.test.ts]
+      pattern: src/modules/sync/sync.push.ts
+      signatures:
+        - "pushVariants(ctx: PushContext, change: TableChange): Promise<LineOutcome[]>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: the organization is the judge's; the writer finds the product and any existing variant through it."
+      - "v5.0.0-2.2.1: price, minimum, unit and status are checked before any write."
+      - "v5.0.0-15.3.3: five fields and the product id are read; the merge link, the price date and the photos have no way in."
+    tests: |
+      new variant | integration | AC-1 | row, price date
+      edit | integration | AC-2 | price and date
+      twice | integration | AC-3, C-47 | issue, mergedInto, first kept
+      not writable | integration | AC-4 | three asides, rest passes
+      other business | security | AB-1, CWE-639 | forbidden, B unchanged
+    command: npx vitest run tests/integration/sync/push-variants.test.ts tests/integration/sync/push-products.test.ts
+    out_of_scope:
+      - "Deletions: SYNC-033. Pausing the excess products: SYNC-035."
+      - "A line that sends several variants of one new product at once is judged in table order: the product first."
+  - id: SYNC-033
+    title: The owner's phone deletes variants and products
+    kind: feature
+    size: S
+    risk: medium
+    amends: []
+    depends_on: [SYNC-032, CAT-036]
+    read_first: [src/modules/sync/adapters/catalog.push.ts, src/modules/catalog/catalog.sync-writers.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, catalogue/productvariant]
+    constraints: [C-48]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3]
+    story: "As an owner, I want a deletion made without network never to erase a size that was sold meanwhile, so that no sale loses its product."
+    context: |
+      - Exists: the judge passes the OWNER's deletions after the `delete` right and the scope (SYNC-030); `deleteVariantFromSync` and `deleteProductFromSync` with `{ result, retiredLabels }` (CAT-036); `pushProducts`, `pushVariants`.
+      - Both pushes handle `deleted` after created and updated rows, calling the writer with the judge's organization. Outcomes: DELETED and ALREADY are `accepted`; RETIRED is an `issue` `RETIRED_INSTEAD` with, for each label, "<label>, vendu entre-temps : retiré de la vente au lieu d'être supprimé" (design 3.2); LAST_VARIANT and NOT_FOUND are `aside` with their code.
+      - Products run before variants: a product deleted with its variants leaves the variants' own deletions as ALREADY.
+      - `C-48`: A variant cited by an order line or a negotiated price is never deleted, only taken off sale (`INACTIVE`); a deletion received for a cited variant becomes a withdrawal from sale.
+    acceptance: |
+      Scenario: AC-1 An unused variant
+        When the OWNER deletes a variant no line or price cites
+        Then it is deleted and the line is `accepted`
+      Scenario: AC-2 A variant sold meanwhile
+        Given another phone's sale cites the variant
+        When the OWNER's deletion arrives
+        Then the variant is INACTIVE, not deleted, and the line is an `issue` `RETIRED_INSTEAD` with the message above
+      Scenario: AC-3 A whole product
+        When the OWNER deletes a product whose variants include a cited one
+        Then the cited variant is INACTIVE, the others are deleted, the product stays and the issue names the cited label
+      Scenario: AC-4 Sent again
+        When the same deletion arrives twice
+        Then both lines are `accepted` and nothing changes the second time
+    abuse: |
+      Scenario: AB-1 Deleting another business's variant (horizontal)
+        When the OWNER of A deletes a variant id of B
+        Then the line is forbidden `OUT_OF_SCOPE` and B's variant is unchanged
+    implementation:
+      modify: [src/modules/sync/adapters/catalog.push.ts]
+      create: [tests/integration/sync/push-catalog-deletions.test.ts]
+      pattern: src/modules/sync/sync.push.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: the judge checks scope and the `delete` right; the writer receives the judge's organization."
+      - "v5.0.0-2.3.3: the deletions of one push share its transaction, so a failure leaves the catalog as it was."
+    tests: |
+      unused | integration | AC-1 | deleted_at set
+      sold meanwhile | integration | AC-2, C-48 | INACTIVE, issue text
+      whole product | integration | AC-3, C-48 | mixed result
+      twice | integration | AC-4 | accepted twice
+      other business | security | AB-1, CWE-639 | forbidden, B unchanged
+    command: npx vitest run tests/integration/sync/push-catalog-deletions.test.ts tests/integration/sync/push-variants.test.ts
+    out_of_scope:
+      - "`LAST_VARIANT` is set aside: the phone deletes the product instead."
+  - id: SYNC-034
+    title: The owner's phone sets and removes negotiated prices
+    kind: feature
+    size: M
+    risk: medium
+    amends: []
+    depends_on: [SYNC-030, SYNC-027, CAT-039]
+    read_first: [src/modules/sync/adapters/relationship.adapter.ts, src/modules/catalog/catalog.sync-writers.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, relations-commerciales/customerprice]
+    constraints: [C-11]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.2.1, v5.0.0-15.3.3]
+    story: "As an owner, I want the prices I negotiate without network to reach the server, so that my customers are charged the agreed price."
+    context: |
+      - Exists: the judge passes the OWNER's `customer_prices` lines with the supplier of the relationship as `organization_id`, and sets `set_by_id` on a create (SYNC-030); `applyPriceFromSync` and `deletePriceFromSync` (CAT-039); the `customer_prices` adapter, which refuses every push (SYNC-004).
+      - New `adapters/price.push.ts`, `pushPrices(ctx, change)`; the adapter calls it. A created or updated row goes through `applyPriceFromSync(tx, organization_id, { id, relationshipId, variantId, price, setById }, now)` with `setById` the viewer's id, never the row's. A deleted id goes through `deletePriceFromSync`.
+      - Outcomes: CREATED, UPDATED, UNCHANGED, DELETED, ALREADY are `accepted`. NO_RELATIONSHIP, NO_VARIANT, GONE, NOT_FOUND and INVALID are `aside` with their code. FOREIGN is `forbidden` `OUT_OF_SCOPE`.
+      - The same pair entered on two phones is not a failure: the last arrival replaces the first (CAT-039). A relationship merged earlier in the batch is already redirected by the judge (SYNC-011).
+      - `C-11`: `CustomerPrice` is unique per (relationship, variant) among rows not deleted; the variant belongs to the supplier of the relationship.
+    acceptance: |
+      Scenario: AC-1 A new price
+        When the OWNER pushes a price 6000 for a customer and a variant of the business
+        Then it is stored for that pair, `set_by_id` is the OWNER, and the line is `accepted`
+      Scenario: AC-2 Entered on two phones
+        Given another price for the same pair arrived under another id
+        When this one arrives
+        Then one live price remains, with the later value
+      Scenario: AC-3 A change and a removal
+        When the OWNER pushes a new value for a price, then its deletion, twice
+        Then the value changes, the price is deleted, and the repeat is `accepted` with no change
+      Scenario: AC-4 Lines that cannot be written
+        When a price is 0, or names a relationship that is deleted, or a variant of another business
+        Then each is `aside` with its code, nothing is stored and the rest of the batch passes
+    abuse: |
+      Scenario: AB-1 A price on another supplier's customer (horizontal)
+        When the OWNER of A pushes a price for a relationship of B, or deletes a price of B
+        Then the line is forbidden `OUT_OF_SCOPE` and B's prices are unchanged
+    implementation:
+      modify: [src/modules/sync/adapters/relationship.adapter.ts]
+      create: [src/modules/sync/adapters/price.push.ts, tests/integration/sync/push-prices.test.ts]
+      pattern: src/modules/sync/sync.push.ts
+      signatures:
+        - "pushPrices(ctx: PushContext, change: TableChange): Promise<LineOutcome[]>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: the organization is the judge's; the writer finds the relationship, the variant and any existing price through it."
+      - "v5.0.0-2.2.1: the price is an integer of at least 1, checked before any write."
+      - "v5.0.0-15.3.3: the author is the session's person; the pair of an existing price never changes."
+    tests: |
+      new price | integration | AC-1 | row, author
+      two phones | integration | AC-2, C-11 | one live price, later value
+      change and removal | integration | AC-3 | value, deletion, repeat
+      not writable | integration | AC-4 | three asides, rest passes
+      other supplier | security | AB-1, CWE-639 | forbidden, B unchanged
+    command: npx vitest run tests/integration/sync/push-prices.test.ts tests/integration/sync/pull-relationships.test.ts
+    out_of_scope:
+      - "A price set by sync raises no notice to the customer."
+      - "A price for a deleted variant brings the variant back off sale (CAT-037)."
+  - id: SYNC-035
+    title: Products added beyond the plan are paused after a push
+    kind: feature
+    size: S
+    risk: medium
+    amends: [SYNC-010]
+    depends_on: [SYNC-033, BIL-013, BIL-020]
+    read_first: [src/modules/sync/sync.judge.ts, src/modules/billing/limits.service.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, catalogue/product]
+    constraints: [C-46]
+    asvs: [v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: "As an owner, I want the products I added offline beyond my plan to be paused instead of lost, so that nothing I typed disappears and I can choose what to keep."
+    context: |
+      - Exists: `judgeBatch` applies the tables, then the controls on arrival (SYNC-010, SYNC-016); the catalog pushes (SYNC-031 to SYNC-033); `recomputeRights` (BIL-013) and `enforceLimits` (BIL-020), which pauses or resumes products to fit the plan and notifies the owner.
+      - The judge keeps the set of organizations of every `products` and `product_variants` line it passed (created, updated or deleted). New `sync.limits.ts`: `enforceCatalogLimits(tx, organizationIds, now)` runs, per organization in id order, `recomputeRights` then `enforceLimits`. `judgeBatch` calls it after the last table and before the controls, in the batch's transaction.
+      - Nothing is refused: the lines stay `accepted`. Which products are paused, and the notice to the owner, belong to billing. A batch without catalog line does not call billing. A replay (SYNC-022) takes the same path.
+      - `C-46`: `Product.paused_at` is written by the server only; the products on sale (not deleted, not paused, with at least one ACTIVE variant) number at most `Organization.max_products`; what arrives in excess through synchronization is paused, never refused.
+    acceptance: |
+      Scenario: AC-1 Beyond the plan
+        Given a FREE business with 30 products on sale
+        When the OWNER pushes 3 new products, each with an ACTIVE variant
+        Then the 3 products and their variants are `accepted`, 30 products are on sale, 3 are paused, and the owner receives one `subscription.products_paused` notice
+      Scenario: AC-2 Within the plan
+        When the pushed products fit the plan
+        Then none is paused and no notice is sent
+      Scenario: AC-3 A deletion frees room
+        Given one product is paused for lack of room
+        When the OWNER's batch deletes a product on sale
+        Then the paused product is on sale again
+      Scenario: AC-4 No catalog line
+        When a batch carries only orders
+        Then billing is not called
+    abuse: |
+      Scenario: AB-1 A flood of products pushed offline (denial of service, T11)
+        When the OWNER of a FREE business pushes 40 new products with variants in one batch
+        Then no line is refused, at most 30 products are on sale afterwards, and the rest are paused
+    implementation:
+      modify: [src/modules/sync/sync.judge.ts]
+      create: [src/modules/sync/sync.limits.ts, tests/integration/sync/push-plan-limits.test.ts]
+      pattern: src/modules/sync/sync.push.ts
+      signatures:
+        - "enforceCatalogLimits(tx: Prisma.TransactionClient, organizationIds: string[], now: Date): Promise<void>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: the pause runs in the transaction of the push, so the catalog and its limit change together."
+      - "v5.0.0-15.3.3: `paused_at` is written by billing only; the phone's value was removed by the judge."
+    tests: |
+      beyond the plan | integration | AC-1, C-46 | counts, one notice
+      within the plan | integration | AC-2 | nothing paused
+      room freed | integration | AC-3 | resumed
+      no catalog line | integration | AC-4 | billing spied, not called
+      flood | security | AB-1, CWE-770 | no refusal, 30 on sale
+    command: npx vitest run tests/integration/sync/push-plan-limits.test.ts tests/integration/sync/push-products.test.ts
+    out_of_scope:
+      - "Choosing which products stay on sale: billing (BIL-020)."
+      - "`enforceLimits` also aligns the team seats; a push that changes no rights leaves them as they were."
+  - id: SYNC-036
+    title: The phone receives the contacts of its business and of the businesses it deals with
+    kind: feature
+    size: M
+    risk: medium
+    amends: []
+    depends_on: [SYNC-024, ORG-021, REL-001]
+    read_first: [src/modules/sync/adapters/identity.adapter.ts, src/modules/relationship/relationship.visibility.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, identite-et-organisation/organizationcontact]
+    constraints: [C-35]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: "As a seller, I want the verified contacts of my customers and suppliers on my phone, so that I can call them without network."
+    context: |
+      - Exists: `organization_contacts` with `kind`, `slot`, `value`, `verified_at`, `verification_method`, `server_updated_at`, `deleted_at` (ORG-021); `classifyChanges` and `toEpoch` (SYNC-001); `visibleRelationsWhere` (REL-001).
+      - `organization_contacts` joins `SYNC_TABLES` (16 tables), with its adapter in a new `adapters/contacts.adapter.ts`, registered from `sync.routes.ts`. Its push refuses every line `SYNC_TABLE_READ_ONLY`: contacts are written by online routes only.
+      - A row is `id, organization_id, kind, slot, value, verified_at, verification_method, created_at, server_updated_at`; never `created_by_id`.
+      - Team (ACTIVE OWNER, MANAGER or SELLER): every contact of its organizations, verified or pending. A DRIVER does not get its own business's contacts here (SYNC-042).
+      - Parties: for each relationship the viewer sees (`visibleRelationsWhere`, given the organizations where they are OWNER, MANAGER or SELLER, never those where they are DRIVER; any status) the organization on the other side, whatever its status (ACTIVE, SUSPENDED, CLOSED): its verified contacts only. A particular customer gets those of its suppliers. A contact that is pending again or deleted is listed in `deleted`. The contacts of an organization made visible by a relationship created since the last pull are sent whole.
+      - `C-35`: Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows.
+    acceptance: |
+      Scenario: AC-1 The team
+        Given the business has a verified phone, a verified email and a pending phone
+        When its OWNER, a MANAGER and a SELLER pull
+        Then each gets all three, with `verified_at` null on the pending one
+      Scenario: AC-2 The other side
+        Given a customer business and a particular customer, both with a relationship with the business
+        When each pulls
+        Then each gets the two verified contacts of the business and not the pending one
+      Scenario: AC-3 A closed or suspended business
+        Given the supplier is CLOSED
+        Then its customers still receive its verified contacts, and its team those of the customer business
+      Scenario: AC-4 Pending again
+        Given a verified contact goes back to pending after the last pull
+        Then its team gets it in `updated` with `verified_at` null, and the other side gets its id in `deleted`
+      Scenario: AC-5 A new relationship
+        Given a relationship is created after the last pull
+        Then the other side's verified contacts, unchanged since, are sent whole
+      Scenario: AC-6 No push
+        When a phone pushes a contact
+        Then the line is forbidden `SYNC_TABLE_READ_ONLY` and nothing is stored
+    abuse: |
+      Scenario: AB-1 A pending contact reaches another business (information disclosure, T10)
+        When any customer, supplier or particular customer pulls
+        Then no pending or deleted contact of another business is in the answer
+      Scenario: AB-2 A business with no relationship (horizontal)
+        When a person with no relationship to the business pulls
+        Then none of its contacts is in the answer
+    implementation:
+      modify: [src/modules/sync/sync.types.ts, src/modules/sync/sync.routes.ts]
+      create: [src/modules/sync/adapters/contacts.adapter.ts, tests/integration/sync/pull-contacts.test.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures:
+        - "registerContactAdapters(): void"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the organizations come from the viewer's ACTIVE memberships and from the relationships the predicate lets them see, never from the request."
+      - "v5.0.0-15.3.1: the row is an explicit list; the author of a contact is not in it."
+    tests: |
+      team | integration | AC-1 | three roles, three contacts
+      other side | integration | AC-2 | verified only
+      closed supplier | integration | AC-3 | still received
+      pending again | integration | AC-4, C-35 | updated and deleted
+      new relationship | integration | AC-5 | sent whole
+      no push | integration | AC-6 | forbidden
+      no pending leak | security | AB-1, CWE-200 | absent
+      no relationship | security | AB-2, CWE-639 | empty
+    command: npx vitest run tests/integration/sync/pull-contacts.test.ts tests/integration/sync/registry-viewer.test.ts
+    out_of_scope:
+      - "The driver's contacts of a client business: SYNC-042."
+    tests_to_update:
+      - "tests/integration/sync/registry-viewer.test.ts | it expects 15 tables | it expects 16 tables, with organization_contacts last"
+  - id: SYNC-037
+    title: The team's phone knows the plan, its due date and its limits
+    kind: change
+    size: S
+    risk: medium
+    amends: [SYNC-003]
+    depends_on: [SYNC-003, ORG-020, BIL-013]
+    read_first: [src/modules/sync/adapters/identity.adapter.ts, tests/integration/sync/pull-identity.test.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, identite-et-organisation/organization]
+    constraints: [C-41]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: "As a manager, I want my business's plan, due date and limits on my phone, so that I know offline why a product or a seat is paused."
+    context: |
+      - Exists: `organizationsAdapter` sends only the viewer's ACTIVE organizations, with `id, name, description, email, status, created_at, server_updated_at` (SYNC-003); the plan columns (ORG-020), recomputed by billing (BIL-013), which moves `server_updated_at` with them.
+      - The row gains `payment_code`, `plan`, `plan_ends_at` and `grace_ends_at` (epoch milliseconds or null), `max_collaborators` and `max_products` (integers, null when unlimited). Every ACTIVE member of the business receives them, a driver too, read-only: the push of the table stays refused.
+      - The adapter never returns an organization the viewer is not a member of, so a customer or a supplier of the business receives none of these fields.
+      - Subscription tables stay out of the synchronization. What is paused travels already: `Product.paused_at` (SYNC-024) and the collaboration `status` (SYNC-003).
+      - `C-41`: `Organization.plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators` and `max_products` are written by the server only and sent to the team of the business only.
+    acceptance: |
+      Scenario: AC-1 The team
+        Given a PRO business due on 2027-01-12 with 10 collaborators and no product limit
+        When its OWNER, a SELLER and a DRIVER pull
+        Then each row carries the plan `PRO`, the due date, `grace_ends_at` null, `max_collaborators` 10, `max_products` null and the payment code
+      Scenario: AC-2 The free plan
+        Given a FREE business
+        Then `plan_ends_at` is null, `max_collaborators` is 2 and `max_products` is 30
+      Scenario: AC-3 During the grace
+        Given the due date passed 3 days ago
+        Then `grace_ends_at` is set and the plan is unchanged
+      Scenario: AC-4 A renewal
+        When a payment renews the plan after the last pull
+        Then the organization is in `updated` with the new due date
+      Scenario: AC-5 Read-only
+        When a phone pushes an organization row with another `plan`
+        Then the line is forbidden `SYNC_TABLE_READ_ONLY` and the plan is unchanged
+    abuse: |
+      Scenario: AB-1 A customer or a supplier reads the plan (information disclosure, T10)
+        When a customer business, a particular customer and a supplier of the business pull
+        Then no organization row of it, and no plan field, is in their answers
+    implementation:
+      modify: [src/modules/sync/adapters/identity.adapter.ts]
+      create: [tests/integration/sync/pull-plan-fields.test.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the organizations come from the viewer's ACTIVE memberships only."
+      - "v5.0.0-15.3.1: the six fields join an explicit list; no whole row is serialized."
+    tests: |
+      team | integration | AC-1, C-41 | three roles, six fields
+      free plan | integration | AC-2 | null date, limits
+      grace | integration | AC-3 | grace date
+      renewal | integration | AC-4 | updated row
+      read-only | integration | AC-5 | forbidden, unchanged
+      other side | security | AB-1, CWE-200 | no row, no field
+    command: npx vitest run tests/integration/sync/pull-plan-fields.test.ts tests/integration/sync/pull-identity.test.ts
+    out_of_scope:
+      - "Logo and photo addresses: SYNC-038."
+    tests_to_update:
+      - "tests/integration/sync/pull-identity.test.ts | checks the ids of the organizations pulled and the keys of the people rows, not those of the organization rows | unchanged"
+  - id: SYNC-038
+    title: The phone receives logo and profile photo addresses
+    kind: change
+    size: S
+    risk: medium
+    amends: [SYNC-003]
+    depends_on: [SYNC-037, FND-013, IMG-004, IMG-005]
+    read_first: [src/modules/sync/adapters/identity.adapter.ts, tests/integration/sync/pull-identity.test.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, identite-et-organisation/person]
+    constraints: [C-49]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: "As a seller, I want the logo of my business and the photos of the people I work with on my phone, so that I recognize them."
+    context: |
+      - Exists: `organizationsAdapter` and `peopleAdapter` (SYNC-003, SYNC-037); `imageUrl(key)` (FND-013); `Organization.logo_key` and `Person.avatar_key`, chosen online and stored by the server (IMG-004, IMG-005).
+      - `organizations` rows gain `logo_url` and `people` rows gain `avatar_url`, each `imageUrl(key)` or null. Both are public data (design 1.1, 2.1): every person that `peopleAdapter` already lists receives the photo, which keeps the keys out of the rows.
+      - A new, changed or removed photo moves the row's `server_updated_at`, so it arrives as `updated`. The keys are never sent, and a phone cannot send them: the pushes stay refused.
+      - `C-49`: the image keys, `Organization.logo_key` and `Person.avatar_key` are written by the server only.
+    acceptance: |
+      Scenario: AC-1 The logo
+        Given the business has a logo
+        When its SELLER pulls
+        Then the organization row has `logo_url` of the stored file and no `logo_key`
+      Scenario: AC-2 A profile photo
+        Given a collaborator and a customer person have a photo
+        When a SELLER pulls
+        Then both people rows carry `avatar_url`, and a person without a photo has null
+      Scenario: AC-3 A change
+        When the logo is replaced after the last pull
+        Then the organization is in `updated` with the new address
+      Scenario: AC-4 An anonymized person
+        Given a person was anonymized and had a photo
+        Then their row has `avatar_url` null
+    abuse: |
+      Scenario: AB-1 A key reaches the phone (information disclosure)
+        When any role pulls organizations and people
+        Then no row has a key field, and the people rows carry no other new field than `avatar_url`
+    implementation:
+      modify: [src/modules/sync/adapters/identity.adapter.ts]
+      create: [tests/integration/sync/pull-images.test.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the people list is the one already scoped to the viewer's collaborations and relationships."
+      - "v5.0.0-15.3.1: only the address is sent; the storage key stays on the server."
+    tests: |
+      logo | integration | AC-1, C-49 | address, no key
+      profile photos | integration | AC-2 | two rows, one null
+      logo replaced | integration | AC-3 | updated
+      anonymized | integration | AC-4 | null
+      no key | security | AB-1, CWE-200 | key fields absent
+    command: npx vitest run tests/integration/sync/pull-images.test.ts tests/integration/sync/pull-identity.test.ts
+    out_of_scope:
+      - "The logo of the business on the other side of a relationship: not synchronized."
+    tests_to_update:
+      - "tests/integration/sync/pull-identity.test.ts | the people row has exactly the keys full_name, id and phone_number | it has full_name, id, phone_number and avatar_url"
+  - id: SYNC-039
+    title: A paused collaborator gets the grace of a revoked one
+    kind: change
+    size: S
+    risk: high
+    amends: [SYNC-019]
+    depends_on: [SYNC-019, BIL-019]
+    read_first: [src/modules/sync/sync.repository.ts, tests/integration/sync/rights-change.test.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, identite-et-organisation/collaboration]
+    constraints: [CM-29]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2]
+    story: "As an owner, I want the late sales and collections of a collaborator whose seat was paused to be kept and reported, so that no cash is left without a trace."
+    context: |
+      - Exists: the grace of a stale device (SYNC-019): `findRightsHistory` returns the REVOKED memberships as `formerMemberships`, and the judge lends the grace role to a person who no longer belongs to the organization. `setSeatPaused` writes `Collaboration.status = PAUSED` and moves `Person.scope_version` (BIL-019). `findViewerData` keeps ACTIVE memberships only, so a paused collaborator already pulls and pushes nothing of the business.
+      - Change in `sync.repository.ts`: `findRightsHistory` returns the memberships whose status is REVOKED or PAUSED (not deleted), with their role. The comments that say REVOKED in `sync.viewer.ts` and `sync.types.ts` say "REVOKED or PAUSED".
+      - Nothing else changes: sales, deliveries and payments made before the phone learned of the pause are kept and reported to the owners in one `sync.rights_changed`; every other line is refused.
+      - A phone that knows the current version gets no grace. A resumed seat (ACTIVE again) is judged by its role.
+    acceptance: |
+      Scenario: AC-1 Late sales of a paused seller
+        Given a seller whose seat was paused while their phone was offline, with 2 sales made before
+        When the batch arrives
+        Then the 2 sales are stored and the owner has one `sync.rights_changed`
+      Scenario: AC-2 Nothing else opens
+        When the same batch has a new customer, a cancellation and a note
+        Then those lines are forbidden
+      Scenario: AC-3 A phone that knows
+        Given the phone's scope version equals the person's
+        When the paused seller pushes a sale
+        Then the line is refused as out of scope and no notification is sent
+      Scenario: AC-4 Nothing is pulled
+        When the paused collaborator makes a full pull
+        Then no row of the business is in the answer
+      Scenario: AC-5 Resumed
+        Given the seat is ACTIVE again
+        When the collaborator makes a full pull and then pushes a sale
+        Then the business rows are in the answer and the sale is judged by their role
+    abuse: |
+      Scenario: AB-1 Using the pause as a back door (elevation)
+        When a paused manager pushes a credit note, a price change, and a sale for a business they never belonged to
+        Then all three are refused
+    implementation:
+      modify: [src/modules/sync/sync.repository.ts, src/modules/sync/sync.viewer.ts, src/modules/sync/sync.types.ts]
+      create: [tests/integration/sync/rights-paused.test.ts]
+      pattern: src/modules/sync/sync.viewer.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: the grace covers sales, deliveries and payments only; the judge's other checks run as for a revoked collaborator."
+      - "v5.0.0-8.2.2: the memberships come from the database by the session's person, never from the request."
+    tests: |
+      late sales | integration | AC-1, CM-29 | 2 sales stored, one notice
+      refused lines | integration | AC-2 | forbidden
+      phone that knows | integration | AC-3 | out of scope, no notice
+      pull | integration | AC-4 | no row of the business
+      resumed | integration | AC-5 | rows back, role applies
+      back door | security | AB-1, CWE-284 | all refused
+    command: npx vitest run tests/integration/sync/rights-paused.test.ts tests/integration/sync/rights-change.test.ts
+    out_of_scope:
+      - "Pausing and resuming seats: BIL-019."
+    tests_to_update:
+      - "tests/integration/sync/rights-change.test.ts | seeds REVOKED and ACTIVE memberships; none is PAUSED | unchanged"
+  - id: SYNC-040
+    title: An order given to another driver leaves the pool on the phone
+    kind: change
+    size: S
+    risk: medium
+    amends: [SYNC-006]
+    depends_on: [SYNC-006, DLV-013]
+    read_first: [src/modules/sync/adapters/order.adapter.ts, tests/integration/sync/pull-orders.test.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone]
+    constraints: [CM-38]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.3.1]
+    story: "As a driver, I want the orders given to another driver to leave my phone's pool, so that I do not depart with goods already assigned."
+    context: |
+      - Exists: the driver's order scope (SYNC-006) in `order.adapter.ts`: the CONFIRMED orders with an address, the IN_DELIVERY ones, those the driver delivered and those with one of their deliveries. The online pool already hides an order assigned to another driver (DLV-013).
+      - Change in the same scope: the branch "CONFIRMED with an address" leaves out an order that has a live delivery (not deleted, not arrived, not failed) assigned to someone other than the viewer. The order, its lines and its deliveries follow that scope. OWNER, MANAGER, SELLER, the assigned driver and the IN_DELIVERY branch are unchanged.
+      - An order that returns to the pool (failed attempt, removed or moved assignment) must reach the phone although its row did not change: on an incremental pull, an order also counts as changed when one of its deliveries changed since (`orders` and `order_lines`).
+      - An order already on a phone is not removed when it is assigned to someone else: no `deleted` id is sent for it.
+      - `CM-38`: The pool "À prendre" lists the confirmed orders with a delivery address; a driver does not see there an order assigned to another driver, and sees it again when that assignment ends (failed attempt or removal); managers, owners and sellers see every order of the pool.
+    acceptance: |
+      Scenario: AC-1 Assigned to another driver
+        Given a CONFIRMED order with an address, assigned to driver B and not departed
+        When driver A pulls for the first time
+        Then the order and its lines are absent
+        And driver B, the owner, a manager and a seller receive them
+      Scenario Outline: AC-2 An assignment that ends
+        Given driver A pulled while the order was assigned to B
+        When B's delivery is <ending> and A pulls again
+        Then the order and its lines arrive
+        Examples:
+          | ending                    |
+          | marked failed             |
+          | removed (deleted_at set)  |
+      Scenario: AC-3 A reassignment
+        When a manager moves the assignment from B to A and A pulls
+        Then the order arrives for A
+      Scenario: AC-4 Already on the phone
+        Given driver A pulled the order before it was assigned to B
+        When A pulls again
+        Then no `deleted` id is sent for that order
+    implementation:
+      modify: [src/modules/sync/adapters/order.adapter.ts]
+      create: [tests/integration/sync/pull-orders-assigned.test.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: person and organizations come from the viewer built from the session."
+      - "v5.0.0-8.3.1: the server leaves the order out; the phone's own filter only repeats it."
+    tests: |
+      assigned elsewhere | integration | AC-1, CM-38 | absent for A, present for B and the team
+      assignment ends | integration | AC-2 | each Examples row, order and lines arrive
+      reassignment | integration | AC-3 | order arrives for A
+      kept on the phone | integration | AC-4 | no deleted id
+    command: npx vitest run tests/integration/sync/pull-orders-assigned.test.ts tests/integration/sync/pull-orders.test.ts
+    out_of_scope:
+      - "The IN_DELIVERY branch keeps its present scope."
+      - "The customer of an order assigned to another driver still arrives with its available credit."
+    tests_to_update:
+      - "tests/integration/sync/pull-orders.test.ts | the driver test expects the CONFIRMED order that driver two holds by DELIVERY_OTHER | the driver gets only the IN_DELIVERY and recently delivered orders"
+  - id: SYNC-041
+    title: A phone cannot write the fields only the server writes
+    kind: test
+    size: S
+    risk: medium
+    amends: []
+    depends_on: [SYNC-032, SYNC-036, SYNC-037, SYNC-038]
+    read_first: [src/modules/sync/sync.judge.ts, tests/integration/sync/forbidden-sends.test.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne, catalogue/productvariant]
+    constraints: [C-41, C-46, C-49]
+    asvs: [v5.0.0-15.3.3, v5.0.0-8.3.1]
+    story: "As an owner, I want the plan, the limits, the photos and the verification of my business to stay what the server decided, so that no phone can raise a limit or publish a contact nobody verified."
+    context: |
+      - Exists: the pushes of products, variants and prices (SYNC-031 to SYNC-034), the read-only pushes of `organizations`, `people` and `organization_contacts` (SYNC-036 to SYNC-038), and `SYNC_UNKNOWN_TABLE` for a name that is not a sync table.
+      - Characterization tests only, no production code. The server fields added in v16: `ProductVariant.price_updated_at` and `merged_into_id`, `Product.image_keys`, `ProductVariant.image_keys`, `Organization.logo_key`, `Person.avatar_key`, `OrganizationContact.verified_at` and `verification_method`, the plan fields of `Organization`, `Product.paused_at`, and the collaboration status PAUSED.
+      - A catalog line that carries a server field is judged as if the field were absent. A line of a read-only table is forbidden `SYNC_TABLE_READ_ONLY`. The collaboration status has no sync table, so a batch naming one is refused `SYNC_UNKNOWN_TABLE`.
+    acceptance: |
+      Scenario: AC-1 Catalog fields from a phone are dropped
+        When the owner creates a product with `paused_at` and `image_keys`, and a variant with `price_updated_at`, `merged_into_id` and `image_keys`
+        Then both are accepted, with `paused_at` null, no image keys, `merged_into_id` null and `price_updated_at` of the server
+      Scenario: AC-2 Stored values stay
+        Given a paused product with image keys and a variant with its `price_updated_at`
+        When the owner pushes an update of their names carrying other values for those fields
+        Then the names change and the paused date, the keys and the price date are unchanged
+      Scenario: AC-3 Read-only tables
+        When a phone pushes an organization with `logo_key`, `payment_code`, `plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators` and `max_products`, a person with `avatar_key`, and a contact with `verified_at` and `verification_method`
+        Then each line is forbidden `SYNC_TABLE_READ_ONLY` and the stored rows are unchanged
+      Scenario: AC-4 No table for the seat status
+        When a batch has a table `collaborations` with `status` PAUSED
+        Then the batch is refused 400 `SYNC_UNKNOWN_TABLE` and nothing is stored
+    abuse: |
+      Scenario: AB-1 A phone lifts its limits (mass assignment)
+        Given a business on the FREE plan with a paused product
+        When the owner's phone pushes `max_products` 999, `plan` ENTERPRISE and the paused product with `paused_at` null
+        Then the plan and the limits are unchanged and the product is still paused
+    implementation:
+      modify: []
+      create: [tests/integration/sync/server-fields.test.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-15.3.3: each writable field is listed per operation, so the server fields stay outside every list."
+      - "v5.0.0-8.3.1: the server decides these values; a phone's own state is never trusted."
+    tests: |
+      dropped fields | integration | AC-1, C-46, C-49 | stored values
+      stored values stay | integration | AC-2, C-46, C-49 | unchanged
+      read-only tables | integration | AC-3, C-41 | forbidden, rows unchanged
+      no seat table | integration | AC-4 | 400, nothing stored
+      limits | security | AB-1, CWE-915 | plan, limits and pause unchanged
+    command: npx vitest run tests/integration/sync/server-fields.test.ts
+    out_of_scope:
+      - "Changing the judge or an adapter: a failing case goes back to the story that built it (SYNC-030 to SYNC-038)."
+  - id: SYNC-042
+    title: The driver receives the contacts of the client businesses to deliver
+    kind: feature
+    size: S
+    risk: medium
+    amends: []
+    depends_on: [SYNC-036, SYNC-040]
+    read_first: [src/modules/sync/adapters/contacts.adapter.ts, src/modules/sync/adapters/relationship.adapter.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, identite-et-organisation/organizationcontact]
+    constraints: [C-35]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: "As a driver, I want the verified phone numbers of the businesses I deliver to on my phone, so that I can call them from the road."
+    context: |
+      - Exists: the `organization_contacts` pull for the team and the parties (SYNC-036), which gives a DRIVER nothing; the driver's relationships in `relationship.adapter.ts`: the live relationships of their organizations that have a CONFIRMED order to deliver.
+      - `relationship.adapter.ts` exports its driver branch as `driverRelationshipsWhere(driverOrganizationIds, personId)`, which `scopeBranches` and the contacts adapter both use.
+      - For a DRIVER the contacts adapter sends the verified contacts of the customer organization of each such relationship, in the same row as SYNC-036. A customer that is a person has no contacts. The driver's own business is not sent.
+      - Incremental pull: the contacts changed since the last pull, and in full the verified contacts of a customer organization when an order of that relationship changed since, so a newly confirmed order brings its customer's numbers. A contact that is pending again or deleted is listed in `deleted`.
+      - `C-35`: Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows.
+    acceptance: |
+      Scenario: AC-1 A client business
+        Given a customer business with two verified contacts and a pending one, and a CONFIRMED order for it with an address
+        When a DRIVER of the supplier pulls
+        Then they get the two verified contacts and not the pending one
+      Scenario: AC-2 Nothing else
+        Given a customer business with no order to deliver, a particular customer with an order, and the supplier's own contacts
+        When the DRIVER pulls
+        Then none of their contacts is in the answer
+      Scenario: AC-3 A new order
+        Given the customer's contacts did not change since the last pull
+        When an order for it is confirmed after that pull
+        Then its verified contacts arrive again whole
+      Scenario: AC-4 Pending again
+        Given a verified contact goes back to pending after the last pull
+        Then its id is in `deleted` for the driver
+    abuse: |
+      Scenario: AB-1 Contacts of another business (information disclosure, horizontal)
+        When the DRIVER of one supplier pulls while a customer business of another supplier has verified contacts
+        Then none of them is in the answer
+    implementation:
+      modify: [src/modules/sync/adapters/contacts.adapter.ts, src/modules/sync/adapters/relationship.adapter.ts]
+      create: [tests/integration/sync/pull-contacts-driver.test.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures:
+        - "driverRelationshipsWhere(driverOrganizationIds: string[], personId: string): Prisma.CustomerRelationshipWhereInput"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the organizations come from the viewer's ACTIVE DRIVER memberships and the relationships of the driver branch, never from the request."
+      - "v5.0.0-15.3.1: the row is the explicit list of SYNC-036."
+    tests: |
+      client business | integration | AC-1 | two verified, no pending
+      nothing else | integration | AC-2 | empty
+      new order | integration | AC-3, C-35 | sent whole
+      pending again | integration | AC-4, C-35 | deleted id
+      other business | security | AB-1, CWE-639 | absent
+    command: npx vitest run tests/integration/sync/pull-contacts-driver.test.ts tests/integration/sync/pull-relationships.test.ts
+    out_of_scope:
+      - "The contacts of the driver's own business."
+    tests_to_update: []
+  - id: SYNC-043
+    title: Synchronization tests seed products through the catalog helper
+    kind: technical
+    size: M
+    risk: low
+    amends: []
+    depends_on: [CAT-040, SYNC-029, SYNC-035]
+    read_first: [tests/helpers/catalog-fixtures.ts, tests/integration/sync/pull-catalog.test.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: the synchronization tests create their products with `seedProduct`, so that the old columns of `products` can go without breaking them."
+    context: |
+      - Exists: `seedProduct(client, input)` (CAT-040), which creates a product new-style and one variant with the same id. These twelve files still insert products with `unit`, `price`, `status` and `min_order_quantity`, which CAT-041 drops.
+      - Every product they create is created with `seedProduct`, passing the same id, name, unit, price and status as today. The variant has the product's id, so lines and prices that hold that id keep working.
+      - An update of `price` or `status` that targets `products` becomes an update of the variant of the same id; `deleted_at` and `server_updated_at` stay on the product.
+      - The sync tests keep their assertions, their ids and their order.
+    acceptance: |
+      Scenario: AC-1 No test inserts the old columns
+        When the twelve files below are read
+        Then none inserts into `products` with a `unit` or a `price`, and none updates `price` or `status` on `products`
+      Scenario: AC-2 Same behavior
+        When the twelve files run
+        Then they pass and assert what they asserted before
+    implementation:
+      create: [tests/unit/sync/seed-products.test.ts]
+      modify: []
+      pattern: tests/unit/shared/money.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-2.2.1: the fixtures hold fake data only."
+    tests: |
+      no old columns | unit | AC-1 | the twelve sources contain no insert of unit or price into products
+      same behavior | integration | AC-2 | the twelve files pass
+    command: npx vitest run tests/unit/sync/seed-products.test.ts tests/integration/sync
+    out_of_scope:
+      - "Dropping the columns: CAT-041. Order and delivery tests: ORD-031, DLV-016."
+    tests_to_update:
+      - "tests/integration/sync/controls-credit.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/sync/controls-prices.test.ts | inserts a product and updates its price on `products` | seeds with `seedProduct`; the price is updated on the variant"
+      - "tests/integration/sync/exceptions.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/sync/forbidden-sends.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/sync/judge.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/sync/pull-catalog.test.ts | inserts products and updates price and status on `products` | seeds with `seedProduct`; price and status are updated on the variant, deletion stays on the product"
+      - "tests/integration/sync/pull-orders.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/sync/pull-relationships.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/sync/push-closing.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/sync/push-orders.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/sync/replay.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/sync/rights-change.test.ts | inserts products with unit and price | inserts them with `seedProduct`"

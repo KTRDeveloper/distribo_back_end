@@ -29,7 +29,7 @@ commands:
   new migration: npx prisma migrate dev --name <name>
 layout:
 - '`src/app.ts` mounts every router under `/api/v1`; `src/config/env.ts` validates the environment.'
-- '`src/modules/<module>/`: `<module>.routes.ts` (router and handlers: parse with the Zod schema, call the service, send JSON), `.service.ts`, `.repository.ts` (the only file that calls `prisma`), `.schemas.ts`, `.openapi.ts` (imported in `src/app.ts`). Existing modules keep their `.controller.ts`.'
+- '`src/modules/<module>/`: `<module>.routes.ts` (router and handlers: Zod parse, service call, JSON reply), `.service.ts`, `.repository.ts` (the only file that calls `prisma`), `.schemas.ts`, `.openapi.ts` (imported in `src/app.ts`).'
 - 'A module imports another only through the functions in its `contracts.md`. Shared code without Node-only imports: `src/shared/`; helpers: `src/lib/`; middleware: `src/middleware/`.'
 - 'Tests: `tests/unit/<area>/<name>.test.ts`, `tests/integration/<module>/<name>.test.ts`, helpers in `tests/helpers/`; integration tests import `prisma` from `tests/setup.ts` (real PostgreSQL).'
 - '`prisma/schema.prisma`, `prisma/migrations/`.'
@@ -94,13 +94,22 @@ glossary:
 - ledger entry | `LedgerEntry`, écriture | immutable line that changes a relationship's balance
 - balance | `balance`, solde | what the customer owes the supplier; sum of ledger entry effects; negative means an advance
 - amount held | `amount_held`, argent détenu | money a collaborator holds and has not handed over yet
-- handover | `Handover`, remise | money passing from one collaborator to the owner or a manager
+- handover | `Handover`, versement | money passing from one collaborator to the owner or a manager
 - credit note | `CREDIT_NOTE`, avoir | ledger entry that reduces what the customer owes, without money moving
 - delivered order | 'Commande livrée' | the single gesture that closes an order, records the sale and the collected payment
-- reference price | `reference_price`, prix de référence | negotiated price if any, else the product price, frozen on the order line
+- reference price | `reference_price`, prix de référence | negotiated price if any, else the variant price, frozen on the order line
 - scope version | `scope_version`, compteur de droits | counter that forces a phone to resynchronize fully when rights change
 - device | `Device`, téléphone, session | one login on one phone; one device, one session
 - sync | synchronisation | WatermelonDB pull and push between a phone and the server
+- variant | `ProductVariant`, variante | one way to sell a product, with its own unit, price, minimum order quantity, status and photos; a product always has at least one
+- organization contact | `OrganizationContact`, contact public | a phone number (at most 3) or an email address of a business, published only once verified
+- payment code | `payment_code`, code du commerce | 8 random characters without look-alikes that a payer types on the payment website to name the business
+- plan | `plan`, plan, formule | the plan that applies to a business, grace included (FREE, ESSENTIAL, PRO or ENTERPRISE)
+- subscription | `Subscription`, forfait | one prepaid period of a plan (1, 3, 6 or 12 months), SCHEDULED, ACTIVE or ENDED
+- grace period | `grace_ends_at`, grâce | the 7 days after the end of the last period during which the plan still applies, shown as 'Forfait expiré'
+- paused | `PAUSED`, `paused_at`, en pause | a collaborator or product held back above the plan limit; nothing is deleted
+- image key | `logo_key`, `avatar_key`, `image_keys`, clé d'image | key of a stored photo, built by the server and never sent by a client
+- receipt | `SubscriptionReceipt`, reçu | immutable numbered receipt, or credit note, of a subscription payment
 errors:
 - 'Raise errors with `httpError(status, code, message)` (FND-006); the global handler adds `requestId`. Codes: 400 `VALIDATION_ERROR` for a failed schema validation, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`.'
 logging:
@@ -119,7 +128,7 @@ replace:
 rules:
 - Lists take `limit` (default 50, max 100) and an opaque `cursor`, ordered by `created_at` descending then `id`.
 - Every online gesture that changes data carries a client-generated UUIDv7 `id`; a repeat with the same id changes nothing and returns the first response (ACC).
-- Immutable tables (LedgerEntry, SyncArchive, PhoneNumberChangeLog, CustomerRelationshipReassignment, CreditLimitChange, AdminAction) are never updated or deleted by the application account.
-- Every route is under `/api/v1` and registered in its module's `.openapi.ts`.
+- Immutable tables (LedgerEntry, SyncArchive, PhoneNumberChangeLog, CustomerRelationshipReassignment, CreditLimitChange, AdminAction, ImageCopy, SubscriptionReceipt, SubscriptionEvent) get only INSERT and SELECT for the application account.
+- Every route is registered in its module's `.openapi.ts`.
 - 'A story that adds a route also adds its own paths to the route lists in `tests/integration/api-docs/catalog.test.ts` and `tests/integration/per-001.test.ts`: these additions count as listed under "Tests to update". Never remove an entry.'
 agent: Claude Sonnet 5.5 (`claude-sonnet-5-5`, medium effort)

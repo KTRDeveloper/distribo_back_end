@@ -10,8 +10,9 @@ Design: `acces-et-securite/otpchallenge`
 | id | PK |  |
 | person_id | FK → Person, nullable | OtpChallenge:fk |
 | target | string | C-33, CM-07 |
-| purpose | enum [REGISTRATION / LOGIN / PASSWORD_RESET / PHONE_CHANGE / EMAIL_VERIFICATION / TOTP_RECOVERY] | OtpChallenge.purpose:enum, CM-34 |
+| purpose | enum [REGISTRATION / LOGIN / PASSWORD_RESET / PHONE_CHANGE / EMAIL_VERIFICATION / TOTP_RECOVERY / ORG_CONTACT_VERIFICATION / ACCESS_RESTORE] | OtpChallenge.purpose:enum, C-33, CM-34, CM-40 |
 | channel | enum [SMS / EMAIL] | OtpChallenge.channel:enum, C-33, CM-07 |
+| organization_contact_id | FK → OrganizationContact, nullable | OtpChallenge:fk, C-33 |
 | code_hash | string |  |
 | expires_at | datetime | CM-06 |
 | attempts | int | C-33 |
@@ -22,10 +23,11 @@ Design: `acces-et-securite/otpchallenge`
 - `OtpChallenge.purpose:enum`: one of REGISTRATION, LOGIN, PASSWORD_RESET, PHONE_CHANGE, EMAIL_VERIFICATION, TOTP_RECOVERY
 - `OtpChallenge.channel:enum`: one of SMS, EMAIL
 - `OtpChallenge:fk`: references person_id → Person
-- `C-33`: `OtpChallenge` allows 5 attempts at most; a consumed or expired code is never accepted; SMS goes only to +237 mobile numbers; an EMAIL code goes to the person's verified email, or to the administrator's recovery address, except for EMAIL_VERIFICATION.
+- `C-33`: `OtpChallenge` allows 5 attempts at most; a consumed or expired code is never accepted; SMS goes only to +237 mobile numbers; an EMAIL code goes to the person's verified email, to the administrator's recovery address, or, for ORG_CONTACT_VERIFICATION, to the email of the contact being verified, except for EMAIL_VERIFICATION; `organization_contact_id` is set if and only if `purpose = ORG_CONTACT_VERIFICATION`, and then `target` equals the contact's value.
 - `CM-06`: A code expires 10 minutes after sending and works once.
 - `CM-07`: Sending limits: 3 codes per hour per number, 1 minute before a resend, caps per device and per IP address, a global daily cap that alerts the team; SMS only to +237 mobiles.
-- `CM-34`: A TOTP_RECOVERY code sent to the recovery email only allows installing a new TOTP key; each use is logged as RECOVER_2FA and notified to the administrator's phones and to the other super administrators (design lines 783, 1049)
+- `CM-34`: A TOTP_RECOVERY code sent to the recovery email only allows installing a new TOTP key; each use is logged as RECOVER_2FA and notified to the administrator's phones and to the other super administrators.
+- `CM-40`: Access restored by support (RESTORE_ACCESS, super administrator only): needs a verified email, a code sent to that email and a code sent to the new number (purpose ACCESS_RESTORE); the number is replaced like a number change (PhoneNumberChangeLog) and every device is signed out; the person is notified; without a verified email support can do nothing (design lines 109, 1078, 1092, 1341-1352)
 
 ## Device
 Design: `acces-et-securite/device`
@@ -64,7 +66,7 @@ Design: `acces-et-securite/refreshtoken`
 | expires_at | datetime | CM-08 |
 | created_at | datetime |  |
 | rotated_at | datetime, nullable | CM-08 |
-| revoked_at | datetime, nullable | C-34, CM-08 |
+| revoked_at | datetime, nullable | C-34, CM-08, CM-40 |
 | revoked_reason | enum [LOGOUT / DEVICE_REMOVED / LOGOUT_ALL / REUSE_DETECTED / PASSWORD_RESET / ACCOUNT_SUSPENDED], nullable | RefreshToken.revoked_reason:enum, C-34 |
 
 - `RefreshToken:required`: NOT NULL: `person_id`, `device_id`, `token_hash`, `expires_at`, `created_at`
@@ -73,3 +75,4 @@ Design: `acces-et-securite/refreshtoken`
 - `RefreshToken:fk`: references person_id → Person; device_id → Device
 - `C-34`: `Device.last_synced_at` and `Device.scope_version_seen` are set by the server only; `RefreshToken.token_hash` is unique; `revoked_reason` is set if and only if `revoked_at` is set.
 - `CM-08`: Access token (JWT) lives 15 minutes and is not stored; refresh token lives 90 days, extended at each use, replaced at each use; a reused token revokes only its own device session (REUSE_DETECTED).
+- `CM-40`: Access restored by support (RESTORE_ACCESS, super administrator only): needs a verified email, a code sent to that email and a code sent to the new number (purpose ACCESS_RESTORE); the number is replaced like a number change (PhoneNumberChangeLog) and every device is signed out; the person is notified; without a verified email support can do nothing (design lines 109, 1078, 1092, 1341-1352)

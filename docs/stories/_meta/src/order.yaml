@@ -19,20 +19,22 @@ threats:
   - "T4 | E | A driver or seller does a manager's or customer's step | rules table per step | ORD-011 AB-2, ORD-016 AB-1"
   - "T5 | I | A party reads another business's orders | visibility predicate through the relationship | ORD-019 AB-1"
   - "T6 | R | A price gap has no author | price_set_by_id and price_set_at are required when the applied price differs | ORD-004 AB-1"
+  - "T7 | T | An acceptance date lands on an order the supplier entered, or on a pending one | the database refuses it; only the accept gesture writes it, from PENDING | ORD-022 AB-1, ORD-023 AB-1"
 constraints:
   C-14: "An order is created only on an ACTIVE relationship whose supplier is an ACTIVE organization (not suspended, not closed)."
-  C-15: "Every order line is for an ACTIVE product of the relationship's supplier; on a customer-placed order the quantity is at least `min_order_quantity` when sent."
+  C-15: "Every order line is for an ACTIVE variant of the relationship's supplier, of a product that is not paused; on a customer-placed order the quantity is at least the variant's `min_order_quantity` when sent."
   C-16: "`cancelled_by_party`, `cancelled_by_id` and `cancelled_at` are set if and only if `status` is CANCELLED; `cancellation_reason` only when CANCELLED and required when the supplier cancelled."
-  C-17: "`status` PENDING requires `placed_by_party` CUSTOMER."
+  C-51: "`status` PENDING requires `placed_by_party` CUSTOMER and an empty `accepted_at`; a set `accepted_at` requires `placed_by_party` CUSTOMER."
   C-18: "Status changes follow the permitted steps; delivery wins; a delivered or cancelled order is frozen except `supplier_note`."
   C-19: "`delivered_at` and `delivered_by_id` are set if and only if `status` is DELIVERED; every line then has `delivered_quantity`; `total_amount` equals the sum of line amounts plus `delivery_cost`."
   C-24: "A SALE ledger entry has `order_id` set and `amount` equal to `Order.total_amount` (server-fixed), and there is at most one non-reversed sale per order; the payment born of 'Commande livrée' also carries `order_id`."
-  C-20: "Line `amount` is quantity times applied price rounded to the franc, half up; on a customer-placed order `unit_price_applied` equals `reference_price` when sent and is never raised afterward; `price_set_by_id` and `price_set_at` are set if and only if `unit_price_applied` differs from `reference_price`."
+  C-20: "Line `amount` is quantity times applied price rounded to the franc, half up; `label_applied` is composed by the shared label function; on a customer-placed order `unit_price_applied` equals `reference_price` when sent and is never raised afterward; `price_set_by_id` and `price_set_at` are set if and only if `unit_price_applied` differs from `reference_price`."
   C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
+  CM-38: "The pool of orders to take lists the confirmed orders with a delivery address; a driver does not see there an order assigned to another driver, and sees it again when that assignment ends (failed attempt or removal); managers, owners and sellers see every order of the pool."
   CM-12: "Allowed transitions only: PENDING to CONFIRMED or CANCELLED; CONFIRMED to IN_DELIVERY, DELIVERED or CANCELLED; IN_DELIVERY to DELIVERED or CONFIRMED (failed attempt); DELIVERED wins over CANCELLED; DELIVERED and CANCELLED are frozen except supplier_note."
   CM-14: "Line amount = quantity in thousandths times applied price, divided by 1000, rounded to the nearest franc with 0.5 rounded up, integer arithmetic only; 2.5 x 333 gives 833."
   CM-16: "Customer-placed order: unit_price_applied equals the server-computed reference price at sending; the supplier may only lower it, at acceptance; prices freeze at acceptance (customer order) or at departure or delivery (supplier order)."
-  CM-11: "Reference price of a line = negotiated price when one exists (even higher than the product price), else the product price."
+  CM-11: "Reference price of a line = negotiated price when one exists (even higher than the variant price), else the variant price."
   CM-10: "CLOSED (by the owner, reopenable): no new order or customer, not findable by number, pending orders refused with reason 'Commerce fermé', team revoked, subscription stopped; relations, balances and history stay visible and payments stay possible."
   C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
   C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
@@ -49,10 +51,22 @@ contracts:
       file: src/modules/order/order.state.ts
       story: ORD-008
       items:
-        - "transitionOrder(tx, orderId: string, to: OrderStatus, actor: { personId: string; party: 'CUSTOMER' | 'SUPPLIER' }, fields?: TransitionFields): Promise<Order> — applies only a permitted step by a conditional update; DELIVERED wins over CANCELLED; frozen orders change only supplier_note"
+        - "transitionOrder(tx, orderId: string, to: OrderStatus, actor: { personId: string; party: 'CUSTOMER' | 'SUPPLIER' }, fields?: TransitionFields): Promise<Order> — applies only a permitted step by a conditional update; DELIVERED wins over CANCELLED; frozen orders change only supplier_note; `fields.acceptedAt` records an acceptance and limits the step to PENDING (ORD-023)"
       used_by: [delivery, sync]
+    - name: OrderDemand
+      file: src/modules/order/order.repository.ts
+      story: ORD-029
+      items:
+        - "countOrderedLinesByVariant(tx, supplierOrganizationId: string, since: Date): Promise<Map<string, number>> — per variant id, the lines of the supplier's orders created since that date, cancelled and deleted ones left out"
+      used_by: [billing]
+    - name: VariantUsage
+      file: src/modules/order/order.repository.ts
+      story: ORD-030
+      items:
+        - "listOrderedVariantIds(tx, variantIds: string[]): Promise<Set<string>> — the ids among those that an order line cites, whatever the state of the line or its order"
+      used_by: [catalog, sync]
   consumes:
-    - "catalog: getReferencePrice, getActiveProduct (docs/stories/modules/catalog/contracts.md)"
+    - "catalog: getReferencePrice, getActiveVariant, variantLabel (docs/stories/modules/catalog/contracts.md)"
     - "relationship: ensureCustomerRelationship, visibleRelationsWhere, projectForSupplier (docs/stories/modules/relationship/contracts.md)"
     - "organization: loadActor, assertOrganizationActive (docs/stories/modules/organization/contracts.md)"
     - "access: requireAbility, abilityFor, idempotent (docs/stories/modules/access/contracts.md)"

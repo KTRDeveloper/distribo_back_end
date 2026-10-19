@@ -41,6 +41,18 @@ contracts:
         - "deliverOrder(actor: Actor, orderId: string, input: DeliverInput, options?: { viaSync?: boolean }): Promise<DeliverResult> — the one closing gesture: order DELIVERED, SALE and optional PAYMENT entries, credit rule, partial rest"
         - "deleteUnstartedDeliveries(tx, orderId: string): Promise<number> — removes deliveries not yet departed"
       used_by: [sync]
+    - name: AbandonedRests
+      file: src/modules/delivery/delivery.repository.ts
+      story: DLV-012
+      items:
+        - "findAbandonedRests(tx, organizationId: string, period: { from: Date; toExclusive: Date }, excludePersonId: string): Promise<Map<string, { count: number; amount: bigint }>> — per deliverer, the lines of DELIVERED orders without a child order whose delivered quantity is below the ordered one, valued at the applied price"
+      used_by: [finance]
+    - name: OpenDeliveries
+      file: src/modules/delivery/delivery.repository.ts
+      story: DLV-015
+      items:
+        - "findDriversWithOpenDeliveries(tx, organizationId: string, personIds: string[]): Promise<Set<string>> — of those people, the ones assigned a delivery of the organization's orders that has left and neither arrived nor failed"
+      used_by: [billing]
   consumes:
     - "order: transitionOrder, lineAmountOf, orderTotal, projectOrderForSupplier (docs/stories/modules/order/contracts.md)"
     - "finance: appendLedgerEntry (docs/stories/modules/finance/contracts.md)"

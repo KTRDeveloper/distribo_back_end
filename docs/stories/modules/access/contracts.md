@@ -7,6 +7,7 @@ What this module provides to other modules, and what it consumes from them. A co
 - `ROLES, atLeast(role: string, min: string): boolean`: false for an unknown role or minimum
 - `abilityFor(role: string, ctx: AccessContext): MongoAbility`: deny by default
 - `AccessContext = { onServer: boolean; online: boolean; daysSinceSync: number }`
+- `Where = 'ALWAYS' | 'DAYS_3' | 'ONLINE_EXCEPT_OWNER' | 'ONLINE_FOR_ALL'`: the availability of a rule
 - Used by: `organization`, `relationship`, `catalog`, `order`, `finance`, `delivery`, `sync`
 ### RequireAbility (`src/middleware/require-ability.ts`, created by ACC-006)
 - `requireAbility(action: string, subjectType: string): RequestHandler`: reads `req.actor`, context `{ onServer: false, online: true, daysSinceSync: 0 }`, answers 403 FORBIDDEN

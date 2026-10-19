@@ -1,0 +1,813 @@
+kind: stories
+module: images
+constraints:
+  C-50: "A photo file is deleted from storage as soon as its key leaves its card or its card is deleted; a nightly cleanup deletes every file older than 24 hours that no card cites."
+stories:
+  - id: IMG-001
+    title: Registry of copied photos
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [FND-013]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004180000_adm_002_admin_actions/migration.sql]
+    design_refs: [images/imagecopy, contraintes-a-poser-au-niveau-base-de]
+    constraints: [ImageCopy:required, C-56, C-39]
+    asvs: [v5.0.0-16.3.1]
+    fields: ["ImageCopy.copy_key", "ImageCopy.source_key", "ImageCopy.root_key", "ImageCopy.copied_at"]
+    story: "Technical story: create the registry that records every photo copied from another, so that all copies of one original can be found later, even re-encoded."
+    context: |
+      - Exists: nothing for photos in the database; keys are `products/<UUIDv4>.webp` (FND-013). Only product and variant photos are copied, never a logo or a profile photo.
+      - One migration creates `image_copies`: `copy_key` text primary key, `source_key` and `root_key` text not null, `copied_at` timestamptz not null default now(). Indexes on `root_key` and on `source_key`. No organization or person column: the registry names no one.
+      - Checks: all three keys start with `products/`; `copy_key` differs from `source_key` and from `root_key`.
+      - Trigger `image_copies_check_root` (23514): when the source is itself a copy, `root_key` equals that copy's `root_key`; otherwise `root_key` equals `source_key`. The database holds the rule because every later writer reuses it.
+      - GRANT: the application account gets INSERT and SELECT only; UPDATE, DELETE and TRUNCATE are revoked (C-39), as for `admin_actions`.
+      - `prisma/schema.prisma`: model `ImageCopy` and, above it, a plain-words `//` comment: the registry only grows, the root of a family never changes, and the migration that holds the rules.
+    acceptance: |
+      Scenario: AC-1 A first copy
+        When a copy B of the original A is inserted with root A
+        Then the row is stored and `copied_at` is the insert time
+      Scenario: AC-2 A copy of a copy
+        Given B is a copy of A
+        When C is inserted with source B and root A
+        Then the row is stored, and one query on root A returns B and C
+      Scenario Outline: AC-3 Wrong rows are refused
+        When a row is inserted with <problem>
+        Then the database refuses it with <code>
+        Examples:
+          | problem                     | code  |
+          | root B for a copy of copy B | 23514 |
+          | root C for a copy of A      | 23514 |
+          | copy equal to source        | 23514 |
+          | a key under logos/          | 23514 |
+          | a null source               | 23502 |
+          | an existing copy key        | 23505 |
+      Scenario: AC-4 The registry only grows
+        When the application account updates, deletes or truncates the table
+        Then each statement fails with 42501
+    abuse: |
+      Scenario: AB-1 The registry is rewritten to hide a family (tampering)
+        When the application account changes a `root_key`
+        Then the database refuses with 42501 and the family is unchanged
+    implementation:
+      create: [prisma/migrations/<timestamp>_img_001_image_copies/migration.sql, tests/integration/images/image-copy-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-16.3.1: the registry is insert-only for the application account, so the history of copies cannot be rewritten."
+    tests: |
+      first copy | integration | AC-1, C-56 | insert B from A → stored, date set
+      copy of copy | integration | AC-2, C-56 | insert C from B with root A → one query on root A returns B and C
+      wrong rows | integration | AC-3, ImageCopy:required | each Examples row → the code
+      insert only | integration | AC-4, C-39 | UPDATE, DELETE, TRUNCATE as the application role → 42501
+      rewrite | security | AB-1, CWE-284 | UPDATE root_key as the application role → 42501, row unchanged
+    command: npx vitest run tests/integration/images/image-copy-table.test.ts
+    out_of_scope:
+      - "Writing rows: IMG-006."
+      - "Reading the registry from the administration area (moderation is postponed to v2)."
+
+  - id: IMG-002
+    title: Storage and photo-processing ports with fake adapters
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [FND-013, PER-013, ORG-038]
+    read_first: [src/config/env.ts, docs/stories/decisions/ADR-005-image-and-storage-dependencies.md]
+    design_refs: [images/stockage]
+    constraints: [C-49, C-50]
+    asvs: [v5.0.0-5.3.2, v5.0.0-15.3.3]
+    story: "Technical story: provide the storage port, the photo-processing port and their fake adapters, and one function that deletes photo files nobody cites, so that no story needs an image library or a storage account."
+    context: |
+      - Exists: `newImageKey`, `imageKeySchema` (FND-013). No package for images or S3 is allowed (ADR-005, proposed): the real adapters are not in any story.
+      - New `src/modules/images/image.ports.ts`: `ImageStorage` (`put`, `get` (null when absent), `delete` (an absent file is no error), `listFiles(after, limit)` in key order) and `ImageProcessor` (`inspect(bytes)` gives format jpeg, png or webp, width, height, and throws `UnreadableImageError`; `reencode(bytes, { vary })` gives WebP bytes without any metadata). Fakes: `FakeImageStorage` (a map with the storage time of each file) and `FakeImageProcessor` (format from the first bytes, size from the PNG header layout at bytes 16 to 23; the output keeps a digest of the bytes after offset 24 and, with `vary`, 8 random bytes). `getImageStorage()` and `getImageProcessor()` return the adapter set by `IMAGE_DRIVER` (only `fake`, default `fake`).
+      - New `image.repository.ts`: `findCitedKeys(keys): Promise<Set<string>>` finds the keys held by `people.avatar_key`, `organizations.logo_key`, `products.image_keys` or `product_variants.image_keys`.
+      - New `image.service.ts`: `deleteImageFiles(keys)` deletes from storage only the keys no card cites (C-50, C-49), ignores absent files and on a storage error logs `warn` `image_delete_failed` and does not fail the caller.
+      - `env.ts`: `IMAGE_DRIVER`, `IMAGE_MAX_BYTES` (default 3145728), `IMAGE_MAX_PIXELS` (default 12000000); `.env.example` lists the three.
+    acceptance: |
+      Scenario: AC-1 Uncited files are deleted
+        Given files A and B in storage and no card citing them
+        When deleteImageFiles runs with A and B
+        Then both files are gone
+      Scenario: AC-2 A cited file is kept
+        Given file A is the key of a product and file B is cited by nobody
+        When deleteImageFiles runs with A and B
+        Then A is still in storage and B is gone
+      Scenario: AC-3 An absent file and a storage error
+        When deleteImageFiles runs with a key that has no file, then with a storage that throws
+        Then both calls return without error and the second logs one warning
+      Scenario Outline: AC-4 The settings
+        When the environment is validated with <setting>
+        Then validation <result>
+        Examples:
+          | setting | result |
+          | none | passes, defaults |
+          | IMAGE_DRIVER=s3 | fails, names it |
+          | IMAGE_MAX_BYTES=0 | fails, names it |
+      Scenario: AC-5 The fake processor
+        When a PNG of 40 by 30 with a marker in its extra bytes is inspected and re-encoded
+        Then inspect gives png, 40 and 30, and the output is WebP bytes without the marker
+    abuse: |
+      Scenario: AB-1 A shared key deletes another card's photo (tampering)
+        Given the same key held by a product and by a variant
+        When the file of the product is removed with deleteImageFiles
+        Then the file stays because the variant still cites it
+    implementation:
+      create: [src/modules/images/image.ports.ts, src/modules/images/image.repository.ts, src/modules/images/image.service.ts, tests/integration/images/image-files.test.ts]
+      modify: [src/config/env.ts, .env.example]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "deleteImageFiles(keys: string[]): Promise<void>"
+        - "findCitedKeys(keys: string[]): Promise<Set<string>>"
+        - "getImageStorage(): ImageStorage"
+        - "getImageProcessor(): ImageProcessor"
+      types:
+        - "ImageStorage = { put(key: string, bytes: Buffer): Promise<void>; get(key: string): Promise<Buffer | null>; delete(key: string): Promise<void>; listFiles(after: string | null, limit: number): Promise<Array<{ key: string; storedAt: Date }>> }"
+        - "ImageProcessor = { inspect(bytes: Buffer): Promise<{ format: 'jpeg' | 'png' | 'webp'; width: number; height: number }>; reencode(bytes: Buffer, options: { vary: boolean }): Promise<Buffer> }"
+      errors: []
+      dependencies: ["@prisma/client", zod, pino]
+    security:
+      - "v5.0.0-5.3.2: storage paths are built from keys the server generated, never from a name sent by a client."
+      - "v5.0.0-15.3.3: only the server writes keys; no schema of this module accepts one."
+    tests: |
+      delete | integration | AC-1, C-50 | two uncited files → both deleted
+      cited | integration | AC-2, C-49 | a key held by a product → kept, the other deleted
+      absent and error | integration | AC-3 | absent key and throwing storage → no error, one warning
+      settings | unit | AC-4 | each Examples row → passes or names the variable
+      fake processor | unit | AC-5 | PNG 40x30 with a marker → inspect values, output without the marker
+      shared key | security | AB-1, CWE-639 | key on a product and a variant, file kept
+    command: npx vitest run tests/integration/images/image-files.test.ts tests/unit/images
+    out_of_scope:
+      - "Real S3 and image-library adapters: they wait for ADR-005."
+      - "Receiving a photo from a phone: IMG-003."
+
+  - id: IMG-003
+    title: Receive a photo, check it and store a clean copy
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [IMG-002]
+    read_first: [src/modules/images/image.service.ts, src/modules/images/image.ports.ts]
+    design_refs: [images/stockage, images/ajouter-remplacer-retirer-une-photo]
+    constraints: [C-49]
+    asvs: [v5.0.0-5.2.1, v5.0.0-5.2.2, v5.0.0-5.2.6]
+    story: "Technical story: read a photo sent as raw bytes, check its size, type and pixels, and store a re-encoded copy under a new key, so that a stored photo never carries what the phone put in the file."
+    context: |
+      - Exists: the ports, the fake adapters, the settings `IMAGE_MAX_BYTES` and `IMAGE_MAX_PIXELS`, `deleteImageFiles` (IMG-002); `newImageKey` (FND-013).
+      - New `src/middleware/image-body.ts`: `imageBody()` accepts only `Content-Type` image/jpeg, image/png or image/webp. It refuses a `Content-Length` over `IMAGE_MAX_BYTES` before reading, reads at most that many bytes (`express.raw`) and maps the parser's "too large" error. It leaves a Buffer in `req.body`.
+      - `image.service.ts` gains `storeUploadedImage(folder, bytes): Promise<string>`. Order: size (1 to `IMAGE_MAX_BYTES`); `inspect` (unreadable or other format: 400 `UNSUPPORTED_IMAGE`); pixels `width × height` over `IMAGE_MAX_PIXELS` (400 `IMAGE_TOO_LARGE`); `reencode` with no variation; `put` under `newImageKey(folder)`; return the key. The received bytes are never stored.
+      - A bad file stores nothing. The extension and any file name are ignored.
+      - Callers (IMG-004, IMG-005) write the key on the card in one transaction, then call `deleteImageFiles` for the previous key; if that transaction fails they delete the new file at once.
+    acceptance: |
+      Scenario: AC-1 A good photo
+        When a PNG of 800 by 600 is received for the folder avatars
+        Then the key matches `avatars/<UUIDv4>.webp` and storage holds WebP bytes under it
+      Scenario Outline: AC-2 Refusals
+        When the body is <problem>
+        Then the answer is <status> and storage holds no new file
+        Examples:
+          | problem                   | status                    |
+          | 4 MB with the limit 3 MB  | 400 IMAGE_TOO_LARGE       |
+          | 5000 by 5000 pixels       | 400 IMAGE_TOO_LARGE       |
+          | a GIF                     | 400 UNSUPPORTED_IMAGE     |
+          | text sent as image/png    | 400 UNSUPPORTED_IMAGE     |
+          | an empty body             | 400 VALIDATION_ERROR      |
+          | Content-Type text/html    | 400 UNSUPPORTED_IMAGE     |
+      Scenario: AC-3 Two uploads of one file
+        When the same bytes are received twice
+        Then the two keys differ
+    abuse: |
+      Scenario: AB-1 Hidden data survives (information disclosure)
+        Given a JPEG whose extra bytes hold a GPS marker
+        When it is received
+        Then the stored bytes differ from the received bytes and hold no marker
+      Scenario: AB-2 A huge or disguised file (resource exhaustion)
+        When a 100 MB body is announced, and then streamed with no length
+        Then both are refused before the file is decoded and nothing is stored
+    implementation:
+      create: [src/middleware/image-body.ts, tests/integration/images/image-intake.test.ts]
+      modify: [src/modules/images/image.service.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "imageBody(): RequestHandler"
+        - "storeUploadedImage(folder: 'logos' | 'avatars' | 'products', bytes: Buffer): Promise<string>"
+      types: []
+      errors: [IMAGE_TOO_LARGE 400, UNSUPPORTED_IMAGE 400, VALIDATION_ERROR 400]
+      dependencies: [express]
+    security:
+      - "v5.0.0-5.2.1: the size is checked on the header and again while reading."
+      - "v5.0.0-5.2.2: the content is inspected; the declared type and the name prove nothing."
+      - "v5.0.0-5.2.6: the pixel count is checked before any decoding of pixels."
+    tests: |
+      good photo | integration | AC-1, C-49 | PNG 800x600 → key pattern, WebP bytes stored
+      refusals | integration | AC-2 | each Examples row → status, storage unchanged
+      two uploads | integration | AC-3 | same bytes twice → two keys
+      hidden data | security | AB-1, CWE-200 | JPEG with a GPS marker → stored bytes without it
+      huge or disguised | security | AB-2, CWE-400 | 100 MB announced, then streamed without length → refused, nothing stored
+    command: npx vitest run tests/integration/images/image-intake.test.ts
+    out_of_scope:
+      - "The routes that use it: IMG-004 and IMG-005."
+      - "Quotas per person."
+
+  - id: IMG-004
+    title: A person adds, replaces or removes their profile photo
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [IMG-003, PER-012, PER-013]
+    read_first: [src/modules/images/image.service.ts, src/modules/person/person.repository.ts]
+    design_refs: [images/ajouter-remplacer-retirer-une-photo, identite-et-organisation/person]
+    constraints: [C-49, C-50]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a customer, I want to add, replace or remove my profile photo so that the people I trade with recognize me.
+    context: |
+      - Exists: `imageBody`, `storeUploadedImage`, `deleteImageFiles` (IMG-002, IMG-003); `setAvatarKey(personId, key, tx?)` returns the previous key (PER-013); `GET /api/v1/users/me` shows `avatar_url` (PER-012); `authMiddleware`.
+      - New `src/modules/images/images.routes.ts` and `images.openapi.ts`, mounted in `app.ts`: `PUT /api/v1/users/me/avatar` (authenticated, body the raw photo) answers 200 `{ avatar_url }`; `DELETE /api/v1/users/me/avatar` answers 204. The person is always the one of the session; there is no id in the path or the body. A repeat of PUT replaces the photo again; a repeat of DELETE changes nothing.
+      - PUT: `storeUploadedImage('avatars', bytes)`, then in one transaction `setAvatarKey`, then `deleteImageFiles([previous])`. A guest or anonymized person: the database refuses (PER-010) and the answer is 409 `AVATAR_NOT_ALLOWED`. DELETE clears the key the same way.
+      - Logs `info` `avatar_changed` with the person id only. Add both paths to `tests/integration/api-docs/catalog.test.ts` and `per-001.test.ts`.
+    acceptance: |
+      Scenario: AC-1 Add and replace
+        Given a registered person with no photo
+        When they send a PNG, then a JPEG
+        Then both answers are 200 with an `avatar_url` that ends with the key, and the first file is gone from storage
+      Scenario: AC-2 Remove
+        When the person calls DELETE
+        Then the answer is 204, the key is empty, the file is gone, and a second DELETE also answers 204
+      Scenario: AC-3 Refusals
+        When a guest sends a photo, or the body is a GIF, or there is no token
+        Then the answers are 409 `AVATAR_NOT_ALLOWED`, 400 `UNSUPPORTED_IMAGE` and 401 `UNAUTHORIZED`, and nothing changes
+      Scenario: AC-4 Failure leaves nothing behind
+        Given the database write fails
+        When a person sends a photo
+        Then the answer is 500, the key is unchanged and the new file is removed from storage
+    abuse: |
+      Scenario: AB-1 A body that names another person (elevation)
+        When the request carries a header or a query `person_id` of another person
+        Then only the photo of the session person changes
+      Scenario: AB-2 A key sent by the client (tampering)
+        When the body is JSON `{"avatar_key": "avatars/x.webp"}`
+        Then the answer is 400 `UNSUPPORTED_IMAGE` and no key is written
+    implementation:
+      create: [src/modules/images/images.routes.ts, src/modules/images/images.openapi.ts, src/modules/images/avatar.service.ts, tests/integration/images/avatar.test.ts]
+      modify: [src/app.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "replaceAvatar(personId: string, bytes: Buffer): Promise<{ avatar_url: string }>"
+        - "removeAvatar(personId: string): Promise<void>"
+      types: []
+      errors: [AVATAR_NOT_ALLOWED 409, UNSUPPORTED_IMAGE 400, IMAGE_TOO_LARGE 400, UNAUTHORIZED 401]
+      dependencies: [express, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.2: the person comes from the session; no identifier from the client is read."
+      - "v5.0.0-15.3.3: the route accepts one writable thing, the photo bytes; a key from the client is never read."
+    tests: |
+      add and replace | integration | AC-1, C-49, C-50 | PNG then JPEG → 200, urls, first file gone
+      remove | integration | AC-2, C-50 | DELETE twice → 204 both, key empty, file gone
+      refusals | integration | AC-3 | guest, GIF, no token → 409, 400, 401
+      failure | integration | AC-4 | forced write error → 500, key kept, new file removed
+      other person | security | AB-1, CWE-639 | person_id of another person → only the session person changes
+      client key | security | AB-2, CWE-915 | JSON body with a key → 400, nothing written
+    command: npx vitest run tests/integration/images/avatar.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "The profile view that shows the address: PER-012."
+      - "Clearing the key when an account is anonymized: the privacy module."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the avatar paths | add PUT and DELETE /api/v1/users/me/avatar, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the avatar paths | add PUT and DELETE /api/v1/users/me/avatar, remove nothing"
+
+  - id: IMG-005
+    title: The owner adds, replaces or removes the business logo
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [IMG-004, ORG-038, ACC-008]
+    read_first: [src/modules/images/images.routes.ts, src/shared/access/ability.ts]
+    design_refs: [images/ajouter-remplacer-retirer-une-photo, identite-et-organisation/organization]
+    constraints: [C-50, C-49]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As an owner, I want to add, replace or remove the logo of my business so that customers and suppliers recognize it.
+    context: |
+      - Exists: `imageBody`, `storeUploadedImage`, `deleteImageFiles`, the images router (IMG-003, IMG-004); `getLogoKey` and `setLogoKey(tx, organizationId, key)`, which returns the previous key (ORG-038); `loadActor`, `requireAbility`, `assertOrganizationActive`.
+      - Adds one row to `RULES` in `ability.ts`: OWNER, `ONLINE_FOR_ALL`, action `change_logo`, subject `Organization`. Nobody else holds it, and an owner without network does not either.
+      - New routes in the images router: `PUT /api/v1/organizations/{organizationId}/logo` (raw photo, answer 200 `{ logo_url }`) and `DELETE` (answer 204). Order: `loadActor`, `requireAbility('change_logo', 'Organization')`, then `imageBody()`, so the role is judged before the body is read. A repeat of PUT replaces again; a repeat of DELETE changes nothing.
+      - `logo.service.ts`: `assertOrganizationActive` (409 `ORGANIZATION_NOT_ACTIVE`), `storeUploadedImage('logos', bytes)`, one transaction with `setLogoKey`, then `deleteImageFiles([previous])`. If the transaction fails the new file is removed at once.
+      - Logs `info` `logo_changed`, organization id and person id. Add both paths to the route lists of `catalog.test.ts` and `per-001.test.ts`.
+    acceptance: |
+      Scenario: AC-1 Add and replace the logo
+        Given an owner whose business has no logo
+        When they send a PNG, then a JPEG
+        Then both answers are 200 with a `logo_url` that ends with the key, and the first file is gone
+      Scenario: AC-2 Remove
+        When the owner calls DELETE twice
+        Then both answers are 204, the key is empty and the file is gone
+      Scenario Outline: AC-3 Refusals
+        When <who> calls PUT with a good photo
+        Then the answer is <status> and nothing changes
+        Examples:
+          | who | status |
+          | a manager or a seller | 403 FORBIDDEN |
+          | someone outside the business | 404 NOT_FOUND |
+          | the owner of a suspended business | 409 ORGANIZATION_NOT_ACTIVE |
+          | no token | 401 UNAUTHORIZED |
+      Scenario: AC-4 Failure leaves nothing behind
+        Given the database write fails
+        When the owner sends a logo
+        Then the answer is 500, the key is unchanged and the new file is removed
+    abuse: |
+      Scenario: AB-1 A manager sends a huge body (elevation, resource exhaustion)
+        When a manager sends 3 MB of photo
+        Then the answer is 403 and the processor and the storage were not called
+      Scenario: AB-2 An owner changes another business's logo (access control)
+        When the owner of business A calls PUT on the id of business B
+        Then the answer is 404 and the logo of B is unchanged
+    implementation:
+      create: [src/modules/images/logo.service.ts, tests/integration/images/logo.test.ts]
+      modify: [src/modules/images/images.routes.ts, src/modules/images/images.openapi.ts, src/shared/access/ability.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "replaceLogo(actor: OrganizationActorContext, bytes: Buffer): Promise<{ logo_url: string }>"
+        - "removeLogo(actor: OrganizationActorContext): Promise<void>"
+      types: []
+      errors: [FORBIDDEN 403, NOT_FOUND 404, ORGANIZATION_NOT_ACTIVE 409, UNSUPPORTED_IMAGE 400, IMAGE_TOO_LARGE 400]
+      dependencies: [express, "@casl/ability"]
+    security:
+      - "v5.0.0-8.2.1: the rules table decides, and the check runs before the body is read."
+      - "v5.0.0-8.2.2: the business comes from the active collaboration of the session; a stranger gets 404."
+      - "v5.0.0-15.3.3: the only writable thing is the photo; the key is built by the server."
+    tests: |
+      add and replace | integration | AC-1, C-49, C-50 | PNG then JPEG → 200, urls, first file gone
+      remove | integration | AC-2, C-50 | DELETE twice → 204 both, key empty
+      refusals | integration | AC-3 | each Examples row → status, nothing changes
+      failure | integration | AC-4 | forced write error → 500, key kept, new file removed
+      manager | security | AB-1, CWE-269 | manager with 3 MB body → 403, fake storage and processor untouched
+      other business | security | AB-2, WSTG-ATHZ-02 | owner A on business B → 404, logo of B unchanged
+    command: npx vitest run tests/integration/images/logo.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Showing the logo in the business views and in the synchronization: the sync stories."
+      - "Closing a business: the files of a closed business stay until it is anonymized."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the logo paths | add PUT and DELETE /api/v1/organizations/{organizationId}/logo, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the logo paths | add PUT and DELETE /api/v1/organizations/{organizationId}/logo, remove nothing"
+
+  - id: IMG-006
+    title: Copy a photo under a new key and record the copy
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [IMG-001, IMG-002]
+    read_first: [src/modules/images/image.repository.ts, src/modules/images/image.ports.ts]
+    design_refs: [images/ajouter-a-mon-catalogue, images/imagecopy]
+    constraints: [C-56, C-49]
+    asvs: [v5.0.0-5.3.2, v5.0.0-8.3.1]
+    story: "Technical story: copy a product photo to a new file under a new random key with a small invisible variation, and record it in the registry, so that two shops copying one photo cannot be linked by their files."
+    context: |
+      - Exists: the ports and `FakeImageProcessor`, where `vary` adds random bytes (IMG-002); the table `image_copies` and its rules (IMG-001); `newImageKey`.
+      - New `image-copy.service.ts`: `copyImage(tx, sourceKey): Promise<string | null>`. A key outside `products/` throws a RangeError (a logo or a profile photo is never copied). It reads the source file (`get`); when the file is gone it returns null and the caller keeps the card without that photo.
+      - Otherwise it re-encodes with `vary: true`, stores the result under `newImageKey('products')`, then, in the caller's transaction, inserts the registry row: `root_key` is the `root_key` of the row whose `copy_key` is the source when there is one, else the source key. It returns the new key.
+      - `image.repository.ts` gains `findCopyRoot(tx, key)` and `insertImageCopy(tx, row)`; no other function writes the registry.
+      - The storage is not transactional: if the caller's transaction fails, the new file stays until the nightly cleanup (IMG-007). No route, answer or synchronization ever returns a registry row.
+    acceptance: |
+      Scenario: AC-1 A first copy
+        Given an original photo A
+        When copyImage runs on A
+        Then it returns a new key under `products/`, the stored bytes differ from those of A, and one registry row holds (new, A, A)
+      Scenario: AC-2 A copy of a copy
+        Given B is a copy of A
+        When copyImage runs on B
+        Then the row is (C, B, A) and one query on root A returns B and C
+      Scenario: AC-3 Two copies of one photo
+        When copyImage runs twice on A
+        Then the two keys differ and the two stored files differ
+      Scenario Outline: AC-4 Nothing copied
+        When copyImage runs on <input>
+        Then the result is <result> and the registry is unchanged
+        Examples:
+          | input | result |
+          | a key whose file is gone | null |
+          | a key under logos/ | a RangeError |
+    abuse: |
+      Scenario: AB-1 Two shops share a file (information disclosure)
+        When two shops copy the same photo
+        Then no two stored files are equal and no key contains an organization or a date
+      Scenario: AB-2 The source's removal reaches the copy (tampering)
+        When the source's file is removed with deleteImageFiles
+        Then the copy's file stays and its registry row stays
+    implementation:
+      create: [src/modules/images/image-copy.service.ts, tests/integration/images/image-copy.test.ts]
+      modify: [src/modules/images/image.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "copyImage(tx: Prisma.TransactionClient, sourceKey: string): Promise<string | null>"
+        - "findCopyRoot(tx: Prisma.TransactionClient, key: string): Promise<string | null>"
+        - "insertImageCopy(tx: Prisma.TransactionClient, row: { copyKey: string; sourceKey: string; rootKey: string }): Promise<void>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-5.3.2: the new path is a key the server generates, never derived from the source."
+      - "v5.0.0-8.3.1: the registry has no route; only the server writes it, and the application account cannot change it."
+    tests: |
+      first copy | integration | AC-1, C-56 | copy A → new key, different bytes, row (new, A, A)
+      copy of copy | integration | AC-2, C-56 | copy B → row (C, B, A), root query returns B and C
+      two copies | integration | AC-3 | copy A twice → keys and bytes differ
+      nothing copied | integration | AC-4 | gone file → null; logos key → RangeError; registry unchanged
+      shared file | security | AB-1, CWE-200 | two shops copy A → files differ, keys hold no id and no date
+      source removed | security | AB-2, C-49, CWE-639 | delete A's file → copy file and row stay
+    command: npx vitest run tests/integration/images/image-copy.test.ts
+    out_of_scope:
+      - "The stories that copy variants and photos between variants and call this function (catalog)."
+      - "Reading the registry from the administration area: moderation is postponed to v2."
+
+  - id: IMG-007
+    title: Nightly cleanup of photo files that no card cites
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [IMG-002]
+    read_first: [src/jobs/purge.ts, src/modules/images/image.service.ts]
+    design_refs: [images/ajouter-remplacer-retirer-une-photo, donnees-personnelles-et-conservation/durees-de-conservation]
+    constraints: [C-50]
+    asvs: [v5.0.0-16.3.1]
+    story: As a super-admin, I want a nightly job that deletes photo files nobody cites so that an interrupted upload or copy leaves no file in the storage.
+    context: |
+      - Exists: `listFiles(after, limit)` with the storage time of each file, `findCitedKeys`, `deleteImageFiles` (IMG-002); `src/jobs/purge.ts` is the model of a job: it returns an exit code and scheduling stays outside (Q-010).
+      - New `image-cleanup.service.ts`: `cleanupOrphanImages(now): Promise<{ scanned: number; deleted: number }>`. It walks the storage in pages of 500 files; for the files stored more than 24 hours before `now` it asks `findCitedKeys` and deletes the others in one `deleteImageFiles` call per page.
+      - A file stored less than 24 hours ago is never deleted, even uncited: an upload may still be writing its card. A cited file is never deleted, whatever its age.
+      - Fail closed: if the storage list or the citation query fails, nothing more is deleted and the error is thrown.
+      - New `src/jobs/image-cleanup.ts` (`runImageCleanupJob(now?)`: exit code 0, or 1 on any error with `event` `image_cleanup_failed`) and the script `job:image-cleanup` in `package.json`. The end of a run logs `info` `image_cleanup_done` with both counts.
+    acceptance: |
+      Scenario: AC-1 Old uncited files go
+        Given a file stored 30 hours ago that no card cites
+        When the cleanup runs
+        Then the file is deleted and the result counts it
+      Scenario: AC-2 Recent and cited files stay
+        Given an uncited file stored 2 hours ago, and a file stored 5 days ago that a product cites
+        When the cleanup runs
+        Then both files are still in storage
+      Scenario: AC-3 Many files
+        Given 1200 old uncited files and 3 cited ones
+        When the cleanup runs
+        Then 1200 files are deleted, the 3 stay, and `scanned` is 1203
+      Scenario: AC-4 The exit code
+        When the job runs with a working storage, then with a storage that fails to list
+        Then the codes are 0 and 1
+    abuse: |
+      Scenario: AB-1 A failing citation check deletes live photos (tampering)
+        Given the citation query throws
+        When the cleanup runs on old files
+        Then no file is deleted and the job exits with 1
+    implementation:
+      create: [src/modules/images/image-cleanup.service.ts, src/jobs/image-cleanup.ts, tests/integration/images/image-cleanup.test.ts]
+      modify: [package.json]
+      pattern: src/jobs/purge.ts
+      signatures:
+        - "cleanupOrphanImages(now: Date): Promise<{ scanned: number; deleted: number }>"
+        - "runImageCleanupJob(now?: Date): Promise<number>"
+      types: []
+      errors: []
+      dependencies: [pino, "@prisma/client", tsx]
+    security:
+      - "v5.0.0-16.3.1: each run logs how many files it scanned and deleted, and a failure is logged as an event."
+    tests: |
+      old uncited | integration | AC-1, C-50 | 30-hour-old uncited file → deleted, counted
+      recent and cited | integration | AC-2, C-50 | 2-hour uncited and 5-day cited → both kept
+      many files | integration | AC-3 | 1203 files over three pages → 1200 deleted, 3 kept, scanned 1203
+      exit code | integration | AC-4 | working → 0; listing fails → 1
+      failing check | security | AB-1, CWE-755 | citation query throws → nothing deleted, exit 1
+    command: npx vitest run tests/integration/images/image-cleanup.test.ts
+    out_of_scope:
+      - "Scheduling the job (Q-010)."
+      - "Purging old registry rows: the registry is never purged."
+  - id: IMG-008
+    title: A manager adds or replaces a photo of a product
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [IMG-005, CAT-044, ACC-008]
+    read_first: [src/modules/images/images.routes.ts, src/shared/access/ability.ts]
+    design_refs: [images/ajouter-remplacer-retirer-une-photo, catalogue/product]
+    constraints: [C-49]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a manager, I want to add or replace a photo of my product so that customers see what I sell.
+    context: |
+      - Exists: the images router with `imageBody`, `storeUploadedImage`, `deleteImageFiles`, `imageUrl` (IMG-003 to IMG-005); `lockProductImageKeys` (CAT-044), `setProductImageKeys` (CAT-032).
+      - Adds one row to `RULES` in `ability.ts`: MANAGER (the owner too), `ONLINE_FOR_ALL`, action `change_photos`, subject `Product`.
+      - New route in the images router: `PUT /api/v1/organizations/{organizationId}/products/{productId}/photos/{position}`, raw photo body, answer 200 `{ image_urls }`. Order: `loadActor`, `requireAbility('change_photos', 'Product')`, `imageBody()`.
+      - `position` is an integer from 1 to `PHOTOS_PER_CARD` (5). A held position is replaced; the one after the last adds; a farther one is 400.
+      - New `card-photos.service.ts` (`PHOTOS_PER_CARD`, `PhotoCard`, `productCard`, `putCardPhoto`): it stores the file with `storeUploadedImage('products', bytes)`, then in one transaction locks the list, changes it and writes it; after the commit it deletes the replaced file. If the transaction fails the new file is removed.
+      - Logs `info` `product_photos_changed` (organization, product, person ids). Add the path to the route lists.
+    acceptance: |
+      Scenario: AC-1 Add and replace
+        Given a product with no photo
+        When a manager sends a PNG at position 1, a JPEG at position 2, then a WebP at position 1
+        Then the answers are 200 with 1, 2 and 2 URLs, and the first file is gone from storage
+      Scenario Outline: AC-2 Positions
+        Given a product with 2 photos
+        When a manager sends a good photo at position <position>
+        Then the answer is <status>
+        Examples:
+          | position | status |
+          | 3 | 200 |
+          | 4 | 400 VALIDATION_ERROR |
+          | 0 | 400 VALIDATION_ERROR |
+      Scenario Outline: AC-3 Refusals
+        When <who> sends a good photo
+        Then the answer is <status> and nothing changes
+        Examples:
+          | who | status |
+          | a seller or a driver | 403 FORBIDDEN |
+          | someone outside the business | 404 NOT_FOUND |
+          | a manager of a suspended business | 409 ORGANIZATION_NOT_ACTIVE |
+      Scenario: AC-4 Failure leaves nothing behind
+        Given the database write fails
+        When a manager sends a photo
+        Then the answer is 500, the list is unchanged and the new file is removed
+    abuse: |
+      Scenario: AB-1 A seller sends a huge body (elevation, resource exhaustion)
+        When a seller sends 3 MB of photo
+        Then the answer is 403 and the processor and the storage were not called
+      Scenario: AB-2 A manager changes another business's product (access control)
+        When a manager of business A sends a photo for a product of business B
+        Then the answer is 404 and the photos of B are unchanged
+      Scenario: AB-3 A key sent by the client (tampering)
+        When the body is JSON `{"image_keys": ["products/x.webp"]}`
+        Then the answer is 400 `UNSUPPORTED_IMAGE` and no key is written
+    implementation:
+      create: [src/modules/images/card-photos.service.ts, tests/integration/images/product-photos.test.ts]
+      modify: [src/modules/images/images.routes.ts, src/modules/images/images.openapi.ts, src/shared/access/ability.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "putCardPhoto(card: PhotoCard, position: number, bytes: Buffer): Promise<{ image_urls: string[] }>"
+        - "productCard(organizationId: string, productId: string): PhotoCard"
+      types:
+        - "PhotoCard = { lock(tx: Prisma.TransactionClient): Promise<string[]>; write(tx: Prisma.TransactionClient, keys: string[]): Promise<string[]> }"
+      errors: [FORBIDDEN 403, NOT_FOUND 404, ORGANIZATION_NOT_ACTIVE 409, VALIDATION_ERROR 400, UNSUPPORTED_IMAGE 400]
+      dependencies: [express, zod, "@casl/ability"]
+    security:
+      - "v5.0.0-8.2.1: the rules table decides before the body is read."
+      - "v5.0.0-8.2.2: the product is looked up inside the session's business."
+      - "v5.0.0-15.3.3: the only writable thing is the photo; the server builds the key."
+    tests: |
+      add and replace | integration | AC-1, C-49 | three PUTs → 200, URL counts, first file gone
+      positions | integration | AC-2 | each Examples row → status
+      refusals | integration | AC-3 | each Examples row → status, nothing changes
+      failure | integration | AC-4 | forced write error → 500, list kept, new file removed
+      seller | security | AB-1, CWE-269 | seller with 3 MB body → 403, processor and storage untouched
+      other business | security | AB-2, WSTG-ATHZ-02 | manager A on product of B → 404, B unchanged
+      client key | security | AB-3, CWE-915 | JSON body with a key → 400, nothing written
+    command: npx vitest run tests/integration/images/product-photos.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Removing a photo: IMG-009. The photos of a variant: IMG-010."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the product photo path | add PUT .../products/{productId}/photos/{position}, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the product photo path | add the same path, remove nothing"
+  - id: IMG-009
+    title: A manager removes a photo of a product
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [IMG-008]
+    read_first: [src/modules/images/card-photos.service.ts, src/modules/images/images.routes.ts]
+    design_refs: [images/ajouter-remplacer-retirer-une-photo, catalogue/product]
+    constraints: [C-50]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2]
+    story: As a manager, I want to remove a photo of my product so that customers no longer see it.
+    context: |
+      - Exists: `productCard`, `PhotoCard`, the rule `change_photos` on `Product` and the PUT route (IMG-008); `deleteImageFiles` (IMG-002).
+      - New route `DELETE /api/v1/organizations/{organizationId}/products/{productId}/photos/{photoId}`, no body, answer 200 `{ image_urls }`. Order: `loadActor`, `requireAbility('change_photos', 'Product')`, then the handler.
+      - `photoId` is the UUID that is the file name of a key (`products/<UUID>.webp`), found at the end of each URL. The photo is not addressed by its position: a retry would then remove another photo.
+      - New `removeCardPhoto(card, photoId)` in `card-photos.service.ts`: in one transaction it locks the list, drops the key whose file name is `photoId` and writes the list; after the commit it deletes that file.
+      - An id the product does not hold changes nothing and answers 200. A product that is deleted or of another business: 404. A suspended business: 409 `ORGANIZATION_NOT_ACTIVE`.
+      - Logs `info` `product_photo_removed` with the organization, product and person ids. Add the path to the route lists.
+    acceptance: |
+      Scenario: AC-1 Remove
+        Given a product with 2 photos
+        When a manager deletes the first photo by its id, twice
+        Then both answers are 200, the list holds the other photo only and the removed file is gone
+      Scenario: AC-2 An id the product does not hold
+        When a manager deletes a random UUID
+        Then the answer is 200, the list is unchanged and no file is deleted
+      Scenario Outline: AC-3 Refusals
+        When <who> deletes a photo
+        Then the answer is <status> and nothing changes
+        Examples:
+          | who                               | status                      |
+          | a seller or a driver              | 403 FORBIDDEN               |
+          | someone outside the business      | 404 NOT_FOUND               |
+          | a manager of a suspended business | 409 ORGANIZATION_NOT_ACTIVE |
+          | a manager, id that is no UUID     | 400 VALIDATION_ERROR        |
+    abuse: |
+      Scenario: AB-1 A manager removes a photo of another business (access control)
+        When a manager of business A deletes a photo id of a product of business B
+        Then the answer is 404 and the photos and files of B are unchanged
+    implementation:
+      create: [tests/integration/images/product-photo-remove.test.ts]
+      modify: [src/modules/images/card-photos.service.ts, src/modules/images/images.routes.ts, src/modules/images/images.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "removeCardPhoto(card: PhotoCard, photoId: string): Promise<{ image_urls: string[] }>"
+      types: []
+      errors: [FORBIDDEN 403, NOT_FOUND 404, ORGANIZATION_NOT_ACTIVE 409, VALIDATION_ERROR 400]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: the rules table decides before the handler runs."
+      - "v5.0.0-8.2.2: the product is looked up inside the business of the session."
+    tests: |
+      remove | integration | AC-1, C-50 | DELETE twice → 200 both, other photo kept, file gone
+      unknown id | integration | AC-2 | random UUID → 200, list and files unchanged
+      refusals | integration | AC-3 | each Examples row → status, nothing changes
+      other business | security | AB-1, WSTG-ATHZ-02 | manager A on product of B → 404, B unchanged
+    command: npx vitest run tests/integration/images/product-photo-remove.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Adding a photo: IMG-008. The photos of a variant: IMG-010."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the photo removal path | add DELETE .../products/{productId}/photos/{photoId}, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the photo removal path | add the same path, remove nothing"
+  - id: IMG-010
+    title: A manager adds, replaces or removes the photos of a variant
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [IMG-008, IMG-009]
+    read_first: [src/modules/images/card-photos.service.ts, src/shared/access/ability.ts]
+    design_refs: [images/ajouter-remplacer-retirer-une-photo, catalogue/productvariant]
+    constraints: [C-49]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a manager, I want to add, replace or remove the photos of one variant so that a customer sees the red T-shirt and not the blue one.
+    context: |
+      - Exists: `putCardPhoto`, `removeCardPhoto`, `PhotoCard`, `PHOTOS_PER_CARD` and the product routes (IMG-008, IMG-009); `lockVariantImageKeys` (CAT-044) and `setVariantImageKeys` (CAT-032).
+      - Adds one row to `RULES` in `ability.ts`: MANAGER, `ONLINE_FOR_ALL`, action `change_photos`, subject `ProductVariant`.
+      - New routes in the images router: `PUT /api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}/photos/{position}` and `DELETE .../photos/{photoId}`, with the rules, positions and answers of IMG-008 and IMG-009. Order: `loadActor`, `requireAbility('change_photos', 'ProductVariant')`, then `imageBody()`.
+      - `variantCard(organizationId, productId, variantId)` in `card-photos.service.ts`: its `lock` calls `lockVariantImageKeys` and fails with 404 `NOT_FOUND` when the product id it returns is not the one of the path; its `write` calls `setVariantImageKeys`. An INACTIVE variant can change photos. Files are stored in the folder `products`.
+      - A variant with no photo shows those of its product (design 3.1): nothing to do here.
+      - Logs `info` `variant_photos_changed` with the organization, variant and person ids. Add the two paths to the route lists.
+    acceptance: |
+      Scenario: AC-1 Add, replace and remove
+        Given a variant with no photo
+        When a manager sends a PNG at position 1, a JPEG at position 1, then deletes the photo by its id
+        Then the answers are 200 with 1, 1 and 0 URLs, and both files are gone from storage
+      Scenario: AC-2 A variant of another product
+        When the product in the path is not the variant's product
+        Then the answer is 404 `NOT_FOUND` and nothing changes
+      Scenario Outline: AC-3 Refusals and exceptions
+        When <who> sends a good photo
+        Then the answer is <status>
+        Examples:
+          | who                                  | status           |
+          | a manager, on an INACTIVE variant    | 200              |
+          | a seller or a driver                 | 403 FORBIDDEN    |
+          | someone outside the business         | 404 NOT_FOUND    |
+    abuse: |
+      Scenario: AB-1 A manager changes another business's variant (access control)
+        When a manager of business A sends a photo for a variant of business B
+        Then the answer is 404 and the photos of B are unchanged
+    implementation:
+      create: [tests/integration/images/variant-photos.test.ts]
+      modify: [src/modules/images/card-photos.service.ts, src/modules/images/images.routes.ts, src/modules/images/images.openapi.ts, src/shared/access/ability.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "variantCard(organizationId: string, productId: string, variantId: string): PhotoCard"
+      types: []
+      errors: [FORBIDDEN 403, NOT_FOUND 404, ORGANIZATION_NOT_ACTIVE 409, VALIDATION_ERROR 400, UNSUPPORTED_IMAGE 400]
+      dependencies: [express, "@casl/ability"]
+    security:
+      - "v5.0.0-8.2.1: the rules table decides before the body is read."
+      - "v5.0.0-8.2.2: the variant is looked up inside the business of the session and must belong to the product of the path."
+      - "v5.0.0-15.3.3: the only writable thing is the photo; the key is built by the server."
+    tests: |
+      add, replace, remove | integration | AC-1, C-49 | PUT, PUT, DELETE → 200, URL counts, files gone
+      wrong product | integration | AC-2 | variant under another product → 404
+      refusals | integration | AC-3 | each Examples row → status
+      other business | security | AB-1, WSTG-ATHZ-02 | manager A on variant of B → 404, B unchanged
+    command: npx vitest run tests/integration/images/variant-photos.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Taking a photo from another variant: IMG-011."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the variant photo paths | add PUT .../variants/{variantId}/photos/{position} and DELETE .../photos/{photoId}, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the variant photo paths | add the same two paths, remove nothing"
+  - id: IMG-011
+    title: A manager takes a photo from another variant of the same product
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [IMG-010, IMG-006, ACC-007]
+    read_first: [src/modules/images/card-photos.service.ts, src/modules/images/image-copy.service.ts]
+    design_refs: [images/ajouter-remplacer-retirer-une-photo, images/imagecopy]
+    constraints: [C-56]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: As a manager, I want to take a photo from another variant of the same product so that I do not send the same picture twice.
+    context: |
+      - Exists: `copyImage(tx, sourceKey)` (IMG-006); `lockVariantImageKeys` and `readVariantImageKeys` (CAT-044); `variantCard`, `PHOTOS_PER_CARD` (IMG-008, IMG-010); `idempotent()`; the rule `change_photos` on `ProductVariant`.
+      - New route `POST /api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}/photos/copy`, strict JSON `{ id, source_variant_id, source_photo_id }`: `id` the gesture id (UUIDv7), the others UUIDs; `source_photo_id` is the UUID file name of one of the source's keys. Order: `loadActor`, `requireAbility('change_photos', 'ProductVariant')`, the JSON parser, `idempotent()`. Answer 201 `{ image_urls }` of the destination variant.
+      - `takeVariantPhoto` in `card-photos.service.ts`, one transaction: lock the destination; read the source with `readVariantImageKeys` (no lock, so two crossed copies cannot block each other); the source must be a variant of the same business and the same product as the destination, and different from it; the key is found by `source_photo_id`. Then `copyImage`, append the new key with `variantCard(...).write`. The registry row is written by `copyImage`; the source keeps its photo.
+      - Refusals: no such variant, photo or product pair, or a source file that is gone (`copyImage` returns null): 404 `NOT_FOUND`; destination at `PHOTOS_PER_CARD`: 409 `PHOTO_LIMIT_REACHED`; source equal to destination: 400 `VALIDATION_ERROR`.
+      - Logs `info` `variant_photo_taken` with the organization, variant and person ids. Add the path to the route lists.
+    acceptance: |
+      Scenario: AC-1 Take a photo
+        Given variant A holds photo P and variant B of the same product holds none
+        When the manager takes P onto B
+        Then the answer is 201, B holds one photo under a key other than P's, A is unchanged and `image_copies` has one row for it
+      Scenario: AC-2 Repeat
+        When the same body is posted twice
+        Then one copy exists
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the answer is <status> and nothing is stored
+        Examples:
+          | problem                                              | status                     |
+          | a source variant of another product                  | 404 NOT_FOUND              |
+          | a photo id the source does not hold                  | 404 NOT_FOUND              |
+          | a source file that is gone from storage              | 404 NOT_FOUND              |
+          | a destination that already holds 5 photos            | 409 PHOTO_LIMIT_REACHED    |
+          | the destination as its own source                    | 400 VALIDATION_ERROR       |
+          | an unknown field in the body                         | 400 VALIDATION_ERROR       |
+          | a seller or a driver                                 | 403 FORBIDDEN              |
+    abuse: |
+      Scenario: AB-1 A variant of another business as the source (information disclosure)
+        When a manager of business A names a variant and a photo of business B
+        Then the answer is 404 and nothing is copied
+    implementation:
+      create: [tests/integration/images/take-variant-photo.test.ts]
+      modify: [src/modules/images/card-photos.service.ts, src/modules/images/images.routes.ts, src/modules/images/images.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "takeVariantPhoto(organizationId: string, productId: string, variantId: string, input: TakePhotoInput): Promise<{ image_urls: string[] }>"
+      types:
+        - "TakePhotoInput = { id: string; source_variant_id: string; source_photo_id: string }"
+      errors: [FORBIDDEN 403, NOT_FOUND 404, PHOTO_LIMIT_REACHED 409, VALIDATION_ERROR 400]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: the rules table decides before the body is read."
+      - "v5.0.0-8.2.2: both variants are read inside the business of the session; a stranger's id answers 404."
+      - "v5.0.0-2.3.3: the new key and the registry row are written in one transaction."
+    tests: |
+      take | integration | AC-1, C-56 | copy onto B → 201, new key, registry row
+      repeat | integration | AC-2 | same body twice → one copy
+      refusals | integration | AC-3 | each Examples row → status, nothing stored
+      other business | security | AB-1, WSTG-ATHZ-02 | source of business B → 404, nothing copied
+    command: npx vitest run tests/integration/images/take-variant-photo.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Copying photos when a reseller copies articles: CAT-045."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the photo copy path | add POST .../variants/{variantId}/photos/copy, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the photo copy path | add the same path, remove nothing"
+  - id: IMG-012
+    title: The nightly cleanup releases the photos of deleted products and variants
+    kind: change
+    size: S
+    risk: medium
+    amends: [IMG-007]
+    depends_on: [IMG-007, CAT-046]
+    read_first: [src/modules/images/image-cleanup.service.ts]
+    design_refs: [images/ajouter-remplacer-retirer-une-photo]
+    constraints: [C-50]
+    asvs: [v5.0.0-2.3.3, v5.0.0-16.3.3]
+    story: As a super-admin, I want the nightly cleanup to also release the photos of deleted products and variants so that their files do not stay in storage for ever.
+    context: |
+      - Exists: `cleanupOrphanImages(now)` and `runImageCleanupJob` (IMG-007); `releaseDeletedImageKeys(tx, deletedBefore, limit)` (CAT-046); `deleteImageFiles` (IMG-002).
+      - Change: `cleanupOrphanImages` starts with a release step. Until a call returns no key, it opens a transaction, calls `releaseDeletedImageKeys(tx, now minus 24 hours, 500)`, commits, then passes the released keys to `deleteImageFiles`. The walk over the storage follows as before.
+      - A card deleted less than 24 hours ago keeps its keys and its files for that day. A card that is not deleted is never touched.
+      - The result becomes `{ scanned, deleted, released }`, `released` counting the keys emptied; the log `image_cleanup_done` carries the three counts.
+      - Fail closed: an error in the release step stops the run before the walk; `runImageCleanupJob` returns 1 and logs `image_cleanup_failed`.
+    acceptance: |
+      Scenario: AC-1 Deleted cards release their photos
+        Given a product deleted 30 hours ago with 2 photos and a variant deleted 25 hours ago with 1
+        When the cleanup runs
+        Then both rows hold no key, the three files are gone and `released` is 3
+      Scenario: AC-2 A recent deletion
+        Given a product deleted 2 hours ago with a photo
+        When the cleanup runs
+        Then its key and its file are still there
+      Scenario: AC-3 The release fails
+        Given `releaseDeletedImageKeys` throws
+        When the job runs
+        Then it returns 1, logs `image_cleanup_failed` and deletes no file
+    abuse: |
+      Scenario: AB-1 A live card loses its photo (data loss)
+        Given a live product and a live variant with photos stored 30 hours ago
+        When the cleanup runs
+        Then their keys and files are untouched
+    implementation:
+      create: [tests/integration/images/image-cleanup-deleted.test.ts]
+      modify: [src/modules/images/image-cleanup.service.ts, src/jobs/image-cleanup.ts]
+      pattern: src/jobs/purge.ts
+      signatures:
+        - "cleanupOrphanImages(now: Date): Promise<{ scanned: number; deleted: number; released: number }>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client", pino]
+    security:
+      - "v5.0.0-2.3.3: keys are emptied in a transaction and their files deleted only after it commits."
+      - "v5.0.0-16.3.3: the run logs counts, never keys."
+    tests: |
+      released | integration | AC-1, C-50 | deleted cards → keys empty, files gone, released 3
+      recent | integration | AC-2 | deleted 2 hours ago → untouched
+      release fails | integration | AC-3 | throw → exit code 1, no file deleted
+      live cards | security | AB-1, CWE-284 | live product and variant → keys and files kept
+    command: npx vitest run tests/integration/images/image-cleanup-deleted.test.ts tests/integration/images/image-cleanup.test.ts
+    out_of_scope:
+      - "Scheduling the job (Q-010)."
+    tests_to_update:
+      - "tests/integration/images/image-cleanup.test.ts | an assertion that compares the whole result with `{ scanned, deleted }` | add `released: 0`; assertions on single properties stay"

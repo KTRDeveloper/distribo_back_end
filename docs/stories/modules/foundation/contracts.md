@@ -25,6 +25,16 @@ What this module provides to other modules, and what it consumes from them. A co
 - `function set_server_updated_at() for a BEFORE INSERT OR UPDATE trigger on every synchronized table`
 - `getAppRolePrisma() in tests/helpers/app-role.ts: a Prisma client that runs as distribo_app`
 - Used by: `person`, `relationship`, `finance`, `sync`, `admin`
+### ImageKeys (`src/lib/image-keys.ts`, created by FND-013)
+- `newImageKey(folder: 'logos' | 'avatars' | 'products'): string`: `<folder>/<UUIDv4>.webp`, no id of any business object
+- `imageKeySchema`: Zod string accepting only canonical keys
+- `imageUrl(key: string | null): string | null`: base address from IMAGE_PUBLIC_BASE_URL plus the key; throws RangeError for a non-canonical key
+- Used by: `person`, `organization`, `catalog`, `images`, `privacy`
+### Plans (`src/shared/plans.ts`, created by FND-014)
+- `PLANS`: limits (`maxCollaborators`, `maxProducts`, null = no limit) and monthly price of FREE, ESSENTIAL, PRO, ENTERPRISE
+- `priceFor(plan: PaidPlanCode, months: 1 | 3 | 6 | 12): bigint`: price of a pack from the grid, RangeError outside it
+- `generatePaymentCode(): string in src/lib/payment-code.ts`: 8 characters without 0, O, 1, I
+- Used by: `organization`, `billing`
 
 ## Consumes
 - Nothing.

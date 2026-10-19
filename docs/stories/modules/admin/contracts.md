@@ -12,6 +12,6 @@ What this module provides to other modules, and what it consumes from them. A co
 - Used by: `sync`
 
 ## Consumes
-- auth: issue and verify one-time codes (issueCode, verifyCode), hashPassword and verifyPassword, revokeSessions (docs/stories/modules/auth/contracts.md)
+- auth: issue and verify one-time codes (issueCode, verifyCode), hashPassword and verifyPassword, revokeSessions, releaseNumberOfPerson, moveAccountToNumber (docs/stories/modules/auth/contracts.md)
 - person: findByActivePhone, toPublicPerson (docs/stories/modules/person/contracts.md)
 - notification: notify (docs/stories/modules/notification/contracts.md)

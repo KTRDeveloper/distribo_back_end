@@ -17,8 +17,8 @@ Owns the rules table, the role order, the CASL ability builder, the ability midd
 ## Threats (lightweight STRIDE)
 | ID | STRIDE | threat | mitigation | abuse cases |
 |---|---|---|---|---|
-| T1 | E | A lower role reaches a higher role's action | rules table, `atLeast` refuses unknown roles, table tests | ACC-001 AB-1, ACC-006 AB-1 |
-| T2 | E | A manager power is used offline with a stale role | those rules are ONLINE or NETWORK only | ACC-002 AB-1, ACC-005 AB-1 |
+| T1 | E | A lower role reaches a higher role's action | rules table, `atLeast` refuses unknown roles, an unknown availability value grants nothing, table tests | ACC-001 AB-1, ACC-006 AB-1, ACC-008 AB-1 |
+| T2 | E | A manager power is used offline with a stale role | those rules need a live connection (`ONLINE_EXCEPT_OWNER` or `ONLINE_FOR_ALL`) | ACC-002 AB-1, ACC-005 AB-1 |
 | T3 | T | A gesture sent twice counts twice | idempotency key per person and gesture id | ACC-007 AB-1 |
 
 ## Pointers

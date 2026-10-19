@@ -5,7 +5,7 @@
       "hash": "11f7729466269083",
       "id": "Person:required",
       "kind": "required",
-      "line": 54,
+      "line": 58,
       "refs": [
         "Person.created_at",
         "Person.status",
@@ -18,7 +18,7 @@
       "hash": "a33d52ea73797bb3",
       "id": "Person.phone_number:unique",
       "kind": "unique",
-      "line": 58,
+      "line": 63,
       "refs": [
         "Person.phone_number"
       ],
@@ -29,7 +29,7 @@
       "hash": "6f4db4ae14a191e7",
       "id": "Person.preferred_language:enum",
       "kind": "enum",
-      "line": 65,
+      "line": 70,
       "refs": [
         "Person.preferred_language"
       ],
@@ -40,7 +40,7 @@
       "hash": "d04cb8a6b23f2340",
       "id": "Person.status:enum",
       "kind": "enum",
-      "line": 67,
+      "line": 72,
       "refs": [
         "Person.status"
       ],
@@ -51,7 +51,7 @@
       "hash": "78cf9b8e67ecd7be",
       "id": "PhoneNumberChangeLog:required",
       "kind": "required",
-      "line": 127,
+      "line": 142,
       "refs": [
         "PhoneNumberChangeLog.person_id",
         "PhoneNumberChangeLog.old_phone_number",
@@ -66,7 +66,7 @@
       "hash": "29879939671b3e91",
       "id": "PhoneNumberChangeLog:fk",
       "kind": "fk",
-      "line": 130,
+      "line": 145,
       "refs": [
         "PhoneNumberChangeLog.person_id"
       ],
@@ -74,40 +74,63 @@
     },
     {
       "entity": "Organization",
-      "hash": "235be052aa242252",
+      "hash": "d49645b2aa6476f9",
       "id": "Organization:required",
       "kind": "required",
-      "line": 139,
+      "line": 154,
       "refs": [
         "Organization.name",
         "Organization.status",
+        "Organization.payment_code",
+        "Organization.plan",
         "Organization.created_at"
       ],
       "rule": "NOT NULL"
     },
     {
       "entity": "Organization",
+      "hash": "50cde9c3f08bed36",
+      "id": "Organization.payment_code:unique",
+      "kind": "unique",
+      "line": 161,
+      "refs": [
+        "Organization.payment_code"
+      ],
+      "rule": "unique"
+    },
+    {
+      "entity": "Organization",
       "hash": "11ac0ac6e84d8fa8",
       "id": "Organization.status:enum",
       "kind": "enum",
-      "line": 145,
+      "line": 160,
       "refs": [
         "Organization.status"
       ],
       "rule": "one of ACTIVE, SUSPENDED, CLOSED"
     },
     {
+      "entity": "Organization",
+      "hash": "657a831ae021c328",
+      "id": "Organization.plan:enum",
+      "kind": "enum",
+      "line": 162,
+      "refs": [
+        "Organization.plan"
+      ],
+      "rule": "one of FREE, ESSENTIAL, PRO, ENTERPRISE"
+    },
+    {
       "entity": "Collaboration",
-      "hash": "059c3074f41a6083",
+      "hash": "74c64e1bcf5d415d",
       "id": "Collaboration:required",
       "kind": "required",
-      "line": 172,
+      "line": 195,
       "refs": [
         "Collaboration.person_id",
         "Collaboration.organization_id",
         "Collaboration.role",
         "Collaboration.status",
-        "Collaboration.is_public_contact",
         "Collaboration.invited_at",
         "Collaboration.amount_held"
       ],
@@ -118,7 +141,7 @@
       "hash": "d47ea19ad903eeaa",
       "id": "Collaboration.role:enum",
       "kind": "enum",
-      "line": 177,
+      "line": 200,
       "refs": [
         "Collaboration.role"
       ],
@@ -126,21 +149,21 @@
     },
     {
       "entity": "Collaboration",
-      "hash": "ce58d8f1de474478",
+      "hash": "4277cf194d06b7d5",
       "id": "Collaboration.status:enum",
       "kind": "enum",
-      "line": 178,
+      "line": 201,
       "refs": [
         "Collaboration.status"
       ],
-      "rule": "one of INVITED, ACTIVE, REVOKED"
+      "rule": "one of INVITED, ACTIVE, PAUSED, REVOKED"
     },
     {
       "entity": "Collaboration",
       "hash": "a98b420501b4b64b",
       "id": "Collaboration:fk",
       "kind": "fk",
-      "line": 175,
+      "line": 198,
       "refs": [
         "Collaboration.person_id",
         "Collaboration.organization_id"
@@ -148,11 +171,60 @@
       "rule": "references person_id → Person; organization_id → Organization"
     },
     {
+      "entity": "OrganizationContact",
+      "hash": "ba4dd7e1c0d59af9",
+      "id": "OrganizationContact:required",
+      "kind": "required",
+      "line": 221,
+      "refs": [
+        "OrganizationContact.organization_id",
+        "OrganizationContact.kind",
+        "OrganizationContact.value",
+        "OrganizationContact.created_by_id",
+        "OrganizationContact.created_at"
+      ],
+      "rule": "NOT NULL"
+    },
+    {
+      "entity": "OrganizationContact",
+      "hash": "a62f78fde24beff2",
+      "id": "OrganizationContact.kind:enum",
+      "kind": "enum",
+      "line": 225,
+      "refs": [
+        "OrganizationContact.kind"
+      ],
+      "rule": "one of PHONE, EMAIL"
+    },
+    {
+      "entity": "OrganizationContact",
+      "hash": "4f8b0bf97e820fa2",
+      "id": "OrganizationContact.verification_method:enum",
+      "kind": "enum",
+      "line": 229,
+      "refs": [
+        "OrganizationContact.verification_method"
+      ],
+      "rule": "one of CODE, OWNER_PHONE"
+    },
+    {
+      "entity": "OrganizationContact",
+      "hash": "af0dc3036776bc64",
+      "id": "OrganizationContact:fk",
+      "kind": "fk",
+      "line": 224,
+      "refs": [
+        "OrganizationContact.organization_id",
+        "OrganizationContact.created_by_id"
+      ],
+      "rule": "references organization_id → Organization; created_by_id → Person"
+    },
+    {
       "entity": "CustomerRelationship",
       "hash": "638090c6f434cd58",
       "id": "CustomerRelationship:required",
       "kind": "required",
-      "line": 207,
+      "line": 263,
       "refs": [
         "CustomerRelationship.balance",
         "CustomerRelationship.status",
@@ -166,7 +238,7 @@
       "hash": "7a4f13ec83c432ca",
       "id": "CustomerRelationship.status:enum",
       "kind": "enum",
-      "line": 222,
+      "line": 278,
       "refs": [
         "CustomerRelationship.status"
       ],
@@ -177,7 +249,7 @@
       "hash": "0afd778441aa4557",
       "id": "CustomerRelationship.ended_by_party:enum",
       "kind": "enum",
-      "line": 223,
+      "line": 279,
       "refs": [
         "CustomerRelationship.ended_by_party"
       ],
@@ -188,7 +260,7 @@
       "hash": "ddcb7efb781979f3",
       "id": "CustomerRelationship:fk",
       "kind": "fk",
-      "line": 210,
+      "line": 266,
       "refs": [
         "CustomerRelationship.supplier_organization_id",
         "CustomerRelationship.supplier_person_id",
@@ -202,13 +274,13 @@
     },
     {
       "entity": "CustomerPrice",
-      "hash": "d0f7c09913279692",
+      "hash": "0e44ee2aa867a399",
       "id": "CustomerPrice:required",
       "kind": "required",
-      "line": 322,
+      "line": 378,
       "refs": [
         "CustomerPrice.customer_relationship_id",
-        "CustomerPrice.product_id",
+        "CustomerPrice.product_variant_id",
         "CustomerPrice.price",
         "CustomerPrice.set_by_id",
         "CustomerPrice.set_at"
@@ -217,23 +289,23 @@
     },
     {
       "entity": "CustomerPrice",
-      "hash": "3af0421f018ca783",
+      "hash": "14aa91f848b9135e",
       "id": "CustomerPrice:fk",
       "kind": "fk",
-      "line": 325,
+      "line": 381,
       "refs": [
         "CustomerPrice.customer_relationship_id",
-        "CustomerPrice.product_id",
+        "CustomerPrice.product_variant_id",
         "CustomerPrice.set_by_id"
       ],
-      "rule": "references customer_relationship_id → CustomerRelationship; product_id → Product; set_by_id → Person"
+      "rule": "references customer_relationship_id → CustomerRelationship; product_variant_id → ProductVariant; set_by_id → Person"
     },
     {
       "entity": "CustomerRelationshipReassignment",
       "hash": "471d6359f3abc401",
       "id": "CustomerRelationshipReassignment:required",
       "kind": "required",
-      "line": 349,
+      "line": 405,
       "refs": [
         "CustomerRelationshipReassignment.customer_relationship_id",
         "CustomerRelationshipReassignment.previous_person_id",
@@ -248,7 +320,7 @@
       "hash": "b5a66cd691a67063",
       "id": "CustomerRelationshipReassignment:fk",
       "kind": "fk",
-      "line": 352,
+      "line": 408,
       "refs": [
         "CustomerRelationshipReassignment.customer_relationship_id",
         "CustomerRelationshipReassignment.previous_person_id",
@@ -262,7 +334,7 @@
       "hash": "e09578b9d45006cb",
       "id": "CreditLimitChange:required",
       "kind": "required",
-      "line": 383,
+      "line": 439,
       "refs": [
         "CreditLimitChange.customer_relationship_id",
         "CreditLimitChange.set_by_id",
@@ -275,7 +347,7 @@
       "hash": "bf1c0056cfa415e1",
       "id": "CreditLimitChange:fk",
       "kind": "fk",
-      "line": 386,
+      "line": 442,
       "refs": [
         "CreditLimitChange.customer_relationship_id",
         "CreditLimitChange.set_by_id"
@@ -284,49 +356,77 @@
     },
     {
       "entity": "Product",
-      "hash": "c8722a4eb4c9c4e6",
+      "hash": "1810b7c1eded1132",
       "id": "Product:required",
       "kind": "required",
-      "line": 401,
+      "line": 459,
       "refs": [
         "Product.organization_id",
         "Product.name",
-        "Product.unit",
-        "Product.price",
-        "Product.price_updated_at",
-        "Product.status",
+        "Product.image_keys",
         "Product.created_at"
       ],
       "rule": "NOT NULL"
     },
     {
       "entity": "Product",
-      "hash": "1623af032d194193",
-      "id": "Product.status:enum",
-      "kind": "enum",
-      "line": 412,
-      "refs": [
-        "Product.status"
-      ],
-      "rule": "one of ACTIVE, INACTIVE"
-    },
-    {
-      "entity": "Product",
       "hash": "d3b24c876b2eb4c6",
       "id": "Product:fk",
       "kind": "fk",
-      "line": 404,
+      "line": 462,
       "refs": [
         "Product.organization_id"
       ],
       "rule": "references organization_id → Organization"
     },
     {
+      "entity": "ProductVariant",
+      "hash": "e20b909aa9be7dd7",
+      "id": "ProductVariant:required",
+      "kind": "required",
+      "line": 508,
+      "refs": [
+        "ProductVariant.product_id",
+        "ProductVariant.organization_id",
+        "ProductVariant.unit",
+        "ProductVariant.price",
+        "ProductVariant.price_updated_at",
+        "ProductVariant.image_keys",
+        "ProductVariant.status",
+        "ProductVariant.created_at"
+      ],
+      "rule": "NOT NULL"
+    },
+    {
+      "entity": "ProductVariant",
+      "hash": "59fff5111fa9685a",
+      "id": "ProductVariant.status:enum",
+      "kind": "enum",
+      "line": 519,
+      "refs": [
+        "ProductVariant.status"
+      ],
+      "rule": "one of ACTIVE, INACTIVE"
+    },
+    {
+      "entity": "ProductVariant",
+      "hash": "199d11122497204c",
+      "id": "ProductVariant:fk",
+      "kind": "fk",
+      "line": 511,
+      "refs": [
+        "ProductVariant.product_id",
+        "ProductVariant.organization_id",
+        "ProductVariant.merged_into_id"
+      ],
+      "rule": "references product_id → Product; organization_id → Organization; merged_into_id → ProductVariant"
+    },
+    {
       "entity": "Order",
       "hash": "ac1ab1cb2671c41d",
       "id": "Order:required",
       "kind": "required",
-      "line": 440,
+      "line": 548,
       "refs": [
         "Order.customer_relationship_id",
         "Order.placed_by_party",
@@ -343,7 +443,7 @@
       "hash": "d6cb4b7340ac6bd2",
       "id": "Order.placed_by_party:enum",
       "kind": "enum",
-      "line": 444,
+      "line": 552,
       "refs": [
         "Order.placed_by_party"
       ],
@@ -354,7 +454,7 @@
       "hash": "bd3a36d9199b37bc",
       "id": "Order.status:enum",
       "kind": "enum",
-      "line": 449,
+      "line": 557,
       "refs": [
         "Order.status"
       ],
@@ -365,7 +465,7 @@
       "hash": "149d3554aa3bbbd9",
       "id": "Order.cancelled_by_party:enum",
       "kind": "enum",
-      "line": 454,
+      "line": 563,
       "refs": [
         "Order.cancelled_by_party"
       ],
@@ -376,7 +476,7 @@
       "hash": "7442df52daa1e2f1",
       "id": "Order:fk",
       "kind": "fk",
-      "line": 443,
+      "line": 551,
       "refs": [
         "Order.customer_relationship_id",
         "Order.entered_by_id",
@@ -388,13 +488,13 @@
     },
     {
       "entity": "OrderLine",
-      "hash": "13dd4a7d715a8034",
+      "hash": "3b261be1ec2fffb5",
       "id": "OrderLine:required",
       "kind": "required",
-      "line": 531,
+      "line": 651,
       "refs": [
         "OrderLine.order_id",
-        "OrderLine.product_id",
+        "OrderLine.product_variant_id",
         "OrderLine.label_applied",
         "OrderLine.quantity",
         "OrderLine.reference_price",
@@ -405,23 +505,23 @@
     },
     {
       "entity": "OrderLine",
-      "hash": "cb2515302960dd79",
+      "hash": "892dc2bcf601e593",
       "id": "OrderLine:fk",
       "kind": "fk",
-      "line": 534,
+      "line": 654,
       "refs": [
         "OrderLine.order_id",
-        "OrderLine.product_id",
+        "OrderLine.product_variant_id",
         "OrderLine.price_set_by_id"
       ],
-      "rule": "references order_id → Order; product_id → Product; price_set_by_id → Person"
+      "rule": "references order_id → Order; product_variant_id → ProductVariant; price_set_by_id → Person"
     },
     {
       "entity": "Delivery",
       "hash": "b02eb2617002a059",
       "id": "Delivery:required",
       "kind": "required",
-      "line": 565,
+      "line": 685,
       "refs": [
         "Delivery.order_id",
         "Delivery.assigned_to_id"
@@ -433,7 +533,7 @@
       "hash": "4888ac4c8e5c8e35",
       "id": "Delivery:fk",
       "kind": "fk",
-      "line": 568,
+      "line": 688,
       "refs": [
         "Delivery.order_id",
         "Delivery.assigned_to_id"
@@ -445,7 +545,7 @@
       "hash": "6c9780e10367ae4e",
       "id": "LedgerEntry:required",
       "kind": "required",
-      "line": 621,
+      "line": 741,
       "refs": [
         "LedgerEntry.customer_relationship_id",
         "LedgerEntry.kind",
@@ -460,7 +560,7 @@
       "hash": "ead234b86b8f8952",
       "id": "LedgerEntry.kind:enum",
       "kind": "enum",
-      "line": 626,
+      "line": 746,
       "refs": [
         "LedgerEntry.kind"
       ],
@@ -471,7 +571,7 @@
       "hash": "6e84a40d5025acd0",
       "id": "LedgerEntry.mode:enum",
       "kind": "enum",
-      "line": 629,
+      "line": 749,
       "refs": [
         "LedgerEntry.mode"
       ],
@@ -482,7 +582,7 @@
       "hash": "a20a3bfd57a74cbf",
       "id": "LedgerEntry:fk",
       "kind": "fk",
-      "line": 624,
+      "line": 744,
       "refs": [
         "LedgerEntry.customer_relationship_id",
         "LedgerEntry.order_id",
@@ -496,7 +596,7 @@
       "hash": "e4a5bfe5b13900a0",
       "id": "LedgerEntry.balance_effect:generated",
       "kind": "generated",
-      "line": 628,
+      "line": 748,
       "refs": [
         "LedgerEntry.balance_effect"
       ],
@@ -507,7 +607,7 @@
       "hash": "5d5d911f97966d32",
       "id": "Expense:required",
       "kind": "required",
-      "line": 676,
+      "line": 796,
       "refs": [
         "Expense.organization_id",
         "Expense.paid_by_id",
@@ -522,7 +622,7 @@
       "hash": "7f7f6d615cec6ad1",
       "id": "Expense:fk",
       "kind": "fk",
-      "line": 679,
+      "line": 799,
       "refs": [
         "Expense.organization_id",
         "Expense.paid_by_id",
@@ -536,7 +636,7 @@
       "hash": "ac63d2f5772ccaa8",
       "id": "Handover:required",
       "kind": "required",
-      "line": 700,
+      "line": 820,
       "refs": [
         "Handover.organization_id",
         "Handover.from_person_id",
@@ -551,7 +651,7 @@
       "hash": "41372c89fbde8d2e",
       "id": "Handover:fk",
       "kind": "fk",
-      "line": 703,
+      "line": 823,
       "refs": [
         "Handover.organization_id",
         "Handover.from_person_id",
@@ -562,45 +662,265 @@
     },
     {
       "entity": "Subscription",
-      "hash": "77ea467bdcb6076f",
+      "hash": "981f8713825da5aa",
       "id": "Subscription:required",
       "kind": "required",
-      "line": 726,
+      "line": 846,
       "refs": [
         "Subscription.organization_id",
         "Subscription.plan",
-        "Subscription.status"
+        "Subscription.price",
+        "Subscription.origin",
+        "Subscription.status",
+        "Subscription.created_at"
       ],
       "rule": "NOT NULL"
     },
     {
       "entity": "Subscription",
-      "hash": "02628772dcd9e80c",
-      "id": "Subscription.status:enum",
+      "hash": "af87689a83cb80c4",
+      "id": "Subscription.plan:enum",
       "kind": "enum",
-      "line": 731,
+      "line": 850,
       "refs": [
-        "Subscription.status"
+        "Subscription.plan"
       ],
-      "rule": "one of ACTIVE, EXPIRED"
+      "rule": "one of ESSENTIAL, PRO, ENTERPRISE"
     },
     {
       "entity": "Subscription",
-      "hash": "d3b24c876b2eb4c6",
+      "hash": "28af24787c16735d",
+      "id": "Subscription.origin:enum",
+      "kind": "enum",
+      "line": 853,
+      "refs": [
+        "Subscription.origin"
+      ],
+      "rule": "one of PAYMENT, CONVERSION, GIFT"
+    },
+    {
+      "entity": "Subscription",
+      "hash": "3f45d705f71b6c2d",
+      "id": "Subscription.status:enum",
+      "kind": "enum",
+      "line": 855,
+      "refs": [
+        "Subscription.status"
+      ],
+      "rule": "one of SCHEDULED, ACTIVE, ENDED"
+    },
+    {
+      "entity": "Subscription",
+      "hash": "e5a193d04df25a4b",
+      "id": "Subscription.end_reason:enum",
+      "kind": "enum",
+      "line": 857,
+      "refs": [
+        "Subscription.end_reason"
+      ],
+      "rule": "one of EXPIRED, UPGRADED, CLOSED, REFUNDED"
+    },
+    {
+      "entity": "Subscription",
+      "hash": "bc1cee3995118ac4",
       "id": "Subscription:fk",
       "kind": "fk",
-      "line": 729,
+      "line": 849,
       "refs": [
-        "Subscription.organization_id"
+        "Subscription.organization_id",
+        "Subscription.payment_id"
+      ],
+      "rule": "references organization_id → Organization; payment_id → SubscriptionPayment"
+    },
+    {
+      "entity": "SubscriptionPayment",
+      "hash": "c70a0401e96feb74",
+      "id": "SubscriptionPayment:required",
+      "kind": "required",
+      "line": 941,
+      "refs": [
+        "SubscriptionPayment.organization_id",
+        "SubscriptionPayment.plan",
+        "SubscriptionPayment.months",
+        "SubscriptionPayment.amount",
+        "SubscriptionPayment.operator",
+        "SubscriptionPayment.provider_reference",
+        "SubscriptionPayment.status",
+        "SubscriptionPayment.terms_version",
+        "SubscriptionPayment.created_at"
+      ],
+      "rule": "NOT NULL"
+    },
+    {
+      "entity": "SubscriptionPayment",
+      "hash": "467c46a87abd4b49",
+      "id": "SubscriptionPayment.provider_reference:unique",
+      "kind": "unique",
+      "line": 950,
+      "refs": [
+        "SubscriptionPayment.provider_reference"
+      ],
+      "rule": "unique"
+    },
+    {
+      "entity": "SubscriptionPayment",
+      "hash": "09ece8e3b956dfb8",
+      "id": "SubscriptionPayment.plan:enum",
+      "kind": "enum",
+      "line": 945,
+      "refs": [
+        "SubscriptionPayment.plan"
+      ],
+      "rule": "one of ESSENTIAL, PRO, ENTERPRISE"
+    },
+    {
+      "entity": "SubscriptionPayment",
+      "hash": "bd194324e9ebd4a0",
+      "id": "SubscriptionPayment.operator:enum",
+      "kind": "enum",
+      "line": 948,
+      "refs": [
+        "SubscriptionPayment.operator"
+      ],
+      "rule": "one of MTN_MOMO, ORANGE_MONEY, OTHER"
+    },
+    {
+      "entity": "SubscriptionPayment",
+      "hash": "1ba46f3489843f95",
+      "id": "SubscriptionPayment.status:enum",
+      "kind": "enum",
+      "line": 951,
+      "refs": [
+        "SubscriptionPayment.status"
+      ],
+      "rule": "one of PENDING, SUCCEEDED, FAILED, EXPIRED, REFUNDED"
+    },
+    {
+      "entity": "SubscriptionPayment",
+      "hash": "d3b24c876b2eb4c6",
+      "id": "SubscriptionPayment:fk",
+      "kind": "fk",
+      "line": 944,
+      "refs": [
+        "SubscriptionPayment.organization_id"
       ],
       "rule": "references organization_id → Organization"
+    },
+    {
+      "entity": "SubscriptionReceipt",
+      "hash": "60bf6c85f67c5c7a",
+      "id": "SubscriptionReceipt:required",
+      "kind": "required",
+      "line": 967,
+      "refs": [
+        "SubscriptionReceipt.number",
+        "SubscriptionReceipt.kind",
+        "SubscriptionReceipt.organization_id",
+        "SubscriptionReceipt.payment_id",
+        "SubscriptionReceipt.customer_name",
+        "SubscriptionReceipt.label",
+        "SubscriptionReceipt.amount_excl_tax",
+        "SubscriptionReceipt.vat_rate_bp",
+        "SubscriptionReceipt.vat_amount",
+        "SubscriptionReceipt.amount",
+        "SubscriptionReceipt.issued_at"
+      ],
+      "rule": "NOT NULL"
+    },
+    {
+      "entity": "SubscriptionReceipt",
+      "hash": "626c95cc398080a3",
+      "id": "SubscriptionReceipt.number:unique",
+      "kind": "unique",
+      "line": 970,
+      "refs": [
+        "SubscriptionReceipt.number"
+      ],
+      "rule": "unique"
+    },
+    {
+      "entity": "SubscriptionReceipt",
+      "hash": "21ff7c05a3f7f5cd",
+      "id": "SubscriptionReceipt.kind:enum",
+      "kind": "enum",
+      "line": 971,
+      "refs": [
+        "SubscriptionReceipt.kind"
+      ],
+      "rule": "one of RECEIPT, CREDIT_NOTE"
+    },
+    {
+      "entity": "SubscriptionReceipt",
+      "hash": "6914f4a8f9b1d224",
+      "id": "SubscriptionReceipt:fk",
+      "kind": "fk",
+      "line": 972,
+      "refs": [
+        "SubscriptionReceipt.organization_id",
+        "SubscriptionReceipt.payment_id",
+        "SubscriptionReceipt.cancels_receipt_id"
+      ],
+      "rule": "references organization_id → Organization; payment_id → SubscriptionPayment; cancels_receipt_id → SubscriptionReceipt"
+    },
+    {
+      "entity": "SubscriptionEvent",
+      "hash": "bdfa84206ab681f0",
+      "id": "SubscriptionEvent:required",
+      "kind": "required",
+      "line": 995,
+      "refs": [
+        "SubscriptionEvent.organization_id",
+        "SubscriptionEvent.kind",
+        "SubscriptionEvent.actor",
+        "SubscriptionEvent.details",
+        "SubscriptionEvent.occurred_at"
+      ],
+      "rule": "NOT NULL"
+    },
+    {
+      "entity": "SubscriptionEvent",
+      "hash": "41280ddfcb40fc1f",
+      "id": "SubscriptionEvent.kind:enum",
+      "kind": "enum",
+      "line": 999,
+      "refs": [
+        "SubscriptionEvent.kind"
+      ],
+      "rule": "one of PAYMENT, FORFAIT_ADDED, FORFAIT_ENDED, PLAN_CHANGED, REMINDER, KEEP_CHOICE, PAUSED, RESUMED"
+    },
+    {
+      "entity": "SubscriptionEvent",
+      "hash": "fd3eaeb85dd79706",
+      "id": "SubscriptionEvent.actor:enum",
+      "kind": "enum",
+      "line": 1000,
+      "refs": [
+        "SubscriptionEvent.actor"
+      ],
+      "rule": "one of PAYER, OWNER, SYSTEM, ADMINISTRATOR"
+    },
+    {
+      "entity": "SubscriptionEvent",
+      "hash": "a3471e60bc2cf9e6",
+      "id": "SubscriptionEvent:fk",
+      "kind": "fk",
+      "line": 998,
+      "refs": [
+        "SubscriptionEvent.organization_id",
+        "SubscriptionEvent.person_id",
+        "SubscriptionEvent.administrator_id",
+        "SubscriptionEvent.admin_action_id",
+        "SubscriptionEvent.subscription_id",
+        "SubscriptionEvent.payment_id"
+      ],
+      "rule": "references organization_id → Organization; person_id → Person; administrator_id → Administrator; admin_action_id → AdminAction; subscription_id → Subscription; payment_id → SubscriptionPayment"
     },
     {
       "entity": "Report",
       "hash": "677fb02cf40e13e4",
       "id": "Report:required",
       "kind": "required",
-      "line": 745,
+      "line": 1027,
       "refs": [
         "Report.reporter_id",
         "Report.reason",
@@ -614,7 +934,7 @@
       "hash": "8c0941907f964aab",
       "id": "Report.status:enum",
       "kind": "enum",
-      "line": 753,
+      "line": 1035,
       "refs": [
         "Report.status"
       ],
@@ -625,7 +945,7 @@
       "hash": "bc11ca46e4c9a2da",
       "id": "Report.decision:enum",
       "kind": "enum",
-      "line": 755,
+      "line": 1037,
       "refs": [
         "Report.decision"
       ],
@@ -636,7 +956,7 @@
       "hash": "18f7beff7fca654e",
       "id": "Report:fk",
       "kind": "fk",
-      "line": 748,
+      "line": 1030,
       "refs": [
         "Report.reporter_id",
         "Report.target_person_id",
@@ -650,7 +970,7 @@
       "hash": "f6ee0fd03c0dcb58",
       "id": "Administrator:required",
       "kind": "required",
-      "line": 771,
+      "line": 1053,
       "refs": [
         "Administrator.person_id",
         "Administrator.role",
@@ -664,7 +984,7 @@
       "hash": "31b4536c70c9cc29",
       "id": "Administrator.role:enum",
       "kind": "enum",
-      "line": 775,
+      "line": 1057,
       "refs": [
         "Administrator.role"
       ],
@@ -675,7 +995,7 @@
       "hash": "29879939671b3e91",
       "id": "Administrator:fk",
       "kind": "fk",
-      "line": 774,
+      "line": 1056,
       "refs": [
         "Administrator.person_id"
       ],
@@ -686,7 +1006,7 @@
       "hash": "22f7bfcb7022bee5",
       "id": "AdminAction:required",
       "kind": "required",
-      "line": 792,
+      "line": 1074,
       "refs": [
         "AdminAction.administrator_id",
         "AdminAction.action",
@@ -697,21 +1017,21 @@
     },
     {
       "entity": "AdminAction",
-      "hash": "014335cafea87c37",
+      "hash": "fcd749839544ac88",
       "id": "AdminAction.action:enum",
       "kind": "enum",
-      "line": 796,
+      "line": 1078,
       "refs": [
         "AdminAction.action"
       ],
-      "rule": "one of SUSPEND, REACTIVATE, DISMISS_REPORT, APPOINT_ADMIN, REMOVE_ADMIN, REPLAY_SYNC, RECOVER_2FA"
+      "rule": "one of SUSPEND, REACTIVATE, DISMISS_REPORT, APPOINT_ADMIN, REMOVE_ADMIN, REPLAY_SYNC, RECOVER_2FA, GIFT_DAYS, RECORD_PAYMENT, REFUND_PAYMENT, RELEASE_PHONE, RESTORE_ACCESS"
     },
     {
       "entity": "AdminAction",
       "hash": "6a0414efdde6c77b",
       "id": "AdminAction:fk",
       "kind": "fk",
-      "line": 795,
+      "line": 1077,
       "refs": [
         "AdminAction.administrator_id",
         "AdminAction.target_person_id",
@@ -726,7 +1046,7 @@
       "hash": "b50b770173cf67f4",
       "id": "Notification:required",
       "kind": "required",
-      "line": 813,
+      "line": 1099,
       "refs": [
         "Notification.recipient_id",
         "Notification.content",
@@ -741,7 +1061,7 @@
       "hash": "e8e6f096456c9931",
       "id": "Notification.read_status:enum",
       "kind": "enum",
-      "line": 822,
+      "line": 1108,
       "refs": [
         "Notification.read_status"
       ],
@@ -752,7 +1072,7 @@
       "hash": "ec7b6fe27fdb8c90",
       "id": "Notification:fk",
       "kind": "fk",
-      "line": 816,
+      "line": 1102,
       "refs": [
         "Notification.recipient_id",
         "Notification.organization_id"
@@ -764,7 +1084,7 @@
       "hash": "12aaaa89b0bbf10f",
       "id": "SyncArchive:required",
       "kind": "required",
-      "line": 928,
+      "line": 1217,
       "refs": [
         "SyncArchive.person_id",
         "SyncArchive.device_id",
@@ -778,7 +1098,7 @@
       "hash": "8ff443876ec3e0c9",
       "id": "SyncArchive:fk",
       "kind": "fk",
-      "line": 931,
+      "line": 1220,
       "refs": [
         "SyncArchive.person_id",
         "SyncArchive.device_id"
@@ -790,7 +1110,7 @@
       "hash": "60982c4373ffd677",
       "id": "OtpChallenge:required",
       "kind": "required",
-      "line": 1043,
+      "line": 1336,
       "refs": [
         "OtpChallenge.target",
         "OtpChallenge.purpose",
@@ -804,21 +1124,21 @@
     },
     {
       "entity": "OtpChallenge",
-      "hash": "12797e8b9e11d87b",
+      "hash": "f3b87b966a449454",
       "id": "OtpChallenge.purpose:enum",
       "kind": "enum",
-      "line": 1048,
+      "line": 1341,
       "refs": [
         "OtpChallenge.purpose"
       ],
-      "rule": "one of REGISTRATION, LOGIN, PASSWORD_RESET, PHONE_CHANGE, EMAIL_VERIFICATION, TOTP_RECOVERY"
+      "rule": "one of REGISTRATION, LOGIN, PASSWORD_RESET, PHONE_CHANGE, EMAIL_VERIFICATION, TOTP_RECOVERY, ORG_CONTACT_VERIFICATION, ACCESS_RESTORE"
     },
     {
       "entity": "OtpChallenge",
       "hash": "33ed701fd17ac2b5",
       "id": "OtpChallenge.channel:enum",
       "kind": "enum",
-      "line": 1049,
+      "line": 1342,
       "refs": [
         "OtpChallenge.channel"
       ],
@@ -826,21 +1146,22 @@
     },
     {
       "entity": "OtpChallenge",
-      "hash": "29879939671b3e91",
+      "hash": "ca935529e8275fc8",
       "id": "OtpChallenge:fk",
       "kind": "fk",
-      "line": 1046,
+      "line": 1339,
       "refs": [
-        "OtpChallenge.person_id"
+        "OtpChallenge.person_id",
+        "OtpChallenge.organization_contact_id"
       ],
-      "rule": "references person_id → Person"
+      "rule": "references person_id → Person; organization_contact_id → OrganizationContact"
     },
     {
       "entity": "Device",
       "hash": "8efdfd8f84f4a2bf",
       "id": "Device:required",
       "kind": "required",
-      "line": 1069,
+      "line": 1365,
       "refs": [
         "Device.person_id",
         "Device.platform",
@@ -855,7 +1176,7 @@
       "hash": "ff2b5b50eec41160",
       "id": "Device.platform:enum",
       "kind": "enum",
-      "line": 1073,
+      "line": 1369,
       "refs": [
         "Device.platform"
       ],
@@ -866,7 +1187,7 @@
       "hash": "29879939671b3e91",
       "id": "Device:fk",
       "kind": "fk",
-      "line": 1072,
+      "line": 1368,
       "refs": [
         "Device.person_id"
       ],
@@ -877,7 +1198,7 @@
       "hash": "2df1718e97a3c58e",
       "id": "RefreshToken:required",
       "kind": "required",
-      "line": 1092,
+      "line": 1388,
       "refs": [
         "RefreshToken.person_id",
         "RefreshToken.device_id",
@@ -892,7 +1213,7 @@
       "hash": "b89bdb4be5c5427a",
       "id": "RefreshToken.token_hash:unique",
       "kind": "unique",
-      "line": 1097,
+      "line": 1393,
       "refs": [
         "RefreshToken.token_hash"
       ],
@@ -903,7 +1224,7 @@
       "hash": "b3bda9e635280034",
       "id": "RefreshToken.revoked_reason:enum",
       "kind": "enum",
-      "line": 1102,
+      "line": 1398,
       "refs": [
         "RefreshToken.revoked_reason"
       ],
@@ -914,7 +1235,7 @@
       "hash": "8ff443876ec3e0c9",
       "id": "RefreshToken:fk",
       "kind": "fk",
-      "line": 1095,
+      "line": 1391,
       "refs": [
         "RefreshToken.person_id",
         "RefreshToken.device_id"
@@ -922,11 +1243,24 @@
       "rule": "references person_id → Person; device_id → Device"
     },
     {
+      "entity": "ImageCopy",
+      "hash": "7e162f37b7a81564",
+      "id": "ImageCopy:required",
+      "kind": "required",
+      "line": 1494,
+      "refs": [
+        "ImageCopy.source_key",
+        "ImageCopy.root_key",
+        "ImageCopy.copied_at"
+      ],
+      "rule": "NOT NULL"
+    },
+    {
       "entity": null,
       "hash": "05ef030c774a8f04",
       "id": "C-01",
       "kind": "rule",
-      "line": 1202,
+      "line": 1562,
       "refs": [
         "*"
       ],
@@ -934,23 +1268,24 @@
     },
     {
       "entity": "Person",
-      "hash": "afc132932ca9bdd3",
+      "hash": "8a7a7ad0c95a0323",
       "id": "C-02",
       "kind": "rule",
-      "line": 1203,
+      "line": 1563,
       "refs": [
         "Person.phone_number",
         "Person.released_phone_number",
-        "Person.status"
+        "Person.status",
+        "Person.avatar_key"
       ],
-      "rule": "`Person.phone_number` unique — contrainte ordinaire, PostgreSQL ignorant les valeurs nulles — et au format E.164 (`CHECK` sur `^\\+[1-9][0-9]{7,14}$`) ; exactement un de `phone_number` / `released_phone_number` renseigné ; `status = ANONYMIZED` ⇒ `phone_number` vide"
+      "rule": "`Person.phone_number` unique — contrainte ordinaire, PostgreSQL ignorant les valeurs nulles — et au format E.164 (`CHECK` sur `^\\+[1-9][0-9]{7,14}$`) ; exactement un de `phone_number` / `released_phone_number` renseigné ; `status = ANONYMIZED` ⇒ `phone_number` et `avatar_key` vides"
     },
     {
       "entity": "Person",
       "hash": "9c17fac1b090331f",
       "id": "C-03",
       "kind": "rule",
-      "line": 1204,
+      "line": 1564,
       "refs": [
         "Person.registered_at",
         "Person.status",
@@ -964,11 +1299,23 @@
       "rule": "`Person` : `registered_at` renseigné et `status ≠ ANONYMIZED` ⇒ `full_name` et `password_hash` renseignés, et `phone_verified_at` renseigné si `phone_number` l'est ; `phone_number` vide ⇒ `phone_verified_at` vide ; `email` vide ⇒ `email_verified_at` vide"
     },
     {
+      "entity": "Person",
+      "hash": "b1c6001552673787",
+      "id": "C-40",
+      "kind": "rule",
+      "line": 1565,
+      "refs": [
+        "Person.email",
+        "Person.email_verified_at"
+      ],
+      "rule": "`Person.email` vérifié unique, sans tenir compte des majuscules : index unique partiel sur `lower(email)` où `email_verified_at` est renseigné, contrôlé à la confirmation du code (v16)"
+    },
+    {
       "entity": "Delivery",
       "hash": "12b7b416b52a2b42",
       "id": "C-04",
       "kind": "rule",
-      "line": 1205,
+      "line": 1566,
       "refs": [
         "Delivery.assigned_to_id",
         "Report.reporter_id",
@@ -980,26 +1327,81 @@
       "rule": "Colonnes d'auteur (`*_by_id`, `Delivery.assigned_to_id`, `Report.reporter_id`, `Administrator.person_id`, `Handover.to_person_id`) : la personne est inscrite ; `Report.resolved_by_id` et `AdminAction.administrator_id` désignent un `Administrator`"
     },
     {
+      "entity": "Organization",
+      "hash": "395377c3a98a738d",
+      "id": "C-41",
+      "kind": "rule",
+      "line": 1567,
+      "refs": [
+        "Organization.payment_code",
+        "Organization.plan",
+        "Organization.plan_ends_at",
+        "Organization.grace_ends_at",
+        "Organization.max_collaborators",
+        "Organization.max_products"
+      ],
+      "rule": "`Organization` : `payment_code` unique ; `plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators` et `max_products` écrits par le serveur seul, et transmis à la seule équipe du commerce ; `plan = FREE` ⟺ `plan_ends_at` vide ; `grace_ends_at` renseigné ⇒ postérieur à `plan_ends_at`"
+    },
+    {
       "entity": "Collaboration",
-      "hash": "971bbd77df2e7f66",
+      "hash": "4e04302afb6e7d7e",
       "id": "C-05",
       "kind": "rule",
-      "line": 1206,
+      "line": 1568,
       "refs": [
         "Collaboration.person_id",
         "Collaboration.organization_id",
         "Collaboration.status",
-        "Collaboration.is_public_contact",
-        "Person.status"
+        "Person"
       ],
-      "rule": "`Collaboration` unique (`person_id`, `organization_id`) ; `status = ACTIVE` ⇒ la `Person` est inscrite ; exactement une `OWNER` active par organisation ; `is_public_contact` ⇒ `status = ACTIVE` et numéro actif"
+      "rule": "`Collaboration` unique (`person_id`, `organization_id`) ; `status = ACTIVE` ⇒ la `Person` est inscrite ; exactement une `OWNER` active par organisation"
+    },
+    {
+      "entity": "Organization",
+      "hash": "04a72a0dab876018",
+      "id": "C-42",
+      "kind": "rule",
+      "line": 1569,
+      "refs": [
+        "Organization.max_collaborators",
+        "Collaboration"
+      ],
+      "rule": "`Collaboration` : à chaque invitation, collaborateurs `ACTIVE` ou `INVITED`, propriétaire non compris, au plus `Organization.max_collaborators` ; statut `PAUSED` écrit par le serveur seul, jamais pour le `OWNER`"
+    },
+    {
+      "entity": "OrganizationContact",
+      "hash": "a9f34d82a4fa4f66",
+      "id": "C-43",
+      "kind": "rule",
+      "line": 1570,
+      "refs": [
+        "OrganizationContact.slot",
+        "OrganizationContact.kind",
+        "OrganizationContact.organization_id",
+        "OrganizationContact.value",
+        "OrganizationContact.verification_method",
+        "OrganizationContact.verified_at"
+      ],
+      "rule": "`OrganizationContact` : `slot` renseigné ⟺ `kind = PHONE`, `slot` entre 1 et 3, unique par (`organization_id`, `slot`) ; au plus un `EMAIL` par organisation (index unique partiel) ; unique par (`organization_id`, `value`) ; `kind = PHONE` ⇒ `value` au format E.164 ; `verification_method` renseigné ⟺ `verified_at` renseigné ; toutes ces unicités parmi les lignes non supprimées"
+    },
+    {
+      "entity": "OrganizationContact",
+      "hash": "5ca57018aee3bf2d",
+      "id": "C-44",
+      "kind": "rule",
+      "line": 1571,
+      "refs": [
+        "OrganizationContact.verified_at",
+        "OrganizationContact.verification_method"
+      ],
+      "rule": "`OrganizationContact` : écrit par le seul propriétaire, en ligne ; `verified_at` et `verification_method` fixés par le serveur"
     },
     {
       "entity": "CustomerRelationship",
       "hash": "75a91dce2fb7fbfb",
       "id": "C-06",
       "kind": "rule",
-      "line": 1207,
+      "line": 1572,
       "refs": [
         "CustomerRelationship.customer_label",
         "CustomerRelationship.customer_phone_number",
@@ -1012,7 +1414,7 @@
       "hash": "e8971b7e1463596e",
       "id": "C-07",
       "kind": "rule",
-      "line": 1208,
+      "line": 1573,
       "refs": [
         "CustomerRelationship.merged_into_id",
         "CustomerRelationship.supplier_organization_id",
@@ -1025,7 +1427,7 @@
       "hash": "de4b9482cd456f58",
       "id": "C-08",
       "kind": "rule",
-      "line": 1209,
+      "line": 1574,
       "refs": [
         "CustomerRelationship.status",
         "CustomerRelationship.supplier_person_id"
@@ -1037,7 +1439,7 @@
       "hash": "d68614be133aee66",
       "id": "C-09",
       "kind": "rule",
-      "line": 1210,
+      "line": 1575,
       "refs": [
         "CustomerRelationship.ended_by_party",
         "CustomerRelationship.status"
@@ -1049,7 +1451,7 @@
       "hash": "f07a62b9936b829a",
       "id": "C-10",
       "kind": "rule",
-      "line": 1211,
+      "line": 1576,
       "refs": [
         "CustomerRelationship.credit_limit",
         "CustomerRelationship.credit_limit_set_by_id",
@@ -1060,22 +1462,22 @@
     },
     {
       "entity": "CustomerPrice",
-      "hash": "d14ab5770b4138f6",
+      "hash": "d1144f513069b120",
       "id": "C-11",
       "kind": "rule",
-      "line": 1212,
+      "line": 1577,
       "refs": [
         "CustomerPrice.customer_relationship_id",
-        "CustomerPrice.product_id"
+        "CustomerPrice.product_variant_id"
       ],
-      "rule": "`CustomerPrice` unique (`customer_relationship_id`, `product_id`) parmi les lignes non supprimées ; article du fournisseur de la relation"
+      "rule": "`CustomerPrice` unique (`customer_relationship_id`, `product_variant_id`) parmi les lignes non supprimées ; variante du fournisseur de la relation"
     },
     {
       "entity": "CustomerRelationshipReassignment",
       "hash": "e0b1b3e973b19d2e",
       "id": "C-12",
       "kind": "rule",
-      "line": 1213,
+      "line": 1578,
       "refs": [
         "CustomerRelationshipReassignment.previous_person_id",
         "CustomerRelationshipReassignment.new_person_id"
@@ -1083,24 +1485,98 @@
       "rule": "`CustomerRelationshipReassignment` : `previous_person_id` et `new_person_id` renseignés ; aucune relation existante entre la nouvelle personne et le même fournisseur ; une seule contestation par relation et par personne ; aucune modification ni suppression"
     },
     {
+      "entity": "ProductVariant",
+      "hash": "16283d125c58d0b3",
+      "id": "C-45",
+      "kind": "rule",
+      "line": 1579,
+      "refs": [
+        "ProductVariant.organization_id",
+        "Product.organization_id"
+      ],
+      "rule": "`Product` non supprimé ⇒ au moins une `ProductVariant` non supprimée ; `ProductVariant.organization_id` = `Product.organization_id` (vérifié par le serveur)"
+    },
+    {
       "entity": "Product",
-      "hash": "551cbc236742ea64",
+      "hash": "c2e0ac773ed3e89b",
+      "id": "C-46",
+      "kind": "rule",
+      "line": 1580,
+      "refs": [
+        "Product.paused_at",
+        "Organization.max_products"
+      ],
+      "rule": "`Product.paused_at` écrit par le serveur seul ; produits en vente — non supprimés, pas en pause, avec au moins une variante `ACTIVE` — au plus `Organization.max_products`, vérifié par le téléphone et par les routes en ligne ; ce qui arrive en trop par la synchronisation est mis en pause, jamais refusé"
+    },
+    {
+      "entity": "ProductVariant",
+      "hash": "ccbacdf86b3ae89f",
+      "id": "C-47",
+      "kind": "rule",
+      "line": 1581,
+      "refs": [
+        "ProductVariant.product_id",
+        "ProductVariant.merged_into_id"
+      ],
+      "rule": "`ProductVariant` : (`product_id`, nom simplifié, unité simplifiée) unique parmi les variantes non supprimées — majuscules et espaces en trop ignorés, nom vide traité comme un texte vide, si bien que la règle vaut sur toute version de PostgreSQL ; `merged_into_id` renseigné ⇒ variante supprimée"
+    },
+    {
+      "entity": "ProductVariant",
+      "hash": "9edf2c5c55336629",
+      "id": "C-48",
+      "kind": "rule",
+      "line": 1582,
+      "refs": [
+        "ProductVariant",
+        "OrderLine",
+        "CustomerPrice"
+      ],
+      "rule": "`ProductVariant` citée par une `OrderLine` ou un `CustomerPrice` : jamais supprimée (`deleted_at`), seulement retirée de la vente (`INACTIVE`) ; une suppression reçue sur une variante citée devient un retrait de la vente, et une ligne reçue sur une variante supprimée la rétablit, retirée de la vente"
+    },
+    {
+      "entity": "ProductVariant",
+      "hash": "c3b3ecfd1483a424",
       "id": "C-13",
       "kind": "rule",
-      "line": 1214,
+      "line": 1583,
       "refs": [
-        "Product.price",
-        "Product.min_order_quantity",
-        "Product.price_updated_at"
+        "ProductVariant.price",
+        "ProductVariant.min_order_quantity",
+        "ProductVariant.price_updated_at"
       ],
-      "rule": "`Product.price > 0` ; `min_order_quantity > 0` s'il est renseigné ; `price_updated_at` fixé par le serveur à chaque changement de prix"
+      "rule": "`ProductVariant.price > 0` ; `min_order_quantity > 0` s'il est renseigné ; `price_updated_at` fixé par le serveur à chaque changement de prix"
+    },
+    {
+      "entity": "Product",
+      "hash": "17b093c242201634",
+      "id": "C-49",
+      "kind": "rule",
+      "line": 1584,
+      "refs": [
+        "Product.image_keys",
+        "ProductVariant.image_keys",
+        "Organization.logo_key",
+        "Person.avatar_key"
+      ],
+      "rule": "`Product.image_keys` et `ProductVariant.image_keys` : `CHECK (cardinality(image_keys) <= 5)`, index GIN ; une clé n'est citée que par une seule fiche, toutes tables confondues ; `image_keys`, `Organization.logo_key` et `Person.avatar_key` écrits par le serveur seul ; l'application limite les photos d'un produit ou d'une variante à `k`"
+    },
+    {
+      "entity": null,
+      "hash": "7b8101e43dc97e5e",
+      "id": "C-50",
+      "kind": "rule",
+      "line": 1585,
+      "refs": [
+        "*"
+      ],
+      "rule": "Fichier d'image supprimé du stockage dès que sa clé est retirée de sa fiche, ou que la fiche est supprimée ; ménage de nuit de tout fichier de plus de 24 heures qu'aucune fiche ne cite"
     },
     {
       "entity": "Order",
       "hash": "e66e4a04dfa6a7e6",
       "id": "C-14",
       "kind": "rule",
-      "line": 1215,
+      "line": 1586,
       "refs": [
         "Order"
       ],
@@ -1108,23 +1584,23 @@
     },
     {
       "entity": "OrderLine",
-      "hash": "325e4b203f9c8e01",
+      "hash": "d644ef38e073342d",
       "id": "C-15",
       "kind": "rule",
-      "line": 1216,
+      "line": 1587,
       "refs": [
         "OrderLine.quantity",
-        "Product.min_order_quantity",
+        "ProductVariant.min_order_quantity",
         "Order"
       ],
-      "rule": "`Order` : chaque ligne porte sur un article `ACTIVE` du fournisseur de la relation ; sur une commande passée par le client, `quantity ≥ min_order_quantity` à l'envoi"
+      "rule": "`Order` : chaque ligne porte sur une variante `ACTIVE` du fournisseur de la relation, d'un produit qui n'est pas en pause ; sur une commande passée par le client, `quantity ≥ min_order_quantity` de la variante à l'envoi"
     },
     {
       "entity": "Order",
       "hash": "3d4b14ce2a88b786",
       "id": "C-16",
       "kind": "rule",
-      "line": 1217,
+      "line": 1588,
       "refs": [
         "Order.cancelled_by_party",
         "Order.cancelled_by_id",
@@ -1136,22 +1612,23 @@
     },
     {
       "entity": "Order",
-      "hash": "834ad13808e0ecee",
-      "id": "C-17",
+      "hash": "63e60beff5eff0e9",
+      "id": "C-51",
       "kind": "rule",
-      "line": 1218,
+      "line": 1589,
       "refs": [
         "Order.status",
-        "Order.placed_by_party"
+        "Order.placed_by_party",
+        "Order.accepted_at"
       ],
-      "rule": "`Order` : `status = PENDING` ⇒ `placed_by_party = CUSTOMER`"
+      "rule": "`Order` : `status = PENDING` ⇒ `placed_by_party = CUSTOMER` et `accepted_at` vide ; `accepted_at` renseigné ⇒ `placed_by_party = CUSTOMER` (v16)"
     },
     {
       "entity": "Order",
       "hash": "8af0dac115a9512d",
       "id": "C-18",
       "kind": "rule",
-      "line": 1219,
+      "line": 1590,
       "refs": [
         "Order.supplier_note"
       ],
@@ -1162,7 +1639,7 @@
       "hash": "054e3f12255b781f",
       "id": "C-19",
       "kind": "rule",
-      "line": 1220,
+      "line": 1591,
       "refs": [
         "Order.delivered_at",
         "Order.delivered_by_id",
@@ -1176,25 +1653,26 @@
     },
     {
       "entity": "OrderLine",
-      "hash": "e09b817a636b321a",
+      "hash": "6978df5b0dac467b",
       "id": "C-20",
       "kind": "rule",
-      "line": 1221,
+      "line": 1592,
       "refs": [
         "OrderLine.amount",
+        "OrderLine.label_applied",
         "OrderLine.unit_price_applied",
         "OrderLine.reference_price",
         "OrderLine.price_set_by_id",
         "OrderLine.price_set_at"
       ],
-      "rule": "`OrderLine` : `amount` = quantité × prix appliqué, arrondi au franc (0,5 vers le haut), recalculé par le serveur ; sur une commande passée par le client, `unit_price_applied = reference_price` à l'envoi, puis jamais au-dessus ; `price_set_by_id` et `price_set_at` renseignés ⟺ `unit_price_applied ≠ reference_price`"
+      "rule": "`OrderLine` : `amount` = quantité × prix appliqué, arrondi au franc (0,5 vers le haut), recalculé par le serveur ; `label_applied` composé par la fonction partagée (voir 3.2) ; sur une commande passée par le client, `unit_price_applied = reference_price` à l'envoi, puis jamais au-dessus ; `price_set_by_id` et `price_set_at` renseignés ⟺ `unit_price_applied ≠ reference_price`"
     },
     {
       "entity": "Delivery",
       "hash": "02509b08d796b980",
       "id": "C-21",
       "kind": "rule",
-      "line": 1222,
+      "line": 1593,
       "refs": [
         "Delivery.assigned_to_id",
         "Delivery.arrived_at",
@@ -1209,7 +1687,7 @@
       "hash": "e4bc3e25f4f20ca1",
       "id": "C-22",
       "kind": "rule",
-      "line": 1223,
+      "line": 1594,
       "refs": [
         "Delivery"
       ],
@@ -1220,7 +1698,7 @@
       "hash": "52afaf8ff371249e",
       "id": "C-23",
       "kind": "rule",
-      "line": 1224,
+      "line": 1595,
       "refs": [
         "LedgerEntry.amount",
         "LedgerEntry.balance_effect",
@@ -1235,7 +1713,7 @@
       "hash": "83d9968d5df9b6e6",
       "id": "C-24",
       "kind": "rule",
-      "line": 1225,
+      "line": 1596,
       "refs": [
         "LedgerEntry.kind",
         "LedgerEntry.order_id",
@@ -1249,7 +1727,7 @@
       "hash": "6ecab99b91d45067",
       "id": "C-25",
       "kind": "rule",
-      "line": 1226,
+      "line": 1597,
       "refs": [
         "LedgerEntry.reverses_entry_id"
       ],
@@ -1260,7 +1738,7 @@
       "hash": "1b20d8913fac99e9",
       "id": "C-26",
       "kind": "rule",
-      "line": 1227,
+      "line": 1598,
       "refs": [
         "*"
       ],
@@ -1268,10 +1746,10 @@
     },
     {
       "entity": "Expense",
-      "hash": "5dce94b6053c1705",
+      "hash": "741d36ad57ca94da",
       "id": "C-27",
       "kind": "rule",
-      "line": 1228,
+      "line": 1599,
       "refs": [
         "Expense.amount",
         "Expense.paid_by_id",
@@ -1281,14 +1759,14 @@
         "Handover.cancelled_at",
         "Handover.cancelled_by_id"
       ],
-      "rule": "`Expense.amount > 0`, `paid_by_id` collaborateur du commerce, actif ou parti ; `Handover.amount > 0`, `from_person_id` collaborateur du commerce, actif ou parti, `from_person_id <> to_person_id` sauf la remise automatique de l'ancien propriétaire à lui-même au transfert de propriété, `to_person_id` `OWNER` ou `MANAGER` actif de l'organisation ; aucune modification, sinon l'annulation : `cancelled_at` et `cancelled_by_id` renseignés ensemble, une seule fois"
+      "rule": "`Expense.amount > 0`, `paid_by_id` collaborateur du commerce, actif ou parti ; `Handover.amount > 0`, `from_person_id` collaborateur du commerce, actif ou parti, `from_person_id <> to_person_id` sauf le versement automatique de l'ancien propriétaire à lui-même au transfert de propriété, `to_person_id` `OWNER` ou `MANAGER` actif de l'organisation ; aucune modification, sinon l'annulation : `cancelled_at` et `cancelled_by_id` renseignés ensemble, une seule fois"
     },
     {
       "entity": "Report",
       "hash": "73a10d946c747451",
       "id": "C-28",
       "kind": "rule",
-      "line": 1229,
+      "line": 1600,
       "refs": [
         "Report"
       ],
@@ -1296,10 +1774,10 @@
     },
     {
       "entity": "Administrator",
-      "hash": "74183d7195b95b81",
+      "hash": "9e357606b1052a6f",
       "id": "C-29",
       "kind": "rule",
-      "line": 1230,
+      "line": 1601,
       "refs": [
         "Administrator.totp_secret",
         "Administrator.recovery_email",
@@ -1308,14 +1786,14 @@
         "AdminAction.sync_archive_id",
         "AdminAction.action"
       ],
-      "rule": "`Administrator.totp_secret` obligatoire ; `recovery_email` différente de `Person.email` ; `AdminAction` : exactement une cible renseignée, `reason` obligatoire, `sync_archive_id` renseigné ⟺ `action = REPLAY_SYNC` (réservé à un `SUPER_ADMIN`), aucune modification ni suppression"
+      "rule": "`Administrator.totp_secret` obligatoire ; `recovery_email` différente de `Person.email` ; `AdminAction` : exactement une cible renseignée, `reason` obligatoire, `sync_archive_id` renseigné ⟺ `action = REPLAY_SYNC` (réservé à un `SUPER_ADMIN`) ; `GIFT_DAYS`, `RECORD_PAYMENT` et `REFUND_PAYMENT` réservés à un `SUPER_ADMIN`, avec un commerce pour cible ; `RELEASE_PHONE` et `RESTORE_ACCESS` réservés à un `SUPER_ADMIN`, avec une personne pour cible ; aucune modification ni suppression"
     },
     {
       "entity": "Notification",
       "hash": "8006a37b20eee09b",
       "id": "C-30",
       "kind": "rule",
-      "line": 1231,
+      "line": 1602,
       "refs": [
         "Notification.related_entity_type",
         "Notification.related_entity_id"
@@ -1324,22 +1802,74 @@
     },
     {
       "entity": "Subscription",
-      "hash": "232441df66d42f7a",
-      "id": "C-31",
+      "hash": "8dd2ca9fe170c706",
+      "id": "C-52",
       "kind": "rule",
-      "line": 1232,
+      "line": 1603,
       "refs": [
         "Subscription.organization_id",
-        "Subscription.status"
+        "Subscription.status",
+        "Subscription.payment_id",
+        "Subscription.months",
+        "Subscription.origin",
+        "Subscription.end_reason"
       ],
-      "rule": "`Subscription` unique partiel sur `organization_id` où `status = ACTIVE`"
+      "rule": "`Subscription` : unique partiel sur `organization_id` où `status = ACTIVE` ; aucun chevauchement des périodes d'une même organisation (contrainte d'exclusion) ; `starts_at ≤ ends_at` ; `payment_id` et `months` renseignés ⟺ `origin = PAYMENT` ; `end_reason` renseigné ⟺ `status = ENDED` ; écrite par le serveur seul"
+    },
+    {
+      "entity": "SubscriptionPayment",
+      "hash": "0450d812d72679e4",
+      "id": "C-53",
+      "kind": "rule",
+      "line": 1604,
+      "refs": [
+        "SubscriptionPayment.provider_reference",
+        "SubscriptionPayment.months",
+        "SubscriptionPayment.amount",
+        "SubscriptionPayment.confirmed_at",
+        "SubscriptionPayment.status",
+        "SubscriptionPayment.operator",
+        "SubscriptionPayment.payer_phone_number"
+      ],
+      "rule": "`SubscriptionPayment` : `provider_reference` unique ; `months` ∈ (1, 3, 6, 12) ; `amount` calculé par le serveur d'après la grille ; statut seulement de `PENDING` vers un autre, puis de `SUCCEEDED` vers `REFUNDED` ; `confirmed_at` renseigné ⟺ `status` ∈ (`SUCCEEDED`, `REFUNDED`) ; `operator = OTHER` ⟺ paiement constaté par un administrateur, `payer_phone_number` renseigné sinon"
+    },
+    {
+      "entity": "SubscriptionReceipt",
+      "hash": "0051f0329bfd807a",
+      "id": "C-54",
+      "kind": "rule",
+      "line": 1605,
+      "refs": [
+        "SubscriptionReceipt.number",
+        "SubscriptionReceipt.amount",
+        "SubscriptionReceipt.amount_excl_tax",
+        "SubscriptionReceipt.vat_amount",
+        "SubscriptionReceipt.cancels_receipt_id",
+        "SubscriptionReceipt.kind"
+      ],
+      "rule": "`SubscriptionReceipt` : `number` unique et sans trou ; `amount = amount_excl_tax + vat_amount` ; `cancels_receipt_id` renseigné ⟺ `kind = CREDIT_NOTE`, un avoir au plus par reçu ; aucune modification ni suppression"
+    },
+    {
+      "entity": "SubscriptionEvent",
+      "hash": "7ec86b4dfa7161a3",
+      "id": "C-55",
+      "kind": "rule",
+      "line": 1606,
+      "refs": [
+        "SubscriptionEvent.person_id",
+        "SubscriptionEvent.actor",
+        "SubscriptionEvent.administrator_id",
+        "SubscriptionEvent.admin_action_id",
+        "SubscriptionEvent.payment_id"
+      ],
+      "rule": "`SubscriptionEvent` : `person_id` renseigné ⟺ `actor = OWNER` ; `administrator_id` et `admin_action_id` renseignés ⟺ `actor = ADMINISTRATOR` ; `payment_id` renseigné si `actor = PAYER` ; aucune modification ni suppression"
     },
     {
       "entity": "SyncArchive",
       "hash": "e9ab1600829fc0e0",
       "id": "C-32",
       "kind": "rule",
-      "line": 1233,
+      "line": 1607,
       "refs": [
         "SyncArchive",
         "PhoneNumberChangeLog"
@@ -1347,24 +1877,39 @@
       "rule": "`SyncArchive`, `PhoneNumberChangeLog` : aucune modification ni suppression, hors purge après la durée de conservation"
     },
     {
+      "entity": "ImageCopy",
+      "hash": "0fa7ee0b5f7733ba",
+      "id": "C-56",
+      "kind": "rule",
+      "line": 1608,
+      "refs": [
+        "ImageCopy.copy_key",
+        "ImageCopy.root_key",
+        "ImageCopy.source_key"
+      ],
+      "rule": "`ImageCopy` : `copy_key` clé primaire ; `root_key` égale à la `root_key` de la source si celle-ci est une copie, sinon à `source_key` ; écrit par le serveur seul, dans la transaction qui inscrit la clé de la copie ; jamais synchronisé ; aucune modification ni suppression, ni purge"
+    },
+    {
       "entity": "OtpChallenge",
-      "hash": "83d6142c5af24015",
+      "hash": "210a482a8a46cd23",
       "id": "C-33",
       "kind": "rule",
-      "line": 1234,
+      "line": 1609,
       "refs": [
         "OtpChallenge.attempts",
         "OtpChallenge.channel",
-        "OtpChallenge.target"
+        "OtpChallenge.target",
+        "OtpChallenge.organization_contact_id",
+        "OtpChallenge.purpose"
       ],
-      "rule": "`OtpChallenge` : `attempts ≤ 5` ; un code consommé ou expiré ne sert plus ; SMS seulement vers les numéros +237 ; `channel = EMAIL` ⇒ `target` est l'email de la personne, ou l'adresse de secours d'un administrateur, déjà vérifiés sauf pour `EMAIL_VERIFICATION`"
+      "rule": "`OtpChallenge` : `attempts ≤ 5` ; un code consommé ou expiré ne sert plus ; SMS seulement vers les numéros +237 ; `channel = EMAIL` ⇒ `target` est l'email de la personne, ou l'adresse de secours d'un administrateur, déjà vérifiés sauf pour `EMAIL_VERIFICATION`, ou l'adresse email du contact visé pour `ORG_CONTACT_VERIFICATION` ; `organization_contact_id` renseigné ⟺ `purpose = ORG_CONTACT_VERIFICATION`, et `target` égal à sa valeur"
     },
     {
       "entity": "Device",
       "hash": "8624c5191d4e4496",
       "id": "C-34",
       "kind": "rule",
-      "line": 1235,
+      "line": 1610,
       "refs": [
         "Device.last_synced_at",
         "Device.scope_version_seen",
@@ -1379,7 +1924,7 @@
       "hash": "ecc15458302209aa",
       "id": "C-35",
       "kind": "rule",
-      "line": 1236,
+      "line": 1611,
       "refs": [
         "*"
       ],
@@ -1390,7 +1935,7 @@
       "hash": "8c4b5901fda9cf5d",
       "id": "C-36",
       "kind": "rule",
-      "line": 1237,
+      "line": 1612,
       "refs": [
         "*"
       ],
@@ -1401,7 +1946,7 @@
       "hash": "c6f598a084d01119",
       "id": "C-37",
       "kind": "rule",
-      "line": 1238,
+      "line": 1613,
       "refs": [
         "CustomerRelationship.balance",
         "Collaboration.amount_held"
@@ -1413,7 +1958,7 @@
       "hash": "f9017647e4367a20",
       "id": "C-38",
       "kind": "rule",
-      "line": 1239,
+      "line": 1614,
       "refs": [
         "*"
       ],
@@ -1421,19 +1966,22 @@
     },
     {
       "entity": "LedgerEntry",
-      "hash": "6990f7be79819a19",
+      "hash": "19faa459944c99b6",
       "id": "C-39",
       "kind": "rule",
-      "line": 1240,
+      "line": 1615,
       "refs": [
         "LedgerEntry",
         "SyncArchive",
         "PhoneNumberChangeLog",
         "CustomerRelationshipReassignment",
         "CreditLimitChange",
-        "AdminAction"
+        "AdminAction",
+        "ImageCopy",
+        "SubscriptionReceipt",
+        "SubscriptionEvent"
       ],
-      "rule": "Tables immuables (`LedgerEntry`, `SyncArchive`, `PhoneNumberChangeLog`, `CustomerRelationshipReassignment`, `CreditLimitChange`, `AdminAction`) : le compte applicatif n'a que les droits `INSERT` et `SELECT`"
+      "rule": "Tables immuables (`LedgerEntry`, `SyncArchive`, `PhoneNumberChangeLog`, `CustomerRelationshipReassignment`, `CreditLimitChange`, `AdminAction`, `ImageCopy`, `SubscriptionReceipt`, `SubscriptionEvent`) : le compte applicatif n'a que les droits `INSERT` et `SELECT`"
     }
   ],
   "entities": {
@@ -1442,7 +1990,7 @@
       "fields": [
         {
           "base": "PK",
-          "line": 794,
+          "line": 1076,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -1450,7 +1998,7 @@
         {
           "base": "FK",
           "fk": "Administrator",
-          "line": 795,
+          "line": 1077,
           "name": "administrator_id",
           "type": "FK → Administrator"
         },
@@ -1463,16 +2011,21 @@
             "APPOINT_ADMIN",
             "REMOVE_ADMIN",
             "REPLAY_SYNC",
-            "RECOVER_2FA"
+            "RECOVER_2FA",
+            "GIFT_DAYS",
+            "RECORD_PAYMENT",
+            "REFUND_PAYMENT",
+            "RELEASE_PHONE",
+            "RESTORE_ACCESS"
           ],
-          "line": 796,
+          "line": 1078,
           "name": "action",
-          "type": "enum [SUSPEND / REACTIVATE / DISMISS_REPORT / APPOINT_ADMIN / REMOVE_ADMIN / REPLAY_SYNC / RECOVER_2FA]"
+          "type": "enum [SUSPEND / REACTIVATE / DISMISS_REPORT / APPOINT_ADMIN / REMOVE_ADMIN / REPLAY_SYNC / RECOVER_2FA / GIFT_DAYS / RECORD_PAYMENT / REFUND_PAYMENT / RELEASE_PHONE / RESTORE_ACCESS]"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 797,
+          "line": 1079,
           "name": "target_person_id",
           "nullable": true,
           "type": "FK → Person, nullable"
@@ -1480,7 +2033,7 @@
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 798,
+          "line": 1080,
           "name": "target_organization_id",
           "nullable": true,
           "type": "FK → Organization, nullable"
@@ -1488,7 +2041,7 @@
         {
           "base": "FK",
           "fk": "Report",
-          "line": 799,
+          "line": 1081,
           "name": "report_id",
           "nullable": true,
           "type": "FK → Report, nullable"
@@ -1496,32 +2049,32 @@
         {
           "base": "FK",
           "fk": "SyncArchive",
-          "line": 800,
+          "line": 1082,
           "name": "sync_archive_id",
           "nullable": true,
           "type": "FK → SyncArchive, nullable"
         },
         {
           "base": "text",
-          "line": 801,
+          "line": 1083,
           "name": "reason",
           "type": "text"
         },
         {
           "base": "datetime",
-          "line": 802,
+          "line": 1084,
           "name": "occurred_at",
           "type": "datetime"
         }
       ],
-      "line": 789
+      "line": 1071
     },
     "Administrator": {
       "anchor": "gouvernance-de-la-plateforme/administrator",
       "fields": [
         {
           "base": "PK",
-          "line": 773,
+          "line": 1055,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -1529,7 +2082,7 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 774,
+          "line": 1056,
           "name": "person_id",
           "type": "FK → Person"
         },
@@ -1539,45 +2092,45 @@
             "SUPER_ADMIN",
             "MODERATOR"
           ],
-          "line": 775,
+          "line": 1057,
           "name": "role",
           "type": "enum [SUPER_ADMIN / MODERATOR]"
         },
         {
           "base": "string",
-          "line": 776,
+          "line": 1058,
           "name": "totp_secret",
           "type": "string"
         },
         {
           "base": "string",
-          "line": 777,
+          "line": 1059,
           "name": "recovery_email",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "datetime",
-          "line": 778,
+          "line": 1060,
           "name": "appointed_at",
           "type": "datetime"
         },
         {
           "base": "datetime",
-          "line": 779,
+          "line": 1061,
           "name": "removed_at",
           "nullable": true,
           "type": "datetime, nullable"
         }
       ],
-      "line": 768
+      "line": 1050
     },
     "Collaboration": {
       "anchor": "identite-et-organisation/collaboration",
       "fields": [
         {
           "base": "PK",
-          "line": 174,
+          "line": 197,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -1585,14 +2138,14 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 175,
+          "line": 198,
           "name": "person_id",
           "type": "FK → Person"
         },
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 176,
+          "line": 199,
           "name": "organization_id",
           "type": "FK → Organization"
         },
@@ -1604,7 +2157,7 @@
             "SELLER",
             "DRIVER"
           ],
-          "line": 177,
+          "line": 200,
           "name": "role",
           "type": "enum [OWNER / MANAGER / SELLER / DRIVER]"
         },
@@ -1613,46 +2166,41 @@
           "enum": [
             "INVITED",
             "ACTIVE",
+            "PAUSED",
             "REVOKED"
           ],
-          "line": 178,
+          "line": 201,
           "name": "status",
-          "type": "enum [INVITED / ACTIVE / REVOKED]"
-        },
-        {
-          "base": "boolean",
-          "line": 179,
-          "name": "is_public_contact",
-          "type": "boolean"
+          "type": "enum [INVITED / ACTIVE / PAUSED / REVOKED]"
         },
         {
           "base": "datetime",
-          "line": 180,
+          "line": 202,
           "name": "invited_at",
           "type": "datetime"
         },
         {
           "base": "datetime",
-          "line": 181,
+          "line": 203,
           "name": "accepted_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "bigint",
-          "line": 182,
+          "line": 204,
           "name": "amount_held",
           "type": "bigint"
         }
       ],
-      "line": 162
+      "line": 185
     },
     "CreditLimitChange": {
       "anchor": "relations-commerciales/creditlimitchange",
       "fields": [
         {
           "base": "PK",
-          "line": 385,
+          "line": 441,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -1660,20 +2208,20 @@
         {
           "base": "FK",
           "fk": "CustomerRelationship",
-          "line": 386,
+          "line": 442,
           "name": "customer_relationship_id",
           "type": "FK → CustomerRelationship"
         },
         {
           "base": "bigint",
-          "line": 387,
+          "line": 443,
           "name": "previous_limit",
           "nullable": true,
           "type": "bigint, nullable"
         },
         {
           "base": "bigint",
-          "line": 388,
+          "line": 444,
           "name": "new_limit",
           "nullable": true,
           "type": "bigint, nullable"
@@ -1681,25 +2229,25 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 389,
+          "line": 445,
           "name": "set_by_id",
           "type": "FK → Person"
         },
         {
           "base": "datetime",
-          "line": 390,
+          "line": 446,
           "name": "set_at",
           "type": "datetime"
         }
       ],
-      "line": 380
+      "line": 436
     },
     "CustomerPrice": {
       "anchor": "relations-commerciales/customerprice",
       "fields": [
         {
           "base": "PK",
-          "line": 324,
+          "line": 380,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -1707,45 +2255,45 @@
         {
           "base": "FK",
           "fk": "CustomerRelationship",
-          "line": 325,
+          "line": 381,
           "name": "customer_relationship_id",
           "type": "FK → CustomerRelationship"
         },
         {
           "base": "FK",
-          "fk": "Product",
-          "line": 326,
-          "name": "product_id",
-          "type": "FK → Product"
+          "fk": "ProductVariant",
+          "line": 382,
+          "name": "product_variant_id",
+          "type": "FK → ProductVariant"
         },
         {
           "base": "bigint",
-          "line": 327,
+          "line": 383,
           "name": "price",
           "type": "bigint"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 328,
+          "line": 384,
           "name": "set_by_id",
           "type": "FK → Person"
         },
         {
           "base": "datetime",
-          "line": 329,
+          "line": 385,
           "name": "set_at",
           "type": "datetime"
         }
       ],
-      "line": 319
+      "line": 375
     },
     "CustomerRelationship": {
       "anchor": "relations-commerciales/customerrelationship",
       "fields": [
         {
           "base": "PK",
-          "line": 209,
+          "line": 265,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -1753,7 +2301,7 @@
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 210,
+          "line": 266,
           "name": "supplier_organization_id",
           "nullable": true,
           "type": "FK → Organization, nullable"
@@ -1761,7 +2309,7 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 211,
+          "line": 267,
           "name": "supplier_person_id",
           "nullable": true,
           "type": "FK → Person, nullable"
@@ -1769,7 +2317,7 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 212,
+          "line": 268,
           "name": "customer_person_id",
           "nullable": true,
           "type": "FK → Person, nullable"
@@ -1777,42 +2325,42 @@
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 213,
+          "line": 269,
           "name": "customer_organization_id",
           "nullable": true,
           "type": "FK → Organization, nullable"
         },
         {
           "base": "string",
-          "line": 214,
+          "line": 270,
           "name": "customer_phone_number",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "string",
-          "line": 215,
+          "line": 271,
           "name": "customer_label",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "string",
-          "line": 216,
+          "line": 272,
           "name": "supplier_label",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "string",
-          "line": 217,
+          "line": 273,
           "name": "delivery_address",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "bigint",
-          "line": 218,
+          "line": 274,
           "name": "credit_limit",
           "nullable": true,
           "type": "bigint, nullable"
@@ -1820,21 +2368,21 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 219,
+          "line": 275,
           "name": "credit_limit_set_by_id",
           "nullable": true,
           "type": "FK → Person, nullable"
         },
         {
           "base": "datetime",
-          "line": 220,
+          "line": 276,
           "name": "credit_limit_set_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "bigint",
-          "line": 221,
+          "line": 277,
           "name": "balance",
           "type": "bigint"
         },
@@ -1845,7 +2393,7 @@
             "ACTIVE",
             "ENDED"
           ],
-          "line": 222,
+          "line": 278,
           "name": "status",
           "type": "enum [PENDING / ACTIVE / ENDED]"
         },
@@ -1855,14 +2403,14 @@
             "CUSTOMER",
             "SUPPLIER"
           ],
-          "line": 223,
+          "line": 279,
           "name": "ended_by_party",
           "nullable": true,
           "type": "enum [CUSTOMER / SUPPLIER], nullable"
         },
         {
           "base": "text",
-          "line": 224,
+          "line": 280,
           "name": "supplier_notes",
           "nullable": true,
           "type": "text, nullable"
@@ -1870,33 +2418,33 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 225,
+          "line": 281,
           "name": "created_by_id",
           "type": "FK → Person"
         },
         {
           "base": "datetime",
-          "line": 226,
+          "line": 282,
           "name": "created_at",
           "type": "datetime"
         },
         {
           "base": "FK",
           "fk": "CustomerRelationship",
-          "line": 227,
+          "line": 283,
           "name": "merged_into_id",
           "nullable": true,
           "type": "FK → CustomerRelationship, nullable"
         }
       ],
-      "line": 200
+      "line": 256
     },
     "CustomerRelationshipReassignment": {
       "anchor": "relations-commerciales/customerrelationshipreassignment",
       "fields": [
         {
           "base": "PK",
-          "line": 351,
+          "line": 407,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -1904,53 +2452,53 @@
         {
           "base": "FK",
           "fk": "CustomerRelationship",
-          "line": 352,
+          "line": 408,
           "name": "customer_relationship_id",
           "type": "FK → CustomerRelationship"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 353,
+          "line": 409,
           "name": "previous_person_id",
           "type": "FK → Person"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 354,
+          "line": 410,
           "name": "new_person_id",
           "type": "FK → Person"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 355,
+          "line": 411,
           "name": "reassigned_by_id",
           "type": "FK → Person"
         },
         {
           "base": "text",
-          "line": 356,
+          "line": 412,
           "name": "reason",
           "nullable": true,
           "type": "text, nullable"
         },
         {
           "base": "datetime",
-          "line": 357,
+          "line": 413,
           "name": "reassigned_at",
           "type": "datetime"
         }
       ],
-      "line": 344
+      "line": 400
     },
     "Delivery": {
       "anchor": "commandes-et-livraisons/delivery",
       "fields": [
         {
           "base": "PK",
-          "line": 567,
+          "line": 687,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -1958,61 +2506,61 @@
         {
           "base": "FK",
           "fk": "Order",
-          "line": 568,
+          "line": 688,
           "name": "order_id",
           "type": "FK → Order"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 569,
+          "line": 689,
           "name": "assigned_to_id",
           "type": "FK → Person"
         },
         {
           "base": "datetime",
-          "line": 570,
+          "line": 690,
           "name": "departed_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "datetime",
-          "line": 571,
+          "line": 691,
           "name": "arrived_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "datetime",
-          "line": 572,
+          "line": 692,
           "name": "failed_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "string",
-          "line": 573,
+          "line": 693,
           "name": "failure_reason",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "string",
-          "line": 574,
+          "line": 694,
           "name": "sync_issue",
           "nullable": true,
           "type": "string, nullable"
         }
       ],
-      "line": 562
+      "line": 682
     },
     "Device": {
       "anchor": "acces-et-securite/device",
       "fields": [
         {
           "base": "PK",
-          "line": 1071,
+          "line": 1367,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2020,7 +2568,7 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 1072,
+          "line": 1368,
           "name": "person_id",
           "type": "FK → Person"
         },
@@ -2030,72 +2578,72 @@
             "ANDROID",
             "IOS"
           ],
-          "line": 1073,
+          "line": 1369,
           "name": "platform",
           "type": "enum [ANDROID / IOS]"
         },
         {
           "base": "string",
-          "line": 1074,
+          "line": 1370,
           "name": "model",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "string",
-          "line": 1075,
+          "line": 1371,
           "name": "push_token",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "string",
-          "line": 1076,
+          "line": 1372,
           "name": "app_version",
           "type": "string"
         },
         {
           "base": "datetime",
-          "line": 1077,
+          "line": 1373,
           "name": "last_synced_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "int",
-          "line": 1078,
+          "line": 1374,
           "name": "scope_version_seen",
           "type": "int"
         },
         {
           "base": "string",
-          "line": 1079,
+          "line": 1375,
           "name": "integrity_verdict",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "datetime",
-          "line": 1080,
+          "line": 1376,
           "name": "created_at",
           "type": "datetime"
         },
         {
           "base": "datetime",
-          "line": 1081,
+          "line": 1377,
           "name": "revoked_at",
           "nullable": true,
           "type": "datetime, nullable"
         }
       ],
-      "line": 1066
+      "line": 1362
     },
     "Expense": {
       "anchor": "finances/expense",
       "fields": [
         {
           "base": "PK",
-          "line": 678,
+          "line": 798,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2103,33 +2651,33 @@
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 679,
+          "line": 799,
           "name": "organization_id",
           "type": "FK → Organization"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 680,
+          "line": 800,
           "name": "paid_by_id",
           "type": "FK → Person"
         },
         {
           "base": "bigint",
-          "line": 681,
+          "line": 801,
           "name": "amount",
           "type": "bigint"
         },
         {
           "base": "string",
-          "line": 682,
+          "line": 802,
           "name": "category",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "text",
-          "line": 683,
+          "line": 803,
           "name": "description",
           "nullable": true,
           "type": "text, nullable"
@@ -2137,19 +2685,19 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 684,
+          "line": 804,
           "name": "recorded_by_id",
           "type": "FK → Person"
         },
         {
           "base": "datetime",
-          "line": 685,
+          "line": 805,
           "name": "occurred_at",
           "type": "datetime"
         },
         {
           "base": "datetime",
-          "line": 686,
+          "line": 806,
           "name": "cancelled_at",
           "nullable": true,
           "type": "datetime, nullable"
@@ -2157,20 +2705,20 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 687,
+          "line": 807,
           "name": "cancelled_by_id",
           "nullable": true,
           "type": "FK → Person, nullable"
         }
       ],
-      "line": 673
+      "line": 793
     },
     "Handover": {
       "anchor": "finances/handover",
       "fields": [
         {
           "base": "PK",
-          "line": 702,
+          "line": 822,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2178,39 +2726,39 @@
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 703,
+          "line": 823,
           "name": "organization_id",
           "type": "FK → Organization"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 704,
+          "line": 824,
           "name": "from_person_id",
           "type": "FK → Person"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 705,
+          "line": 825,
           "name": "to_person_id",
           "type": "FK → Person"
         },
         {
           "base": "bigint",
-          "line": 706,
+          "line": 826,
           "name": "amount",
           "type": "bigint"
         },
         {
           "base": "datetime",
-          "line": 707,
+          "line": 827,
           "name": "occurred_at",
           "type": "datetime"
         },
         {
           "base": "datetime",
-          "line": 708,
+          "line": 828,
           "name": "cancelled_at",
           "nullable": true,
           "type": "datetime, nullable"
@@ -2218,20 +2766,51 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 709,
+          "line": 829,
           "name": "cancelled_by_id",
           "nullable": true,
           "type": "FK → Person, nullable"
         }
       ],
-      "line": 697
+      "line": 817
+    },
+    "ImageCopy": {
+      "anchor": "images/imagecopy",
+      "fields": [
+        {
+          "base": "string",
+          "line": 1496,
+          "name": "copy_key",
+          "pk": true,
+          "type": "string, PK"
+        },
+        {
+          "base": "string",
+          "line": 1497,
+          "name": "source_key",
+          "type": "string"
+        },
+        {
+          "base": "string",
+          "line": 1498,
+          "name": "root_key",
+          "type": "string"
+        },
+        {
+          "base": "datetime",
+          "line": 1499,
+          "name": "copied_at",
+          "type": "datetime"
+        }
+      ],
+      "line": 1491
     },
     "LedgerEntry": {
       "anchor": "finances/ledgerentry",
       "fields": [
         {
           "base": "PK",
-          "line": 623,
+          "line": 743,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2239,14 +2818,14 @@
         {
           "base": "FK",
           "fk": "CustomerRelationship",
-          "line": 624,
+          "line": 744,
           "name": "customer_relationship_id",
           "type": "FK → CustomerRelationship"
         },
         {
           "base": "FK",
           "fk": "Order",
-          "line": 625,
+          "line": 745,
           "name": "order_id",
           "nullable": true,
           "type": "FK → Order, nullable"
@@ -2260,20 +2839,20 @@
             "CREDIT_NOTE",
             "OPENING_BALANCE"
           ],
-          "line": 626,
+          "line": 746,
           "name": "kind",
           "type": "enum [SALE / PAYMENT / REFUND / CREDIT_NOTE / OPENING_BALANCE]"
         },
         {
           "base": "bigint",
-          "line": 627,
+          "line": 747,
           "name": "amount",
           "type": "bigint"
         },
         {
           "base": "bigint",
           "generated": true,
-          "line": 628,
+          "line": 748,
           "name": "balance_effect",
           "type": "bigint, calculé par la base"
         },
@@ -2283,14 +2862,14 @@
             "CASH",
             "MOBILE_MONEY"
           ],
-          "line": 629,
+          "line": 749,
           "name": "mode",
           "nullable": true,
           "type": "enum [CASH / MOBILE_MONEY], nullable"
         },
         {
           "base": "string",
-          "line": 630,
+          "line": 750,
           "name": "transaction_reference",
           "nullable": true,
           "type": "string, nullable"
@@ -2298,7 +2877,7 @@
         {
           "base": "FK",
           "fk": "LedgerEntry",
-          "line": 631,
+          "line": 751,
           "name": "reverses_entry_id",
           "nullable": true,
           "type": "FK → LedgerEntry, nullable"
@@ -2306,32 +2885,32 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 632,
+          "line": 752,
           "name": "recorded_by_id",
           "type": "FK → Person"
         },
         {
           "base": "text",
-          "line": 633,
+          "line": 753,
           "name": "note",
           "nullable": true,
           "type": "text, nullable"
         },
         {
           "base": "datetime",
-          "line": 634,
+          "line": 754,
           "name": "occurred_at",
           "type": "datetime"
         }
       ],
-      "line": 604
+      "line": 724
     },
     "Notification": {
       "anchor": "notifications/notification",
       "fields": [
         {
           "base": "PK",
-          "line": 815,
+          "line": 1101,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2339,33 +2918,33 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 816,
+          "line": 1102,
           "name": "recipient_id",
           "type": "FK → Person"
         },
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 817,
+          "line": 1103,
           "name": "organization_id",
           "nullable": true,
           "type": "FK → Organization, nullable"
         },
         {
           "base": "text",
-          "line": 818,
+          "line": 1104,
           "name": "content",
           "type": "text"
         },
         {
           "base": "string",
-          "line": 819,
+          "line": 1105,
           "name": "source_event",
           "type": "string"
         },
         {
           "base": "string",
-          "line": 820,
+          "line": 1106,
           "name": "related_entity_type",
           "nullable": true,
           "type": "string, nullable"
@@ -2373,7 +2952,7 @@
         {
           "base": "FK",
           "fk": "",
-          "line": 821,
+          "line": 1107,
           "name": "related_entity_id",
           "nullable": true,
           "polymorphic": true,
@@ -2385,32 +2964,32 @@
             "UNREAD",
             "READ"
           ],
-          "line": 822,
+          "line": 1108,
           "name": "read_status",
           "type": "enum [UNREAD / READ]"
         },
         {
           "base": "datetime",
-          "line": 823,
+          "line": 1109,
           "name": "pushed_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "datetime",
-          "line": 824,
+          "line": 1110,
           "name": "created_at",
           "type": "datetime"
         }
       ],
-      "line": 812
+      "line": 1098
     },
     "Order": {
       "anchor": "commandes-et-livraisons/order",
       "fields": [
         {
           "base": "PK",
-          "line": 442,
+          "line": 550,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2418,7 +2997,7 @@
         {
           "base": "FK",
           "fk": "CustomerRelationship",
-          "line": 443,
+          "line": 551,
           "name": "customer_relationship_id",
           "type": "FK → CustomerRelationship"
         },
@@ -2428,33 +3007,33 @@
             "CUSTOMER",
             "SUPPLIER"
           ],
-          "line": 444,
+          "line": 552,
           "name": "placed_by_party",
           "type": "enum [CUSTOMER / SUPPLIER]"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 445,
+          "line": 553,
           "name": "entered_by_id",
           "type": "FK → Person"
         },
         {
           "base": "string",
-          "line": 446,
+          "line": 554,
           "name": "delivery_address_applied",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "bigint",
-          "line": 447,
+          "line": 555,
           "name": "total_amount",
           "type": "bigint"
         },
         {
           "base": "bigint",
-          "line": 448,
+          "line": 556,
           "name": "delivery_cost",
           "type": "bigint"
         },
@@ -2467,13 +3046,13 @@
             "DELIVERED",
             "CANCELLED"
           ],
-          "line": 449,
+          "line": 557,
           "name": "status",
           "type": "enum [PENDING / CONFIRMED / IN_DELIVERY / DELIVERED / CANCELLED]"
         },
         {
           "base": "datetime",
-          "line": 450,
+          "line": 558,
           "name": "delivered_at",
           "nullable": true,
           "type": "datetime, nullable"
@@ -2481,20 +3060,27 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 451,
+          "line": 559,
           "name": "delivered_by_id",
           "nullable": true,
           "type": "FK → Person, nullable"
         },
         {
           "base": "datetime",
-          "line": 452,
+          "line": 560,
           "name": "created_at",
           "type": "datetime"
         },
         {
+          "base": "datetime",
+          "line": 561,
+          "name": "accepted_at",
+          "nullable": true,
+          "type": "datetime, nullable"
+        },
+        {
           "base": "date",
-          "line": 453,
+          "line": 562,
           "name": "desired_delivery_date",
           "nullable": true,
           "type": "date, nullable"
@@ -2505,7 +3091,7 @@
             "CUSTOMER",
             "SUPPLIER"
           ],
-          "line": 454,
+          "line": 563,
           "name": "cancelled_by_party",
           "nullable": true,
           "type": "enum [CUSTOMER / SUPPLIER], nullable"
@@ -2513,21 +3099,21 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 455,
+          "line": 564,
           "name": "cancelled_by_id",
           "nullable": true,
           "type": "FK → Person, nullable"
         },
         {
           "base": "datetime",
-          "line": 456,
+          "line": 565,
           "name": "cancelled_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "string",
-          "line": 457,
+          "line": 566,
           "name": "cancellation_reason",
           "nullable": true,
           "type": "string, nullable"
@@ -2535,41 +3121,41 @@
         {
           "base": "FK",
           "fk": "Order",
-          "line": 458,
+          "line": 567,
           "name": "parent_order_id",
           "nullable": true,
           "type": "FK → Order, nullable"
         },
         {
           "base": "string",
-          "line": 459,
+          "line": 568,
           "name": "customer_note",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "string",
-          "line": 460,
+          "line": 569,
           "name": "supplier_note",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "string",
-          "line": 461,
+          "line": 570,
           "name": "sync_issue",
           "nullable": true,
           "type": "string, nullable"
         }
       ],
-      "line": 437
+      "line": 545
     },
     "OrderLine": {
       "anchor": "commandes-et-livraisons/orderline",
       "fields": [
         {
           "base": "PK",
-          "line": 533,
+          "line": 653,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2577,99 +3163,99 @@
         {
           "base": "FK",
           "fk": "Order",
-          "line": 534,
+          "line": 654,
           "name": "order_id",
           "type": "FK → Order"
         },
         {
           "base": "FK",
-          "fk": "Product",
-          "line": 535,
-          "name": "product_id",
-          "type": "FK → Product"
+          "fk": "ProductVariant",
+          "line": 655,
+          "name": "product_variant_id",
+          "type": "FK → ProductVariant"
         },
         {
           "base": "string",
-          "line": 536,
+          "line": 656,
           "name": "label_applied",
           "type": "string"
         },
         {
           "base": "decimal (3 décimales)",
-          "line": 537,
+          "line": 657,
           "name": "quantity",
           "type": "decimal (3 décimales)"
         },
         {
           "base": "decimal (3 décimales)",
-          "line": 538,
+          "line": 658,
           "name": "delivered_quantity",
           "nullable": true,
           "type": "decimal (3 décimales), nullable"
         },
         {
           "base": "bigint",
-          "line": 539,
+          "line": 659,
           "name": "reference_price",
           "type": "bigint"
         },
         {
           "base": "bigint",
-          "line": 540,
+          "line": 660,
           "name": "unit_price_applied",
           "type": "bigint"
         },
         {
           "base": "bigint",
-          "line": 541,
+          "line": 661,
           "name": "amount",
           "type": "bigint"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 542,
+          "line": 662,
           "name": "price_set_by_id",
           "nullable": true,
           "type": "FK → Person, nullable"
         },
         {
           "base": "datetime",
-          "line": 543,
+          "line": 663,
           "name": "price_set_at",
           "nullable": true,
           "type": "datetime, nullable"
         }
       ],
-      "line": 530
+      "line": 650
     },
     "Organization": {
       "anchor": "identite-et-organisation/organization",
       "fields": [
         {
           "base": "PK",
-          "line": 141,
+          "line": 156,
           "name": "id",
           "pk": true,
           "type": "PK"
         },
         {
           "base": "string",
-          "line": 142,
+          "line": 157,
           "name": "name",
           "type": "string"
         },
         {
           "base": "text",
-          "line": 143,
+          "line": 158,
           "name": "description",
           "nullable": true,
           "type": "text, nullable"
         },
         {
           "base": "string",
-          "line": 144,
-          "name": "email",
+          "line": 159,
+          "name": "logo_key",
           "nullable": true,
           "type": "string, nullable"
         },
@@ -2680,25 +3266,146 @@
             "SUSPENDED",
             "CLOSED"
           ],
-          "line": 145,
+          "line": 160,
           "name": "status",
           "type": "enum [ACTIVE / SUSPENDED / CLOSED]"
         },
         {
+          "base": "string",
+          "line": 161,
+          "name": "payment_code",
+          "type": "string, unique",
+          "unique": true
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "FREE",
+            "ESSENTIAL",
+            "PRO",
+            "ENTERPRISE"
+          ],
+          "line": 162,
+          "name": "plan",
+          "type": "enum [FREE / ESSENTIAL / PRO / ENTERPRISE]"
+        },
+        {
           "base": "datetime",
-          "line": 146,
+          "line": 163,
+          "name": "plan_ends_at",
+          "nullable": true,
+          "type": "datetime, nullable"
+        },
+        {
+          "base": "datetime",
+          "line": 164,
+          "name": "grace_ends_at",
+          "nullable": true,
+          "type": "datetime, nullable"
+        },
+        {
+          "base": "int",
+          "line": 165,
+          "name": "max_collaborators",
+          "nullable": true,
+          "type": "int, nullable"
+        },
+        {
+          "base": "int",
+          "line": 166,
+          "name": "max_products",
+          "nullable": true,
+          "type": "int, nullable"
+        },
+        {
+          "base": "datetime",
+          "line": 167,
           "name": "created_at",
           "type": "datetime"
         }
       ],
-      "line": 136
+      "line": 151
+    },
+    "OrganizationContact": {
+      "anchor": "identite-et-organisation/organizationcontact",
+      "fields": [
+        {
+          "base": "PK",
+          "line": 223,
+          "name": "id",
+          "pk": true,
+          "type": "PK"
+        },
+        {
+          "base": "FK",
+          "fk": "Organization",
+          "line": 224,
+          "name": "organization_id",
+          "type": "FK → Organization"
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "PHONE",
+            "EMAIL"
+          ],
+          "line": 225,
+          "name": "kind",
+          "type": "enum [PHONE / EMAIL]"
+        },
+        {
+          "base": "int",
+          "line": 226,
+          "name": "slot",
+          "nullable": true,
+          "type": "int, nullable"
+        },
+        {
+          "base": "string",
+          "line": 227,
+          "name": "value",
+          "type": "string"
+        },
+        {
+          "base": "datetime",
+          "line": 228,
+          "name": "verified_at",
+          "nullable": true,
+          "type": "datetime, nullable"
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "CODE",
+            "OWNER_PHONE"
+          ],
+          "line": 229,
+          "name": "verification_method",
+          "nullable": true,
+          "type": "enum [CODE / OWNER_PHONE], nullable"
+        },
+        {
+          "base": "FK",
+          "fk": "Person",
+          "line": 230,
+          "name": "created_by_id",
+          "type": "FK → Person"
+        },
+        {
+          "base": "datetime",
+          "line": 231,
+          "name": "created_at",
+          "type": "datetime"
+        }
+      ],
+      "line": 218
     },
     "OtpChallenge": {
       "anchor": "acces-et-securite/otpchallenge",
       "fields": [
         {
           "base": "PK",
-          "line": 1045,
+          "line": 1338,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2706,14 +3413,14 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 1046,
+          "line": 1339,
           "name": "person_id",
           "nullable": true,
           "type": "FK → Person, nullable"
         },
         {
           "base": "string",
-          "line": 1047,
+          "line": 1340,
           "name": "target",
           "type": "string"
         },
@@ -2725,11 +3432,13 @@
             "PASSWORD_RESET",
             "PHONE_CHANGE",
             "EMAIL_VERIFICATION",
-            "TOTP_RECOVERY"
+            "TOTP_RECOVERY",
+            "ORG_CONTACT_VERIFICATION",
+            "ACCESS_RESTORE"
           ],
-          "line": 1048,
+          "line": 1341,
           "name": "purpose",
-          "type": "enum [REGISTRATION / LOGIN / PASSWORD_RESET / PHONE_CHANGE / EMAIL_VERIFICATION / TOTP_RECOVERY]"
+          "type": "enum [REGISTRATION / LOGIN / PASSWORD_RESET / PHONE_CHANGE / EMAIL_VERIFICATION / TOTP_RECOVERY / ORG_CONTACT_VERIFICATION / ACCESS_RESTORE]"
         },
         {
           "base": "enum",
@@ -2737,64 +3446,79 @@
             "SMS",
             "EMAIL"
           ],
-          "line": 1049,
+          "line": 1342,
           "name": "channel",
           "type": "enum [SMS / EMAIL]"
         },
         {
+          "base": "FK",
+          "fk": "OrganizationContact",
+          "line": 1343,
+          "name": "organization_contact_id",
+          "nullable": true,
+          "type": "FK → OrganizationContact, nullable"
+        },
+        {
           "base": "string",
-          "line": 1050,
+          "line": 1344,
           "name": "code_hash",
           "type": "string"
         },
         {
           "base": "datetime",
-          "line": 1051,
+          "line": 1345,
           "name": "expires_at",
           "type": "datetime"
         },
         {
           "base": "int",
-          "line": 1052,
+          "line": 1346,
           "name": "attempts",
           "type": "int"
         },
         {
           "base": "datetime",
-          "line": 1053,
+          "line": 1347,
           "name": "consumed_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "datetime",
-          "line": 1054,
+          "line": 1348,
           "name": "created_at",
           "type": "datetime"
         }
       ],
-      "line": 1040
+      "line": 1333
     },
     "Person": {
       "anchor": "identite-et-organisation/person",
       "fields": [
         {
           "base": "PK",
-          "line": 56,
+          "line": 60,
           "name": "id",
           "pk": true,
           "type": "PK"
         },
         {
           "base": "string",
-          "line": 57,
+          "line": 61,
           "name": "full_name",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "string",
-          "line": 58,
+          "line": 62,
+          "name": "avatar_key",
+          "nullable": true,
+          "type": "string, nullable"
+        },
+        {
+          "base": "string",
+          "line": 63,
           "name": "phone_number",
           "nullable": true,
           "type": "string, nullable, unique",
@@ -2802,42 +3526,42 @@
         },
         {
           "base": "string",
-          "line": 59,
+          "line": 64,
           "name": "released_phone_number",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "datetime",
-          "line": 60,
+          "line": 65,
           "name": "phone_verified_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "string",
-          "line": 61,
+          "line": 66,
           "name": "email",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "datetime",
-          "line": 62,
+          "line": 67,
           "name": "email_verified_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "string",
-          "line": 63,
+          "line": 68,
           "name": "password_hash",
           "nullable": true,
           "type": "string, nullable"
         },
         {
           "base": "datetime",
-          "line": 64,
+          "line": 69,
           "name": "registered_at",
           "nullable": true,
           "type": "datetime, nullable"
@@ -2848,14 +3572,14 @@
             "FR",
             "EN"
           ],
-          "line": 65,
+          "line": 70,
           "name": "preferred_language",
           "nullable": true,
           "type": "enum [FR / EN], nullable"
         },
         {
           "base": "datetime",
-          "line": 66,
+          "line": 71,
           "name": "created_at",
           "type": "datetime"
         },
@@ -2866,32 +3590,32 @@
             "SUSPENDED",
             "ANONYMIZED"
           ],
-          "line": 67,
+          "line": 72,
           "name": "status",
           "type": "enum [ACTIVE / SUSPENDED / ANONYMIZED]"
         },
         {
           "base": "datetime",
-          "line": 68,
+          "line": 73,
           "name": "anonymized_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "int",
-          "line": 69,
+          "line": 74,
           "name": "scope_version",
           "type": "int"
         }
       ],
-      "line": 47
+      "line": 51
     },
     "PhoneNumberChangeLog": {
       "anchor": "identite-et-organisation/phonenumberchangelog",
       "fields": [
         {
           "base": "PK",
-          "line": 129,
+          "line": 144,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2899,43 +3623,43 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 130,
+          "line": 145,
           "name": "person_id",
           "type": "FK → Person"
         },
         {
           "base": "string",
-          "line": 131,
+          "line": 146,
           "name": "old_phone_number",
           "type": "string"
         },
         {
           "base": "string",
-          "line": 132,
+          "line": 147,
           "name": "new_phone_number",
           "type": "string"
         },
         {
           "base": "datetime",
-          "line": 133,
+          "line": 148,
           "name": "verified_at",
           "type": "datetime"
         },
         {
           "base": "datetime",
-          "line": 134,
+          "line": 149,
           "name": "changed_at",
           "type": "datetime"
         }
       ],
-      "line": 124
+      "line": 139
     },
     "Product": {
       "anchor": "catalogue/product",
       "fields": [
         {
           "base": "PK",
-          "line": 403,
+          "line": 461,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -2943,54 +3667,113 @@
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 404,
+          "line": 462,
           "name": "organization_id",
           "type": "FK → Organization"
         },
         {
           "base": "string",
-          "line": 405,
+          "line": 463,
           "name": "name",
           "type": "string"
         },
         {
-          "base": "string",
-          "line": 406,
-          "name": "unit",
-          "type": "string"
-        },
-        {
-          "base": "bigint",
-          "line": 407,
-          "name": "price",
-          "type": "bigint"
-        },
-        {
-          "base": "datetime",
-          "line": 408,
-          "name": "price_updated_at",
-          "type": "datetime"
-        },
-        {
-          "base": "decimal (3 décimales)",
-          "line": 409,
-          "name": "min_order_quantity",
-          "nullable": true,
-          "type": "decimal (3 décimales), nullable"
-        },
-        {
           "base": "text",
-          "line": 410,
+          "line": 464,
           "name": "description",
           "nullable": true,
           "type": "text, nullable"
         },
         {
           "base": "string",
-          "line": 411,
+          "line": 465,
           "name": "category",
           "nullable": true,
           "type": "string, nullable"
+        },
+        {
+          "base": "string[]",
+          "line": 466,
+          "name": "image_keys",
+          "type": "string[]"
+        },
+        {
+          "base": "datetime",
+          "line": 467,
+          "name": "paused_at",
+          "nullable": true,
+          "type": "datetime, nullable"
+        },
+        {
+          "base": "datetime",
+          "line": 468,
+          "name": "created_at",
+          "type": "datetime"
+        }
+      ],
+      "line": 456
+    },
+    "ProductVariant": {
+      "anchor": "catalogue/productvariant",
+      "fields": [
+        {
+          "base": "PK",
+          "line": 510,
+          "name": "id",
+          "pk": true,
+          "type": "PK"
+        },
+        {
+          "base": "FK",
+          "fk": "Product",
+          "line": 511,
+          "name": "product_id",
+          "type": "FK → Product"
+        },
+        {
+          "base": "FK",
+          "fk": "Organization",
+          "line": 512,
+          "name": "organization_id",
+          "type": "FK → Organization"
+        },
+        {
+          "base": "string",
+          "line": 513,
+          "name": "name",
+          "nullable": true,
+          "type": "string, nullable"
+        },
+        {
+          "base": "string",
+          "line": 514,
+          "name": "unit",
+          "type": "string"
+        },
+        {
+          "base": "bigint",
+          "line": 515,
+          "name": "price",
+          "type": "bigint"
+        },
+        {
+          "base": "datetime",
+          "line": 516,
+          "name": "price_updated_at",
+          "type": "datetime"
+        },
+        {
+          "base": "decimal (3 décimales)",
+          "line": 517,
+          "name": "min_order_quantity",
+          "nullable": true,
+          "type": "decimal (3 décimales), nullable"
+        },
+        {
+          "base": "string[]",
+          "line": 518,
+          "name": "image_keys",
+          "type": "string[]"
         },
         {
           "base": "enum",
@@ -2998,25 +3781,33 @@
             "ACTIVE",
             "INACTIVE"
           ],
-          "line": 412,
+          "line": 519,
           "name": "status",
           "type": "enum [ACTIVE / INACTIVE]"
         },
         {
           "base": "datetime",
-          "line": 413,
+          "line": 520,
           "name": "created_at",
           "type": "datetime"
+        },
+        {
+          "base": "FK",
+          "fk": "ProductVariant",
+          "line": 521,
+          "name": "merged_into_id",
+          "nullable": true,
+          "type": "FK → ProductVariant, nullable"
         }
       ],
-      "line": 398
+      "line": 505
     },
     "RefreshToken": {
       "anchor": "acces-et-securite/refreshtoken",
       "fields": [
         {
           "base": "PK",
-          "line": 1094,
+          "line": 1390,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -3024,46 +3815,46 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 1095,
+          "line": 1391,
           "name": "person_id",
           "type": "FK → Person"
         },
         {
           "base": "FK",
           "fk": "Device",
-          "line": 1096,
+          "line": 1392,
           "name": "device_id",
           "type": "FK → Device"
         },
         {
           "base": "string",
-          "line": 1097,
+          "line": 1393,
           "name": "token_hash",
           "type": "string, unique",
           "unique": true
         },
         {
           "base": "datetime",
-          "line": 1098,
+          "line": 1394,
           "name": "expires_at",
           "type": "datetime"
         },
         {
           "base": "datetime",
-          "line": 1099,
+          "line": 1395,
           "name": "created_at",
           "type": "datetime"
         },
         {
           "base": "datetime",
-          "line": 1100,
+          "line": 1396,
           "name": "rotated_at",
           "nullable": true,
           "type": "datetime, nullable"
         },
         {
           "base": "datetime",
-          "line": 1101,
+          "line": 1397,
           "name": "revoked_at",
           "nullable": true,
           "type": "datetime, nullable"
@@ -3078,20 +3869,20 @@
             "PASSWORD_RESET",
             "ACCOUNT_SUSPENDED"
           ],
-          "line": 1102,
+          "line": 1398,
           "name": "revoked_reason",
           "nullable": true,
           "type": "enum [LOGOUT / DEVICE_REMOVED / LOGOUT_ALL / REUSE_DETECTED / PASSWORD_RESET / ACCOUNT_SUSPENDED], nullable"
         }
       ],
-      "line": 1089
+      "line": 1385
     },
     "Report": {
       "anchor": "moderation/report",
       "fields": [
         {
           "base": "PK",
-          "line": 747,
+          "line": 1029,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -3099,14 +3890,14 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 748,
+          "line": 1030,
           "name": "reporter_id",
           "type": "FK → Person"
         },
         {
           "base": "FK",
           "fk": "Person",
-          "line": 749,
+          "line": 1031,
           "name": "target_person_id",
           "nullable": true,
           "type": "FK → Person, nullable"
@@ -3114,20 +3905,20 @@
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 750,
+          "line": 1032,
           "name": "target_organization_id",
           "nullable": true,
           "type": "FK → Organization, nullable"
         },
         {
           "base": "string",
-          "line": 751,
+          "line": 1033,
           "name": "reason",
           "type": "string"
         },
         {
           "base": "text",
-          "line": 752,
+          "line": 1034,
           "name": "description",
           "type": "text"
         },
@@ -3137,14 +3928,14 @@
             "PENDING",
             "RESOLVED"
           ],
-          "line": 753,
+          "line": 1035,
           "name": "status",
           "type": "enum [PENDING / RESOLVED]"
         },
         {
           "base": "FK",
           "fk": "Administrator",
-          "line": 754,
+          "line": 1036,
           "name": "resolved_by_id",
           "nullable": true,
           "type": "FK → Administrator, nullable"
@@ -3155,20 +3946,20 @@
             "DISMISSED",
             "SUSPENSION"
           ],
-          "line": 755,
+          "line": 1037,
           "name": "decision",
           "nullable": true,
           "type": "enum [DISMISSED / SUSPENSION], nullable"
         }
       ],
-      "line": 742
+      "line": 1024
     },
     "Subscription": {
       "anchor": "finances/subscription",
       "fields": [
         {
           "base": "PK",
-          "line": 728,
+          "line": 848,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -3176,35 +3967,407 @@
         {
           "base": "FK",
           "fk": "Organization",
-          "line": 729,
+          "line": 849,
           "name": "organization_id",
           "type": "FK → Organization"
         },
         {
-          "base": "string",
-          "line": 730,
+          "base": "enum",
+          "enum": [
+            "ESSENTIAL",
+            "PRO",
+            "ENTERPRISE"
+          ],
+          "line": 850,
           "name": "plan",
-          "type": "string"
+          "type": "enum [ESSENTIAL / PRO / ENTERPRISE]"
+        },
+        {
+          "base": "int",
+          "line": 851,
+          "name": "months",
+          "nullable": true,
+          "type": "int, nullable"
+        },
+        {
+          "base": "bigint",
+          "line": 852,
+          "name": "price",
+          "type": "bigint"
         },
         {
           "base": "enum",
           "enum": [
-            "ACTIVE",
-            "EXPIRED"
+            "PAYMENT",
+            "CONVERSION",
+            "GIFT"
           ],
-          "line": 731,
+          "line": 853,
+          "name": "origin",
+          "type": "enum [PAYMENT / CONVERSION / GIFT]"
+        },
+        {
+          "base": "FK",
+          "fk": "SubscriptionPayment",
+          "line": 854,
+          "name": "payment_id",
+          "nullable": true,
+          "type": "FK → SubscriptionPayment, nullable"
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "SCHEDULED",
+            "ACTIVE",
+            "ENDED"
+          ],
+          "line": 855,
           "name": "status",
-          "type": "enum [ACTIVE / EXPIRED]"
+          "type": "enum [SCHEDULED / ACTIVE / ENDED]"
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "EXPIRED",
+            "UPGRADED",
+            "CLOSED",
+            "REFUNDED"
+          ],
+          "line": 857,
+          "name": "end_reason",
+          "nullable": true,
+          "type": "enum [EXPIRED / UPGRADED / CLOSED / REFUNDED], nullable"
+        },
+        {
+          "base": "datetime",
+          "line": 858,
+          "name": "created_at",
+          "type": "datetime"
         }
       ],
-      "line": 723
+      "line": 843
+    },
+    "SubscriptionEvent": {
+      "anchor": "finances/subscriptionevent",
+      "fields": [
+        {
+          "base": "PK",
+          "line": 997,
+          "name": "id",
+          "pk": true,
+          "type": "PK"
+        },
+        {
+          "base": "FK",
+          "fk": "Organization",
+          "line": 998,
+          "name": "organization_id",
+          "type": "FK → Organization"
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "PAYMENT",
+            "FORFAIT_ADDED",
+            "FORFAIT_ENDED",
+            "PLAN_CHANGED",
+            "REMINDER",
+            "KEEP_CHOICE",
+            "PAUSED",
+            "RESUMED"
+          ],
+          "line": 999,
+          "name": "kind",
+          "type": "enum [PAYMENT / FORFAIT_ADDED / FORFAIT_ENDED / PLAN_CHANGED / REMINDER / KEEP_CHOICE / PAUSED / RESUMED]"
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "PAYER",
+            "OWNER",
+            "SYSTEM",
+            "ADMINISTRATOR"
+          ],
+          "line": 1000,
+          "name": "actor",
+          "type": "enum [PAYER / OWNER / SYSTEM / ADMINISTRATOR]"
+        },
+        {
+          "base": "FK",
+          "fk": "Person",
+          "line": 1001,
+          "name": "person_id",
+          "nullable": true,
+          "type": "FK → Person, nullable"
+        },
+        {
+          "base": "FK",
+          "fk": "Administrator",
+          "line": 1002,
+          "name": "administrator_id",
+          "nullable": true,
+          "type": "FK → Administrator, nullable"
+        },
+        {
+          "base": "FK",
+          "fk": "AdminAction",
+          "line": 1003,
+          "name": "admin_action_id",
+          "nullable": true,
+          "type": "FK → AdminAction, nullable"
+        },
+        {
+          "base": "FK",
+          "fk": "Subscription",
+          "line": 1004,
+          "name": "subscription_id",
+          "nullable": true,
+          "type": "FK → Subscription, nullable"
+        },
+        {
+          "base": "FK",
+          "fk": "SubscriptionPayment",
+          "line": 1005,
+          "name": "payment_id",
+          "nullable": true,
+          "type": "FK → SubscriptionPayment, nullable"
+        },
+        {
+          "base": "JSON",
+          "line": 1006,
+          "name": "details",
+          "type": "JSON"
+        },
+        {
+          "base": "datetime",
+          "line": 1007,
+          "name": "occurred_at",
+          "type": "datetime"
+        }
+      ],
+      "line": 992
+    },
+    "SubscriptionPayment": {
+      "anchor": "finances/subscriptionpayment",
+      "fields": [
+        {
+          "base": "PK",
+          "line": 943,
+          "name": "id",
+          "pk": true,
+          "type": "PK"
+        },
+        {
+          "base": "FK",
+          "fk": "Organization",
+          "line": 944,
+          "name": "organization_id",
+          "type": "FK → Organization"
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "ESSENTIAL",
+            "PRO",
+            "ENTERPRISE"
+          ],
+          "line": 945,
+          "name": "plan",
+          "type": "enum [ESSENTIAL / PRO / ENTERPRISE]"
+        },
+        {
+          "base": "int",
+          "line": 946,
+          "name": "months",
+          "type": "int"
+        },
+        {
+          "base": "bigint",
+          "line": 947,
+          "name": "amount",
+          "type": "bigint"
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "MTN_MOMO",
+            "ORANGE_MONEY",
+            "OTHER"
+          ],
+          "line": 948,
+          "name": "operator",
+          "type": "enum [MTN_MOMO / ORANGE_MONEY / OTHER]"
+        },
+        {
+          "base": "string",
+          "line": 949,
+          "name": "payer_phone_number",
+          "nullable": true,
+          "type": "string, nullable"
+        },
+        {
+          "base": "string",
+          "line": 950,
+          "name": "provider_reference",
+          "type": "string, unique",
+          "unique": true
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "PENDING",
+            "SUCCEEDED",
+            "FAILED",
+            "EXPIRED",
+            "REFUNDED"
+          ],
+          "line": 951,
+          "name": "status",
+          "type": "enum [PENDING / SUCCEEDED / FAILED / EXPIRED / REFUNDED]"
+        },
+        {
+          "base": "JSON",
+          "line": 952,
+          "name": "provider_payload",
+          "nullable": true,
+          "type": "JSON, nullable"
+        },
+        {
+          "base": "string",
+          "line": 953,
+          "name": "terms_version",
+          "type": "string"
+        },
+        {
+          "base": "string",
+          "line": 954,
+          "name": "customer_tax_id",
+          "nullable": true,
+          "type": "string, nullable"
+        },
+        {
+          "base": "datetime",
+          "line": 955,
+          "name": "created_at",
+          "type": "datetime"
+        },
+        {
+          "base": "datetime",
+          "line": 956,
+          "name": "confirmed_at",
+          "nullable": true,
+          "type": "datetime, nullable"
+        }
+      ],
+      "line": 938
+    },
+    "SubscriptionReceipt": {
+      "anchor": "finances/subscriptionreceipt",
+      "fields": [
+        {
+          "base": "PK",
+          "line": 969,
+          "name": "id",
+          "pk": true,
+          "type": "PK"
+        },
+        {
+          "base": "string",
+          "line": 970,
+          "name": "number",
+          "type": "string, unique",
+          "unique": true
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "RECEIPT",
+            "CREDIT_NOTE"
+          ],
+          "line": 971,
+          "name": "kind",
+          "type": "enum [RECEIPT / CREDIT_NOTE]"
+        },
+        {
+          "base": "FK",
+          "fk": "Organization",
+          "line": 972,
+          "name": "organization_id",
+          "type": "FK → Organization"
+        },
+        {
+          "base": "FK",
+          "fk": "SubscriptionPayment",
+          "line": 973,
+          "name": "payment_id",
+          "type": "FK → SubscriptionPayment"
+        },
+        {
+          "base": "FK",
+          "fk": "SubscriptionReceipt",
+          "line": 974,
+          "name": "cancels_receipt_id",
+          "nullable": true,
+          "type": "FK → SubscriptionReceipt, nullable"
+        },
+        {
+          "base": "string",
+          "line": 975,
+          "name": "customer_name",
+          "type": "string"
+        },
+        {
+          "base": "string",
+          "line": 976,
+          "name": "customer_tax_id",
+          "nullable": true,
+          "type": "string, nullable"
+        },
+        {
+          "base": "string",
+          "line": 977,
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "base": "bigint",
+          "line": 978,
+          "name": "amount_excl_tax",
+          "type": "bigint"
+        },
+        {
+          "base": "int",
+          "line": 979,
+          "name": "vat_rate_bp",
+          "type": "int"
+        },
+        {
+          "base": "bigint",
+          "line": 980,
+          "name": "vat_amount",
+          "type": "bigint"
+        },
+        {
+          "base": "bigint",
+          "line": 981,
+          "name": "amount",
+          "type": "bigint"
+        },
+        {
+          "base": "datetime",
+          "line": 982,
+          "name": "issued_at",
+          "type": "datetime"
+        }
+      ],
+      "line": 964
     },
     "SyncArchive": {
       "anchor": "synchronisation-hors-ligne/syncarchive",
       "fields": [
         {
           "base": "PK",
-          "line": 930,
+          "line": 1219,
           "name": "id",
           "pk": true,
           "type": "PK"
@@ -3212,31 +4375,31 @@
         {
           "base": "FK",
           "fk": "Person",
-          "line": 931,
+          "line": 1220,
           "name": "person_id",
           "type": "FK → Person"
         },
         {
           "base": "FK",
           "fk": "Device",
-          "line": 932,
+          "line": 1221,
           "name": "device_id",
           "type": "FK → Device"
         },
         {
           "base": "datetime",
-          "line": 933,
+          "line": 1222,
           "name": "received_at",
           "type": "datetime"
         },
         {
           "base": "JSON",
-          "line": 934,
+          "line": 1223,
           "name": "changes",
           "type": "JSON"
         }
       ],
-      "line": 925
+      "line": 1214
     }
   },
   "format": "inline",

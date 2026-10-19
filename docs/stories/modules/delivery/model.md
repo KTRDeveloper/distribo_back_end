@@ -9,7 +9,7 @@ Design: `commandes-et-livraisons/delivery`
 |---|---|---|
 | id | PK |  |
 | order_id | FK → Order | Delivery:fk, C-21, CM-23 |
-| assigned_to_id | FK → Person | Delivery:fk, C-04, C-21 |
+| assigned_to_id | FK → Person | Delivery:fk, C-04, C-21, CM-38 |
 | departed_at | datetime, nullable |  |
 | arrived_at | datetime, nullable | C-21 |
 | failed_at | datetime, nullable | C-21 |
@@ -22,3 +22,4 @@ Design: `commandes-et-livraisons/delivery`
 - `C-21`: A delivery's `assigned_to_id` is an ACTIVE collaborator of the supplier, driver or above; `arrived_at` and `failed_at` are never both set; `failure_reason` is set if and only if `failed_at` is set; at most one delivery in progress (neither arrived nor failed) per order.
 - `C-22`: A delivery not yet departed is removed when its order is cancelled or delivered without it; with crossed departures the server keeps the first and stores the other closed.
 - `CM-23`: Crossed departures: the server keeps the first delivery and stores the other closed with sync_issue 'Livraison déjà prise par <name>'; if the second one delivered, the delivery wins and the other is closed.
+- `CM-38`: The pool of orders to take lists the confirmed orders with a delivery address; a driver does not see there an order assigned to another driver, and sees it again when that assignment ends (failed attempt or removal); managers, owners and sellers see every order of the pool.

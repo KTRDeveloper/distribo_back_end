@@ -28,6 +28,8 @@ Owns platform administrators with two-factor login, reports from users, suspensi
 | T4 | E | A moderator appoints or removes administrators | only SUPER_ADMIN | ADM-009 AB-1, ADM-010 AB-1 |
 | T5 | R | A suspension leaves no trace | every suspension, reactivation and dismissal writes the immutable journal | ADM-013 AB-1, ADM-014 AB-1 |
 | T6 | T | The journal is rewritten | the application account cannot update or delete it | ADM-002 AB-1 |
+| T7 | E | A moderator frees a number or hands out an account | RELEASE_PHONE and RESTORE_ACCESS need a SUPER_ADMIN, checked by the route and by the database | ADM-017 AB-1, ADM-016 AB-1 |
+| T8 | S | Support gives an account to someone who is not its owner | a code to the verified email and a code to the new number are both needed, and an account with no verified email is refused | ADM-020 AB-1, ADM-019 AB-1 |
 
 ## Pointers
 - Conventions: `docs/stories/CONVENTIONS.md`

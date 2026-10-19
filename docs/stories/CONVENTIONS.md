@@ -22,7 +22,7 @@ Every story assumes this file; stories never restate it. If a story contradicts 
 
 ## Layout and naming
 - `src/app.ts` mounts every router under `/api/v1`; `src/config/env.ts` validates the environment.
-- `src/modules/<module>/`: `<module>.routes.ts` (router and handlers: parse with the Zod schema, call the service, send JSON), `.service.ts`, `.repository.ts` (the only file that calls `prisma`), `.schemas.ts`, `.openapi.ts` (imported in `src/app.ts`). Existing modules keep their `.controller.ts`.
+- `src/modules/<module>/`: `<module>.routes.ts` (router and handlers: Zod parse, service call, JSON reply), `.service.ts`, `.repository.ts` (the only file that calls `prisma`), `.schemas.ts`, `.openapi.ts` (imported in `src/app.ts`).
 - A module imports another only through the functions in its `contracts.md`. Shared code without Node-only imports: `src/shared/`; helpers: `src/lib/`; middleware: `src/middleware/`.
 - Tests: `tests/unit/<area>/<name>.test.ts`, `tests/integration/<module>/<name>.test.ts`, helpers in `tests/helpers/`; integration tests import `prisma` from `tests/setup.ts` (real PostgreSQL).
 - `prisma/schema.prisma`, `prisma/migrations/`.
@@ -82,8 +82,8 @@ Allowed URLs; code and stories reference no other:
 ## Project rules
 - Lists take `limit` (default 50, max 100) and an opaque `cursor`, ordered by `created_at` descending then `id`.
 - Every online gesture that changes data carries a client-generated UUIDv7 `id`; a repeat with the same id changes nothing and returns the first response (ACC).
-- Immutable tables (LedgerEntry, SyncArchive, PhoneNumberChangeLog, CustomerRelationshipReassignment, CreditLimitChange, AdminAction) are never updated or deleted by the application account.
-- Every route is under `/api/v1` and registered in its module's `.openapi.ts`.
+- Immutable tables (LedgerEntry, SyncArchive, PhoneNumberChangeLog, CustomerRelationshipReassignment, CreditLimitChange, AdminAction, ImageCopy, SubscriptionReceipt, SubscriptionEvent) get only INSERT and SELECT for the application account.
+- Every route is registered in its module's `.openapi.ts`.
 - A story that adds a route also adds its own paths to the route lists in `tests/integration/api-docs/catalog.test.ts` and `tests/integration/per-001.test.ts`: these additions count as listed under "Tests to update". Never remove an entry.
 
 ## Definition of Done

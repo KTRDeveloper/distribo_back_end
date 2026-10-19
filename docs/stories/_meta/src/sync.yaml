@@ -4,7 +4,7 @@ prefix: SYNC
 title: Synchronization
 responsibility: Owns the WatermelonDB pull and push endpoints, the judging of every pushed line, the archive of received batches, full resynchronization and replay.
 entities: [SyncArchive]
-depends_on: [foundation, person, notification, access, auth, organization, relationship, catalog, order, finance, delivery, admin]
+depends_on: [foundation, person, notification, access, auth, organization, relationship, catalog, order, finance, delivery, admin, billing]
 asvs_level: L2
 asvs_rationale: A phone can be modified; the server judges every pushed line for scope, fields, steps and controls, and never trusts a computed value or a date from the phone.
 classification:
@@ -18,6 +18,10 @@ threats:
   - "T5 | E | A revoked collaborator keeps writing | the first push after a rights change is judged with current rights | SYNC-019 AB-1"
   - "T6 | D | One duplicate blocks a phone forever | duplicates are merged or stored closed and unknown rows are set aside | SYNC-009 AB-1, SYNC-011 AB-1"
   - "T7 | E | A replay runs with an administrator's rights | replay is judged as its author with current rights | SYNC-023 AB-1"
+  - "T8 | T | A phone writes a field only the server may write (image key, plan, pause, contact check) | server-only fields are never taken from a push | SYNC-041 AB-1"
+  - "T9 | E | A seller or driver pushes catalog rows | only the owner writes products, variants and negotiated prices offline | SYNC-031 AB-1"
+  - "T10 | I | A pull leaks a paused, withdrawn or pending record to a customer or to the other side of a relation | a customer receives only products on sale, other parties only verified contacts | SYNC-026 AB-1, SYNC-036 AB-1"
+  - "T11 | D | A flood of products pushed offline exceeds the plan | the excess is accepted, then paused by the server | SYNC-035 AB-1"
 constraints:
   C-32: "Immutable journals are never updated or deleted by the application; only the retention purge removes them."
   C-39: "The application account has only INSERT and SELECT on the immutable tables."
@@ -50,7 +54,9 @@ contracts:
     - "delivery: deliverOrder, deleteUnstartedDeliveries (docs/stories/modules/delivery/contracts.md)"
     - "finance: appendLedgerEntry (docs/stories/modules/finance/contracts.md)"
     - "relationship: visibleRelationsWhere, projectForDriver, mergeDuplicateRelation, resolveMergedRelation (docs/stories/modules/relationship/contracts.md)"
-    - "catalog: getReferencePrice (docs/stories/modules/catalog/contracts.md)"
+    - "catalog: getReferencePrice, variantLabel, applyProductFromSync, applyVariantFromSync, deleteVariantFromSync, deleteProductFromSync, resolveVariantForLine, applyPriceFromSync, deletePriceFromSync (docs/stories/modules/catalog/contracts.md)"
+    - "billing: recomputeRights, enforceLimits (docs/stories/modules/billing/contracts.md)"
+    - "foundation: imageUrl (docs/stories/modules/foundation/contracts.md)"
     - "access: abilityFor (docs/stories/modules/access/contracts.md)"
     - "admin: recordAdminAction (docs/stories/modules/admin/contracts.md)"
 stories:

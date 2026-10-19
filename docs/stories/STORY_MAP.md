@@ -1,33 +1,35 @@
 # Story map
 
-- Design: `data-model/modele-donnees-livraisons-v10.md` · sha256 `2dcaae02b638d95d5c9ad80329d53e10d098fec20f5cf5b12182af8f4d03dfd2` · commit `24c54647bb5124266d2709a6f5ac7ea8ff4fc8b9`
-- Template version: 1.3.0 · Stories folder: `docs/stories`
-- Stories: 208 (todo 154, in_progress 0, blocked 0, done 54, obsolete 0)
+- Design: `data-model/modele-donnees-livraisons-v16.md` · sha256 `035497ce5c79ed3b17c5b0bf41b90fddbedc0250ef16a70d20a72d7ba7d626c2` · commit `3901c64eca51d3374d626ee5f7ecbcbdf1a85992`
+- Template version: 1.3.1 · Stories folder: `docs/stories`
+- Stories: 387 (todo 179, in_progress 0, blocked 0, done 208, obsolete 0)
 
 ## Modules
 | module | prefix | owned entities | todo | in_progress | blocked | done | obsolete | next free ID | ASVS |
 |---|---|---|---|---|---|---|---|---|---|
-| foundation | FND | — | 1 | 0 | 0 | 12 | 0 | FND-013 | L2 |
-| person | PER | Person, PhoneNumberChangeLog | 0 | 0 | 0 | 9 | 0 | PER-010 | L2 |
-| access | ACC | — | 0 | 0 | 0 | 7 | 0 | ACC-008 | L2 |
+| foundation | FND | — | 2 | 0 | 0 | 13 | 0 | FND-015 | L2 |
+| person | PER | Person, PhoneNumberChangeLog | 5 | 0 | 0 | 9 | 0 | PER-015 | L2 |
+| access | ACC | — | 1 | 0 | 0 | 7 | 0 | ACC-009 | L2 |
 | notification | NTF | Notification | 0 | 0 | 0 | 4 | 0 | NTF-005 | L2 |
-| auth | AUTH | OtpChallenge, Device, RefreshToken | 4 | 0 | 0 | 22 | 0 | AUTH-027 | L2 |
-| organization | ORG | Organization, Collaboration, Subscription | 19 | 0 | 0 | 0 | 0 | ORG-020 | L2 |
-| relationship | REL | CustomerRelationship, CustomerRelationshipReassignment, CreditLimitChange | 25 | 0 | 0 | 0 | 0 | REL-026 | L2 |
-| admin | ADM | Report, Administrator, AdminAction | 15 | 0 | 0 | 0 | 0 | ADM-016 | L2 |
-| catalog | CAT | Product, CustomerPrice | 11 | 0 | 0 | 0 | 0 | CAT-012 | L2 |
-| order | ORD | Order, OrderLine | 21 | 0 | 0 | 0 | 0 | ORD-022 | L2 |
-| finance | FIN | LedgerEntry, Expense, Handover | 20 | 0 | 0 | 0 | 0 | FIN-021 | L2 |
-| delivery | DLV | Delivery | 12 | 0 | 0 | 0 | 0 | DLV-013 | L2 |
-| sync | SYNC | SyncArchive | 23 | 0 | 0 | 0 | 0 | SYNC-024 | L2 |
-| privacy | PRIV | — | 3 | 0 | 0 | 0 | 0 | PRIV-004 | L2 |
+| auth | AUTH | OtpChallenge, Device, RefreshToken | 12 | 0 | 0 | 26 | 0 | AUTH-039 | L2 |
+| admin | ADM | Report, Administrator, AdminAction | 5 | 0 | 0 | 15 | 0 | ADM-021 | L2 |
+| billing | BIL | Subscription, SubscriptionPayment, SubscriptionReceipt, SubscriptionEvent | 39 | 0 | 0 | 0 | 0 | BIL-040 | L2 |
+| catalog | CAT | Product, ProductVariant, CustomerPrice | 35 | 0 | 0 | 11 | 0 | CAT-047 | L2 |
+| delivery | DLV | Delivery | 4 | 0 | 0 | 12 | 0 | DLV-017 | L2 |
+| finance | FIN | LedgerEntry, Expense, Handover | 2 | 0 | 0 | 20 | 0 | FIN-023 | L2 |
+| images | IMG | ImageCopy | 12 | 0 | 0 | 0 | 0 | IMG-013 | L2 |
+| order | ORD | Order, OrderLine | 13 | 0 | 0 | 21 | 0 | ORD-035 | L2 |
+| organization | ORG | Organization, Collaboration, OrganizationContact | 26 | 0 | 0 | 19 | 0 | ORG-046 | L2 |
+| relationship | REL | CustomerRelationship, CustomerRelationshipReassignment, CreditLimitChange | 1 | 0 | 0 | 25 | 0 | REL-027 | L2 |
+| sync | SYNC | SyncArchive | 20 | 0 | 0 | 23 | 0 | SYNC-044 | L2 |
+| privacy | PRIV | — | 2 | 0 | 0 | 3 | 0 | PRIV-006 | L2 |
 
 ## Next implementable
-1. FND-012: Validation errors without input values (`modules/foundation/FND-012-validation-errors-without-input-values.md`, risk medium)
-2. AUTH-015: Person whose number was taken signs in with the verified email (`modules/auth/AUTH-015-person-whose-number-was-taken-signs-in-with-the.md`, risk high)
-3. AUTH-018: Person manages their phones (`modules/auth/AUTH-018-person-manages-their-phones.md`, risk medium)
-4. AUTH-020: Person chooses a new password with the code (`modules/auth/AUTH-020-person-chooses-a-new-password-with-the-code.md`, risk high)
-5. ORG-001: Organizations table (`modules/organization/ORG-001-organizations-table.md`, risk low)
+1. FND-013: Image keys and public image addresses (`modules/foundation/FND-013-image-keys-and-public-image-addresses.md`, risk medium)
+2. FND-014: Plan grid and business payment codes (`modules/foundation/FND-014-plan-grid-and-business-payment-codes.md`, risk medium)
+3. PER-010: Profile photo key on the person (`modules/person/PER-010-profile-photo-key-on-the-person.md`, risk high)
+4. PER-014: Handlers called when a phone number is released (`modules/person/PER-014-handlers-called-when-a-phone-number-is-released.md`, risk medium)
+5. ACC-008: Availability values say who may act offline (`modules/access/ACC-008-availability-values-say-who-may-act-offline.md`, risk high)
 
 ## Pending changes
 None.

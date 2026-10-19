@@ -1,0 +1,62 @@
+kind: module
+module: billing
+prefix: BIL
+title: Billing
+responsibility: "Owns paid plans for businesses: the subscription periods, the payment requests made on a website through a mobile-money aggregator, receipts and credit notes, the subscription journal, grace and pause at expiry, reminders, the nightly reconciliation and the administrators' gift, record and refund gestures."
+entities: [Subscription, SubscriptionPayment, SubscriptionReceipt, SubscriptionEvent]
+depends_on: [foundation, person, notification, access, auth, organization, catalog, order, delivery, admin]
+asvs_level: L2
+asvs_rationale: "The module moves money-like data (payments, receipts) and decides what a business may do; the payer is not signed in, so every claim comes from the aggregator and is checked again, never from the browser. No card data is handled: payment is mobile money through an aggregator."
+classification:
+  - "Subscription.plan, starts_at, ends_at, status, price | confidential | the plan of a business is visible to its team and to administrators only, never to its customers or suppliers, and never synchronized"
+  - "SubscriptionPayment.payer_phone_number | PII | the payer is not always the owner; shown masked in the owner's notification, never logged, never returned to the site"
+  - "SubscriptionPayment.provider_payload, provider_reference | confidential | kept as received for disputes; never returned by any route"
+  - "SubscriptionPayment.customer_tax_id, SubscriptionReceipt.customer_tax_id | confidential | copied on the receipt; returned to the team and to the payer on the confirmation page only"
+  - "SubscriptionReceipt.* | confidential | immutable; readable by the team of the business and by administrators"
+  - "SubscriptionEvent.* | confidential | immutable journal of the plan; readable by administrators; the owner reads only their own subscription screen"
+threats:
+  - "T1 | S | A forged or replayed confirmation activates a plan | a confirmation counts only after its signature is verified by the aggregator port and the aggregator is asked for the payment status again; the browser proves nothing | BIL-034 AB-1, BIL-034 AB-2, BIL-008 AB-1"
+  - "T2 | T | The browser chooses the amount, the plan or the period | the server computes the amount from its own price grid; the body carries only the code, the plan, the duration, the operator and the number | BIL-009 AB-1"
+  - "T3 | T | One payment activates two periods, or a receipt number is skipped or repeated | `provider_reference` is unique, a payment moves forward only, and receipt numbers are taken under a lock in the confirming transaction | BIL-014 AB-2, BIL-001 AB-1, BIL-002 AB-1, BIL-011 AB-1, BIL-027 AB-1"
+  - "T4 | E | An owner or a manager writes the plan of a business without paying | no route writes the subscription tables or the plan fields of the organization; the former owner routes are removed | BIL-005 AB-1"
+  - "T5 | I | The plan of a business reaches its customers, its suppliers or a stranger | the subscription fields go to the team only and the tables are never synchronized | BIL-015 AB-1"
+  - "T6 | I | Guessing business payment codes to learn names | the code lookup answers only the name and the start date, is rate limited per IP, and an unknown code is a plain 404 | BIL-007 AB-1, BIL-033 AB-1"
+  - "T7 | E | A moderator or a manager gifts days, records or refunds a payment | the three gestures need SUPER_ADMIN, a reason and an `AdminAction` row | BIL-023 AB-1, BIL-024 AB-1, BIL-025 AB-1"
+  - "T8 | R | A dispute about who did what to a plan | `SubscriptionEvent` and `SubscriptionReceipt` are immutable and written in the transaction of the fact | BIL-004 AB-1, BIL-003 AB-1, BIL-003 AB-2, BIL-012 AB-1"
+  - "T9 | D | Lost confirmations leave payments pending, or a payer is charged and nothing activates | a sweep re-asks the aggregator for old pending payments and a nightly reconciliation compares the statement | BIL-021 AB-1, BIL-022 AB-1"
+constraints:
+  C-52: "`Subscription` allows at most one ACTIVE row per organization (partial unique index); periods of one organization never overlap (exclusion constraint); `starts_at` is not after `ends_at`; `payment_id` and `months` are set exactly when `origin = PAYMENT`; `end_reason` is set exactly when `status = ENDED`; only the server writes it."
+  C-53: "`SubscriptionPayment`: `provider_reference` is unique; `months` is 1, 3, 6 or 12; `amount` is computed by the server from the price grid; status moves only from PENDING to another value, then from SUCCEEDED to REFUNDED; `confirmed_at` is set exactly when status is SUCCEEDED or REFUNDED; `operator = OTHER` exactly when an administrator recorded the payment, and `payer_phone_number` is set otherwise."
+  C-54: "`SubscriptionReceipt`: `number` is unique and has no gap; `amount = amount_excl_tax + vat_amount`; `cancels_receipt_id` is set exactly when `kind = CREDIT_NOTE`, and a receipt has at most one credit note; no update, no delete."
+  C-55: "`SubscriptionEvent`: `person_id` is set exactly when `actor = OWNER`; `administrator_id` and `admin_action_id` are set exactly when `actor = ADMINISTRATOR`; `payment_id` is set when `actor = PAYER`; no update, no delete."
+  C-39: "`SubscriptionReceipt` and `SubscriptionEvent` are immutable tables: the application account has only INSERT and SELECT."
+  C-41: "`Organization.plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators` and `max_products` are written by the server only; `plan = FREE` exactly when `plan_ends_at` is empty; a set `grace_ends_at` is after `plan_ends_at`."
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+contracts:
+  provides:
+    - name: SubscriptionRights
+      file: src/modules/billing/rights.service.ts
+      story: BIL-013
+      items:
+        - "recomputeRights(tx: Prisma.TransactionClient, organizationId: string, now: Date): Promise<OrganizationRights> — recalculates plan, expiry, grace and limits from the subscription rows and writes them to the organization"
+      used_by: []
+    - name: SubscriptionLimits
+      file: src/modules/billing/limits.service.ts
+      story: BIL-020
+      items:
+        - "enforceLimits(tx: Prisma.TransactionClient, organizationId: string, rights: OrganizationRights, now: Date): Promise<{ seats: SeatEnforcement; productsPaused: number; productsResumed: number }> — pauses or resumes the team seats and the products so that they fit the rights, following the owner's latest choice, and notifies; call it after `recomputeRights`"
+      used_by: []
+  consumes:
+    - "foundation: PLANS and priceFor from src/shared/plans.ts, generatePaymentCode, httpError (docs/stories/modules/foundation/contracts.md)"
+    - "person: PersonRepository (docs/stories/modules/person/contracts.md)"
+    - "notification: notify, recipientLanguage (docs/stories/modules/notification/contracts.md)"
+    - "access: requireAbility, idempotent, abilityFor (docs/stories/modules/access/contracts.md)"
+    - "auth: authMiddleware (docs/stories/modules/auth/contracts.md)"
+    - "organization: OrganizationActor, SubscriptionFields, PaymentTargets, PlanRefresh, OrganizationLifecycleHooks (docs/stories/modules/organization/contracts.md)"
+    - "catalog: ProductPause (docs/stories/modules/catalog/contracts.md)"
+    - "order: OrderDemand (docs/stories/modules/order/contracts.md)"
+    - "delivery: findDriversWithOpenDeliveries (docs/stories/modules/delivery/contracts.md)"
+    - "admin: adminAuthMiddleware, requireAdminRole, recordAdminAction (docs/stories/modules/admin/contracts.md)"
+pointers:
+  - "Decision: `docs/stories/decisions/ADR-004-modules-for-design-v16.md`"
+stories: []

@@ -27,6 +27,7 @@ Owns orders and their lines, the order state machine, and the gestures that plac
 | T4 | E | A driver or seller does a manager's or customer's step | rules table per step | ORD-011 AB-2, ORD-016 AB-1 |
 | T5 | I | A party reads another business's orders | visibility predicate through the relationship | ORD-019 AB-1 |
 | T6 | R | A price gap has no author | price_set_by_id and price_set_at are required when the applied price differs | ORD-004 AB-1 |
+| T7 | T | An acceptance date lands on an order the supplier entered, or on a pending one | the database refuses it; only the accept gesture writes it, from PENDING | ORD-022 AB-1, ORD-023 AB-1 |
 
 ## Pointers
 - Conventions: `docs/stories/CONVENTIONS.md`

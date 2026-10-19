@@ -1,0 +1,2728 @@
+kind: stories
+module: billing
+constraints:
+  C-42: "At each invitation, the ACTIVE or INVITED collaborators of an organization, owner excluded, number at most `Organization.max_collaborators`; the status PAUSED is written by the server only and never for the OWNER."
+  C-46: "`Product.paused_at` is written by the server only; the products on sale (not deleted, not paused, with at least one ACTIVE variant) number at most `Organization.max_products`, checked by the phone and by the online routes; what arrives in excess through synchronization is paused, never refused."
+stories:
+  - id: BIL-005
+    title: The owner can no longer write a subscription
+    kind: removal
+    size: S
+    risk: medium
+    depends_on: [ORG-034, ORG-020]
+    amends: [ORG-013, ORG-014, ORG-016]
+    read_first: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts]
+    design_refs: [finances/subscription]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: As an owner, I want my plan to come only from a confirmed payment so that nobody can set a plan without paying.
+    context: |
+      - Exists: `POST`, `GET` and `DELETE /api/v1/organizations/{organizationId}/subscription` (ORG-013, ORG-014); `startSubscription`, `getSubscription`, `endSubscription`; `expireLapsedSubscriptions`, `insertSubscription`, `endActiveSubscription`, `findActiveSubscription`; `startSubscriptionSchema` with the subscription view types; three paths in `organization.openapi.ts`; one `endActiveSubscription` call in `closeOrganization` (ORG-016).
+      - Remove all of them, with the `Subscription` type import. The three paths then answer the router's 404 `NOT_FOUND`. A plan is paid on a website and only the server writes it (BIL-009 onward).
+      - `closeOrganization` keeps running the close hooks (ORG-034) and no longer touches `subscriptions`; billing ends the plans in a close hook (BIL-031).
+      - Stay for now: the table and the Prisma model `Subscription` (BIL-002 rebuilds them) and the rule row `manage Subscription` (BIL-006).
+    acceptance: |
+      Scenario: AC-1 The three routes are gone
+        When the OWNER sends POST `{ "plan": "PRO" }` and DELETE, and a member sends GET, each to `…/subscription`
+        Then each answer is 404 `NOT_FOUND` and no subscription row changes
+      Scenario: AC-2 Closing a business still works
+        When the OWNER closes the business
+        Then the answer is 200, the business is CLOSED and the team is revoked
+      Scenario: AC-3 The documentation lists no subscription path
+        When a client reads `/api/v1/docs/openapi.json`
+        Then no path ends with `/subscription`
+    abuse: |
+      Scenario: AB-1 A plan is set without paying (elevation, T4)
+        When an OWNER and a MANAGER each send POST `{ "plan": "ENTERPRISE" }` to `…/subscription`
+        Then both get 404 `NOT_FOUND`, the count of `subscriptions` is unchanged and `organizations.plan` is still FREE
+    implementation:
+      create: [tests/integration/organization/subscription-routes-removed.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/middleware/require-ability.ts
+      signatures: []
+      types: []
+      errors: ["NOT_FOUND 404"]
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: no route lets the client write a plan; the only writer is the server after a payment."
+      - "v5.0.0-15.3.3: no body field reaches `subscriptions` or the plan columns of an organization."
+    tests: |
+      routes gone | integration | AC-1 | POST, DELETE and GET → 404, rows unchanged
+      close | integration | AC-2 | owner closes → 200, CLOSED, team revoked
+      docs | integration | AC-3 | openapi.json has no `/subscription` path
+      no free plan | security | AB-1, CWE-285 | OWNER and MANAGER post a plan → 404, count unchanged, plan FREE
+    command: npx vitest run tests/integration/organization tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Dropping or rebuilding the table: BIL-002."
+      - "The `manage Subscription` rule row: BIL-006."
+    tests_to_update:
+      - "tests/integration/organization/subscription-start.test.ts | every case calls the removed POST route | file deleted; subscription-routes-removed.test.ts covers the refused route"
+      - "tests/integration/organization/subscription-end.test.ts | every case calls the removed DELETE and GET routes | file deleted; subscription-routes-removed.test.ts covers the refused routes"
+      - "tests/integration/organization/close.test.ts | AC-2 expects the ACTIVE subscription to become EXPIRED and AC-5 expects a failing trigger on `subscriptions` to undo the close | both cases and the seeds of `subscriptions` are dropped; a failing close hook is covered by lifecycle-hooks.test.ts (ORG-034)"
+      - "tests/integration/api-docs/catalog.test.ts | lists the path `/api/v1/organizations/{organizationId}/subscription` | the path is removed from the list and checked absent"
+
+  - id: BIL-006
+    title: The rules table has no subscription row and gains the keep rows
+    kind: change
+    size: XS
+    risk: medium
+    depends_on: [BIL-005, ORG-040]
+    amends: [ACC-005]
+    read_first: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+    design_refs: [annexe-la-table-des-regles/extrait-du-fichier, finances/subscription]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: "Technical story: take the subscription out of the rules table and add the two rows that let an owner choose what to keep, so that no row grants `manage`."
+    context: |
+      - Exists: `{ who: OWNER, where: ONLINE_FOR_ALL, action: manage, subject: Subscription }` in `src/shared/access/ability.ts`; no route reads it after BIL-005. ORG-040 already replaced `manage` on Collaboration, so this is the last `manage` row.
+      - Remove it. The design gives the subscription no rule: it is paid on a website and only the server writes it. The owner reads their subscription screen with an OWNER check in billing (BIL-016).
+      - Add two OWNER rows, ONLINE_FOR_ALL, with no fields: `keep` on Collaboration and `keep` on Product (choose who and what to keep when the plan drops; the server writes the pause). They ship before their route (BIL-018).
+      - A new unit test fails when any row of `RULES` has the action `manage`.
+    acceptance: |
+      Scenario: AC-1 The subscription has no rule
+        When abilityFor is built for each role online
+        Then can(manage, Subscription), can(read, Subscription), can(create, Subscription) and can(update, Subscription) are false for all four
+      Scenario Outline: AC-2 The keep rows
+        When abilityFor is built for <role> with <ctx>
+        Then can(keep, <subject>) is <result>
+        Examples:
+          | role    | ctx     | subject       | result |
+          | OWNER   | online  | Collaboration | true   |
+          | OWNER   | online  | Product       | true   |
+          | OWNER   | offline | Product       | false  |
+          | MANAGER | online  | Collaboration | false  |
+      Scenario: AC-3 No row grants manage
+        When the rows of `RULES` are listed
+        Then none has the action `manage`
+    abuse: |
+      Scenario: AB-1 A manager keeps and drops team seats (elevation)
+        When abilityFor is built for MANAGER, SELLER and DRIVER, online and offline
+        Then can(keep, Collaboration) and can(keep, Product) are false for all six
+    implementation:
+      create: [tests/unit/access/no-manage-rule.test.ts]
+      modify: [src/shared/access/ability.ts]
+      pattern: tests/unit/access/require-ability.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: only the OWNER, online, holds `keep`; the server checks it on every request."
+      - "v5.0.0-15.3.3: `keep` carries no field, so the route lists what its body may name."
+    tests: |
+      no subscription rule | unit | AC-1 | four roles, four actions → false
+      keep rows | unit | AC-2 | each Examples row → result
+      no manage | unit | AC-3 | no row of RULES has action manage
+      keep by others | security | AB-1, CWE-285 | MANAGER, SELLER, DRIVER, online and offline → false
+    command: npx vitest run tests/unit/access
+    out_of_scope:
+      - "The route that uses `keep`: BIL-018."
+    tests_to_update:
+      - "tests/unit/access/ability.test.ts | the list of owner rows names `manage:Subscription` and one test expects `manage` on Subscription to be true for the owner | the list has no `manage:Subscription` and has `keep:Collaboration` and `keep:Product`; the owner can no longer `manage` Subscription"
+
+  - id: BIL-001
+    title: Table of subscription payments
+    kind: migration
+    size: M
+    risk: high
+    depends_on: [ORG-020]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004180000_adm_002_admin_actions/migration.sql]
+    design_refs: [finances/subscriptionpayment, contraintes-a-poser-au-niveau-base-de]
+    constraints: [SubscriptionPayment:required, SubscriptionPayment.provider_reference:unique, SubscriptionPayment.plan:enum, SubscriptionPayment.operator:enum, SubscriptionPayment.status:enum, SubscriptionPayment:fk, C-53]
+    asvs: [v5.0.0-2.2.3]
+    story: "Technical story: create the table of payment requests with the rules that stop a payment from being changed or counted twice, so that no later writer can bypass them."
+    context: |
+      - Exists: `organizations` (ORG-020). No payment table.
+      - One migration creates enums `PaidPlan` (ESSENTIAL, PRO, ENTERPRISE; BIL-002 reuses it), `PaymentOperator`, `PaymentStatus` and table `subscription_payments` (`status` default PENDING, `created_at` default now(), `provider_payload` jsonb, indexes on (`organization_id`, `created_at`) and (`status`, `created_at`)).
+      - Checks (23514): `amount` above 0; `months` 1, 3, 6 or 12; `confirmed_at` set exactly when `status` is SUCCEEDED or REFUNDED; `payer_phone_number` empty exactly when `operator` is OTHER.
+      - Trigger `subscription_payments_check_update` (23514): a status moves only from PENDING to another value or from SUCCEEDED to REFUNDED; only `status`, `provider_payload` and `confirmed_at` may change.
+      - GRANT SELECT, INSERT, UPDATE; DELETE and TRUNCATE revoked (the purge, PRIV, uses the migration account).
+      - `prisma/schema.prisma`: enums, model and, above it, a plain-words `//` comment: a payment only moves forward, amount and plan never change, the reference is unique, and the migration.
+    acceptance: |
+      Scenario: AC-1 A pending payment
+        When a payment of 15 000, ESSENTIAL, 3 months, MTN_MOMO, with a payer number is inserted
+        Then it is stored with status PENDING and `confirmed_at` empty
+      Scenario Outline: AC-2 Wrong rows are refused
+        When a row is inserted with <problem>
+        Then the database refuses it with <code>
+        Examples:
+          | problem                            | code  |
+          | months 2, or amount 0              | 23514 |
+          | operator OTHER with a payer number | 23514 |
+          | SUCCEEDED and no `confirmed_at`    | 23514 |
+          | plan FREE                          | 22P02 |
+          | no `terms_version`                 | 23502 |
+      Scenario Outline: AC-3 Status moves
+        When a row in <from> is updated to <to>
+        Then the update <result>
+        Examples:
+          | from      | to         | result       |
+          | PENDING   | SUCCEEDED  | succeeds     |
+          | SUCCEEDED | REFUNDED   | succeeds     |
+          | SUCCEEDED | PENDING    | fails 23514  |
+          | FAILED    | SUCCEEDED  | fails 23514  |
+      Scenario: AC-4 Frozen columns
+        When `amount`, `plan`, `months`, `provider_reference` or `payer_phone_number` of a stored row is updated
+        Then each update fails with 23514
+      Scenario: AC-5 No delete
+        When the application account deletes or truncates the table
+        Then each statement fails with 42501
+    abuse: |
+      Scenario: AB-1 A confirmed payment is replayed (tampering, T3)
+        When SQL sets a SUCCEEDED payment back to PENDING
+        Then the database refuses with 23514 and the row is unchanged
+      Scenario: AB-2 The same transaction is recorded twice (tampering, T3)
+        When a second payment has the same `provider_reference`
+        Then the database refuses with 23505 and one row exists
+    implementation:
+      create: [prisma/migrations/<timestamp>_bil_001_subscription_payments/migration.sql, tests/integration/billing/subscription-payments-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the database holds the rules, so every writer obeys them: no delete, no change of money fields, no status regression."
+    tests: |
+      pending | integration | AC-1 | insert the payment → PENDING, date set
+      wrong rows | integration | AC-2, SubscriptionPayment:required, SubscriptionPayment.provider_reference:unique, SubscriptionPayment.plan:enum, SubscriptionPayment.operator:enum, SubscriptionPayment.status:enum, SubscriptionPayment:fk | each Examples row → the code
+      moves | integration | AC-3, C-53 | each Examples row → result
+      frozen | integration | AC-4 | each update → 23514
+      no delete | integration | AC-5 | DELETE and TRUNCATE as the application role → 42501
+      replay | security | AB-1, CWE-345 | SUCCEEDED → PENDING → 23514
+      duplicate | security | AB-2, CWE-362 | same reference twice → 23505
+    command: npx vitest run tests/integration/billing/subscription-payments-table.test.ts
+    out_of_scope:
+      - "Writing payments: BIL-009, BIL-014. Purging old requests: PRIV."
+
+  - id: BIL-002
+    title: The subscriptions table holds prepaid periods
+    kind: migration
+    size: M
+    risk: high
+    depends_on: [BIL-001, BIL-005]
+    amends: [ORG-012]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004120000_org_012_subscriptions/migration.sql]
+    design_refs: [finances/subscription, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Subscription:required, Subscription.plan:enum, Subscription.origin:enum, Subscription.status:enum, Subscription.end_reason:enum, Subscription:fk, C-52]
+    asvs: [v5.0.0-2.2.3]
+    story: "Technical story: rebuild the subscriptions table as prepaid periods with the rules that keep one period running at a time, so that no writer can store a plan that makes no sense."
+    context: |
+      - Exists: `subscriptions` with `plan` text, status ACTIVE or EXPIRED and nullable dates (ORG-012), no longer written (BIL-005); `PaidPlan` and `subscription_payments` (BIL-001).
+      - Migration `<timestamp>_bil_002_subscription_periods`: (1) preflight `DO` block: any row raises an error with the count and at most 20 ids (old rows have no price or payment, nothing is invented); (2) drop the table and the old `SubscriptionStatus`; (3) create `SubscriptionStatus` (SCHEDULED, ACTIVE, ENDED), `SubscriptionOrigin` (PAYMENT, CONVERSION, GIFT), `SubscriptionEndReason` (EXPIRED, UPGRADED, CLOSED, REFUNDED); (4) create the new `subscriptions`, dates not null.
+      - Unique: one ACTIVE row per `organization_id`; one row per `payment_id` when set. The no-overlap rule is BIL-032.
+      - Checks (23514): `starts_at` not after `ends_at`; `months` 1, 3, 6 or 12 when set; `payment_id` and `months` set exactly when `origin` is PAYMENT; `end_reason` set exactly when `status` is ENDED; `price` 0 unless `origin` is PAYMENT.
+      - GRANT SELECT, INSERT, UPDATE; DELETE and TRUNCATE revoked. `prisma/schema.prisma`: enums and model, with the `//` comment above `Subscription` rewritten in plain words (one running period, no overlap, the payment rule, only the server writes, the migration).
+    acceptance: |
+      Scenario: AC-1 The preflight stops on an old row
+        Given a scratch table `subscriptions(id uuid)` first in `search_path` holding two rows
+        When the preflight runs
+        Then it raises an error with the count 2 and the two ids; with no row it succeeds
+      Scenario: AC-2 Valid periods
+        When a PAYMENT period (PRO, 3 months, 30 000, with its payment), a CONVERSION period and a GIFT period (price 0) are inserted
+        Then all three are stored
+      Scenario Outline: AC-3 Wrong rows are refused
+        When a row is inserted with <problem>
+        Then the database refuses it with <code>
+        Examples:
+          | problem                                         | code  |
+          | a second ACTIVE period for the business         | 23505 |
+          | `starts_at` after `ends_at`                     | 23514 |
+          | PAYMENT without a payment                       | 23514 |
+          | CONVERSION with a price                         | 23514 |
+          | ENDED without `end_reason`                      | 23514 |
+      Scenario: AC-4 Periods are never deleted
+        When the application account deletes or truncates the table
+        Then each statement fails with 42501
+    abuse: |
+      Scenario: AB-1 One payment buys two periods (tampering, T3)
+        When a second period uses the payment of an existing period
+        Then the database refuses with 23505 and one period exists
+    implementation:
+      create: [prisma/migrations/<timestamp>_bil_002_subscription_periods/migration.sql, tests/integration/billing/subscriptions-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the database refuses inconsistent periods whatever the writer does; the preflight message names ids only."
+    tests: |
+      preflight | integration | AC-1 | two scratch rows → error with count and ids; none → passes
+      valid periods | integration | AC-2, Subscription:required, Subscription.plan:enum, Subscription.origin:enum, Subscription.status:enum, Subscription.end_reason:enum, Subscription:fk | three periods → stored
+      wrong rows | integration | AC-3, C-52 | each Examples row → the code
+      no delete | integration | AC-4 | DELETE, TRUNCATE → 42501
+      same payment | security | AB-1, CWE-362 | second period with the same payment → 23505
+    command: npx vitest run tests/integration/billing/subscriptions-table.test.ts tests/integration/organization
+    out_of_scope:
+      - "Writing periods: BIL-011, BIL-014, BIL-023. The no-overlap rule: BIL-032."
+    tests_to_update:
+      - "tests/integration/organization/subscription-table.test.ts | inserts the old shape (plan text, status ACTIVE or EXPIRED, nullable dates) | file deleted; subscriptions-table.test.ts covers the new shape"
+      - "tests/integration/organization/reopen.test.ts | seeds a `subscriptions` row of the old shape (plan 'BASIC', status EXPIRED) and expects it unchanged after reopening | the seed is dropped with the assertion on it"
+
+  - id: BIL-032
+    title: Two periods of one business can never overlap
+    kind: migration
+    size: XS
+    risk: high
+    depends_on: [BIL-002]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004120000_org_012_subscriptions/migration.sql]
+    design_refs: [finances/subscription, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-52]
+    asvs: [v5.0.0-2.2.3]
+    story: "Technical story: forbid overlapping periods of one business in the database, so that a double write never doubles the time a customer has paid for."
+    context: |
+      - Exists: `subscriptions` with `starts_at` and `ends_at` not null and a unique ACTIVE row per business (BIL-002).
+      - Migration `<timestamp>_bil_032_subscription_no_overlap`: `CREATE EXTENSION IF NOT EXISTS btree_gist`, then an exclusion constraint on (`organization_id` with `=`, `tstzrange(starts_at, ends_at)` with `&&`). Refusal is 23P01.
+      - Periods that touch (one ends when the next starts) are allowed. A period absorbed by an upgrade ends with `ends_at = starts_at`, an empty range that overlaps nothing.
+      - Add a sentence above `Subscription` in `prisma/schema.prisma`: two periods of one business never overlap, enforced by the migration; the schema cannot express it.
+    acceptance: |
+      Scenario: AC-1 Back-to-back periods
+        When two periods of one business are inserted, the second starting when the first ends
+        Then both are stored
+      Scenario: AC-2 Overlap refused
+        When a period starts inside another period of the same business
+        Then the database refuses with 23P01 and one period exists
+      Scenario: AC-3 Other businesses and empty ranges
+        When the same dates are used by another business, and when a SCHEDULED period is ended with `ends_at` equal to `starts_at`
+        Then both succeed
+    abuse: |
+      Scenario: AB-1 Two writers each add the same month (tampering, T3)
+        When two transactions insert periods starting inside each other for one business
+        Then one commits and the other fails with 23P01
+    implementation:
+      create: [prisma/migrations/<timestamp>_bil_032_subscription_no_overlap/migration.sql, tests/integration/billing/subscription-no-overlap.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the database, not each writer, keeps periods from overlapping."
+    tests: |
+      touching | integration | AC-1 | back-to-back periods → stored
+      overlap | integration | AC-2, C-52 | period inside another → 23P01
+      scope | integration | AC-3 | other business, empty range → stored
+      parallel | security | AB-1, CWE-362 | two parallel inserts → one 23P01
+    command: npx vitest run tests/integration/billing/subscription-no-overlap.test.ts
+    out_of_scope:
+      - "Choosing start dates: BIL-010 and BIL-011."
+
+  - id: BIL-003
+    title: Table of subscription receipts with gap-free numbers
+    kind: migration
+    size: M
+    risk: high
+    depends_on: [BIL-001]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004180000_adm_002_admin_actions/migration.sql]
+    design_refs: [finances/subscriptionreceipt, contraintes-a-poser-au-niveau-base-de]
+    constraints: [SubscriptionReceipt:required, SubscriptionReceipt.number:unique, SubscriptionReceipt.kind:enum, SubscriptionReceipt:fk, C-54, C-39]
+    asvs: [v5.0.0-2.2.3]
+    story: "Technical story: create the receipt table, its number function and its credit-note rules so that a receipt can never be changed, skipped or cancelled twice."
+    context: |
+      - Exists: `subscription_payments` (BIL-001), `organizations`.
+      - Migration `<timestamp>_bil_003_subscription_receipts`: enum `ReceiptKind`; table `subscription_receipts` as in the design, `issued_at` default now(); unique on `cancels_receipt_id`.
+      - Checks (23514): `number` matches `R-YYYY-NNNNNN`; `amount` = `amount_excl_tax` + `vat_amount`; `amount` above 0, other amounts not below 0; `cancels_receipt_id` set exactly when `kind` is CREDIT_NOTE.
+      - Trigger `subscription_receipts_check_credit_note` (23514): the cancelled row is a RECEIPT with the same business, payment and amounts.
+      - SQL function `next_subscription_receipt_number(issued timestamptz)`: takes `pg_advisory_xact_lock`, returns `R-<issue year>-<last suffix + 1, 6 digits>`; one series across years. A BEFORE INSERT trigger takes the same lock and refuses (23514) any other number.
+      - GRANT SELECT, INSERT and EXECUTE on the function only (C-39). `prisma/schema.prisma`: enum, model and a plain-words `//` comment above it (never changed, numbers gap-free, one credit note per receipt, migration).
+    acceptance: |
+      Scenario: AC-1 A receipt
+        When a RECEIPT of 5 000 (4 193 excl. tax, 807 VAT, rate 1925) is inserted with the number the function returned
+        Then it is stored with `issued_at` set
+      Scenario Outline: AC-2 Wrong rows are refused
+        When a row is inserted with <problem>
+        Then the database refuses it with <code>
+        Examples:
+          | problem                                           | code  |
+          | `amount` not equal to excl. tax plus VAT          | 23514 |
+          | number `R-26-1`                                   | 23514 |
+          | CREDIT_NOTE without `cancels_receipt_id`          | 23514 |
+          | a second credit note for one receipt              | 23505 |
+          | a credit note with another amount                 | 23514 |
+      Scenario: AC-3 Numbers
+        Given an empty table, then a table whose last number is `R-2026-000007`
+        When the function runs for a date in 2026
+        Then it returns `R-2026-000001`, then `R-2026-000008`; inserting `R-2026-000010` is refused with 23514
+      Scenario: AC-4 Never changed or deleted
+        When the application account updates, deletes or truncates
+        Then each statement fails with 42501
+    abuse: |
+      Scenario: AB-1 A receipt amount is rewritten (tampering, T8)
+        When the application account sets `amount` of a stored receipt
+        Then the statement fails with 42501 and the row is unchanged
+      Scenario: AB-2 Two receipts at once (tampering, T8)
+        When two transactions each ask for a number and insert
+        Then the numbers are consecutive, none skipped and none repeated
+    implementation:
+      create: [prisma/migrations/<timestamp>_bil_003_subscription_receipts/migration.sql, tests/integration/billing/subscription-receipts-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: ["next_subscription_receipt_number(issued timestamptz) RETURNS text"]
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the database, not the writer, keeps numbers gap-free and receipts unchanged."
+    tests: |
+      receipt | integration | AC-1, SubscriptionReceipt:required, SubscriptionReceipt.number:unique, SubscriptionReceipt.kind:enum, SubscriptionReceipt:fk | insert → stored
+      wrong rows | integration | AC-2, C-54 | each Examples row → the code
+      numbers | integration | AC-3 | function and gap → results
+      immutable | integration | AC-4, C-39 | UPDATE, DELETE, TRUNCATE → 42501
+      rewrite | security | AB-1, CWE-345 | UPDATE amount → 42501
+      parallel | security | AB-2, CWE-362 | two transactions → consecutive numbers
+    command: npx vitest run tests/integration/billing/subscription-receipts-table.test.ts
+    out_of_scope:
+      - "Issuing receipts and VAT arithmetic: BIL-012. A yearly reset of the series: open question."
+
+  - id: BIL-004
+    title: Table of subscription events
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [BIL-001, BIL-002, ADM-002]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004180000_adm_002_admin_actions/migration.sql]
+    design_refs: [finances/subscriptionevent, contraintes-a-poser-au-niveau-base-de]
+    constraints: [SubscriptionEvent:required, SubscriptionEvent.kind:enum, SubscriptionEvent.actor:enum, SubscriptionEvent:fk, C-55, C-39]
+    asvs: [v5.0.0-2.2.3]
+    story: "Technical story: create the append-only journal of everything that happens to a plan, with the rules that tie each event to who caused it."
+    context: |
+      - Exists: `subscription_payments` (BIL-001), `subscriptions` (BIL-002), `admin_actions` and `administrators` (ADM-001, ADM-002).
+      - Migration `<timestamp>_bil_004_subscription_events`: enums `SubscriptionEventKind`, `SubscriptionEventActor`; table `subscription_events` as in the design; `details` a JSON object, default `{}`; `occurred_at` default now(); index on (`organization_id`, `occurred_at`).
+      - Checks (23514): `person_id` set exactly when `actor` is OWNER; `administrator_id` and `admin_action_id` set exactly when `actor` is ADMINISTRATOR; `payment_id` set when `actor` is PAYER; `details` is a JSON object.
+      - GRANT SELECT and INSERT only (C-39). `prisma/schema.prisma`: enums, model and a plain-words `//` comment above it (append only, each actor carries its own reference, migration).
+    acceptance: |
+      Scenario Outline: AC-1 Events
+        When an event with kind <kind> and actor <actor> and <links> is inserted
+        Then it is stored
+        Examples:
+          | kind          | actor         | links                                |
+          | PAYMENT       | PAYER         | a payment                            |
+          | KEEP_CHOICE   | OWNER         | a person                             |
+          | PLAN_CHANGED  | ADMINISTRATOR | an administrator and an admin action |
+          | REMINDER      | SYSTEM        | no reference                         |
+      Scenario Outline: AC-2 Wrong rows are refused
+        When a row is inserted with <problem>
+        Then the database refuses it with <code>
+        Examples:
+          | problem                                 | code  |
+          | actor OWNER and no `person_id`          | 23514 |
+          | actor SYSTEM and a `person_id`          | 23514 |
+          | actor ADMINISTRATOR without an action   | 23514 |
+          | actor PAYER and no `payment_id`         | 23514 |
+          | `details` set to a list                 | 23514 |
+          | kind `REFUND`                           | 22P02 |
+      Scenario: AC-3 Never changed or deleted
+        When the application account updates, deletes or truncates
+        Then each statement fails with 42501
+    abuse: |
+      Scenario: AB-1 The history of a plan is rewritten (tampering, T8)
+        When the application account updates `kind` or `details` of a stored event
+        Then the statement fails with 42501 and the row is unchanged
+    implementation:
+      create: [prisma/migrations/<timestamp>_bil_004_subscription_events/migration.sql, tests/integration/billing/subscription-events-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the database keeps the journal append-only and ties each event to its actor."
+    tests: |
+      events | integration | AC-1, SubscriptionEvent:required, SubscriptionEvent.kind:enum, SubscriptionEvent.actor:enum, SubscriptionEvent:fk | each Examples row → stored
+      wrong rows | integration | AC-2, C-55 | each Examples row → the code
+      immutable | integration | AC-3, C-39 | UPDATE, DELETE, TRUNCATE → 42501
+      rewrite | security | AB-1, CWE-345 | UPDATE kind and details → 42501
+    command: npx vitest run tests/integration/billing/subscription-events-table.test.ts
+    out_of_scope:
+      - "Writing events: the stories that cause them (BIL-014, BIL-018, BIL-019, BIL-023)."
+
+  - id: BIL-010
+    title: Plan arithmetic for upgrades, queues and grace
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [FND-014]
+    read_first: [src/shared/plans.ts]
+    design_refs: [finances/subscription]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: put the plan rank, the calendar-month addition and the conversion of remaining days in one pure file, so that every queue, upgrade and receipt computes dates the same way."
+    context: |
+      - Exists: `PLANS`, `priceFor`, `PaidPlanCode`, `PackMonths` (FND-014).
+      - New `src/modules/billing/plan-math.ts`, pure, no database:
+        - `planRank(plan)`: FREE 0, ESSENTIAL 1, PRO 2, ENTERPRISE 3.
+        - `addMonths(from, months)`: calendar months in UTC; a day missing from the target month becomes its last day. `addDays(from, days)`; `GRACE_DAYS = 7`.
+        - `convertRemainingDays(parts, to)`: each part is `{ plan, remainingMs }` of a lower plan; it sums `remainingMs × monthlyPrice(plan) / monthlyPrice(to)` in integer arithmetic and rounds up once to whole days. 20 days of ESSENTIAL are worth 10 days of PRO.
+    acceptance: |
+      Scenario: AC-1 Rank
+        When `planRank` runs for FREE, ESSENTIAL, PRO and ENTERPRISE
+        Then it returns 0, 1, 2 and 3
+      Scenario Outline: AC-2 Calendar months
+        When `addMonths(<from>, <months>)` runs
+        Then the result is <to>
+        Examples:
+          | from                 | months | to                   |
+          | 2026-10-12T09:00:00Z | 3      | 2027-01-12T09:00:00Z |
+          | 2026-11-30T09:00:00Z | 3      | 2027-02-28T09:00:00Z |
+          | 2028-01-31T09:00:00Z | 1      | 2028-02-29T09:00:00Z |
+          | 2026-03-31T09:00:00Z | 12     | 2027-03-31T09:00:00Z |
+      Scenario Outline: AC-3 Converted days
+        When `convertRemainingDays` runs for <parts> to <to>
+        Then the result is <days>
+        Examples:
+          | parts                                 | to         | days |
+          | 20 days of ESSENTIAL                  | PRO        | 10   |
+          | 20 days and 31 days of ESSENTIAL      | PRO        | 26   |
+          | 20 days of PRO                        | ENTERPRISE | 8    |
+          | 1 ms of ESSENTIAL                     | PRO        | 1    |
+          | 0 ms of ESSENTIAL                     | PRO        | 0    |
+      Scenario Outline: AC-4 Refused input
+        When `convertRemainingDays` runs for <input>
+        Then it throws a RangeError
+        Examples:
+          | input                          |
+          | a part of PRO to PRO           |
+          | a part of ENTERPRISE to PRO    |
+          | a negative `remainingMs`       |
+      Scenario: AC-5 Days
+        When `addDays(2026-10-12T09:00:00Z, GRACE_DAYS)` runs
+        Then the result is 2026-10-19T09:00:00Z
+    implementation:
+      create: [src/modules/billing/plan-math.ts, tests/unit/billing/plan-math.test.ts]
+      modify: []
+      pattern: tests/unit/shared/money.test.ts
+      signatures:
+        - "planRank(plan: PlanCode): 0 | 1 | 2 | 3"
+        - "addMonths(from: Date, months: PackMonths): Date"
+        - "addDays(from: Date, days: number): Date"
+        - "convertRemainingDays(parts: ConvertPart[], to: PaidPlanCode): number"
+      types:
+        - "ConvertPart = { plan: PaidPlanCode; remainingMs: number }"
+        - "GRACE_DAYS = 7"
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-2.2.1: a part that is not of a lower plan, or has a negative duration, throws instead of giving days."
+    tests: |
+      rank | unit | AC-1 | four plans → 0 to 3
+      months | unit | AC-2 | each Examples row → date
+      conversion | unit | AC-3 | each Examples row → days
+      refused | unit | AC-4 | each Examples row → RangeError
+      days | unit | AC-5 | seven days added
+    command: npx vitest run tests/unit/billing/plan-math.test.ts
+    out_of_scope:
+      - "Choosing start dates and queue order: BIL-011 and BIL-027."
+
+  - id: BIL-008
+    title: Payment aggregator port with a fake adapter
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [FND-003]
+    read_first: [src/config/env.ts, docs/stories/decisions/ADR-006-payment-aggregator.md]
+    design_refs: [finances/subscriptionpayment]
+    constraints: []
+    asvs: [v5.0.0-2.2.1, v5.0.0-8.2.1]
+    story: "Technical story: provide the port to the payment aggregator and a fake adapter, so that the payment flow is built and tested without any real account."
+    context: |
+      - No HTTP client, package or URL for a third-party service is allowed (ADR-006, proposed): the real adapter is in no story.
+      - New `src/modules/billing/aggregator.port.ts`: `PaymentAggregator` with `requestPayment({ clientReference, amount, operator, payerPhone, description })` giving `{ providerReference }`; `getStatus(providerReference)` giving `{ status, amount, paidAt }` or null; `verifyConfirmation({ headers, rawBody })` giving `{ providerReference }` when the call really comes from the aggregator, else null; `listStatement(day)` giving every payment of that UTC day. Operators: MTN_MOMO and ORANGE_MONEY.
+      - New `aggregator.fake.ts`: `FakeAggregator`. A repeat of `requestPayment` with one `clientReference` returns the same `providerReference`. Test helpers: `settle(providerReference, status, paidAt?)`, `confirmationFor(providerReference)` (headers with `x-fake-signature: valid`) and `reset()`. `verifyConfirmation` accepts only that signature.
+      - New `aggregator.ts`: `getPaymentAggregator()` returns the one fake instance. `env.ts` adds `PAYMENT_DRIVER` (only `fake`, default `fake`); `.env.example` lists it.
+    acceptance: |
+      Scenario: AC-1 A request
+        When `requestPayment` runs for 15 000, MTN_MOMO, with a payer number, twice with one `clientReference`
+        Then both calls give the same `providerReference` and `getStatus` says PENDING with amount 15 000
+      Scenario: AC-2 Settling
+        When `settle(ref, SUCCEEDED, paidAt)` runs and `getStatus(ref)` is read
+        Then the status is SUCCEEDED with that `paidAt`; an unknown reference gives null
+      Scenario Outline: AC-3 Confirmations
+        When `verifyConfirmation` receives <call>
+        Then the result is <result>
+        Examples:
+          | call                                          | result                    |
+          | the output of `confirmationFor(ref)`          | `{ providerReference }`   |
+          | the same body without the signature header    | null                      |
+          | a wrong signature value                       | null                      |
+          | a body that is not JSON                       | null                      |
+      Scenario: AC-4 Statement
+        When two payments are settled on one day and `listStatement` runs for that day and for the next
+        Then it lists both for the first day and none for the next
+      Scenario Outline: AC-5 The setting
+        When the environment is validated with <setting>
+        Then validation <result>
+        Examples:
+          | setting            | result           |
+          | none               | passes, `fake`   |
+          | PAYMENT_DRIVER=momo | fails, names it |
+    abuse: |
+      Scenario: AB-1 A forged confirmation is believed (spoofing, T1)
+        When `verifyConfirmation` receives a body naming a real pending reference with no valid signature
+        Then the result is null and `getStatus` still says PENDING
+    implementation:
+      create: [src/modules/billing/aggregator.port.ts, src/modules/billing/aggregator.fake.ts, src/modules/billing/aggregator.ts, tests/unit/billing/aggregator-fake.test.ts]
+      modify: [src/config/env.ts, .env.example]
+      pattern: tests/unit/shared/money.test.ts
+      signatures:
+        - "getPaymentAggregator(): PaymentAggregator"
+      types:
+        - "AggregatorStatus = 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'EXPIRED'"
+        - "AggregatorPayment = { providerReference: string; status: AggregatorStatus; amount: bigint; paidAt: Date | null }"
+        - "PaymentAggregator = { requestPayment(input: { clientReference: string; amount: bigint; operator: 'MTN_MOMO' | 'ORANGE_MONEY'; payerPhone: string; description: string }): Promise<{ providerReference: string }>; getStatus(providerReference: string): Promise<AggregatorPayment | null>; verifyConfirmation(input: { headers: Record<string, string | undefined>; rawBody: Buffer }): { providerReference: string } | null; listStatement(day: string): Promise<AggregatorPayment[]> }"
+      errors: []
+      dependencies: [zod]
+    security:
+      - "v5.0.0-2.2.1: `requestPayment` throws a RangeError for an amount of 0 or less."
+      - "v5.0.0-8.2.1: a confirmation is believed only when `verifyConfirmation` gives a reference; what it claims about the status proves nothing (BIL-014 asks `getStatus`)."
+    tests: |
+      request | unit | AC-1 | two calls → one reference, PENDING, amount
+      settle | unit | AC-2 | SUCCEEDED with date; unknown → null
+      confirmations | unit | AC-3 | each Examples row → result
+      statement | unit | AC-4 | day filter
+      setting | unit | AC-5 | each Examples row → passes or names the variable
+      forged | security | AB-1, CWE-345 | unsigned body → null, still PENDING
+    command: npx vitest run tests/unit/billing/aggregator-fake.test.ts
+    out_of_scope:
+      - "A real aggregator adapter and its secrets: they wait for ADR-006."
+      - "Calling the port from a route or a job: BIL-009, BIL-014, BIL-021, BIL-022."
+
+  - id: BIL-007
+    title: A payer checks the business name from its payment code
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [ORG-044, FND-014]
+    read_first: [src/app.ts, src/modules/person/person.routes.ts]
+    design_refs: [finances/subscription/plans-on-paie-pour-son-equipe, identite-et-organisation/organization]
+    constraints: [C-41]
+    asvs: [v5.0.0-2.4.1, v5.0.0-15.3.1]
+    story: As a visitor, I want to type the code of a business on the payment site and see its name so that I know I am paying for the right business.
+    context: |
+      - Exists: `findOrganizationByPaymentCode` (ORG-044), `rate-limit` (`checkAndConsume`), the router in `src/app.ts`. The route is public: the site asks for no sign-in, and a payment only adds rights.
+      - Adds the module files `billing.routes.ts`, `billing.service.ts`, `billing.schemas.ts`, `billing.openapi.ts` and the mount `/billing` in `src/app.ts`.
+      - `GET /api/v1/billing/shops/{code}`. The code is trimmed and upper-cased, then must be 8 characters of `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, else 400 `VALIDATION_ERROR`. Answer 200 `{ "name": string }` and nothing more.
+      - An unknown code, a deleted business and a business that is not ACTIVE all answer the same 404 `NOT_FOUND`.
+      - At most 30 lookups an hour per `req.ip`, counted before the lookup (key `billing:code:<ip>`); the 31st answers 429 `RATE_LIMITED` and logs `warn` event `payment_code_rate_limited`, no ip. Both numbers are provisional.
+    acceptance: |
+      Scenario: AC-1 A code gives the name
+        When a client with no sign-in reads the shop of an ACTIVE business
+        Then the answer is 200 with exactly `{ "name": "<the name>" }`
+      Scenario: AC-2 A loose code
+        When the code is sent in lower case with spaces around it
+        Then the answer is the same as for the exact code
+      Scenario Outline: AC-3 A code that gives nothing
+        When the code is <code>
+        Then the answer is <answer>
+        Examples:
+          | code                                | answer                          |
+          | well formed, held by no business    | 404 `NOT_FOUND`                 |
+          | held by a SUSPENDED or CLOSED one   | the same 404 `NOT_FOUND`        |
+          | 7 characters, or with `0`, `O`, `1` | 400 `VALIDATION_ERROR`, no value |
+      Scenario: AC-4 The limit
+        When one address makes 31 lookups within the hour
+        Then the first 30 are answered normally and the 31st is 429 `RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 Codes are guessed (enumeration, T6)
+        When one address asks for 40 well-formed unknown codes
+        Then the first 30 answers are identical 404s, the next are 429, and the database is not read after the limit
+    implementation:
+      create: [src/modules/billing/billing.routes.ts, src/modules/billing/billing.service.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts, tests/integration/billing/shop-lookup.test.ts]
+      modify: [src/app.ts]
+      pattern: tests/integration/auth/register-request.test.ts
+      signatures:
+        - "lookupShop(code: string, ip: string): Promise<{ name: string }>"
+      types: []
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "RATE_LIMITED 429"]
+      dependencies: [zod, express]
+    security:
+      - "v5.0.0-2.4.1: lookups are limited per address before any read."
+      - "v5.0.0-15.3.1: the answer holds the name only: no id, plan, status or team."
+    tests: |
+      shop name | integration | AC-1, C-41 | ACTIVE business → 200 with name only
+      loose code | integration | AC-2 | lower case with spaces → same answer
+      nothing | integration | AC-3 | each Examples row → answer
+      limit | integration | AC-4 | 31 calls → 30 normal, then 429
+      guessing | security | AB-1, CWE-307 | 40 unknown codes → identical 404s then 429
+    command: npx vitest run tests/integration/billing/shop-lookup.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "The start date and price shown after the choice of a plan: BIL-033."
+      - "Creating a payment: BIL-009."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the shop path | add GET /api/v1/billing/shops/{code}, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the shop path | add GET /api/v1/billing/shops/{code}, remove nothing"
+
+  - id: BIL-011
+    title: A purchased period starts at once or joins the queue
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-002, BIL-004, BIL-032, BIL-010]
+    read_first: [src/modules/billing/plan-math.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-52]
+    asvs: [v5.0.0-2.3.3]
+    story: "Technical story: give billing the function that places a purchased period for a business, now or after the ones already bought, so that no day paid for is lost or counted twice."
+    context: |
+      - Exists: `subscriptions`, `subscription_events`, no overlap (BIL-032); `addMonths`, `planRank`, `GRACE_DAYS` (BIL-010).
+      - New `subscription.repository.ts` (the only file reading or writing these tables): `lockSubscriptions(tx, organizationId)` (transaction advisory lock), `listQueue` (ACTIVE and SCHEDULED, by `starts_at`), `findLastExpired` (ENDED with `end_reason` EXPIRED, latest `ends_at`), `insertPeriod`, `insertEvent`, `runInTransaction(work)`.
+      - New `forfait.service.ts`, first a pure `placePurchase(queue, lastExpiredEndsAt, plan, months, now)` that returns `{ placement, startsAt, endsAt }` (the quote reuses it, BIL-033):
+        - empty queue, last period expired less than 7 days before `now`: NOW from that `ends_at` (a purchase in grace starts at the due date);
+        - empty queue otherwise: NOW from `now`;
+        - running plan of the same or a higher rank: QUEUED from the latest `ends_at` of the queue;
+        - running plan lower than the purchase: UPGRADE from `now` (BIL-027).
+        `endsAt` = `addMonths(startsAt, months)`.
+      - Then `startOrQueueForfait(tx, purchase)`, purchase = organization, plan, months, price, payment id, actor (PAYER, or ADMINISTRATOR with its ids), `now`. It locks, reads the queue, calls `placePurchase`, and for UPGRADE throws `UpgradeRequiredError` with nothing written. Else it inserts the period (origin PAYMENT, ACTIVE for NOW, SCHEDULED for QUEUED), writes one FORFAIT_ADDED event (details: plan, months, status) and returns the period.
+    acceptance: |
+      Scenario: AC-1 Nothing running
+        When ESSENTIAL for 3 months is placed at 2026-10-12T09:00:00Z with an empty queue
+        Then the period is ACTIVE from that instant to 2027-01-12T09:00:00Z
+      Scenario Outline: AC-2 Behind the queue
+        Given <queue>
+        When <bought> for 1 month is placed
+        Then it is SCHEDULED, starting when <after> ends
+        Examples:
+          | queue                                | bought    | after                    |
+          | ESSENTIAL running                    | ESSENTIAL | the running period       |
+          | PRO running                          | ESSENTIAL | the running period       |
+          | PRO running, ESSENTIAL scheduled     | PRO       | the scheduled period     |
+      Scenario Outline: AC-3 Grace
+        Given the last period expired <ago> before `now` and nothing else
+        When ESSENTIAL for 1 month is placed
+        Then it is ACTIVE from <start>
+        Examples:
+          | ago     | start              |
+          | 3 days  | that period's end  |
+          | 8 days  | `now`              |
+      Scenario: AC-4 A higher plan
+        When PRO is placed while ESSENTIAL is running
+        Then it throws `UpgradeRequiredError` and no period or event is written
+      Scenario: AC-5 The journal
+        When a period is placed for a payer
+        Then one FORFAIT_ADDED event exists with actor PAYER, the payment id and the period id
+    abuse: |
+      Scenario: AB-1 Two payments for one business at the same time (race, T3)
+        When two transactions place ESSENTIAL for 1 month at once
+        Then one period is ACTIVE and the other SCHEDULED from its end, with no overlap error
+    implementation:
+      create: [src/modules/billing/subscription.repository.ts, src/modules/billing/forfait.service.ts, tests/integration/billing/forfait-queue.test.ts, tests/unit/billing/place-purchase.test.ts]
+      modify: []
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "placePurchase(queue: QueuedPeriod[], lastExpiredEndsAt: Date | null, plan: PaidPlanCode, months: PackMonths, now: Date): Placement"
+        - "startOrQueueForfait(tx: Prisma.TransactionClient, purchase: ForfaitPurchase): Promise<PeriodRow>"
+      types:
+        - "Placement = { placement: 'NOW' | 'QUEUED' | 'UPGRADE'; startsAt: Date; endsAt: Date }"
+        - "QueuedPeriod = { plan: PaidPlanCode; status: 'ACTIVE' | 'SCHEDULED'; startsAt: Date; endsAt: Date }"
+        - "ForfaitPurchase = { organizationId: string; plan: PaidPlanCode; months: PackMonths; price: bigint; paymentId: string; actor: ForfaitActor; now: Date }"
+        - "ForfaitActor = { actor: 'PAYER' } | { actor: 'ADMINISTRATOR'; administratorId: string; adminActionId: string }"
+      errors: ["UpgradeRequiredError (plain Error subclass)"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: the lock, the period and the event belong to the caller's transaction, so all succeed or none."
+    tests: |
+      at once | integration | AC-1, C-52 | empty queue → ACTIVE, end date
+      queue | integration | AC-2 | each Examples row → SCHEDULED from that end
+      grace | integration | AC-3 | each Examples row → start
+      upgrade needed | integration | AC-4 | higher plan → error, no rows
+      journal | integration | AC-5 | FORFAIT_ADDED with ids
+      pure placement | unit | AC-1, AC-2, AC-3 | same cases without a database → placement, dates
+      race | security | AB-1, CWE-362 | two parallel placements → ACTIVE and SCHEDULED, no overlap
+    command: npx vitest run tests/integration/billing/forfait-queue.test.ts tests/unit/billing/place-purchase.test.ts
+    out_of_scope:
+      - "Upgrade with conversion: BIL-027. Ending periods: BIL-028."
+
+  - id: BIL-027
+    title: A higher plan starts at once and converts the days left
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-011]
+    read_first: [src/modules/billing/forfait.service.ts, src/modules/billing/plan-math.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-52]
+    asvs: [v5.0.0-2.3.3, v5.0.0-2.2.1]
+    story: "Technical story: let a purchase of a higher plan start at once, turn the days left of the lower plan into days of the new one and end the periods it replaces, so that nothing paid for is lost."
+    context: |
+      - Exists: `startOrQueueForfait`, the repository (BIL-011); `convertRemainingDays` (BIL-010).
+      - New `upgrade.service.ts` with `addPaidForfait(tx, purchase)`, the one entry point for a paid period: it locks, and when the running period is of a lower plan than the purchase it upgrades, else it calls `startOrQueueForfait`.
+      - Upgrade, in this order:
+        - Days left: for the ACTIVE period `ends_at - now` (0 if past), for each SCHEDULED one `ends_at - starts_at`, each with its own plan; `convertRemainingDays(parts, plan)` gives the converted days.
+        - End the ACTIVE period (`ends_at = now`) and each SCHEDULED one (`ends_at = starts_at`), ENDED with `end_reason` UPGRADED, one FORFAIT_ENDED event each.
+        - Insert the purchased period ACTIVE from `now` (as in BIL-011) with a FORFAIT_ADDED event; then, if converted days is above 0, a CONVERSION period: SCHEDULED, same plan, price 0, no payment or months, from the purchased `ends_at` for the converted days, with a FORFAIT_ADDED event.
+        - One PLAN_CHANGED event (details: from, to).
+      - Returns `{ purchased, conversion, endedIds }`. `repository.endPeriod` is added.
+    acceptance: |
+      Scenario: AC-1 Upgrade
+        Given ESSENTIAL running with 20 days left
+        When PRO for 1 month is placed
+        Then the ESSENTIAL period is ENDED UPGRADED with `ends_at = now`, PRO is ACTIVE from `now` for a month, and a CONVERSION period of PRO lasting 10 days is SCHEDULED after it, price 0
+      Scenario: AC-2 Scheduled periods are converted too
+        Given ESSENTIAL running with 20 days left and an ESSENTIAL period of 31 days SCHEDULED after it
+        When PRO for 1 month is placed
+        Then both ESSENTIAL periods are ENDED UPGRADED, the scheduled one with `ends_at = starts_at`, and the CONVERSION lasts 26 days
+      Scenario: AC-3 Nothing left
+        Given an ACTIVE ESSENTIAL period whose `ends_at` is already past
+        When PRO is placed
+        Then no CONVERSION period is created
+      Scenario Outline: AC-4 One entry point
+        When `addPaidForfait` runs with <running> running and <bought> bought
+        Then the result is <result>
+        Examples:
+          | running    | bought     | result                  |
+          | nothing    | PRO        | ACTIVE from now         |
+          | PRO        | ESSENTIAL  | SCHEDULED               |
+          | ESSENTIAL  | ESSENTIAL  | SCHEDULED               |
+          | ESSENTIAL  | ENTERPRISE | upgrade                 |
+      Scenario: AC-5 The journal
+        When AC-2 runs
+        Then there are 2 FORFAIT_ENDED, 2 FORFAIT_ADDED and 1 PLAN_CHANGED events for the business
+    abuse: |
+      Scenario: AB-1 The same payment is applied twice (replay, T3)
+        When `addPaidForfait` runs twice with one payment id
+        Then the second call fails on the unique payment, and the periods are as the first call left them
+    implementation:
+      create: [src/modules/billing/upgrade.service.ts, tests/integration/billing/upgrade.test.ts]
+      modify: [src/modules/billing/subscription.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "addPaidForfait(tx: Prisma.TransactionClient, purchase: ForfaitPurchase): Promise<AddedForfait>"
+        - "endPeriod(tx: Prisma.TransactionClient, id: string, endsAt: Date, reason: 'EXPIRED' | 'UPGRADED' | 'CLOSED' | 'REFUNDED'): Promise<void>"
+      types:
+        - "AddedForfait = { purchased: PeriodRow; conversion: PeriodRow | null; endedIds: string[] }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: ending, inserting and journalling run in the caller's transaction."
+      - "v5.0.0-2.2.1: the price and months come from the caller's purchase; no value read from a request reaches the dates."
+    tests: |
+      upgrade | integration | AC-1, C-52 | ESSENTIAL 20 days → PRO and 10 days converted
+      scheduled | integration | AC-2 | 20 + 31 days → 26 days, absorbed rows
+      nothing left | integration | AC-3 | lapsed period → no conversion
+      entry point | integration | AC-4 | each Examples row → result
+      journal | integration | AC-5 | event counts
+      replay | security | AB-1, CWE-294 | same payment twice → second fails, rows unchanged
+    command: npx vitest run tests/integration/billing/upgrade.test.ts tests/integration/billing/forfait-queue.test.ts
+    out_of_scope:
+      - "Receipt, rights and notice for the payment: BIL-014."
+
+  - id: BIL-012
+    title: Receipts with VAT and a gap-free number
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [BIL-003, BIL-010]
+    read_first: [src/config/env.ts]
+    design_refs: [finances/subscriptionreceipt]
+    constraints: [C-54]
+    asvs: [v5.0.0-2.2.3, v5.0.0-2.3.3]
+    story: "Technical story: give billing the function that issues the frozen receipt of a payment, with its number and its VAT, in the transaction that confirms the payment."
+    context: |
+      - Exists: `subscription_receipts` and `next_subscription_receipt_number` (BIL-003); `addDays` and dates helpers (BIL-010). No route calls it yet.
+      - `env.ts` adds `VAT_RATE_BP` (0 or 1925, default 1925); `.env.example` lists it.
+      - New `receipt.repository.ts` (inserts, and `SELECT next_subscription_receipt_number($1)` through a parameterized query) and `receipt.service.ts`:
+        - `splitVat(total, rateBp)`: `amountExclTax = round(total × 10000 / (10000 + rateBp))` to the nearest franc, half up, in `bigint`; `vatAmount = total − amountExclTax`. 5 000 gives 4 193 and 807.
+        - `issueReceipt(tx, { payment, customerName, startsAt, endsAt, now })`: takes its number from the function in the same transaction and inserts a RECEIPT with the name, the payment's NIU, the rate and a French label, `Essentiel — 3 mois, du 12/10/2026 au 12/01/2027` (plans Essentiel, Pro, Entreprise; `1 mois`; dates in the Africa/Douala zone).
+    acceptance: |
+      Scenario Outline: AC-1 VAT
+        When `splitVat(<total>, <rate>)` runs
+        Then the result is <excl> and <vat>
+        Examples:
+          | total  | rate | excl   | vat  |
+          | 5000   | 1925 | 4193   | 807  |
+          | 15000  | 1925 | 12579  | 2421 |
+          | 25000  | 1925 | 20964  | 4036 |
+          | 5000   | 0    | 5000   | 0    |
+      Scenario: AC-2 A receipt
+        When a payment of 5 000 for ESSENTIAL, 3 months, with a NIU, is receipted for the business "Test Shop"
+        Then a RECEIPT exists with number `R-<year>-000001`, that name, that NIU, the label, amounts 4 193, 807 and 5 000, rate 1925 and `payment_id`
+      Scenario: AC-3 Consecutive numbers
+        When two receipts are issued one after the other
+        Then their numbers end in 000001 and 000002
+      Scenario Outline: AC-4 Label dates
+        When a receipt covers <from> to <to> for <plan>, <months> months
+        Then its label is <label>
+        Examples:
+          | plan      | months | from                 | to                   | label                                          |
+          | ESSENTIAL | 3      | 2026-10-11T23:30:00Z | 2027-01-11T23:30:00Z | Essentiel — 3 mois, du 12/10/2026 au 12/01/2027 |
+          | PRO       | 1      | 2026-10-12T09:00:00Z | 2026-11-12T09:00:00Z | Pro — 1 mois, du 12/10/2026 au 12/11/2026       |
+      Scenario Outline: AC-5 The setting
+        When the environment is validated with <setting>
+        Then validation <result>
+        Examples:
+          | setting           | result            |
+          | none              | passes, 1925      |
+          | VAT_RATE_BP=0     | passes            |
+          | VAT_RATE_BP=500   | fails, names it   |
+    abuse: |
+      Scenario: AB-1 A failed confirmation leaves a hole in the numbers (repudiation, T8)
+        When a receipt is issued in a transaction that is rolled back, then another receipt is issued
+        Then the second takes the number the first would have had
+    implementation:
+      create: [src/modules/billing/receipt.repository.ts, src/modules/billing/receipt.service.ts, tests/integration/billing/receipt-issue.test.ts, tests/unit/billing/vat.test.ts]
+      modify: [src/config/env.ts, .env.example]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "splitVat(total: bigint, rateBp: number): { amountExclTax: bigint; vatAmount: bigint }"
+        - "issueReceipt(tx: Prisma.TransactionClient, input: ReceiptInput): Promise<ReceiptRow>"
+      types:
+        - "ReceiptInput = { payment: { id: string; organizationId: string; plan: PaidPlanCode; months: PackMonths; amount: bigint; customerTaxId: string | null }; customerName: string; startsAt: Date; endsAt: Date; now: Date }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: amounts are integers and `amount` equals excl. tax plus VAT, which the table also checks."
+      - "v5.0.0-2.3.3: the number is taken in the transaction that inserts the receipt, so a rollback frees it."
+    tests: |
+      vat | unit | AC-1 | each Examples row → amounts
+      receipt | integration | AC-2, C-54 | fields of the stored receipt
+      numbers | integration | AC-3 | 000001 then 000002
+      label | integration | AC-4 | each Examples row → label
+      setting | unit | AC-5 | each Examples row → passes or names the variable
+      no hole | security | AB-1, CWE-345 | rollback then issue → same number
+    command: npx vitest run tests/integration/billing/receipt-issue.test.ts tests/unit/billing/vat.test.ts
+    out_of_scope:
+      - "Credit notes: BIL-038. Reading receipts: BIL-015 and BIL-017."
+
+  - id: BIL-013
+    title: The server computes the rights of a business
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-011, ORG-035, FND-014]
+    read_first: [src/modules/billing/subscription.repository.ts, src/shared/plans.ts]
+    design_refs: [finances/subscription, identite-et-organisation/organization]
+    constraints: [C-41]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: "Technical story: compute the plan, its end, the grace and the limits of a business from its periods and write them through the organization contract, so that the rights always match what was paid."
+    context: |
+      - Exists: the periods and their queue (BIL-011), `PLANS` (FND-014), `writePlanFields` (ORG-035).
+      - New `rights.service.ts`. The pure `computeRights(queue, lastExpiredEndsAt, now)` returns `OrganizationRights` (same shape as `PlanFields`); `recomputeRights(tx, organizationId, now)` locks, reads the queue, calls it, writes the result with `writePlanFields` and returns it.
+      - Running period: the one with `starts_at <= now < ends_at`. Its plan is the plan. `plan_ends_at` is the `ends_at` of the last period that follows it without a gap and has the same plan (a lower plan next ends the plan there, with no grace).
+      - No running period: if a period ended less than 7 days before `now` by running out (a lapsed ACTIVE one, or ENDED with `end_reason` EXPIRED) and nothing follows, the plan stays, `plan_ends_at` is that `ends_at` and `grace_ends_at` is 7 days later. Periods ended UPGRADED, CLOSED or REFUNDED never give grace. Otherwise FREE with no dates.
+      - Limits come from `PLANS[plan]`.
+    acceptance: |
+      Scenario: AC-1 Nothing ever bought
+        When rights are recomputed for a business with no period
+        Then the plan is FREE, both dates are empty, collaborators 2, products 30
+      Scenario: AC-2 A running plan
+        Given ESSENTIAL running until D
+        When rights are recomputed
+        Then the plan is ESSENTIAL, `plan_ends_at` is D, no grace, collaborators 5, products no limit
+      Scenario: AC-3 A chain of the same plan
+        Given ESSENTIAL running, then an ESSENTIAL period and a CONVERSION period, each starting where the last ends
+        When rights are recomputed
+        Then `plan_ends_at` is the end of the last of them
+      Scenario: AC-4 A lower plan next
+        Given PRO running until D and ESSENTIAL scheduled from D
+        When rights are recomputed before D, then after D
+        Then the plan is PRO with `plan_ends_at` D and no grace, then ESSENTIAL
+      Scenario Outline: AC-5 After the end
+        Given nothing running and the last period <last> <ago> ago
+        When rights are recomputed
+        Then the result is <result>
+        Examples:
+          | last                    | ago     | result                                              |
+          | ESSENTIAL, EXPIRED      | 3 days  | ESSENTIAL, `grace_ends_at` 7 days after its end     |
+          | ESSENTIAL, EXPIRED      | 8 days  | FREE, no dates                                      |
+          | PRO, UPGRADED or CLOSED | 2 days  | FREE, no dates                                      |
+      Scenario: AC-6 The five columns only
+        When rights are recomputed
+        Then the five plan columns hold the result and no other column of the business changes
+    abuse: |
+      Scenario: AB-1 Another business's periods leak into the rights (information disclosure)
+        Given business A with a PRO period and business B with none
+        When rights are recomputed for B
+        Then B is FREE and A's row is untouched
+    implementation:
+      create: [src/modules/billing/rights.service.ts, tests/integration/billing/rights.test.ts]
+      modify: []
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "computeRights(queue: QueuedPeriod[], lastExpiredEndsAt: Date | null, now: Date): OrganizationRights"
+        - "recomputeRights(tx: Prisma.TransactionClient, organizationId: string, now: Date): Promise<OrganizationRights>"
+      types:
+        - "OrganizationRights = PlanFields (ORG-035)"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: every read is bound to the organization id given by server code."
+      - "v5.0.0-2.3.3: the recomputation runs in the caller's transaction."
+    tests: |
+      free | integration | AC-1, C-41 | no period → FREE, 2 and 30
+      running | integration | AC-2 | ESSENTIAL fields
+      chain | integration | AC-3 | last end
+      lower next | integration | AC-4 | PRO then ESSENTIAL
+      after the end | integration | AC-5 | each Examples row → result
+      five columns | integration | AC-6 | other columns unchanged
+      other business | security | AB-1, CWE-639 | B is FREE, A untouched
+    command: npx vitest run tests/integration/billing/rights.test.ts
+    out_of_scope:
+      - "Pausing or resuming seats and products: BIL-019 and BIL-020."
+
+  - id: BIL-033
+    title: A payer sees the price and the start date before paying
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [BIL-007, BIL-010, BIL-011]
+    read_first: [src/modules/billing/billing.routes.ts, src/modules/billing/forfait.service.ts]
+    design_refs: [finances/subscription/plans-on-paie-pour-son-equipe]
+    constraints: [C-41]
+    asvs: [v5.0.0-2.4.1, v5.0.0-15.3.1, v5.0.0-2.2.1]
+    story: As a visitor, I want to see the price and the start date of the plan I choose for a business so that I know what I pay and from when it counts.
+    context: |
+      - Exists: the public router, the code rule and the rate-limit event of BIL-007; `placePurchase` (BIL-011); `priceFor` (FND-014).
+      - `GET /api/v1/billing/shops/{code}/quote?plan=&months=`, public. The code is read as in BIL-007. `plan` is ESSENTIAL, PRO or ENTERPRISE and `months` is 1, 3, 6 or 12; any other value or query field answers 400 `VALIDATION_ERROR`. An unknown or not ACTIVE business answers 404 `NOT_FOUND`.
+      - At most 60 quotes an hour per `req.ip`, counted before any read (key `billing:quote:<ip>`, provisional); the next answers 429 `RATE_LIMITED` and logs the same `warn` event as BIL-007.
+      - Answer 200 `{ name, plan, months, price, placement, starts_at, ends_at }`: `price` from `priceFor`; `placement`, `starts_at` and `ends_at` from `placePurchase`, with the periods read without a lock. For UPGRADE the dates are those of the purchased period alone.
+      - `readQueueFor(organizationId)` in `subscription.repository.ts` returns the ACTIVE and SCHEDULED periods and the `ends_at` of the latest one ended by EXPIRED.
+    acceptance: |
+      Scenario: AC-1 Nothing running
+        Given an ACTIVE business with no period, and the clock at 2026-10-12T09:00:00Z
+        When a visitor asks for ESSENTIAL, 3 months
+        Then the answer is 200 with exactly the seven fields: price 15000, placement NOW, `starts_at` 2026-10-12T09:00:00Z, `ends_at` 2027-01-12T09:00:00Z, and no id, status or plan of the business
+      Scenario Outline: AC-2 Behind a running plan
+        Given <running> running until 2026-11-01T00:00:00Z
+        When a visitor asks for <asked>, 1 month
+        Then the placement is <placement> and `starts_at` is <start>
+        Examples:
+          | running   | asked     | placement | start                |
+          | PRO       | ESSENTIAL | QUEUED    | 2026-11-01T00:00:00Z |
+          | ESSENTIAL | ESSENTIAL | QUEUED    | 2026-11-01T00:00:00Z |
+          | ESSENTIAL | PRO       | UPGRADE   | the request instant  |
+      Scenario Outline: AC-3 The grid
+        When a visitor asks for <plan>, <months> months
+        Then the price is <price>
+        Examples:
+          | plan       | months | price  |
+          | ESSENTIAL  | 1      | 5000   |
+          | PRO        | 3      | 30000  |
+          | ENTERPRISE | 12     | 250000 |
+      Scenario Outline: AC-4 Refused
+        When the request is <request>
+        Then the answer is <answer>
+        Examples:
+          | request                                   | answer                      |
+          | plan FREE, months 2, or a missing value   | 400 `VALIDATION_ERROR`      |
+          | an extra query field such as `price`      | 400 `VALIDATION_ERROR`      |
+          | an unknown, SUSPENDED or CLOSED business  | the same 404 `NOT_FOUND`    |
+    abuse: |
+      Scenario: AB-1 Codes are guessed through the quote (enumeration, T6)
+        When one address asks for 70 quotes of unknown well-formed codes
+        Then the first 60 answers are identical 404s, the next are 429, and nothing is read after the limit
+    implementation:
+      create: [src/modules/billing/quote.service.ts, tests/integration/billing/shop-quote.test.ts]
+      modify: [src/modules/billing/billing.routes.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts, src/modules/billing/subscription.repository.ts]
+      pattern: tests/integration/auth/register-request.test.ts
+      signatures:
+        - "quoteFor(input: { code: string; plan: PaidPlanCode; months: PackMonths; ip: string; now: Date }): Promise<Quote>"
+        - "readQueueFor(organizationId: string): Promise<{ queue: QueuedPeriod[]; lastExpiredEndsAt: Date | null }>"
+      types:
+        - "Quote = { name: string; plan: PaidPlanCode; months: PackMonths; price: bigint; placement: 'NOW' | 'QUEUED' | 'UPGRADE'; startsAt: Date; endsAt: Date }"
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "RATE_LIMITED 429"]
+      dependencies: [zod, express]
+    security:
+      - "v5.0.0-2.4.1: quotes are limited per address before any read."
+      - "v5.0.0-15.3.1: the answer lists its seven fields one by one."
+      - "v5.0.0-2.2.1: plan and months are closed lists, and the price is the server's."
+    tests: |
+      nothing running | integration | AC-1, C-41 | 200, seven keys, price, NOW, dates
+      behind | integration | AC-2 | each Examples row → placement, start
+      grid | integration | AC-3 | each Examples row → price
+      refused | integration | AC-4 | each Examples row → answer
+      guessing | security | AB-1, CWE-307 | 70 unknown codes → 60 identical 404s then 429
+    command: npx vitest run tests/integration/billing/shop-quote.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Creating the payment: BIL-009."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the quote path | add GET /api/v1/billing/shops/{code}/quote, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the quote path | add GET /api/v1/billing/shops/{code}/quote, remove nothing"
+
+  - id: BIL-018
+    title: The owner chooses who and what to keep when a plan ends
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [BIL-006, BIL-007, BIL-011, ORG-035, CAT-020]
+    read_first: [src/modules/billing/subscription.repository.ts, src/app.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-55]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-2.2.1]
+    story: As an owner, I want to choose which collaborators and products stay when my plan ends so that the ones I need are not paused.
+    context: |
+      - Exists: the rows `keep` for the OWNER on Collaboration and Product (BIL-006); `insertEvent` (BIL-011); `listTeamSeats` (ORG-035); `listProductsOnSale` and `listPausedProducts` (CAT-020); `loadActor`, `requireAbility`, `idempotent`.
+      - `POST /api/v1/organizations/{organizationId}/billing/keep-choice`, on a new `billing.owner.routes.ts` (router with `mergeParams`) mounted in `src/app.ts` at `/organizations/:organizationId/billing`. Chain: sign-in, `loadActor`, `requireAbility('keep', 'Collaboration')`, `requireAbility('keep', 'Product')`, `idempotent()`.
+      - Body, strict: `id` (UUIDv7), `collaboration_ids` and `product_ids`, each a list of at most 100 distinct UUIDs, possibly empty.
+      - Each collaboration id must be a seat of `listTeamSeats` and each product id a product of the two product lists; otherwise 404 `NOT_FOUND`, one message, nothing stored.
+      - It inserts one KEEP_CHOICE event (actor OWNER, the actor's person id, details: both lists) and answers 201 `{ collaboration_ids, product_ids }`. The choice is applied by BIL-019 and BIL-020; the last one stored wins.
+    acceptance: |
+      Scenario: AC-1 A choice is stored
+        When the owner sends two seats and three products of the business
+        Then the answer is 201 with those lists and one KEEP_CHOICE event exists, actor OWNER, with the owner's person id and both lists
+      Scenario: AC-2 A later choice
+        When the owner sends a second choice
+        Then two events exist and the first is unchanged
+      Scenario Outline: AC-3 Ids that are not the business's
+        When a list holds <id>
+        Then the answer is 404 `NOT_FOUND` with the same message and no event is stored
+        Examples:
+          | id                                   |
+          | an unknown UUID                      |
+          | the owner's own collaboration id     |
+          | a deleted product                    |
+      Scenario Outline: AC-4 Who may
+        When <caller> sends a valid choice
+        Then the answer is <answer>
+        Examples:
+          | caller                                | answer                |
+          | a manager, a seller or a driver       | 403 `FORBIDDEN`       |
+          | a person who is not signed in         | 401 `UNAUTHORIZED`    |
+          | a person outside the business         | 404 `NOT_FOUND`       |
+      Scenario: AC-5 The body
+        When it has an unknown field, 101 ids, a repeated id or an id that is not a UUID
+        Then the answer is 400 `VALIDATION_ERROR` with field paths and no value
+      Scenario: AC-6 A repeat
+        When the same `id` is sent twice
+        Then both answers are equal and one event exists
+    abuse: |
+      Scenario: AB-1 An owner names the seats and products of another business (broken access control)
+        When the owner of business A sends ids that belong to business B
+        Then the answer is 404 `NOT_FOUND` and no event is stored
+    implementation:
+      create: [src/modules/billing/billing.owner.routes.ts, src/modules/billing/keep-choice.service.ts, tests/integration/billing/keep-choice.test.ts]
+      modify: [src/app.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "saveKeepChoice(actor: OrganizationActor, input: KeepChoiceInput): Promise<KeepChoiceView>"
+      types:
+        - "KeepChoiceInput = { id: string; collaborationIds: string[]; productIds: string[] }"
+        - "KeepChoiceView = { collaboration_ids: string[]; product_ids: string[] }"
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [zod, express]
+    security:
+      - "v5.0.0-8.2.1: only an owner passes the two `keep` checks, and the business comes from the session actor."
+      - "v5.0.0-15.3.3: the body lists its writable fields and refuses any other."
+      - "v5.0.0-2.2.1: lists have a maximum of 100 and every id is checked against the business."
+    tests: |
+      stored | integration | AC-1, C-55 | 201 and the event
+      later | integration | AC-2 | two events
+      not the business's | integration | AC-3 | each Examples row → 404, no event
+      who may | integration | AC-4 | each Examples row → answer
+      body | integration | AC-5 | extra field, 101 ids, repeat, bad UUID → 400
+      repeat | integration | AC-6 | same id → equal answers, one event
+      other business | security | AB-1, CWE-639 | B's ids → 404, no event
+    command: npx vitest run tests/integration/billing/keep-choice.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Applying the choice: BIL-019 for collaborators and BIL-020 for products."
+      - "Swapping one seat or product online at once: BIL-029 and BIL-030."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the keep-choice path | add POST /api/v1/organizations/{organizationId}/billing/keep-choice, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the keep-choice path | add POST /api/v1/organizations/{organizationId}/billing/keep-choice, remove nothing"
+
+  - id: BIL-019
+    title: Collaborators beyond the plan are paused and come back when it allows
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-018, BIL-011, ORG-035, ORG-044, DLV-015, NTF-002]
+    read_first: [src/modules/billing/subscription.repository.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-42]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: "Technical story: give billing the function that pauses the collaborators a plan no longer covers and brings them back when a plan allows, following the owner's choice, so that the team always fits the plan."
+    context: |
+      - Exists: `listTeamSeats` and `setSeatPaused` (ORG-035), `findDriversWithOpenDeliveries` (DLV-015), `notify` and `recipientLanguage` (NTF-002), `findOrganizationSummary` (ORG-044), `insertEvent` (BIL-011), the KEEP_CHOICE events (BIL-018).
+      - `findLatestKeepChoice(tx, organizationId)` is added to `subscription.repository.ts`: the details of the latest KEEP_CHOICE event, or null.
+      - New `seat-limit.service.ts`: `enforceSeatLimit(tx, organizationId, maxCollaborators, now)`, `null` meaning no limit. It ranks every seat of `listTeamSeats`, whatever its status: first the ids of the latest choice, in the order given; then accepted seats (`acceptedAt` set) oldest first; then pending invitations oldest first. The first `maxCollaborators` stay or return; the rest are paused.
+      - A seat to pause that is a DRIVER with an open delivery is left as it is and listed as deferred; the next run pauses it. The OWNER is never in the list.
+      - Each change is made with `setSeatPaused`, logs one PAUSED or RESUMED event (actor SYSTEM, details: the collaboration id) and notifies the person: `subscription.paused` or `subscription.resumed`, in their language, from `notices.ts` (new, French and English texts that name the business and hold no other personal data).
+    acceptance: |
+      Scenario Outline: AC-1 Who stays
+        Given a limit of 2 and no choice
+        When the seats are <seats>
+        Then <paused> are paused
+        Examples:
+          | seats (oldest first)                       | paused |
+          | A accepted, B accepted, C accepted         | C      |
+          | A accepted, B pending, C accepted          | B      |
+          | A accepted, B pending, C pending           | C      |
+      Scenario: AC-2 The owner's choice
+        Given a limit of 2, seats A, B, C all accepted, and a choice naming C
+        When the limit is enforced
+        Then C and A stay and B is paused
+      Scenario: AC-3 They come back
+        Given B paused after being accepted and C paused while still pending, and a limit of 5
+        When the limit is enforced
+        Then B is ACTIVE again and C is INVITED again
+      Scenario: AC-4 A driver on the road
+        Given the seat to pause is a driver with an open delivery
+        When the limit is enforced, then the delivery closes and it is enforced again
+        Then the first run lists the seat as deferred and changes nothing, and the second pauses it
+      Scenario: AC-5 No limit and no owner
+        When `maxCollaborators` is null
+        Then every paused seat returns, and the owner's seat is never read or changed
+      Scenario: AC-6 Journal and notices
+        When a seat is paused and another resumed
+        Then there is one PAUSED and one RESUMED event and one notice each in the person's language, and a second run changes and writes nothing
+    abuse: |
+      Scenario: AB-1 Another business's team is touched (broken access control)
+        Given business B has seats over its limit
+        When the limit is enforced for business A
+        Then no seat of B changes
+    implementation:
+      create: [src/modules/billing/seat-limit.service.ts, src/modules/billing/notices.ts, tests/integration/billing/seat-limit.test.ts]
+      modify: [src/modules/billing/subscription.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "enforceSeatLimit(tx: Prisma.TransactionClient, organizationId: string, maxCollaborators: number | null, now: Date): Promise<SeatEnforcement>"
+        - "findLatestKeepChoice(tx: Prisma.TransactionClient, organizationId: string): Promise<{ collaborationIds: string[]; productIds: string[] } | null>"
+        - "seatNotice(kind: 'PAUSED' | 'RESUMED', language: 'FR' | 'EN', businessName: string): string"
+      types:
+        - "SeatEnforcement = { paused: string[]; resumed: string[]; deferred: string[] }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: every read and write is bound to the organization id given by server code."
+      - "v5.0.0-2.3.3: seats, events and notices belong to the caller's transaction."
+      - "v5.0.0-16.3.1: events and logs carry ids only; a notice names the business, never another person."
+    tests: |
+      who stays | integration | AC-1, C-42 | each Examples row → paused seats
+      choice | integration | AC-2 | C kept before A
+      return | integration | AC-3 | ACTIVE and INVITED
+      driver | integration | AC-4 | deferred then paused
+      no limit | integration | AC-5 | all back, owner unchanged
+      journal | integration | AC-6 | events, notices, no change on a repeat
+      other business | security | AB-1, CWE-639 | B's seats unchanged
+    command: npx vitest run tests/integration/billing/seat-limit.test.ts
+    out_of_scope:
+      - "Computing the limit and calling this function: BIL-014, BIL-028."
+      - "Products: BIL-020."
+
+  - id: BIL-020
+    title: Products beyond the plan are paused and come back when it allows
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-019, BIL-013, CAT-020, ORD-029, ORG-044]
+    read_first: [src/modules/billing/seat-limit.service.ts, src/modules/billing/notices.ts]
+    design_refs: [finances/subscription, catalogue/product]
+    constraints: [C-46]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: "Technical story: give billing the one function that applies the limits of a plan to a business, pausing the products and the collaborators beyond them and bringing back what fits, so that a plan change never deletes anything."
+    context: |
+      - Exists: `listProductsOnSale`, `listPausedProducts`, `setProductsPaused` (CAT-020), `countOrderedLinesByVariant` (ORD-029), `findLatestKeepChoice` and `enforceSeatLimit` (BIL-019), `findActiveOwnerId` (ORG-044), `OrganizationRights` (BIL-013).
+      - New `limits.service.ts`: `enforceLimits(tx, organizationId, rights, now)` first calls `enforceSeatLimit` with `rights.maxCollaborators`, then handles products with `rights.maxProducts` (`null` means no limit).
+      - Products: the on-sale and the paused lists are ranked together: first the product ids of the latest choice, in the order given; then by demand, the sum of `countOrderedLinesByVariant(…, now − 90 days)` over the product's variant ids, highest first; ties newest first, then by id. The first `maxProducts` are on sale: the paused ones among them are resumed, the on-sale ones outside are paused, with `setProductsPaused`.
+      - Each non-empty change writes one PAUSED or RESUMED event (actor SYSTEM, details: target PRODUCTS and the count) and notifies the owner once: `subscription.products_paused` or `subscription.products_resumed`, in their language (texts added to `notices.ts`, with the count only).
+      - Returns `{ seats, productsPaused, productsResumed }`.
+    acceptance: |
+      Scenario: AC-1 The most ordered stay
+        Given a limit of 3 and 5 products on sale, ordered 9, 7, 5, 2 and 0 times in the last 90 days
+        When the limits are enforced
+        Then the first three stay and the other two are paused
+      Scenario: AC-2 Ties and old orders
+        Given two products with the same demand, one newer, and a third whose orders are 91 days old
+        When the limits are enforced with room for one
+        Then the newer of the two stays and the third has no demand
+      Scenario: AC-3 The owner's choice
+        Given a limit of 2 and a choice naming the least ordered product
+        When the limits are enforced
+        Then that product stays with the most ordered one
+      Scenario Outline: AC-4 They come back
+        Given 4 products, 2 of them paused
+        When the limit becomes <limit>
+        Then <result>
+        Examples:
+          | limit     | result                              |
+          | 3         | one paused product returns, by rank |
+          | no limit  | both return                         |
+      Scenario: AC-5 Seats too
+        When the limits are enforced for a business over its collaborator limit
+        Then its seats are paused as in BIL-019 and the answer carries that result
+      Scenario: AC-6 Journal and notice
+        When products are paused
+        Then one PAUSED event with the count exists and the owner has one notice with the count, and a second run changes and writes nothing
+    abuse: |
+      Scenario: AB-1 Another business's products or orders count or change (broken access control)
+        Given business B has products and orders
+        When the limits are enforced for business A
+        Then no product of B changes and B's orders add nothing to A's demand
+    implementation:
+      create: [src/modules/billing/limits.service.ts, tests/integration/billing/limits.test.ts]
+      modify: [src/modules/billing/notices.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "enforceLimits(tx: Prisma.TransactionClient, organizationId: string, rights: OrganizationRights, now: Date): Promise<LimitsEnforcement>"
+        - "productsNotice(kind: 'PAUSED' | 'RESUMED', language: 'FR' | 'EN', count: number): string"
+      types:
+        - "LimitsEnforcement = { seats: SeatEnforcement; productsPaused: number; productsResumed: number }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: every call is bound to the organization id given by server code."
+      - "v5.0.0-2.3.3: pauses, events and notices belong to the caller's transaction."
+      - "v5.0.0-16.3.1: the event and the notice carry a count, never product names or ids."
+    tests: |
+      most ordered | integration | AC-1, C-46 | five products → three on sale
+      ties | integration | AC-2 | newer first, old orders ignored
+      choice | integration | AC-3 | chosen product stays
+      return | integration | AC-4 | each Examples row → result
+      seats | integration | AC-5 | result carries the seat outcome
+      journal | integration | AC-6 | event, notice, repeat changes nothing
+      other business | security | AB-1, CWE-639 | B unchanged, no demand from B
+    command: npx vitest run tests/integration/billing/limits.test.ts tests/integration/billing/seat-limit.test.ts
+    out_of_scope:
+      - "Computing the rights and the callers: BIL-014 and BIL-028."
+      - "Pausing the excess products that arrive by synchronization: the synchronization stories."
+
+  - id: BIL-009
+    title: A payer starts a payment for a business
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [BIL-001, BIL-007, BIL-008, BIL-010, FND-004]
+    read_first: [src/modules/billing/billing.routes.ts, src/modules/billing/aggregator.port.ts]
+    design_refs: [finances/subscriptionpayment, finances/subscription/plans-on-paie-pour-son-equipe]
+    constraints: [C-53]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.2.3, v5.0.0-2.4.1, v5.0.0-15.3.3]
+    story: As a visitor, I want to pay a plan for a business with my mobile-money number so that the business gets the plan I chose.
+    context: |
+      - Exists: BIL-001, 007, 008, `priceFor` (FND-014), `normalizeE164`, `findOrganizationByPaymentCode` (ORG-044), `checkAndConsume`.
+      - `POST /api/v1/billing/payments`, public. Body, strict: `id` (UUIDv7, the payment id), `code` (as in BIL-007), `plan` (ESSENTIAL, PRO, ENTERPRISE), `months` (1, 3, 6, 12), `operator` (MTN_MOMO, ORANGE_MONEY), `payer_phone_number` (`normalizeE164`, else 400), `customer_tax_id` (optional, 1 to 20 letters and digits), `terms_version` (at most 20 characters).
+      - Order: validation; limits of 10 an hour per `req.ip` (`billing:pay:<ip>`) and 5 an hour per payer number (hashed), provisional, else 429 `RATE_LIMITED` and `warn` event `payment_create_rate_limited`; business ACTIVE (else 404); `terms_version` equal to `CURRENT_TERMS_VERSION` (provisional constant in `payment.service.ts`), else 409 `TERMS_CHANGED`.
+      - Then, in one transaction with a lock on the id: a stored payment with the same business, plan, months, operator and number is answered again; another body gives 409 `PAYMENT_ID_USED`. Else the amount is `priceFor`, `requestPayment({ clientReference: id, … })` runs and the row is inserted PENDING with its reference. An aggregator failure is rethrown: nothing stored.
+      - Answer 201 with the `PaymentView` fields.
+    acceptance: |
+      Scenario: AC-1 A payment starts
+        When a visitor sends ESSENTIAL, 3 months, MTN_MOMO, a valid number, a NIU and the current terms version
+        Then the answer is 201, amount 15000, PENDING; one row holds the amount, the aggregator's reference, the terms version and the NIU; the aggregator got one request
+      Scenario: AC-2 A repeat
+        When the same body is sent twice with one `id`
+        Then the answers are equal, with one row and one aggregator request; the same `id` with another plan answers 409 `PAYMENT_ID_USED`
+      Scenario Outline: AC-3 Refused, nothing stored, no aggregator call
+        When the request has <problem>
+        Then the answer is <answer>
+        Examples:
+          | problem                                                  | answer                 |
+          | plan FREE, months 2, an invalid number, or a long NIU    | 400 `VALIDATION_ERROR` |
+          | an unknown, SUSPENDED or CLOSED business                 | 404 `NOT_FOUND`        |
+          | an older terms version                                   | 409 `TERMS_CHANGED`    |
+    abuse: |
+      Scenario: AB-1 The browser chooses the amount (tampering, T2)
+        When the body carries `amount` 1
+        Then the answer is 400 `VALIDATION_ERROR`, no row exists and the aggregator is not called
+      Scenario: AB-2 A flood, or a stranger's phone harassed (denial of service)
+        When one address sends 11 payments in an hour, or 6 requests name one payer number
+        Then the 11th and the 6th answer 429 `RATE_LIMITED` before any read
+    implementation:
+      create: [src/modules/billing/payment.repository.ts, src/modules/billing/payment.service.ts, tests/integration/billing/payment-create.test.ts]
+      modify: [src/modules/billing/billing.routes.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts]
+      pattern: tests/integration/auth/register-request.test.ts
+      signatures:
+        - "createPayment(input: CreatePaymentInput, ip: string): Promise<PaymentView>"
+      types:
+        - "CreatePaymentInput = the body fields in camelCase; payerPhoneNumber is already normalized; customerTaxId: string | null"
+        - "PaymentView = { id; status; plan; months; amount: bigint; operator }"
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "TERMS_CHANGED 409", "PAYMENT_ID_USED 409", "RATE_LIMITED 429"]
+      dependencies: [zod, express]
+    security:
+      - "v5.0.0-2.2.1: closed lists and a body that names every writable field."
+      - "v5.0.0-2.2.3: the amount comes from the server's grid, never from the request."
+      - "v5.0.0-2.4.1: creation is limited per address and per payer number."
+      - "v5.0.0-15.3.3: the answer lists six fields, no number or reference."
+    tests: |
+      starts | integration | AC-1, C-53 | 201, row, one aggregator request
+      repeat | integration | AC-2 | equal answers, one row; other plan → 409
+      refused | integration | AC-3 | each Examples row → answer, nothing stored
+      browser amount | security | AB-1, CWE-915 | amount sent → 400, no row
+      flood | security | AB-2, CWE-770 | 11th and 6th → 429
+    command: npx vitest run tests/integration/billing/payment-create.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Activation: BIL-014, BIL-034. Reading the status: BIL-015."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the payments path | add POST /api/v1/billing/payments, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the payments path | add POST /api/v1/billing/payments, remove nothing"
+
+  - id: BIL-014
+    title: A confirmed payment activates one period and its receipt
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-009, BIL-012, BIL-013, BIL-020, BIL-027, BIL-008]
+    read_first: [src/modules/billing/payment.repository.ts, src/modules/billing/upgrade.service.ts]
+    design_refs: [finances/subscription/plans-on-paie-pour-son-equipe, finances/subscriptionpayment]
+    constraints: [C-53]
+    asvs: [v5.0.0-2.3.3, v5.0.0-8.2.1, v5.0.0-16.3.1]
+    story: "Technical story: give billing the one function that turns a confirmed payment into a period, a receipt and new rights, once, in one transaction, so that a payment is never counted twice or half done."
+    context: |
+      - Exists: payments (BIL-009), `getPaymentAggregator` (BIL-008), `addPaidForfait` (BIL-027), `issueReceipt` (BIL-012), `recomputeRights` (BIL-013), `enforceLimits` (BIL-020), `insertEvent`, `findOrganizationSummary` (ORG-044).
+      - `payment.repository.ts` gains `findPaymentByReference`, `lockPayment` (`FOR UPDATE`) and `setPaymentOutcome`.
+      - `confirmPayment(providerReference, receivedBody, now)` in the new `confirmation.service.ts`: no payment is 404 `NOT_FOUND`; not PENDING is `ALREADY_DONE`. `getStatus` runs outside the transaction: PENDING gives `STILL_PENDING`; FAILED or EXPIRED sets the payment to that status (`FAILED`, `EXPIRED`); SUCCEEDED for another amount logs `warn` event `payment_amount_mismatch` (payment id) and throws 409 `PAYMENT_MISMATCH`.
+      - SUCCEEDED for the right amount, in one transaction: lock the payment, recheck PENDING (else `ALREADY_DONE`); set SUCCEEDED, `confirmed_at = now`, `provider_payload = { received, checked }`; `addPaidForfait`; `issueReceipt` with the business name; a PAYMENT event (actor PAYER); `recomputeRights`; `enforceLimits`. Outcome `ACTIVATED`. The owner's notice is BIL-035.
+    acceptance: |
+      Scenario: AC-1 Activation
+        Given a PENDING ESSENTIAL 3-month payment of 15000, the aggregator saying SUCCEEDED for 15000, and 2 collaborators paused under the free plan
+        When `confirmPayment` runs with an empty queue
+        Then the payment is SUCCEEDED with `confirmed_at`, an ACTIVE 3-month period carries its id, a receipt and one PAYMENT event exist, the business is ESSENTIAL with 5 collaborators, the 2 collaborators are back and the outcome is `ACTIVATED`
+      Scenario: AC-2 A replay
+        When `confirmPayment` runs twice for one payment
+        Then the second outcome is `ALREADY_DONE` and one period and one receipt exist
+      Scenario Outline: AC-3 Not paid
+        When the aggregator says <says>
+        Then the outcome is <result> and no period or receipt is added
+        Examples:
+          | says    | result                             |
+          | PENDING | `STILL_PENDING`, payment unchanged |
+          | FAILED  | `FAILED`, payment FAILED           |
+          | EXPIRED | `EXPIRED`, payment EXPIRED         |
+          | unknown | 404 `NOT_FOUND`                    |
+      Scenario: AC-4 Another amount
+        When the aggregator says SUCCEEDED for 5000 on a payment of 15000
+        Then 409 `PAYMENT_MISMATCH` is thrown, the payment stays PENDING and one `warn` log holds the payment id only
+    abuse: |
+      Scenario: AB-1 A failure leaves a half-done payment (tampering)
+        When issuing the receipt throws during a confirmation
+        Then the payment is still PENDING and no period, receipt or event exists
+      Scenario: AB-2 Two confirmations arrive at once (race, T3)
+        When `confirmPayment` runs twice in parallel
+        Then one period and one receipt exist
+    implementation:
+      create: [src/modules/billing/confirmation.service.ts, tests/integration/billing/confirm-payment.test.ts]
+      modify: [src/modules/billing/payment.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "confirmPayment(providerReference: string, receivedBody: unknown, now: Date): Promise<ConfirmOutcome>"
+      types:
+        - "ConfirmOutcome = 'ACTIVATED' | 'ALREADY_DONE' | 'STILL_PENDING' | 'FAILED' | 'EXPIRED'"
+      errors: ["NOT_FOUND 404", "PAYMENT_MISMATCH 409"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: status, period, receipt, event, rights and limits are written in one transaction."
+      - "v5.0.0-8.2.1: the status comes from the aggregator, not from the caller."
+      - "v5.0.0-16.3.1: logs hold the payment id only."
+    tests: |
+      activation | integration | AC-1, C-53 | rows, seats back, outcome
+      replay | integration | AC-2 | ALREADY_DONE, single rows
+      not paid | integration | AC-3 | each Examples row → outcome
+      mismatch | integration | AC-4 | 409, PENDING, log content
+      half done | security | AB-1, CWE-367 | receipt throws → nothing written
+      race | security | AB-2, CWE-362 | parallel calls → one period
+    command: npx vitest run tests/integration/billing/confirm-payment.test.ts
+    out_of_scope:
+      - "The owner's notice: BIL-035. The route the aggregator calls: BIL-034. Payments never confirmed: BIL-021, BIL-022."
+
+  - id: BIL-034
+    title: The aggregator confirms a payment through a verified call
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [BIL-014]
+    read_first: [src/middleware/body-parser.ts, src/modules/billing/billing.routes.ts]
+    design_refs: [finances/subscription/plans-on-paie-pour-son-equipe]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.2.1, v5.0.0-16.3.1]
+    story: As a visitor, I want my payment to count once the aggregator confirms it so that the business gets its plan without my browser having to prove anything.
+    context: |
+      - Exists: `confirmPayment` (BIL-014), `getPaymentAggregator` and `verifyConfirmation` (BIL-008), the public router (BIL-007), the global JSON parser in `src/middleware/body-parser.ts`.
+      - `POST /api/v1/billing/confirmations`, public in the sense that it has no sign-in: the aggregator's proof is the only credential.
+      - `jsonBodyParser` keeps the raw bytes as `req.rawBody` (a `Buffer`) for this exact path only, through the `verify` option of `express.json`; the 100 kb limit and the other paths do not change.
+      - The handler passes the headers (lower-cased names, string values) and `req.rawBody` to `verifyConfirmation`. Null (or a missing body) answers 401 `UNAUTHORIZED` and logs a `warn` event `payment_confirmation_rejected`, with no header or body.
+      - Else it calls `confirmPayment(providerReference, req.body ?? null, now)` and answers 200 `{ "status": "OK" }` for every outcome except errors (404 for an unknown reference, 409 `PAYMENT_MISMATCH`). Nothing else is returned: the call is not a browser.
+    acceptance: |
+      Scenario: AC-1 A genuine confirmation
+        Given a pending payment that the fake aggregator settled
+        When the aggregator's signed call arrives
+        Then the answer is 200 `{ "status": "OK" }` and the plan is active
+      Scenario: AC-2 A repeat
+        When the same signed call arrives twice
+        Then both answers are 200 and one period exists
+      Scenario Outline: AC-3 A call that proves nothing
+        When the call has <problem>
+        Then the answer is 401 `UNAUTHORIZED` and the payment stays PENDING
+        Examples:
+          | problem                                           |
+          | no signature header                               |
+          | a wrong signature naming a real pending reference |
+          | an empty body                                     |
+      Scenario: AC-4 An unknown reference
+        When a validly signed call names a reference that no payment holds
+        Then the answer is 404 `NOT_FOUND`
+      Scenario: AC-5 The parser is unchanged elsewhere
+        When another route receives a JSON body, and this route receives one over 100 kb
+        Then the other route parses as before and this one answers 413 `PAYLOAD_TOO_LARGE`
+    abuse: |
+      Scenario: AB-1 A forged confirmation activates a plan (spoofing, T1)
+        When a call names a real pending reference, claims success and carries no valid signature
+        Then the answer is 401, the payment stays PENDING, no period or receipt exists, and one `warn` log holds no body
+      Scenario: AB-2 A signed call says success while the aggregator says pending (spoofing, T1)
+        When the call is valid but `getStatus` says PENDING
+        Then no period exists and the payment stays PENDING
+    implementation:
+      create: [tests/integration/billing/confirmation-route.test.ts]
+      modify: [src/middleware/body-parser.ts, src/modules/billing/billing.routes.ts, src/modules/billing/billing.service.ts, src/modules/billing/billing.openapi.ts]
+      pattern: tests/integration/auth/register-request.test.ts
+      signatures:
+        - "handleConfirmation(headers: Record<string, string | undefined>, rawBody: Buffer | undefined, parsedBody: unknown, now: Date): Promise<void>"
+      types:
+        - "Request.rawBody?: Buffer (module augmentation in body-parser.ts)"
+      errors: ["UNAUTHORIZED 401", "NOT_FOUND 404", "PAYMENT_MISMATCH 409", "PAYLOAD_TOO_LARGE 413"]
+      dependencies: [express]
+    security:
+      - "v5.0.0-8.2.1: only a call that `verifyConfirmation` accepts is acted on, and `confirmPayment` asks the aggregator for the status again."
+      - "v5.0.0-2.2.1: the body keeps its 100 kb maximum."
+      - "v5.0.0-16.3.1: a rejected call logs the event name only."
+    tests: |
+      genuine | integration | AC-1 | 200, plan active
+      repeat | integration | AC-2 | 200 twice, one period
+      no proof | integration | AC-3 | each Examples row → 401, PENDING
+      unknown | integration | AC-4 | 404
+      parser | integration | AC-5 | other route unchanged, 413 here
+      forged | security | AB-1, CWE-345 | unsigned success claim → 401, no period, log without body
+      claim vs status | security | AB-2, CWE-807 | valid call, aggregator PENDING → no period
+    command: npx vitest run tests/integration/billing/confirmation-route.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "The real aggregator's signature scheme: ADR-006."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the confirmations path | add POST /api/v1/billing/confirmations, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the confirmations path | add POST /api/v1/billing/confirmations, remove nothing"
+
+  - id: BIL-035
+    title: The owner is told when a payment is confirmed
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [BIL-014, NTF-002]
+    read_first: [src/modules/billing/confirmation.service.ts, src/modules/billing/notices.ts]
+    design_refs: [finances/subscription/plans-on-paie-pour-son-equipe]
+    asvs: [v5.0.0-16.3.1]
+    story: "Technical story: tell the owner, in their language and with the payer's number masked, that a payment was received, in the same transaction as the activation."
+    context: |
+      - Exists: `confirmPayment` (BIL-014), `notices.ts` (BIL-019), `notify` and `recipientLanguage` (NTF-002), `findActiveOwnerId` (ORG-044).
+      - New `src/lib/mask-phone.ts`: `maskPhone('+237677123456')` is `+237 6 77…` (the first six digits grouped 3, 1, 2, then `…`).
+      - `notices.ts` gains `paidNotice(language, input)`. Inside the activation transaction, `confirmPayment` writes `notify({ recipientId, organizationId, sourceEvent: 'subscription.paid', content }, tx)` for the active owner, in that person's language. No active owner, no notice. The payer's number appears only masked.
+    acceptance: |
+      Scenario Outline: AC-1 The notice
+        Given a confirmed ESSENTIAL 3-month payment of 15000 ending on 12 January 2027
+        When the owner's language is <language>
+        Then the owner has one unread notice `subscription.paid` reading <text>
+        Examples:
+          | language | text                                                                                  |
+          | FR       | Paiement de 15 000 reçu du +237 6 77… : Essentiel actif jusqu'au 12 janvier 2027.     |
+          | EN       | Payment of 15,000 received from +237 6 77…: Essential active until January 12, 2027. |
+      Scenario: AC-2 No owner
+        When the business has no active owner
+        Then the payment is still activated and no notice is written
+      Scenario: AC-3 A replay
+        When the same payment is confirmed twice
+        Then the owner has one notice
+      Scenario: AC-4 The mask
+        When `maskPhone` gets `+237677123456`
+        Then it returns `+237 6 77…`
+    implementation:
+      create: [src/lib/mask-phone.ts, tests/unit/lib/mask-phone.test.ts, tests/integration/billing/payment-notice.test.ts]
+      modify: [src/modules/billing/confirmation.service.ts, src/modules/billing/notices.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "maskPhone(e164: string): string"
+        - "paidNotice(language: 'FR' | 'EN', input: { amount: bigint; maskedPhone: string; plan: PaidPlanCode; planEndsAt: Date }): string"
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-16.3.1: the notice shows a masked number and no log carries it."
+    tests: |
+      notice | integration | AC-1 | each Examples row → text
+      no owner | integration | AC-2 | activated, no notice
+      replay | integration | AC-3 | one notice
+      mask | unit | AC-4 | +237677123456 → +237 6 77…
+    command: npx vitest run tests/integration/billing/payment-notice.test.ts tests/unit/lib/mask-phone.test.ts
+    out_of_scope:
+      - "Notices for administrator gestures: BIL-036."
+
+  - id: BIL-015
+    title: A payer follows a payment and gets the receipt
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [BIL-009, BIL-014, BIL-012]
+    read_first: [src/modules/billing/payment.repository.ts, src/modules/billing/billing.routes.ts]
+    design_refs: [finances/subscriptionpayment, finances/subscriptionreceipt]
+    constraints: [C-53]
+    asvs: [v5.0.0-2.4.1, v5.0.0-15.3.1, v5.0.0-2.2.1]
+    story: As a visitor, I want to follow my payment and read its receipt so that I know whether the business got its plan.
+    context: |
+      - Exists: payments (BIL-009), confirmation (BIL-014), receipts (BIL-012), `findOrganizationSummary` (ORG-044), `checkAndConsume`.
+      - `GET /api/v1/billing/payments/{id}`, public: the payment id the payer chose is the only key. `id` must be a UUID, else 400 `VALIDATION_ERROR`; no query field. An unknown id answers 404 `NOT_FOUND`.
+      - At most 120 reads an hour per `req.ip` (key `billing:status:<ip>`, provisional), counted before any read; the next answers 429 `RATE_LIMITED` and logs `warn` event `payment_status_rate_limited`.
+      - Answer 200 `{ id, status, business_name, plan, months, amount, operator, period, receipt }`. `period` is `{ starts_at, ends_at }` of the period this payment bought, once SUCCEEDED, else null. `receipt` is `{ number, label, customer_name, customer_tax_id, amount_excl_tax, vat_rate_bp, vat_amount, amount, issued_at }` of the RECEIPT row, else null. `findPaymentView(id)` in `payment.repository.ts` reads the three tables.
+    acceptance: |
+      Scenario: AC-1 Waiting
+        Given a PENDING payment
+        When the payer reads it
+        Then the answer is 200 with status PENDING, the business name, plan, months, amount and operator, and `period` and `receipt` null
+      Scenario: AC-2 Paid
+        Given a SUCCEEDED payment of 15000 with a NIU
+        When the payer reads it
+        Then `period` has the dates of the bought period and `receipt` holds the number, the label, the NIU, 12 903 excluding tax, the rate 1925, 2 097 of VAT and 15000
+      Scenario Outline: AC-3 Other states
+        When the payment is <state>
+        Then the answer shows status <state>; for REFUNDED the receipt is still the original RECEIPT row
+        Examples:
+          | state    |
+          | FAILED   |
+          | EXPIRED  |
+          | REFUNDED |
+      Scenario Outline: AC-4 Refused
+        When the request has <problem>
+        Then the answer is <answer>
+        Examples:
+          | problem                  | answer                 |
+          | an `id` that is no UUID  | 400 `VALIDATION_ERROR` |
+          | an unknown id            | 404 `NOT_FOUND`        |
+          | the 121st read in an hour from one address | 429 `RATE_LIMITED` |
+    abuse: |
+      Scenario: AB-1 Reading other payers' NIU and receipts (information disclosure, T5)
+        When a stranger reads many ids and one real payment
+        Then unknown ids give the same 404, the 121st read gives 429, and the answer holds no payer number, provider reference, payload or business id
+    implementation:
+      create: [tests/integration/billing/payment-status.test.ts]
+      modify: [src/modules/billing/payment.repository.ts, src/modules/billing/payment.service.ts, src/modules/billing/billing.routes.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts]
+      pattern: tests/integration/auth/register-request.test.ts
+      signatures:
+        - "readPayment(id: string, ip: string): Promise<PaymentStatusView>"
+      types:
+        - "PaymentStatusView = { id; status; business_name; plan; months; amount; operator; period: { starts_at; ends_at } | null; receipt: ReceiptView | null }"
+      errors: ["VALIDATION_ERROR 400", "NOT_FOUND 404", "RATE_LIMITED 429"]
+      dependencies: [zod, express]
+    security:
+      - "v5.0.0-2.4.1: reads are limited per address before any lookup."
+      - "v5.0.0-15.3.1: the answer lists its fields; no number, reference, payload or business id."
+      - "v5.0.0-2.2.1: the id is a UUID and no query field is accepted."
+    tests: |
+      waiting | integration | AC-1, C-53 | PENDING answer
+      paid | integration | AC-2 | period and receipt fields
+      states | integration | AC-3 | each Examples row → status
+      refused | integration | AC-4 | each Examples row → answer
+      disclosure | security | AB-1, CWE-200 | same 404, 429, no private field
+    command: npx vitest run tests/integration/billing/payment-status.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "The owner's list of receipts: BIL-017."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the payment status path | add GET /api/v1/billing/payments/{id}, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the payment status path | add GET /api/v1/billing/payments/{id}, remove nothing"
+
+  - id: BIL-016
+    title: The owner reads the subscription screen
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [BIL-018, BIL-013, BIL-033, ORG-035, CAT-020]
+    read_first: [src/modules/billing/billing.owner.routes.ts, src/modules/billing/rights.service.ts]
+    design_refs: [finances/subscription, finances/subscription/plans-on-paie-pour-son-equipe]
+    constraints: [C-42]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As an owner, I want to see my plan, its end, my periods and what a lower plan would pause so that I decide when to pay again.
+    context: |
+      - Exists: `billing.owner.routes.ts` (BIL-018), `computeRights` (BIL-013), `readQueueFor` (BIL-033), `listTeamSeats` (ORG-035), `listProductsOnSale` (CAT-020), `loadActor`.
+      - `GET /api/v1/organizations/{organizationId}/billing` on that router. Chain: sign-in, `loadActor`; the service refuses a role other than OWNER with 403 `FORBIDDEN`. No query field.
+      - Rights are those of `computeRights` at `now`, so the screen never writes. `usage.collaborators` counts non-owner seats ACTIVE or INVITED, `usage.products` the products on sale.
+      - `readAfterEnd(organizationId, now)`, exported for the reminders (BIL-026), gives `after_end`: null for a FREE plan; else the rights at `plan_ends_at` plus `GRACE_DAYS` (BIL-010): `{ plan, collaborators_to_pause, products_to_pause }`, each `max(0, usage − limit)`, a missing limit counting as no excess.
+      - Answer 200 `{ plan, plan_ends_at, grace_ends_at, max_collaborators, max_products, periods, usage, after_end }`; `periods` lists the ACTIVE and SCHEDULED ones as `{ plan, status, starts_at, ends_at }`, earliest first.
+      - `C-42`: the collaborator limit counts the non-owner collaborations that are ACTIVE or INVITED; the owner never counts.
+    acceptance: |
+      Scenario: AC-1 A running plan
+        Given ESSENTIAL running until D, 3 ACTIVE and 1 INVITED non-owner seats, 40 products on sale
+        When the owner reads the screen
+        Then the answer is 200 with plan ESSENTIAL, `plan_ends_at` D, no grace, limits 5 and no limit, one ACTIVE period, usage 4 and 40, and `after_end` FREE with 2 collaborators and 10 products to pause
+      Scenario: AC-2 A lower plan next
+        Given PRO running until D, ESSENTIAL scheduled from D, 8 seats and 12 products
+        When the owner reads the screen
+        Then `after_end` is ESSENTIAL with 3 collaborators and 0 products to pause, and `periods` lists both
+      Scenario: AC-3 A free business
+        When the owner of a business with no period reads the screen
+        Then the plan is FREE, `periods` is empty and `after_end` is null
+      Scenario Outline: AC-4 Who may
+        When <caller> reads it
+        Then the answer is <answer>
+        Examples:
+          | caller                          | answer                |
+          | a manager, a seller or a driver | 403 `FORBIDDEN`       |
+          | a person who is not signed in   | 401 `UNAUTHORIZED`    |
+          | a person outside the business   | 404 `NOT_FOUND`       |
+      Scenario: AC-5 Reading changes nothing
+        When the owner reads the screen twice
+        Then no row of the business changes and no event is written
+    abuse: |
+      Scenario: AB-1 A team member reads the subscription (elevation)
+        When a manager reads the screen of their own business
+        Then the answer is 403 and holds no plan, date or count
+      Scenario: AB-2 Another business's screen by its id (information disclosure)
+        When an owner of A reads B's id
+        Then the answer is 404, equal to an unknown id's
+    implementation:
+      create: [src/modules/billing/owner-view.service.ts, tests/integration/billing/owner-view.test.ts]
+      modify: [src/modules/billing/billing.owner.routes.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "readOwnerBilling(actor: OrganizationActor, now: Date): Promise<OwnerBillingView>"
+        - "readAfterEnd(organizationId: string, now: Date): Promise<AfterEnd | null>"
+      types:
+        - "AfterEnd = { plan: PlanCode; collaborators_to_pause: number; products_to_pause: number }"
+        - "OwnerBillingView = PlanFields in snake_case + { periods: { plan; status; starts_at; ends_at }[]; usage: { collaborators: number; products: number }; after_end: AfterEnd | null }"
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: only the owner reads; the service checks the role."
+      - "v5.0.0-8.2.2: every read uses the organization id from `loadActor`."
+      - "v5.0.0-15.3.1: the answer lists its fields: no person, payment or receipt data."
+    tests: |
+      running | integration | AC-1, C-42 | fields, usage, after_end
+      lower next | integration | AC-2 | ESSENTIAL preview
+      free | integration | AC-3 | FREE, null
+      who may | integration | AC-4 | each Examples row → answer
+      read only | integration | AC-5 | rows unchanged
+      team member | security | AB-1, CWE-285 | 403, no data
+      other business | security | AB-2, CWE-639 | 404 equal to unknown
+    command: npx vitest run tests/integration/billing/owner-view.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "The list of receipts: BIL-017. Choosing what to keep: BIL-018."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the billing path | add GET /api/v1/organizations/{organizationId}/billing, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the billing path | add GET /api/v1/organizations/{organizationId}/billing, remove nothing"
+
+  - id: BIL-017
+    title: The owner lists the receipts
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [BIL-016, BIL-012]
+    read_first: [src/modules/billing/billing.owner.routes.ts, src/modules/billing/receipt.repository.ts]
+    design_refs: [finances/subscriptionreceipt]
+    constraints: [C-54]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-2.2.1]
+    story: As an owner, I want to list my receipts and credit notes so that I can keep them for my accounts.
+    context: |
+      - Exists: `receipt.repository.ts` (BIL-012), `billing.owner.routes.ts` and the owner check (BIL-016), `paginationQuerySchema`, `encodeCursor` and `decodeCursor` (`src/shared/pagination.ts`).
+      - `GET /api/v1/organizations/{organizationId}/billing/receipts?limit&cursor`, OWNER only as in BIL-016 (403, 401, 404). `limit` defaults to 50, at most 100; no other query field; a bad cursor answers 400 `VALIDATION_ERROR`.
+      - `listReceipts(organizationId, query)` in `receipt.repository.ts` returns the business's rows, `issued_at` newest first, then `id`.
+      - Answer 200 `{ items, next_cursor }`; an item is `{ number, kind, label, customer_name, customer_tax_id, amount_excl_tax, vat_rate_bp, vat_amount, amount, issued_at }`. A credit note has its own number and the amounts of the receipt it cancels.
+    acceptance: |
+      Scenario: AC-1 The list
+        Given 3 receipts and 1 credit note of the business, and 2 receipts of another
+        When the owner lists with limit 2, then with the returned cursor
+        Then the first page holds the 2 newest, the second the other 2, `next_cursor` is null at the end, and no row of the other business appears
+      Scenario: AC-2 The fields
+        When the owner lists one receipt
+        Then the item has exactly the ten fields and no `payment_id`, `organization_id` or `cancels_receipt_id`
+      Scenario Outline: AC-3 Refused
+        When the request has <problem>
+        Then the answer is <answer>
+        Examples:
+          | problem                                         | answer                 |
+          | limit 0, limit 101, a bad cursor, another field | 400 `VALIDATION_ERROR` |
+          | a manager, a seller or a driver                 | 403 `FORBIDDEN`        |
+          | a person outside the business                   | 404 `NOT_FOUND`        |
+    abuse: |
+      Scenario: AB-1 Another business's receipts through a cursor or an id (information disclosure)
+        When an owner of A uses B's organization id, or a cursor made from a receipt of B
+        Then the answer is 404, or a page without any row of B
+    implementation:
+      create: [tests/integration/billing/receipt-list.test.ts]
+      modify: [src/modules/billing/receipt.repository.ts, src/modules/billing/owner-view.service.ts, src/modules/billing/billing.owner.routes.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "listReceipts(actor: OrganizationActor, query: PaginationQuery): Promise<{ items: ReceiptView[]; next_cursor: string | null }>"
+      types:
+        - "ReceiptView = the ten item fields above, amounts as numbers"
+      errors: ["VALIDATION_ERROR 400", "FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: owner only."
+      - "v5.0.0-8.2.2: the query is bound to the organization id from `loadActor`; a cursor holds no organization."
+      - "v5.0.0-2.2.1: limit has a maximum and unknown fields are refused."
+    tests: |
+      list | integration | AC-1, C-54 | pages, order, no other business
+      fields | integration | AC-2 | ten fields
+      refused | integration | AC-3 | each Examples row → answer
+      other business | security | AB-1, CWE-639 | 404 or page without B rows
+    command: npx vitest run tests/integration/billing/receipt-list.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Downloading a receipt as a file."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the receipts path | add GET /api/v1/organizations/{organizationId}/billing/receipts, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the receipts path | add GET /api/v1/organizations/{organizationId}/billing/receipts, remove nothing"
+
+  - id: BIL-021
+    title: Old pending payments are settled with the aggregator
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-014]
+    read_first: [src/modules/billing/confirmation.service.ts, src/modules/billing/payment.repository.ts]
+    design_refs: [finances/subscriptionpayment]
+    constraints: [C-53]
+    asvs: [v5.0.0-2.3.3, v5.0.0-16.5.3]
+    story: "Technical story: give billing a job that asks the aggregator about payments still pending after a while, so that a lost confirmation never leaves a paid business without a plan."
+    context: |
+      - Exists: `confirmPayment` (BIL-014), payments (BIL-009).
+      - `payment.repository.ts` gains `listStalePending(before, limit)`: PENDING payments created at or before `before`, oldest first, with id, provider reference and `created_at`.
+      - `settlePendingPayments(now)` in the new `settle.service.ts` reads at most `SETTLE_BATCH` (200) payments pending for `SETTLE_AFTER_MINUTES` (15, provisional) and calls `confirmPayment(providerReference, null, now)` for each. Only the aggregator's answer settles a payment, never the clock (C-53).
+      - The outcomes `ACTIVATED`, `FAILED`, `EXPIRED`, `STILL_PENDING` fill `activated`, `failed`, `expired`, `pending`; every payment read is in `checked`.
+      - An anomaly is 404 `NOT_FOUND` (reference unknown to the aggregator), 409 `PAYMENT_MISMATCH`, or a payment pending for more than `PENDING_TOO_LONG_HOURS` (24, provisional). It logs `warn` event `payment_settle_anomaly` with the payment id, and the loop goes on.
+      - Any other error is logged at `error` with the payment id; the loop goes on and the first one is rethrown after it.
+      - Job `src/jobs/settle-payments.ts`: `runSettlePaymentsJob(now)` logs the report at `info`, returns 1 when `anomalies` is above 0, else 0; script `job:settle-payments`.
+    acceptance: |
+      Scenario: AC-1 A missed confirmation
+        Given a PENDING 3-month ESSENTIAL payment of 15000 created 20 minutes ago, and the aggregator saying SUCCEEDED for 15000
+        When `settlePendingPayments` runs
+        Then the payment is SUCCEEDED, a period and a receipt exist, and the report is `{ checked: 1, activated: 1, failed: 0, expired: 0, pending: 0, anomalies: 0 }`
+      Scenario: AC-2 Which payments are read
+        Given a PENDING payment 5 minutes old, a FAILED one 1 hour old, and 201 PENDING ones 20 minutes old
+        When it runs
+        Then the aggregator is asked about 200 of the 201, the oldest first, and about neither of the others
+      Scenario Outline: AC-3 Not paid yet
+        When the aggregator says <says> for a payment 20 minutes old
+        Then the payment becomes <status> and the report counts it in <counter>
+        Examples:
+          | says    | status  | counter   |
+          | PENDING | PENDING | `pending` |
+          | FAILED  | FAILED  | `failed`  |
+          | EXPIRED | EXPIRED | `expired` |
+      Scenario Outline: AC-4 Anomalies
+        When a payment 20 minutes old meets <problem>
+        Then one `warn` log with event `payment_settle_anomaly` and its id is written, `anomalies` is 1, the payment is unchanged and the other payments are still settled
+        Examples:
+          | problem                                           |
+          | a reference the aggregator lacks                  |
+          | SUCCEEDED for another amount                      |
+          | pending for 25 hours                              |
+      Scenario: AC-5 The job
+        When `runSettlePaymentsJob` runs once with an anomaly and once without
+        Then it returns 1, then 0
+    abuse: |
+      Scenario: AB-1 The aggregator's confirmation never arrives (denial of service, T9)
+        Given a payer who paid and a confirmation call that was lost
+        When the job runs 20 minutes later
+        Then the plan is active as after the call, once
+      Scenario: AB-2 One broken payment blocks the others (denial of service)
+        Given `confirmPayment` throws on the second of three payments
+        When the job runs
+        Then the first and third are settled, and the error is logged with the second's id and rethrown after the loop
+    implementation:
+      create: [src/modules/billing/settle.service.ts, src/jobs/settle-payments.ts, tests/integration/billing/settle-payments.test.ts]
+      modify: [src/modules/billing/payment.repository.ts, package.json]
+      pattern: src/jobs/reconcile.ts
+      signatures:
+        - "settlePendingPayments(now: Date): Promise<SettleReport>"
+        - "runSettlePaymentsJob(now: Date): Promise<number>"
+      types:
+        - "SettleReport = { checked: number; activated: number; failed: number; expired: number; pending: number; anomalies: number }"
+      dependencies: ["@prisma/client", pino]
+    security:
+      - "v5.0.0-2.3.3: each payment settles in its own transaction, through `confirmPayment`."
+      - "v5.0.0-16.5.3: an unexpected error is rethrown after the loop, so a broken sweep is never read as clean."
+    tests: |
+      missed confirmation | integration | AC-1 | activated, report
+      selection | integration | AC-2, C-53 | young and FAILED payments not asked, batch of 200, oldest first
+      not paid | integration | AC-3 | each Examples row → status, counter
+      anomalies | integration | AC-4 | each Examples row → warn, count, others settled
+      job | integration | AC-5 | exit 1, exit 0
+      lost confirmation | security | AB-1, CWE-754 | no call received → plan active after the sweep
+      broken payment | security | AB-2, CWE-755 | throw on the second → others settled, error rethrown
+    command: npx vitest run tests/integration/billing/settle-payments.test.ts
+    out_of_scope:
+      - "The statement check: BIL-022. Scheduling: Q-010."
+
+  - id: BIL-022
+    title: The nightly check compares payments with the aggregator's statement
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-021]
+    read_first: [src/modules/billing/payment.repository.ts, src/jobs/reconcile.ts]
+    design_refs: [finances/subscriptionpayment]
+    constraints: [C-53]
+    asvs: [v5.0.0-16.3.3, v5.0.0-16.5.3]
+    story: "Technical story: give billing a nightly check of a day's payments against the aggregator's statement, so that money without a plan, or a plan without money, is found the next morning."
+    context: |
+      - Exists: `listStatement(day)` returns every aggregator payment of a UTC day as `AggregatorPayment` (BIL-008); payments (BIL-009).
+      - `payment.repository.ts` gains `findPaymentsByReferences(references)` and `listConfirmedOn(day)` (SUCCEEDED payments whose `confirmed_at` falls in that UTC day), each with id, status, amount and provider reference.
+      - `reconcilePayments(day, now)` in the new `reconcile.service.ts` reads the statement and the local rows and returns the mismatches, ids only, each with a fixed event:
+        - `payment_unknown_locally`: the statement says SUCCEEDED and no local payment has the reference;
+        - `money_without_plan`: SUCCEEDED in the statement and the local payment is neither SUCCEEDED nor REFUNDED;
+        - `payment_amount_differs`: SUCCEEDED on both sides with different amounts;
+        - `plan_without_money`: a local payment confirmed that day with no SUCCEEDED statement line.
+      - It reports only and repairs nothing (C-53). The job `src/jobs/reconcile-payments.ts` logs each mismatch at `error` with the event and the payment id (the reference when unknown locally), and returns 1 when any exists, else 0. `day` defaults to yesterday UTC; script `job:reconcile-payments`.
+    acceptance: |
+      Scenario: AC-1 A clean day
+        Given 2 payments settled on 2026-10-11, present on both sides with the same amounts
+        When `reconcilePayments('2026-10-11', now)` runs
+        Then the list is empty and the job returns 0
+      Scenario Outline: AC-2 A mismatch
+        When <case>
+        Then the list holds one mismatch with the event <event>, and the job returns 1
+        Examples:
+          | case                                                           | event                      |
+          | the statement has a SUCCEEDED payment no local row has         | `payment_unknown_locally`  |
+          | the statement says SUCCEEDED and the local payment is PENDING  | `money_without_plan`       |
+          | both are SUCCEEDED and the amounts differ                      | `payment_amount_differs`   |
+          | a local payment confirmed that day has no statement line       | `plan_without_money`       |
+      Scenario: AC-3 Other states are not mismatches
+        Given a REFUNDED local payment and a FAILED statement line for a FAILED local payment
+        When it runs
+        Then the list is empty
+      Scenario: AC-4 The logs
+        When the job finds a mismatch
+        Then one `error` log holds the event and the id, and no amount, phone number or reference of a known payment
+      Scenario: AC-5 The day
+        When the job runs without a day at 2026-10-12T02:00:00Z
+        Then it checks 2026-10-11, and `package.json` has the script `job:reconcile-payments`
+    abuse: |
+      Scenario: AB-1 A payer is charged and nothing activates (repudiation, T9)
+        Given the aggregator took the money, the confirmation never came and the sweep failed
+        When the nightly check runs
+        Then it reports `money_without_plan` with the payment id, and changes nothing
+    implementation:
+      create: [src/modules/billing/reconcile.service.ts, src/jobs/reconcile-payments.ts, tests/integration/billing/reconcile-payments.test.ts]
+      modify: [src/modules/billing/payment.repository.ts, package.json]
+      pattern: src/jobs/reconcile.ts
+      signatures:
+        - "reconcilePayments(day: string, now: Date): Promise<PaymentMismatch[]>"
+        - "runReconcilePaymentsJob(day?: string, now?: Date): Promise<number>"
+      types:
+        - "PaymentMismatch = { event: 'payment_unknown_locally' | 'money_without_plan' | 'payment_amount_differs' | 'plan_without_money'; id: string }"
+      dependencies: ["@prisma/client", pino]
+    security:
+      - "v5.0.0-16.3.3: each mismatch is a logged event with a fixed name and an id."
+      - "v5.0.0-16.5.3: a failed read ends the job non-zero, so a broken check is never read as clean."
+    tests: |
+      clean day | integration | AC-1, C-53 | empty list, exit 0
+      mismatches | integration | AC-2 | each Examples row → event, exit 1
+      other states | integration | AC-3 | REFUNDED and FAILED → empty
+      logs | integration | AC-4 | event and id only
+      day | integration | AC-5 | default day, script present
+      charged, no plan | security | AB-1, CWE-778 | money_without_plan, rows unchanged
+    command: npx vitest run tests/integration/billing/reconcile-payments.test.ts
+    out_of_scope:
+      - "Repairing a mismatch: an administrator does it (BIL-024, BIL-025). Scheduling the job: Q-010."
+
+  - id: BIL-036
+    title: The owner is told when an administrator changes the plan
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [BIL-035]
+    read_first: [src/modules/billing/notices.ts]
+    design_refs: [finances/subscription]
+    asvs: [v5.0.0-2.3.3]
+    story: "Technical story: give billing the one function that tells the owner, in their language, that an administrator gave days, recorded a payment or refunded one."
+    context: |
+      - Exists: `notices.ts` (BIL-019, BIL-035), `findActiveOwnerId` (ORG-044), `notify` and `recipientLanguage` (NTF-002). No route calls it yet.
+      - `notices.ts` gains `adjustmentNotice(language, input)` with the texts of AC-1; amounts are grouped as in BIL-035.
+      - New `adjustment-notice.ts`: `notifyOwnerOfAdjustment(tx, organizationId, input)` finds the active owner and writes `notify({ recipientId, organizationId, sourceEvent: 'subscription.adjusted', content }, tx)` in that person's language; without an owner it does nothing. The text never names the administrator or the reason.
+    acceptance: |
+      Scenario Outline: AC-1 The texts
+        When <gesture> is announced to a French owner and to an English owner
+        Then each has one unread notice `subscription.adjusted`, reading <french> and <english>
+        Examples:
+          | gesture                                       | french                                                                        | english                                                                  |
+          | GIFT, ESSENTIAL, 30 days                      | Cadeau : 30 jours de forfait Essentiel offerts à votre commerce.              | Gift: 30 days of the Essential plan added to your business.              |
+          | PAYMENT_RECORDED, ESSENTIAL, 3 months, 15000  | Paiement de 15 000 enregistré par Distribo : forfait Essentiel, 3 mois.       | Payment of 15,000 recorded by Distribo: Essential plan, 3 months.        |
+          | PAYMENT_RECORDED, PRO, 1 month, 30000         | Paiement de 30 000 enregistré par Distribo : forfait Pro, 1 mois.             | Payment of 30,000 recorded by Distribo: Pro plan, 1 month.               |
+          | REFUNDED, ESSENTIAL, 15000                    | Remboursement de 15 000 : le forfait Essentiel acheté par ce paiement est arrêté. | Refund of 15,000: the Essential plan bought with that payment has ended. |
+      Scenario: AC-2 No owner
+        When the business has no active owner
+        Then no notice is written and nothing fails
+      Scenario: AC-3 A rollback
+        When the caller's transaction is rolled back after the call
+        Then no notice exists
+    implementation:
+      create: [src/modules/billing/adjustment-notice.ts, tests/integration/billing/adjustment-notice.test.ts]
+      modify: [src/modules/billing/notices.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "adjustmentNotice(language: 'FR' | 'EN', input: AdjustmentInput): string"
+        - "notifyOwnerOfAdjustment(tx: Prisma.TransactionClient, organizationId: string, input: AdjustmentInput): Promise<void>"
+      types:
+        - "AdjustmentInput = { kind: 'GIFT'; plan: PaidPlanCode; days: number } | { kind: 'PAYMENT_RECORDED'; plan: PaidPlanCode; months: PackMonths; amount: bigint } | { kind: 'REFUNDED'; plan: PaidPlanCode; amount: bigint }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: the notice is written in the caller's transaction."
+    tests: |
+      texts | integration | AC-1 | each Examples row → both texts
+      no owner | integration | AC-2 | no notice, no error
+      rollback | integration | AC-3 | no notice
+    command: npx vitest run tests/integration/billing/adjustment-notice.test.ts
+    out_of_scope:
+      - "The gestures that call it: BIL-023, BIL-024, BIL-025."
+
+  - id: BIL-037
+    title: A gift period is placed behind the paid ones
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [BIL-027]
+    read_first: [src/modules/billing/forfait.service.ts, src/modules/billing/subscription.repository.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-52]
+    asvs: [v5.0.0-2.3.3]
+    story: "Technical story: give billing the function that places days offered by an administrator behind the periods already bought, so that a gift never shortens, ends or converts a paid period."
+    context: |
+      - Exists: `lockSubscriptions`, `listQueue`, `insertPeriod`, `insertEvent` (BIL-011); `addDays` (BIL-010). No route calls it yet.
+      - `findPeriod(tx, id)` is added to `subscription.repository.ts`: the period or null.
+      - `addGiftForfait(tx, gift)` in `forfait.service.ts` locks the business and reads the queue (ACTIVE and SCHEDULED). Empty queue: the period is ACTIVE from `now`. Otherwise it is SCHEDULED from the later of `now` and the latest `ends_at` of the queue: a lapsed ACTIVE period not yet ended still counts, so there is never a second ACTIVE row. `ends_at = addDays(starts_at, days)`.
+      - Origin GIFT, the given plan, price 0, no `months`, no payment. One FORFAIT_ADDED event: actor ADMINISTRATOR with both ids, details plan, days, status. The caller checks `days` (1 to 365) and handles a repeated `id`.
+    acceptance: |
+      Scenario: AC-1 Nothing running
+        When 30 days of PRO are placed at 2026-10-12T09:00:00Z with an empty queue
+        Then the period is ACTIVE, origin GIFT, from that instant to 2026-11-11T09:00:00Z, price 0, with no `months` and no payment
+      Scenario: AC-2 Behind the queue
+        Given ESSENTIAL ACTIVE until 2026-11-01T00:00:00Z and PRO SCHEDULED until 2026-12-01T00:00:00Z
+        When 10 days of ENTERPRISE are placed
+        Then the gift is SCHEDULED from 2026-12-01T00:00:00Z to 2026-12-11T00:00:00Z and the other two periods are unchanged
+      Scenario: AC-3 A lapsed period not yet ended
+        Given an ACTIVE period whose `ends_at` passed one day ago
+        When a gift is placed
+        Then it is SCHEDULED from `now`, not ACTIVE
+      Scenario: AC-4 The journal and the lookup
+        When a gift is placed
+        Then one FORFAIT_ADDED event has actor ADMINISTRATOR with both ids, and `findPeriod` returns the period, or null for an unknown id
+    abuse: |
+      Scenario: AB-1 Two gifts at once (race, T3)
+        When two transactions place a gift for one business with different ids
+        Then one period is ACTIVE and the other SCHEDULED from its end, with no overlap error
+    implementation:
+      create: [tests/integration/billing/gift-forfait.test.ts]
+      modify: [src/modules/billing/forfait.service.ts, src/modules/billing/subscription.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "addGiftForfait(tx: Prisma.TransactionClient, gift: GiftInput): Promise<PeriodRow>"
+        - "findPeriod(tx: Prisma.TransactionClient, id: string): Promise<PeriodRow | null>"
+      types:
+        - "GiftInput = { id: string; organizationId: string; plan: PaidPlanCode; days: number; actor: { administratorId: string; adminActionId: string }; now: Date }"
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: the lock, the period and the event belong to the caller's transaction."
+    tests: |
+      nothing running | integration | AC-1, C-52 | ACTIVE GIFT period, dates
+      behind | integration | AC-2 | SCHEDULED after the queue, others unchanged
+      lapsed | integration | AC-3 | SCHEDULED from now
+      journal | integration | AC-4 | event fields, lookup
+      race | security | AB-1, CWE-362 | two gifts → ACTIVE and SCHEDULED, no overlap
+    command: npx vitest run tests/integration/billing/gift-forfait.test.ts
+    out_of_scope:
+      - "The route, the admin action and the notice: BIL-023."
+
+  - id: BIL-038
+    title: A refund cancels the receipt and ends the periods of the payment
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-012, BIL-014, BIL-027]
+    read_first: [src/modules/billing/receipt.service.ts, src/modules/billing/payment.repository.ts]
+    design_refs: [finances/subscriptionpayment, finances/subscriptionreceipt]
+    constraints: [C-53, C-54]
+    asvs: [v5.0.0-2.2.3, v5.0.0-2.3.3]
+    story: "Technical story: give billing the function that refunds a confirmed payment: a credit note for its receipt and the end of the periods it bought, in the caller's transaction."
+    context: |
+      - Exists: `lockPayment`, `setPaymentOutcome` (BIL-014); `issueReceipt` and the number function (BIL-012); `endPeriod` (BIL-027); `insertEvent`. No route calls it yet.
+      - `receipt.repository.ts` gains `findReceiptOfPayment`, `findCreditNoteOfPayment` and `insertCreditNote`; `subscription.repository.ts` gains `listOpenPeriodsOfPayment(tx, paymentId)` (ACTIVE or SCHEDULED).
+      - `issueCreditNote(tx, receipt, now)` in `receipt.service.ts`: next number of the same series, kind CREDIT_NOTE, label `Avoir — ` plus the receipt's, same customer, rate and positive amounts, `cancels_receipt_id` the receipt's id.
+      - `applyRefund(tx, { paymentId, organizationId, actor, now })` in the new `refund.service.ts` locks the payment: unknown or of another business is 404 `NOT_FOUND`, not SUCCEEDED is 409 `PAYMENT_NOT_REFUNDABLE`. It sets REFUNDED (the confirmation date stays), issues the credit note, ends each open period of the payment (ACTIVE: `ends_at = now`; SCHEDULED: `ends_at = starts_at`; ENDED, reason REFUNDED; one FORFAIT_ENDED event each) and writes one PAYMENT event (actor ADMINISTRATOR, the payment id). Later periods keep their dates. Returns `{ creditNote, endedIds }`; the caller recomputes the rights.
+    acceptance: |
+      Scenario: AC-1 An active period
+        Given a SUCCEEDED payment of 15000 for ESSENTIAL, 3 months, its receipt R-2026-000001 and its ACTIVE period
+        When `applyRefund` runs
+        Then the payment is REFUNDED, a CREDIT_NOTE `R-2026-000002` has the receipt's amounts and `cancels_receipt_id`, the period is ENDED REFUNDED with `ends_at = now`, and one FORFAIT_ENDED and one PAYMENT event name the administrator
+      Scenario: AC-2 A scheduled period
+        Given the payment bought a SCHEDULED period, and another period follows it
+        When `applyRefund` runs
+        Then the scheduled period is ENDED REFUNDED with `ends_at = starts_at` and the following one is unchanged
+      Scenario: AC-3 A period already over
+        Given the payment's period is ENDED with reason EXPIRED
+        When `applyRefund` runs
+        Then the credit note exists and the period is unchanged
+      Scenario Outline: AC-4 Refused
+        When the payment is <case>
+        Then <answer> is thrown and nothing is written
+        Examples:
+          | case                              | answer                         |
+          | PENDING, FAILED, EXPIRED or REFUNDED | 409 `PAYMENT_NOT_REFUNDABLE` |
+          | of another business, or unknown   | 404 `NOT_FOUND`                |
+    abuse: |
+      Scenario: AB-1 Two refunds at once (race, T3)
+        When `applyRefund` runs twice in parallel for one payment
+        Then one credit note exists and the other call fails with 409
+    implementation:
+      create: [src/modules/billing/refund.service.ts, tests/integration/billing/refund-payment.test.ts]
+      modify: [src/modules/billing/receipt.service.ts, src/modules/billing/receipt.repository.ts, src/modules/billing/subscription.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "applyRefund(tx: Prisma.TransactionClient, input: RefundInput): Promise<RefundResult>"
+        - "issueCreditNote(tx: Prisma.TransactionClient, receipt: ReceiptRow, now: Date): Promise<ReceiptRow>"
+      types:
+        - "RefundInput = { paymentId: string; organizationId: string; actor: { administratorId: string; adminActionId: string }; now: Date }"
+        - "RefundResult = { creditNote: ReceiptRow; endedIds: string[] }"
+      errors: ["NOT_FOUND 404", "PAYMENT_NOT_REFUNDABLE 409"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the credit note repeats the receipt's amounts, so receipt and credit note cancel out."
+      - "v5.0.0-2.3.3: status, credit note, periods and events belong to the caller's transaction."
+    tests: |
+      active | integration | AC-1, C-53, C-54 | payment, credit note, period, events
+      scheduled | integration | AC-2 | ended empty, next unchanged
+      over | integration | AC-3 | credit note, period unchanged
+      refused | integration | AC-4 | each Examples row → error, no rows
+      race | security | AB-1, CWE-362 | parallel → one credit note
+    command: npx vitest run tests/integration/billing/refund-payment.test.ts
+    out_of_scope:
+      - "The route, the admin action, the rights and the notice: BIL-025."
+
+  - id: BIL-023
+    title: A super administrator gives days of a plan to a business
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ADM-016, BIL-013, BIL-020, BIL-036, BIL-037]
+    read_first: [src/middleware/admin-auth.ts, src/modules/billing/forfait.service.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-55]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As a super-admin, I want to give days of a plan to a business so that I can make up for a problem or reward a customer.
+    context: |
+      - Exists: `addGiftForfait`, `findPeriod` (BIL-037), `recomputeRights` (BIL-013), `enforceLimits` (BIL-020), `notifyOwnerOfAdjustment` (BIL-036), `recordAdminAction` (ADM-016), `findOrganizationSummary` (ORG-044).
+      - `POST /api/v1/admin/organizations/{organizationId}/billing/gift-days` in the new `billing.admin.routes.ts` (`Router({ mergeParams: true })`), mounted in `src/app.ts` before `/admin`. Chain: `adminAuthMiddleware`, `requireAdminRole('SUPER_ADMIN')`, then the body.
+      - Body, strict: `id` (UUIDv7, the gift period's id), `plan` (ESSENTIAL, PRO or ENTERPRISE), `days` (integer 1 to 365), `reason` (1 to 2000 characters).
+      - `giveDays(admin, organizationId, input, now)`, one transaction: unknown business is 404 `NOT_FOUND`; lock the business; a GIFT period with this `id` of the same business, plan and days (`ends_at - starts_at`) is answered again with nothing written, any other period with it is 409 `ID_USED`. Else `recordAdminAction` GIFT_DAYS (target the business), `addGiftForfait`, `recomputeRights`, `enforceLimits`, `notifyOwnerOfAdjustment`.
+      - Answer 201 `{ id, plan, days, status, starts_at, ends_at }`; a repeat gets the same fields.
+    acceptance: |
+      Scenario: AC-1 A gift
+        Given ESSENTIAL running until 2026-11-01T00:00:00Z
+        When a super administrator posts plan PRO, 30 days and a reason
+        Then the answer is 201 with a SCHEDULED period of 30 days from 2026-11-01T00:00:00Z, one `admin_actions` row GIFT_DAYS targets the business with the reason, one FORFAIT_ADDED event holds the administrator and action ids, and the owner has one notice `subscription.adjusted`
+      Scenario: AC-2 A business on the free plan
+        When the same gift goes to a business with no period and 2 paused collaborators
+        Then the period is ACTIVE, the business has the PRO limits at once and the collaborators are back
+      Scenario: AC-3 A repeat
+        When the same body is posted twice, then once more with the same `id` and other days
+        Then the second answer is 201 with the same fields, the third is 409 `ID_USED`, and one period, one action, one event and one notice exist
+      Scenario Outline: AC-4 Refused
+        When the request has <problem>
+        Then the answer is <answer> and nothing is written
+        Examples:
+          | problem                                                          | answer                 |
+          | days 0 or 366, plan FREE, no reason, an unknown field, a bad id | 400 `VALIDATION_ERROR` |
+          | no administration token                                          | 401 `UNAUTHORIZED`     |
+          | an unknown business                                              | 404 `NOT_FOUND`        |
+    abuse: |
+      Scenario: AB-1 A moderator or an app user gifts days (elevation of privilege, T7)
+        When a MODERATOR, and a customer's app token, post a valid gift
+        Then the answers are 403 `FORBIDDEN` and 401 `UNAUTHORIZED`, and no action, period or notice exists
+    implementation:
+      create: [src/modules/billing/billing.admin.routes.ts, src/modules/billing/gift.service.ts, tests/integration/billing/gift-days.test.ts]
+      modify: [src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts, src/app.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "giveDays(admin: { administratorId: string }, organizationId: string, input: GiftDaysInput, now: Date): Promise<GiftView>"
+      types:
+        - "GiftDaysInput = { id: string; plan: PaidPlanCode; days: number; reason: string }"
+        - "GiftView = { id: string; plan: PaidPlanCode; days: number; status: 'ACTIVE' | 'SCHEDULED' | 'ENDED'; starts_at: string; ends_at: string }"
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401", "FORBIDDEN 403", "NOT_FOUND 404", "ID_USED 409"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: the role is checked before the body is read; only a SUPER_ADMIN passes."
+      - "v5.0.0-2.3.3: action, period, event, rights, limits and notice are written in one transaction."
+      - "v5.0.0-15.3.3: the four body fields are the only writable ones; the business comes from the path, the administrator from the token."
+    tests: |
+      gift | integration | AC-1, C-55 | answer, action, event, notice
+      free plan | integration | AC-2 | ACTIVE, limits, collaborators back
+      repeat | integration | AC-3 | same answer, 409, single rows
+      refused | integration | AC-4 | each Examples row → answer, no rows
+      moderator | security | AB-1, CWE-269 | 403 and 401, no rows
+    command: npx vitest run tests/integration/billing/gift-days.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Which plan and how many days fit a case: left to the administrator (Q-043)."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the gift-days path | add POST /api/v1/admin/organizations/{organizationId}/billing/gift-days, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the gift-days path | add POST /api/v1/admin/organizations/{organizationId}/billing/gift-days, remove nothing"
+
+  - id: BIL-024
+    title: A super administrator records a payment made outside the aggregator
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [BIL-023, BIL-012, BIL-015, BIL-027]
+    read_first: [src/modules/billing/billing.admin.routes.ts, src/modules/billing/payment.repository.ts]
+    design_refs: [finances/subscriptionpayment]
+    constraints: [C-53]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As a super-admin, I want to record a payment a business made outside the aggregator so that it gets its plan and its receipt.
+    context: |
+      - Exists: `addPaidForfait` (BIL-027), `issueReceipt` (BIL-012), `findPaymentView` (BIL-015), `priceFor` (FND-014), the admin router and the helpers of BIL-023.
+      - `POST /api/v1/admin/organizations/{organizationId}/billing/payments`, same chain as BIL-023. Body, strict: `id` (UUIDv7, the payment id), `plan`, `months` (1, 3, 6 or 12), optional `customer_tax_id` (1 to 20 letters or digits), `reason` (1 to 2000 characters). No amount: the server prices it.
+      - `payment.repository.ts` gains `insertRecordedPayment`: SUCCEEDED, operator OTHER, no payer number, `provider_reference` `ADMIN-<id>`, `terms_version` `ADMIN`, `confirmed_at = now`.
+      - `recordPayment(admin, organizationId, input, now)`, one transaction: unknown business is 404 `NOT_FOUND`; lock the business; a payment with this `id` of the same business, plan and months is answered again, any other is 409 `ID_USED`. Else `recordAdminAction` RECORD_PAYMENT, `insertRecordedPayment`, `addPaidForfait` (actor ADMINISTRATOR), `issueReceipt` with the business name, a PAYMENT event (actor ADMINISTRATOR), `recomputeRights`, `enforceLimits`, `notifyOwnerOfAdjustment`.
+      - Answer 201 with the payment view of BIL-015.
+    acceptance: |
+      Scenario: AC-1 A recorded payment
+        Given a business on the free plan
+        When a super administrator posts plan ESSENTIAL, 3 months, the NIU `P123456789012A` and a reason
+        Then the answer is 201 with status SUCCEEDED, operator OTHER, amount 15000 and an ACTIVE period of 3 months; the payment has no payer number; the receipt shows the business name and that NIU; one RECORD_PAYMENT action, one PAYMENT event and one owner's notice exist
+      Scenario: AC-2 A repeat
+        When the same body is posted twice, then once with the same `id` and another plan
+        Then the second answer is 201 with the same payment, the third is 409 `ID_USED`, and one payment, period, receipt and action exist
+      Scenario Outline: AC-3 Refused
+        When the request has <problem>
+        Then the answer is <answer> and nothing is written
+        Examples:
+          | problem                                                             | answer                 |
+          | an `amount` field, months 2, plan FREE, no reason, a NIU with a space | 400 `VALIDATION_ERROR` |
+          | no administration token                                             | 401 `UNAUTHORIZED`     |
+          | an unknown business                                                 | 404 `NOT_FOUND`        |
+    abuse: |
+      Scenario: AB-1 A moderator records a payment (elevation of privilege, T7)
+        When a MODERATOR posts a valid body
+        Then the answer is 403 `FORBIDDEN` and no payment, period or action exists
+      Scenario: AB-2 A failure leaves a half-done payment (tampering)
+        When issuing the receipt throws
+        Then no payment, period, action or event exists
+    implementation:
+      create: [src/modules/billing/record-payment.service.ts, tests/integration/billing/record-payment.test.ts]
+      modify: [src/modules/billing/billing.admin.routes.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts, src/modules/billing/payment.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "recordPayment(admin: { administratorId: string }, organizationId: string, input: RecordPaymentInput, now: Date): Promise<PaymentView>"
+      types:
+        - "RecordPaymentInput = { id: string; plan: PaidPlanCode; months: PackMonths; customer_tax_id?: string; reason: string }"
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401", "FORBIDDEN 403", "NOT_FOUND 404", "ID_USED 409"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: the role is checked before the body is read; only a SUPER_ADMIN passes."
+      - "v5.0.0-2.3.3: payment, period, receipt, event, action and notice are written in one transaction."
+      - "v5.0.0-15.3.3: the amount, status and operator are never read from the body."
+    tests: |
+      recorded | integration | AC-1, C-53 | answer, rows, receipt NIU
+      repeat | integration | AC-2 | same answer, 409, single rows
+      refused | integration | AC-3 | each Examples row → answer, no rows
+      moderator | security | AB-1, CWE-269 | 403, no rows
+      half done | security | AB-2, CWE-367 | receipt throws → nothing written
+    command: npx vitest run tests/integration/billing/record-payment.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "The NIU format is not checked (Q-043)."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the recorded-payment path | add POST /api/v1/admin/organizations/{organizationId}/billing/payments, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the recorded-payment path | add POST /api/v1/admin/organizations/{organizationId}/billing/payments, remove nothing"
+
+  - id: BIL-025
+    title: A super administrator refunds a payment after an error
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [BIL-023, BIL-038, BIL-017]
+    read_first: [src/modules/billing/billing.admin.routes.ts, src/modules/billing/refund.service.ts]
+    design_refs: [finances/subscriptionpayment, finances/subscriptionreceipt]
+    constraints: [C-54]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: As a super-admin, I want to refund a payment made by mistake so that the business gets a credit note and its plan stops.
+    context: |
+      - Exists: `applyRefund`, `findCreditNoteOfPayment` (BIL-038), `lockPayment` (BIL-014), the receipt view of BIL-017, `recomputeRights`, `enforceLimits`, `notifyOwnerOfAdjustment`, the admin router (BIL-023).
+      - `POST /api/v1/admin/organizations/{organizationId}/billing/payments/{paymentId}/refund`, same chain as BIL-023. Both ids must be UUIDs; body, strict: `reason` (1 to 2000 characters). The payment id is the key of the gesture.
+      - `refundPayment(admin, organizationId, paymentId, input, now)`, one transaction: lock the payment; unknown, or of another business, is 404 `NOT_FOUND`; already REFUNDED is answered again with nothing written. Else `recordAdminAction` REFUND_PAYMENT (target the business), `applyRefund`, `recomputeRights`, `enforceLimits`, `notifyOwnerOfAdjustment`.
+      - Answer 200 `{ payment_id, status: 'REFUNDED', credit_note }`, the credit note being the item of BIL-017.
+    acceptance: |
+      Scenario: AC-1 A refund
+        Given a SUCCEEDED ESSENTIAL payment with its receipt and ACTIVE period, and 4 collaborators
+        When a super administrator posts a reason
+        Then the answer is 200 with the credit note, one `admin_actions` row REFUND_PAYMENT targets the business, the business is on the free plan with its extra collaborators paused, and the owner has one notice
+      Scenario: AC-2 A repeat
+        When the same refund is posted twice
+        Then both answers are the same 200, and one credit note, one action and one notice exist
+      Scenario Outline: AC-3 Refused
+        When the request has <problem>
+        Then the answer is <answer> and nothing is written
+        Examples:
+          | problem                                                | answer                         |
+          | a PENDING, FAILED or EXPIRED payment                   | 409 `PAYMENT_NOT_REFUNDABLE`   |
+          | a payment of another business, or an unknown one       | 404 `NOT_FOUND`                |
+          | no reason, an unknown field, an id that is not a UUID  | 400 `VALIDATION_ERROR`         |
+          | no administration token                                | 401 `UNAUTHORIZED`             |
+    abuse: |
+      Scenario: AB-1 A moderator refunds a payment (elevation of privilege, T7)
+        When a MODERATOR posts a valid refund
+        Then the answer is 403 `FORBIDDEN` and the payment, receipts and periods are unchanged
+      Scenario: AB-2 A payment of another business under a business id (information disclosure)
+        When the path names business A and the payment of business B
+        Then the answer is 404 and nothing of B changes
+    implementation:
+      create: [src/modules/billing/refund-payment.service.ts, tests/integration/billing/refund-gesture.test.ts]
+      modify: [src/modules/billing/billing.admin.routes.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "refundPayment(admin: { administratorId: string }, organizationId: string, paymentId: string, input: { reason: string }, now: Date): Promise<RefundView>"
+      types:
+        - "RefundView = { payment_id: string; status: 'REFUNDED'; credit_note: ReceiptView }"
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401", "FORBIDDEN 403", "NOT_FOUND 404", "PAYMENT_NOT_REFUNDABLE 409"]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: the role is checked before the body is read; only a SUPER_ADMIN passes."
+      - "v5.0.0-8.2.2: the payment must belong to the business of the path, else 404."
+      - "v5.0.0-2.3.3: action, refund, rights and notice are written in one transaction."
+    tests: |
+      refund | integration | AC-1, C-54 | answer, action, free plan, notice
+      repeat | integration | AC-2 | same answer, single rows
+      refused | integration | AC-3 | each Examples row → answer, no rows
+      moderator | security | AB-1, CWE-269 | 403, nothing changed
+      other business | security | AB-2, CWE-639 | 404, B unchanged
+    command: npx vitest run tests/integration/billing/refund-gesture.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Returning the money to the payer: done outside Distribo. Which periods a refund ends is open (Q-043)."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | the route list lacks the refund path | add POST /api/v1/admin/organizations/{organizationId}/billing/payments/{paymentId}/refund, remove nothing"
+      - "tests/integration/per-001.test.ts | the route list lacks the refund path | add POST /api/v1/admin/organizations/{organizationId}/billing/payments/{paymentId}/refund, remove nothing"
+
+  - id: BIL-028
+    title: A business's periods and rights follow the clock
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-013, BIL-020, BIL-027, ORG-045]
+    read_first: [src/modules/billing/rights.service.ts, src/modules/billing/limits.service.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-52]
+    asvs: [v5.0.0-2.3.3, v5.0.0-8.2.2]
+    story: "Technical story: give billing the function that ends the periods that ran out, starts the ones whose turn came, and refreshes the rights and the paused items of one business."
+    context: |
+      - Exists: `lockSubscriptions`, `listQueue`, `insertEvent` (BIL-011); `endPeriod` (BIL-027); `recomputeRights` (BIL-013); `enforceLimits` (BIL-020); `readPlanFields` (ORG-045).
+      - Why: a period row changes only when a purchase writes it, so something must make `status` and the plan columns follow the date.
+      - `subscription.repository.ts` gains `activatePeriod(tx, id)`: SCHEDULED becomes ACTIVE.
+      - `advanceSubscription(tx, organizationId, now)` in the new `advance.service.ts` locks, then walks the queue by `starts_at`:
+        - an ACTIVE period with `ends_at <= now` is ended, reason EXPIRED, `ends_at` kept;
+        - a SCHEDULED one with `starts_at <= now` is ended the same way when its `ends_at <= now` too, else activated;
+        - each ended period writes one FORFAIT_ENDED event (actor SYSTEM, details: period id, reason).
+      - Then it reads the plan fields, calls `recomputeRights` and `enforceLimits`. When `plan` or `grace_ends_at` differs from before it writes one PLAN_CHANGED event (actor SYSTEM, details: from, to, `grace_ends_at`). It returns `{ ended, started, planChanged }`; an unknown or deleted business gives zeros and writes nothing.
+    acceptance: |
+      Scenario: AC-1 A period runs out
+        Given an ESSENTIAL ACTIVE period that ended 3 days ago, nothing after it, and plan columns still ESSENTIAL without grace
+        When `advanceSubscription` runs
+        Then the period is ENDED EXPIRED with its `ends_at` kept, one FORFAIT_ENDED event (SYSTEM) exists, `grace_ends_at` is 7 days after that end, one PLAN_CHANGED event holds the grace date, and the result is `ended` 1, `started` 0, `planChanged` true
+      Scenario: AC-2 The next period takes over
+        Given an ESSENTIAL ACTIVE period that ended 1 hour ago and an ESSENTIAL one SCHEDULED from that instant for a month
+        When `advanceSubscription` runs
+        Then the first is ENDED EXPIRED, the second ACTIVE, the plan is ESSENTIAL without grace, and no PLAN_CHANGED event is written
+      Scenario: AC-3 A lower plan follows
+        Given a PRO ACTIVE period that ended 2 days ago, an ESSENTIAL one SCHEDULED from that instant for 3 months, and 8 ACTIVE non-owner seats
+        When `advanceSubscription` runs
+        Then ESSENTIAL is ACTIVE, one PLAN_CHANGED event goes from PRO to ESSENTIAL, and 3 seats are paused
+      Scenario: AC-4 Whole periods were missed
+        Given three ESSENTIAL periods in a row, the first ACTIVE and ended 40 days ago, the second ended 20 days ago, the third SCHEDULED for 3 months
+        When `advanceSubscription` runs
+        Then the first two are ENDED EXPIRED, the third is ACTIVE and two FORFAIT_ENDED events exist
+      Scenario: AC-5 The grace is over
+        Given the last ESSENTIAL period ENDED EXPIRED 8 days ago, plan columns ESSENTIAL and 4 ACTIVE non-owner seats
+        When `advanceSubscription` runs
+        Then the business is FREE, one PLAN_CHANGED event goes from ESSENTIAL to FREE, and 2 seats are paused
+      Scenario Outline: AC-6 Nothing to do
+        Given <state>
+        When `advanceSubscription` runs
+        Then no period, event or other row changes and the result is zeros
+        Examples:
+          | state                                           |
+          | an ACTIVE period still running, rights written  |
+          | a SCHEDULED period starting in the future       |
+          | a deleted business                              |
+    abuse: |
+      Scenario: AB-1 Two runs at once (race, T3)
+        When two transactions advance one business whose ACTIVE period lapsed and whose next one is due
+        Then one set of events exists, one period is ACTIVE and no unique-index error escapes
+    implementation:
+      create: [src/modules/billing/advance.service.ts, tests/integration/billing/advance.test.ts]
+      modify: [src/modules/billing/subscription.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "advanceSubscription(tx: Prisma.TransactionClient, organizationId: string, now: Date): Promise<AdvanceResult>"
+        - "activatePeriod(tx: Prisma.TransactionClient, id: string): Promise<void>"
+      types:
+        - "AdvanceResult = { ended: number; started: number; planChanged: boolean }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: ending, starting, events, rights and limits run in the caller's transaction, under the business's lock."
+      - "v5.0.0-8.2.2: every read and write uses the organization id given by server code; no client value."
+    tests: |
+      runs out | integration | AC-1, C-52 | ended, event, grace date
+      takes over | integration | AC-2 | ACTIVE, no plan event
+      lower plan | integration | AC-3 | PRO to ESSENTIAL, 3 paused
+      missed | integration | AC-4 | two ended, one ACTIVE
+      grace over | integration | AC-5 | FREE, 2 paused
+      nothing | integration | AC-6 | each Examples row → no change
+      race | security | AB-1, CWE-362 | two parallel runs → one set of events
+    command: npx vitest run tests/integration/billing/advance.test.ts
+    out_of_scope:
+      - "The daily job and its list of businesses: BIL-039. Reminders: BIL-026."
+
+  - id: BIL-039
+    title: A daily job advances every business that needs it
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [BIL-028, ORG-045]
+    read_first: [src/jobs/reconcile.ts, src/modules/billing/advance.service.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-52]
+    asvs: [v5.0.0-2.3.3, v5.0.0-16.5.3]
+    story: "Technical story: give billing a job that refreshes the periods, rights and paused items of each business whose dates passed, so that a plan ends on time even if nobody opens the app."
+    context: |
+      - Exists: `advanceSubscription` (BIL-028), `listOrganizationsToRefresh` (ORG-045), `runInTransaction` (BIL-011); `src/jobs/reconcile.ts` is the model of a job.
+      - `subscription.repository.ts` gains `listBusinessesToAdvance(now, limit, afterId?)`: ids, ascending, of businesses with an ACTIVE period whose `ends_at <= now` or a SCHEDULED one whose `starts_at <= now`.
+      - `advanceDueBusinesses(now)` in the new `expire.service.ts` reads both lists page by page (`ADVANCE_PAGE` 500), takes their union once per id, ascending, and runs `advanceSubscription` for each in its own transaction. It returns `{ checked, ended, started, planChanged }`.
+      - A business that fails is logged at `error` with its id and the loop goes on; the first error is rethrown after the loop, so `main` exits 2.
+      - Job `src/jobs/expire-forfaits.ts`: `runExpireForfaitsJob(now)` logs the report at `info` (counts only) and returns 0; script `job:expire-forfaits`. The schedule is outside the job (Q-010).
+    acceptance: |
+      Scenario: AC-1 Only the businesses that need it
+        Given A with a lapsed ACTIVE period, B with a running one, C with a SCHEDULED period whose time came, and D FREE
+        When the job runs
+        Then A and C are advanced, B and D are not touched, and the report says `checked` 2
+      Scenario: AC-2 Grace over and excess seats
+        Given E whose last period ended 8 days ago with plan columns still ESSENTIAL, and F with limit 2 and 3 ACTIVE seats
+        When the job runs
+        Then E is FREE and one seat of F is paused
+      Scenario: AC-3 Once per business
+        Given a business that both lists return
+        When the job runs
+        Then it is advanced once: one FORFAIT_ENDED event
+      Scenario: AC-4 A second run
+        When the job runs twice with the same `now`
+        Then the second run changes no row and writes no event
+      Scenario: AC-5 More than a page
+        Given 3 businesses to advance and `ADVANCE_PAGE` set to 2 in the test
+        When the job runs
+        Then all 3 are advanced
+    abuse: |
+      Scenario: AB-1 One broken business blocks the others (denial of service)
+        Given the advance of business B throws
+        When the job runs
+        Then the other businesses are still advanced, the error is logged with B's id only, and the job rejects after the loop
+    implementation:
+      create: [src/modules/billing/expire.service.ts, src/jobs/expire-forfaits.ts, tests/integration/billing/expire-forfaits.test.ts]
+      modify: [src/modules/billing/subscription.repository.ts, package.json]
+      pattern: src/jobs/reconcile.ts
+      signatures:
+        - "advanceDueBusinesses(now: Date): Promise<AdvanceReport>"
+        - "runExpireForfaitsJob(now?: Date): Promise<number>"
+        - "listBusinessesToAdvance(now: Date, limit: number, afterId?: string): Promise<string[]>"
+      types:
+        - "AdvanceReport = { checked: number; ended: number; started: number; planChanged: number }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: each business is advanced in its own transaction, so a failure leaves no half-done business."
+      - "v5.0.0-16.5.3: a failing business is logged and skipped, and the run still fails at the end; nothing is swallowed."
+    tests: |
+      selection | integration | AC-1, C-52 | A and C advanced, B and D untouched
+      grace and seats | integration | AC-2 | E FREE, one seat paused
+      once | integration | AC-3 | one event for a business in both lists
+      second run | integration | AC-4 | no change
+      pages | integration | AC-5 | 3 advanced with a page of 2
+      broken business | security | AB-1, CWE-400 | others advanced, id logged, job rejects
+    command: npx vitest run tests/integration/billing/expire-forfaits.test.ts
+    out_of_scope:
+      - "Reminders before the end: BIL-026. Closing or reopening a business: BIL-031."
+
+  - id: BIL-026
+    title: The owner is reminded before the plan ends
+    kind: technical
+    size: M
+    risk: medium
+    depends_on: [BIL-016, BIL-019, ORG-045]
+    read_first: [src/jobs/reconcile.ts, src/modules/billing/notices.ts]
+    design_refs: [finances/subscription]
+    constraints: []
+    asvs: [v5.0.0-2.3.3, v5.0.0-16.5.3]
+    story: "Technical story: give billing a daily job that tells the owner 7 days, 1 day and 0 days before the plan ends, the first time with what will be paused."
+    context: |
+      - Exists: `readPlanFields`, `listOrganizationsEnding` (ORG-045); `readAfterEnd` (BIL-016); `findActiveOwnerId` (ORG-044); `notify`, `recipientLanguage` (NTF-002); `lockSubscriptions`, `insertEvent`, `runInTransaction` (BIL-011); `notices.ts` (BIL-019).
+      - `subscription.repository.ts` gains `hasReminder(tx, organizationId, planEndsAt, daysBefore)`: a REMINDER event with those details exists.
+      - `sendDueReminders(now)` in the new `reminder.service.ts` pages `listOrganizationsEnding` over the Douala calendar days of `now` to `now + 7` (UTC+1; pages of 500). Per business, in its own transaction under the lock, `days_before` is the number of Douala calendar days from `now` to `plan_ends_at`.
+      - Only 7, 1 and 0 send, once per `plan_ends_at`. That date ends the same-plan chain, so a follow-up of the same plan moves the reminder to the chain's end.
+      - A send inserts one REMINDER event (actor SYSTEM, details: `plan_ends_at`, `days_before`) and `notify({ recipientId, organizationId, sourceEvent: 'subscription.reminder', content }, tx)` for the active owner, in their language; no owner, no reminder. At 7 days the text adds the `readAfterEnd` counts above 0.
+      - A failing business is logged at `error` with its id, the loop goes on, the first error is rethrown after it. Job `src/jobs/send-reminders.ts`: `runSendRemindersJob(now)` logs the counts at `info`, returns 0; script `job:send-reminders`.
+    acceptance: |
+      Scenario Outline: AC-1 Which days
+        Given an ESSENTIAL plan ending on 12 January 2027 (Douala day)
+        When the job runs on <day>
+        Then <result>
+        Examples:
+          | day                      | result                      |
+          | 5 January                | one reminder, `days_before` 7 |
+          | 11 January               | one reminder, `days_before` 1 |
+          | 12 January               | one reminder, `days_before` 0 |
+          | 8 January, or 13 (grace) | none                        |
+      Scenario: AC-2 Once per end date
+        When the job runs twice on 5 January, the plan is extended to 12 April, and it runs on 5 April
+        Then there is one reminder for 12 January and one for 12 April
+      Scenario Outline: AC-3 The text
+        Given the plan ends on 12 January 2027, the owner reads <language>, <days> days before, and <pause>
+        When the reminder is sent
+        Then the notice `subscription.reminder` reads <text>
+        Examples:
+          | language | days | pause                        | text                                                                                                      |
+          | FR       | 7    | 3 collaborators, 45 products | Votre forfait Essentiel se termine le 12 janvier 2027 : 3 collaborateurs et 45 produits seront mis en pause. |
+          | EN       | 7    | nothing to pause             | Your Essential plan ends on January 12, 2027.                                                             |
+          | FR       | 1    | 3 collaborators              | Votre forfait Essentiel se termine demain.                                                                |
+          | EN       | 0    | 3 collaborators              | Your Essential plan ends today.                                                                           |
+      Scenario Outline: AC-4 A follow-up period
+        Given <chain>
+        When the job runs 7 days before the first period ends
+        Then <result>
+        Examples:
+          | chain                           | result                       |
+          | ESSENTIAL, then ESSENTIAL       | no reminder                  |
+          | PRO, then ESSENTIAL scheduled   | one reminder for the PRO end |
+      Scenario: AC-5 Nobody to tell
+        When the job runs 7 days before the end of a business without an active owner, and for a FREE business
+        Then no event and no notice are written
+      Scenario: AC-6 A broken business
+        Given the reminder of business B throws
+        When the job runs
+        Then the others get theirs, B's id is logged and the job rejects after the loop
+    implementation:
+      create: [src/modules/billing/reminder.service.ts, src/jobs/send-reminders.ts, tests/integration/billing/reminders.test.ts]
+      modify: [src/modules/billing/notices.ts, src/modules/billing/subscription.repository.ts, package.json]
+      pattern: src/jobs/reconcile.ts
+      signatures:
+        - "sendDueReminders(now: Date): Promise<{ checked: number; sent: number }>"
+        - "reminderNotice(language: 'FR' | 'EN', input: { daysBefore: 7 | 1 | 0; plan: PaidPlanCode; planEndsAt: Date; afterEnd: AfterEnd | null }): string"
+        - "hasReminder(tx: Prisma.TransactionClient, organizationId: string, planEndsAt: Date, daysBefore: number): Promise<boolean>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: check, event and notice share one transaction under the business's lock: no double send."
+      - "v5.0.0-16.5.3: a failing business is logged and skipped, the run fails at the end; nothing is swallowed."
+    tests: |
+      days | integration | AC-1 | each Examples row → reminder or none
+      once | integration | AC-2 | one per end date
+      text | integration | AC-3 | each Examples row → notice text
+      follow-up | integration | AC-4 | each Examples row → reminder or none
+      nobody | integration | AC-5 | no owner, FREE → nothing written
+      broken | integration | AC-6 | others sent, id logged, rejects
+    command: npx vitest run tests/integration/billing/reminders.test.ts
+    out_of_scope:
+      - "Choosing what to keep: BIL-018."
+
+  - id: BIL-029
+    title: The owner swaps a paused collaborator with an active one
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [BIL-018, BIL-019]
+    read_first: [src/modules/billing/billing.owner.routes.ts, src/modules/billing/seat-limit.service.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-42, C-55]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-2.3.3]
+    story: As an owner, I want to bring back a paused collaborator by pausing another so that my seats fit my needs.
+    context: |
+      - Exists: the router (BIL-018), `seatNotice` (BIL-019), `listTeamSeats`, `setSeatPaused` (ORG-035), `findDriversWithOpenDeliveries` (DLV-015), `listProductsOnSale` (CAT-020), `insertEvent`, `runInTransaction` (BIL-011), `notify`.
+      - `POST /api/v1/organizations/{organizationId}/billing/swap-seat` on that router. Chain: sign-in, `loadActor`, `requireAbility('keep', 'Collaboration')`, `idempotent()`. Body, strict: `id` (UUIDv7), `pause_collaboration_id`, `resume_collaboration_id` (distinct).
+      - `swapSeat(actor, input, now)` in the new `swap.service.ts`, one transaction under `lockSubscriptions`. Both ids must be seats of `listTeamSeats` (else 404 `NOT_FOUND`). The seat to pause must be ACTIVE or INVITED, the one to resume PAUSED (else 409 `SEAT_STATE`); a DRIVER with an open delivery cannot be paused (409 `DRIVER_ON_DELIVERY`).
+      - It calls `setSeatPaused` for both, writes a PAUSED and a RESUMED event (actor OWNER, the owner's person id, details: the collaboration id) and one `seatNotice` to each.
+      - `writeCurrentKeepChoice(tx, organizationId, personId)`, exported for BIL-030, inserts a KEEP_CHOICE event (actor OWNER) with the seats now not paused and the products now on sale, so that enforcement keeps the swap.
+      - Answer 201 `{ paused_collaboration_id, resumed_collaboration_id }`.
+    acceptance: |
+      Scenario: AC-1 A swap
+        Given limit 2, A and B ACTIVE, C PAUSED
+        When the owner pauses A and resumes C
+        Then the answer is 201, A is PAUSED and C ACTIVE, one PAUSED, one RESUMED and one KEEP_CHOICE event name the owner, A and C each have one notice, and `enforceSeatLimit` with limit 2 changes nothing afterwards
+      Scenario Outline: AC-2 A state that refuses
+        When <case>
+        Then the answer is <answer> and nothing changes
+        Examples:
+          | case                                             | answer                       |
+          | the seat to pause is already PAUSED              | 409 `SEAT_STATE`             |
+          | the seat to resume is ACTIVE                     | 409 `SEAT_STATE`             |
+          | the seat to pause is a driver on a delivery      | 409 `DRIVER_ON_DELIVERY`     |
+          | an id is unknown or the owner's own              | 404 `NOT_FOUND`              |
+      Scenario: AC-3 Who may
+        When a manager, a seller, a driver or a person not signed in sends a valid swap
+        Then the answers are 403 `FORBIDDEN` for the first three and 401 `UNAUTHORIZED` for the last
+      Scenario: AC-4 Body and repeat
+        When the body has an extra field, a bad UUID or twice the same id, then a valid swap is sent twice
+        Then the first three give 400 `VALIDATION_ERROR`, the repeat equal answers and one set of events
+    abuse: |
+      Scenario: AB-1 A seat of another business is paused (broken access control)
+        When an owner of A sends a seat id of business B
+        Then the answer is 404, equal to an unknown id's, and B's seat is unchanged
+    implementation:
+      create: [src/modules/billing/swap.service.ts, tests/integration/billing/swap-seat.test.ts]
+      modify: [src/modules/billing/billing.owner.routes.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "swapSeat(actor: OrganizationActor, input: SwapSeatInput, now: Date): Promise<SwapSeatView>"
+        - "writeCurrentKeepChoice(tx: Prisma.TransactionClient, organizationId: string, personId: string): Promise<void>"
+      types:
+        - "SwapSeatInput = { id: string; pauseCollaborationId: string; resumeCollaborationId: string }"
+        - "SwapSeatView = { paused_collaboration_id: string; resumed_collaboration_id: string }"
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401", "FORBIDDEN 403", "NOT_FOUND 404", "SEAT_STATE 409", "DRIVER_ON_DELIVERY 409"]
+      dependencies: [zod, express]
+    security:
+      - "v5.0.0-8.2.1: only an owner passes `keep`; the business comes from the session."
+      - "v5.0.0-15.3.3: the body lists its fields and refuses any other."
+      - "v5.0.0-2.3.3: seats, events and notices share one transaction."
+    tests: |
+      swap | integration | AC-1, C-55, C-42 | 201, seats, events, notices, enforcement keeps it
+      refused | integration | AC-2 | each Examples row → answer, no change
+      who may | integration | AC-3 | 403 and 401
+      body and repeat | integration | AC-4 | 400s, equal answers
+      other business | security | AB-1, CWE-639 | 404 equal to unknown, B unchanged
+    command: npx vitest run tests/integration/billing/swap-seat.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Products: BIL-030."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | route list | add POST /api/v1/organizations/{organizationId}/billing/swap-seat"
+      - "tests/integration/per-001.test.ts | route list | add POST /api/v1/organizations/{organizationId}/billing/swap-seat"
+
+  - id: BIL-030
+    title: The owner swaps a paused product with one on sale
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [BIL-029, BIL-020]
+    read_first: [src/modules/billing/swap.service.ts, src/modules/billing/billing.owner.routes.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-46, C-55]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-2.3.3]
+    story: As an owner, I want to put a paused product back on sale by pausing another so that I sell what I need within my plan.
+    context: |
+      - Exists: `swapSeat`, `writeCurrentKeepChoice` (BIL-029), `listProductsOnSale`, `listPausedProducts`, `setProductsPaused` (CAT-020), `insertEvent`, `runInTransaction` (BIL-011), the router (BIL-018).
+      - `POST /api/v1/organizations/{organizationId}/billing/swap-product` on that router. Chain: sign-in, `loadActor`, `requireAbility('keep', 'Product')`, `idempotent()`. Body, strict: `id` (UUIDv7), `pause_product_id`, `resume_product_id`, two different UUIDs.
+      - `swapProduct(actor, input, now)` in `swap.service.ts`, one transaction under `lockSubscriptions`. An id in neither product list is 404 `NOT_FOUND`; the one to pause must be on sale and the one to resume paused (else 409 `PRODUCT_STATE`).
+      - It calls `setProductsPaused` for each, writes a PAUSED and a RESUMED event (actor OWNER, details: target PRODUCTS and the product id) and `writeCurrentKeepChoice`. Answer 201 `{ paused_product_id, resumed_product_id }`.
+    acceptance: |
+      Scenario: AC-1 A swap
+        Given limit 30, 30 products on sale and product P paused
+        When the owner pauses product Q and resumes P
+        Then the answer is 201, Q is paused, P is on sale, and one PAUSED, one RESUMED and one KEEP_CHOICE event name the owner
+      Scenario: AC-2 The swap sticks
+        When `enforceLimits` runs with limit 30 after AC-1
+        Then Q stays paused and P stays on sale
+      Scenario Outline: AC-3 A state that refuses
+        When <case>
+        Then the answer is <answer> and nothing changes
+        Examples:
+          | case                                  | answer                        |
+          | the product to pause is already paused | 409 `PRODUCT_STATE`           |
+          | the product to resume is on sale      | 409 `PRODUCT_STATE`           |
+          | an id is unknown or deleted           | 404 `NOT_FOUND`, same message |
+      Scenario: AC-4 Who may
+        When a manager, a seller, a driver or a person not signed in sends a valid swap
+        Then the answers are 403 `FORBIDDEN` for the first three and 401 `UNAUTHORIZED` for the last
+      Scenario: AC-5 Body and repeat
+        When the body has an extra field, a bad UUID or the same id twice, then a valid swap is sent twice with one `id`
+        Then the first three give 400 `VALIDATION_ERROR` and the repeat gives equal answers with one set of events
+    abuse: |
+      Scenario: AB-1 A product of another business is paused (broken access control)
+        When an owner of A sends a product id of business B
+        Then the answer is 404, equal to an unknown id's, and B's product is unchanged
+    implementation:
+      create: [tests/integration/billing/swap-product.test.ts]
+      modify: [src/modules/billing/swap.service.ts, src/modules/billing/billing.owner.routes.ts, src/modules/billing/billing.schemas.ts, src/modules/billing/billing.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "swapProduct(actor: OrganizationActor, input: SwapProductInput, now: Date): Promise<SwapProductView>"
+      types:
+        - "SwapProductInput = { id: string; pauseProductId: string; resumeProductId: string }"
+        - "SwapProductView = { paused_product_id: string; resumed_product_id: string }"
+      errors: ["VALIDATION_ERROR 400", "UNAUTHORIZED 401", "FORBIDDEN 403", "NOT_FOUND 404", "PRODUCT_STATE 409"]
+      dependencies: [zod, express]
+    security:
+      - "v5.0.0-8.2.1: only an owner passes `keep`, and the business comes from the session actor."
+      - "v5.0.0-15.3.3: the body lists its writable fields and refuses any other."
+      - "v5.0.0-2.3.3: products, events and the choice are written in one transaction."
+    tests: |
+      swap | integration | AC-1, C-55 | 201, products, events
+      sticks | integration | AC-2, C-46 | enforcement keeps the swap
+      refused | integration | AC-3 | each Examples row → answer, no change
+      who may | integration | AC-4 | 403 and 401
+      body and repeat | integration | AC-5 | 400s, equal answers, one set of events
+      other business | security | AB-1, CWE-639 | 404 equal to unknown, B unchanged
+    command: npx vitest run tests/integration/billing/swap-product.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Swapping a collaborator: BIL-029."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | route list | add POST /api/v1/organizations/{organizationId}/billing/swap-product"
+      - "tests/integration/per-001.test.ts | route list | add POST /api/v1/organizations/{organizationId}/billing/swap-product"
+
+  - id: BIL-031
+    title: Closing a business ends its plans and reopening restarts from free
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [BIL-005, BIL-013, BIL-020, BIL-027, ORG-034, ORG-045]
+    read_first: [src/modules/billing/rights.service.ts, src/app.ts]
+    design_refs: [finances/subscription]
+    constraints: [C-52]
+    asvs: [v5.0.0-2.3.3, v5.0.0-8.2.2]
+    story: "Technical story: let billing stop the plans of a business when it is closed and restart it from the free plan when it is reopened, inside the closing and reopening transactions."
+    context: |
+      - Exists: `registerLifecycleHook` (ORG-034; the hooks run in the closing or reopening transaction and a failing hook aborts it); `lockSubscriptions`, `listQueue`, `insertEvent` (BIL-011); `endPeriod` (BIL-027); `recomputeRights` (BIL-013); `enforceLimits` (BIL-020); `readPlanFields` (ORG-045); `writePlanFields` (ORG-035); `PLANS` (FND-014). BIL-005 stopped `closeOrganization` from touching `subscriptions`.
+      - `registerBillingLifecycleHooks()` in the new `lifecycle.service.ts` registers one hook, once, however often it is called; `src/app.ts` calls it at start.
+      - Close: lock; each ACTIVE or SCHEDULED period ends with reason CLOSED (ACTIVE: `ends_at` is the earlier of its end and `now`; SCHEDULED: `ends_at = starts_at`), one FORFAIT_ENDED event each (actor SYSTEM). Then the five plan fields are written as FREE (no dates, the limits of `PLANS.FREE`), even during a grace, and one PLAN_CHANGED event (old plan to FREE) is written when the plan was not FREE. Nothing is paused: the close revokes the team itself.
+      - Reopen: lock, `recomputeRights`, `enforceLimits`. A period bought while the business was closed counts; products above the free limit are paused.
+    acceptance: |
+      Scenario: AC-1 Close ends the plans
+        Given an ESSENTIAL ACTIVE period with 20 days left and an ESSENTIAL one SCHEDULED after it
+        When the owner closes the business
+        Then both periods are ENDED CLOSED (the first with `ends_at = now`, the second with `ends_at = starts_at`), two FORFAIT_ENDED events exist, the plan fields are FREE with no dates, and one PLAN_CHANGED event goes from ESSENTIAL to FREE
+      Scenario: AC-2 Close during the grace
+        Given the last period ENDED EXPIRED 3 days ago and plan columns ESSENTIAL with a grace date
+        When the owner closes the business
+        Then the plan fields are FREE with no grace date
+      Scenario: AC-3 A free business
+        When a business with no period is closed
+        Then no period or event is written and the plan stays FREE
+      Scenario Outline: AC-4 Reopen
+        Given a closed business with <state>
+        When the owner reopens it
+        Then <result>
+        Examples:
+          | state                                   | result                                              |
+          | 45 products on sale and no period       | the plan is FREE and 15 products are paused         |
+          | an ESSENTIAL period bought while closed | the plan is ESSENTIAL and no product is paused      |
+      Scenario: AC-5 A failure aborts the close
+        Given ending a period fails during the close
+        When the owner closes the business
+        Then the business stays open, its periods and plan fields are unchanged and no event is written
+      Scenario: AC-6 Registered once
+        When `registerBillingLifecycleHooks` is called twice and a business is closed
+        Then each period gets one FORFAIT_ENDED event
+    abuse: |
+      Scenario: AB-1 Closing one business touches another (broken access control)
+        Given businesses A and B, each with an ACTIVE period
+        When A is closed
+        Then B's periods, events and plan fields are unchanged
+    implementation:
+      create: [src/modules/billing/lifecycle.service.ts, tests/integration/billing/lifecycle.test.ts]
+      modify: [src/app.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "registerBillingLifecycleHooks(): void"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: ending, rights and events share the closing or reopening transaction."
+      - "v5.0.0-8.2.2: the hook acts on the organization id the organization module gives it, never on a client value."
+    tests: |
+      close | integration | AC-1, C-52 | periods CLOSED, events, FREE
+      grace | integration | AC-2 | FREE without grace
+      free | integration | AC-3 | nothing written
+      reopen | integration | AC-4 | each Examples row → plan, products
+      abort | integration | AC-5 | failure → nothing changes
+      once | integration | AC-6 | one event per period
+      other business | security | AB-1, CWE-639 | B unchanged
+    command: npx vitest run tests/integration/billing/lifecycle.test.ts
+    out_of_scope:
+      - "The close and reopen operations and their routes: ORG. Refunds: BIL-025."

@@ -1,0 +1,804 @@
+kind: stories
+module: order
+constraints:
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+  C-48: "A variant cited by an order line or a negotiated price is never deleted, only taken off sale (`INACTIVE`); a deletion received for a cited variant becomes a withdrawal from sale, and a line received for a deleted variant restores it, off sale."
+stories:
+  - id: ORD-022
+    title: Orders carry the date they were accepted
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [ORD-002]
+    amends: [ORD-001, ORD-002]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004280000_ord_002_status_rules/migration.sql]
+    design_refs: [commandes-et-livraisons/order, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-51]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Order.accepted_at"]
+    story: "Technical story: add the acceptance date to orders, with its rules, so that a refused order and an order cancelled after acceptance can be told apart."
+    context: |
+      - Exists: table `orders` with the check `orders_pending_placed_by_customer_check` and the trigger `orders_enforce_status_rules` (ORD-002).
+      - Adds: column `accepted_at` (`timestamptz`, empty allowed, no default). The accept gesture fills it (ORD-023); an order a supplier enters is born CONFIRMED and keeps it empty.
+      - Two new checks state C-51: a set `accepted_at` requires `placed_by_party` CUSTOMER, and `status` PENDING requires `accepted_at` empty. The old PENDING check stays, because a merged migration is never edited.
+      - Existing orders keep an empty date: nothing recorded when an old order was accepted, so there is nothing to backfill.
+      - `prisma/schema.prisma`: add `acceptedAt DateTime? @map("accepted_at") @db.Timestamptz` to `Order`. Above the model, extend the existing `//` comment in plain words: a pending order has no acceptance date, and only an order the customer placed can have one; name this migration as the place that enforces it.
+    acceptance: |
+      Scenario: AC-1 The column
+        When an order is inserted without an acceptance date
+        Then `accepted_at` is empty, and the column is `timestamptz` with no default
+      Scenario Outline: AC-2 The two checks
+        When a row has placed_by_party <party>, status <status> and accepted_at <date>
+        Then the insert <result>
+        Examples:
+          | party    | status    | date  | result          |
+          | CUSTOMER | CONFIRMED | set   | accepts         |
+          | CUSTOMER | PENDING   | empty | accepts         |
+          | CUSTOMER | PENDING   | set   | rejects (23514) |
+          | SUPPLIER | CONFIRMED | set   | rejects (23514) |
+          | SUPPLIER | CONFIRMED | empty | accepts         |
+      Scenario: AC-3 Acceptance and later cancellation
+        Given a PENDING order placed by the customer
+        When one update sets status CONFIRMED and accepted_at
+        Then it is accepted
+        And a later update to CANCELLED by the supplier, with a reason, leaves accepted_at unchanged
+    abuse: |
+      Scenario: AB-1 A supplier-entered order is made to look accepted (tampering)
+        Given a CONFIRMED order placed by the SUPPLIER
+        When an update sets accepted_at
+        Then it fails with 23514 and the date stays empty
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_022_accepted_at/migration.sql, tests/integration/order/order-accepted-at.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the rules are CHECK constraints, so no code path can skip them."
+    tests: |
+      column | integration | AC-1 | insert without the date → empty; read the column type and default
+      checks | integration | AC-2, C-51 | each Examples row → accepted or 23514
+      acceptance step | integration | AC-3 | PENDING to CONFIRMED with the date, then to CANCELLED → date kept
+      supplier order | security | AB-1, CWE-345 | set the date on a supplier-entered order → 23514
+    command: npx vitest run tests/integration/order/order-accepted-at.test.ts
+    out_of_scope:
+      - "Writing the date (ORD-023)."
+      - "Showing 'Refusée' or 'Annulée': the apps derive it from placed_by_party, cancelled_by_party and accepted_at."
+    tests_to_update:
+      - "tests/unit/order/calculations-and-views.test.ts | its order() fixture is typed as the Prisma Order, which gains acceptedAt | add acceptedAt: null to the fixture"
+
+  - id: ORD-023
+    title: Accepting an order records its date
+    kind: change
+    size: S
+    risk: high
+    depends_on: [ORD-022, ORD-011]
+    amends: [ORD-008, ORD-011]
+    read_first: [src/modules/order/order.state.ts, src/modules/order/order.views.ts]
+    design_refs: [commandes-et-livraisons/order/refus-et-annulation, commandes-et-livraisons/order]
+    constraints: [C-51]
+    asvs: [v5.0.0-2.3.1, v5.0.0-15.3.1]
+    story: As a customer, I want an order the supplier turned down to be told apart from one cancelled after acceptance so that I know whether the supplier ever agreed to it.
+    context: |
+      - Exists: `transitionOrder` (ORD-008) with `TransitionFields = { cancellationReason? }`; `acceptOrder` (ORD-011) calls it for CONFIRMED without fields. A failed delivery attempt (IN_DELIVERY to CONFIRMED) uses the same step.
+      - Change: `TransitionFields` gains `acceptedAt?: Date`. With it, the step to CONFIRMED is allowed only from PENDING and writes `accepted_at` in the same conditional update; from any other status it answers 409 `INVALID_TRANSITION` and writes nothing. Without it nothing changes, so a failed delivery attempt never sets the date.
+      - `acceptOrder` passes `acceptedAt: new Date()`, the server clock. A date from a phone arrives through synchronization, not here.
+      - `PartyView` in `order.views.ts` and its OpenAPI document gain `accepted_at` (ISO string or null) for both parties. The apps show "Refusée" when `placed_by_party` is CUSTOMER, `cancelled_by_party` SUPPLIER and `accepted_at` empty, else "Annulée": no derived field.
+      - `C-51`: `status` PENDING requires `placed_by_party` CUSTOMER and an empty `accepted_at`; a set `accepted_at` requires `placed_by_party` CUSTOMER.
+    acceptance: |
+      Scenario: AC-1 Accepting records the date
+        When a SELLER accepts a PENDING order placed by a customer
+        Then the order is CONFIRMED and `accepted_at` is the server time
+        And the supplier view and the customer view both show it
+      Scenario: AC-2 A failed delivery attempt keeps the date as it was
+        Given an IN_DELIVERY order
+        When the step to CONFIRMED is taken without `acceptedAt`
+        Then `accepted_at` is unchanged, empty for a supplier-entered order and kept for an accepted one
+      Scenario Outline: AC-3 Only a pending order can be accepted
+        When the step to CONFIRMED with `acceptedAt` is taken on an order that is <status>
+        Then the answer is 409 INVALID_TRANSITION and nothing changes
+        Examples:
+          | status      |
+          | CONFIRMED   |
+          | IN_DELIVERY |
+          | DELIVERED   |
+          | CANCELLED   |
+      Scenario: AC-4 Refusal and cancellation
+        When a PENDING order is refused
+        Then `accepted_at` stays empty
+        And an accepted order the supplier then cancels keeps its date
+      Scenario: AC-5 Views and documents
+        When a supplier-entered order is read by either party
+        Then `accepted_at` is null
+        And GET /api/v1/docs/openapi.json lists `accepted_at`, a string or null, in both order views
+    abuse: |
+      Scenario: AB-1 A second acceptance rewrites the date (tampering)
+        Given an order already accepted
+        When a SELLER accepts it again
+        Then the answer is 409 INVALID_TRANSITION and the first date remains
+    implementation:
+      create: [tests/integration/order/accepted-at.test.ts]
+      modify: [src/modules/order/order.state.ts, src/modules/order/order.service.ts, src/modules/order/order.views.ts, src/modules/order/order.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "type TransitionFields = { cancellationReason?: string; acceptedAt?: Date }"
+        - "transitionOrder(tx: Prisma.TransactionClient, orderId: string, to: OrderStatus, actor: TransitionActor, fields?: TransitionFields, options?: { viaSync?: boolean }): Promise<Order>"
+      types:
+        - "PartyView gains accepted_at: string | null"
+      errors:
+        - "409 INVALID_TRANSITION when acceptedAt is given and the order is not PENDING"
+      dependencies: ["@prisma/client", "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-2.3.1: the date and the status are written by one conditional update on PENDING, so two parallel acceptances cannot both win."
+      - "v5.0.0-15.3.1: the view lists `accepted_at` field by field; no whole row is returned."
+    tests: |
+      accept | integration | AC-1, C-51 | accept a PENDING customer order → CONFIRMED, date set, both views show it
+      failed attempt | integration | AC-2 | IN_DELIVERY to CONFIRMED without the field → date unchanged
+      not pending | integration | AC-3 | each Examples row → 409, status and date unchanged
+      refuse and cancel | integration | AC-4 | refuse → date empty; accept then cancel → date kept
+      views | integration | AC-5 | entered order → null; openapi.json lists the field
+      second acceptance | security | AB-1, CWE-841 | accept twice → second 409, first date kept
+    command: npx vitest run tests/integration/order/accepted-at.test.ts tests/unit/order tests/integration/order/accept-order.test.ts
+    out_of_scope:
+      - "An acceptance made offline: its date comes through synchronization."
+      - "The labels 'Refusée' and 'Annulée': the apps compute them."
+    tests_to_update:
+      - "tests/unit/order/calculations-and-views.test.ts | the customer view test lists the exact keys | add accepted_at to the expected keys"
+
+  - id: ORD-024
+    title: Order lines can name a variant
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [CAT-014, ORD-004]
+    amends: [ORD-004]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004300000_ord_004_order_lines/migration.sql]
+    design_refs: [commandes-et-livraisons/orderline, contraintes-a-poser-au-niveau-base-de]
+    constraints: [OrderLine:fk]
+    asvs: [v5.0.0-2.2.3]
+    story: "Technical story: let order lines name a product variant, so that orders can move from products to variants without breaking the code that still writes products."
+    context: |
+      - Exists: `order_lines.product_id` (ORD-004), a variant with the same id as every product (CAT-013) and the triggers that give each old-style product its variant (CAT-014).
+      - One migration adds the column `product_variant_id` (uuid, empty allowed until ORD-025), a foreign key to `product_variants(id)` (restrict) and an index on it, which also serves the per-variant sales and purchase totals read from delivered lines.
+      - Trigger `order_lines_a_fill_variant`, before insert: an empty `product_variant_id` becomes `product_id`, which is the variant of a legacy product. A new-style product has no variant of its id, so the key refuses the line (23503). A value that is given is kept; ORD-026 checks it.
+      - `prisma/schema.prisma`: `productVariantId String? @map("product_variant_id") @db.Uuid`, the relation to `ProductVariant` and `@@index([productVariantId])`. Above `OrderLine`, add a plain-words `//` comment: the database fills the variant from `product_id` when a line is saved without it; the column becomes required in ORD-025.
+      - Lines saved before this migration are filled by ORD-025.
+    acceptance: |
+      Scenario: AC-1 Column, key and index
+        When the table is read
+        Then `product_variant_id` is a uuid that accepts an empty value, with a foreign key and an index
+      Scenario: AC-2 A line for an old-style product gets its variant
+        When a line is inserted with the `product_id` of an old-style product and no variant
+        Then `product_variant_id` equals `product_id`
+      Scenario: AC-3 A given variant is kept
+        Given a variant whose id differs from its product's
+        When a line is inserted with that product and that variant
+        Then the line keeps the variant it was given
+      Scenario: AC-4 An unknown variant
+        When a line is inserted with a variant id that does not exist
+        Then it fails with 23503
+    abuse: |
+      Scenario: AB-1 A line is saved for a product that has no variant of its id (tampering)
+        Given a new-style product, whose variants have other ids
+        When a line is inserted with its `product_id` and no variant
+        Then it fails with 23503 and no line with a guessed variant is stored
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_024_order_line_variant/migration.sql, tests/integration/order/order-line-variant.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the key refuses a variant that does not exist, whatever the code does."
+    tests: |
+      column and key | integration | AC-1, OrderLine:fk | read the column, the key and the index
+      old-style line | integration | AC-2 | insert with product_id only → variant equals product_id
+      given variant | integration | AC-3 | insert with both → kept as given
+      unknown variant | integration | AC-4 | insert with an unknown variant → 23503
+      no guessed variant | security | AB-1, CWE-20 | new-style product, no variant given → 23503
+    command: npx vitest run tests/integration/order/order-line-variant.test.ts tests/integration/order/order-line-table.test.ts
+    out_of_scope:
+      - "Filling the lines that already exist and making the column required (ORD-025)."
+      - "Checking that the variant belongs to the supplier and to the line's product (ORD-026)."
+    tests_to_update:
+      - "tests/unit/order/calculations-and-views.test.ts | the lines of its order() fixture are typed as the Prisma OrderLine, which gains productVariantId | add productVariantId: null to each line of the fixture"
+
+  - id: ORD-025
+    title: Every order line names its variant
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [ORD-024]
+    amends: [ORD-004, ORD-024]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004300000_ord_004_order_lines/migration.sql]
+    design_refs: [commandes-et-livraisons/orderline, contraintes-a-poser-au-niveau-base-de]
+    constraints: [OrderLine:required, C-35]
+    asvs: [v5.0.0-2.2.3]
+    story: "Technical story: fill the variant of the lines saved before ORD-024 and make it required, so that every line names the variant that was sold."
+    context: |
+      - Exists: `order_lines.product_variant_id`, empty allowed, filled on insert from `product_id` (ORD-024). Lines saved earlier have it empty.
+      - One migration, in this order. Between `-- audit start` and `-- audit end`: a block that stops the migration when a line without a variant has no variant of its `product_id`; its message lists line ids only. There is no source for another value, so none is invented (CAT-013 gave every product a variant of its id, so none is expected).
+      - Between `-- copy start` and `-- copy end`: `UPDATE order_lines SET product_variant_id = product_id WHERE product_variant_id IS NULL`. It moves `server_updated_at`, so phones fetch the lines again; a second run changes nothing.
+      - Then `product_variant_id SET NOT NULL`.
+      - `prisma/schema.prisma`: the field becomes `productVariantId String @default(dbgenerated()) @map("product_variant_id") @db.Uuid` and its relation required. Reads are never empty and a create may leave it out because the trigger fills it. Update the `//` comment above `OrderLine` in plain words.
+    acceptance: |
+      Scenario: AC-1 Existing lines are filled
+        Given a line whose variant is empty
+        When the copy block runs
+        Then its variant equals its `product_id` and its `server_updated_at` moves forward
+        And a second run changes nothing
+      Scenario: AC-2 The column is required
+        When a line is updated to an empty variant
+        Then it fails with 23502
+        And a line inserted without a variant gets one from its product
+    abuse: |
+      Scenario: AB-1 A line the migration cannot explain gets a guessed variant (tampering)
+        Given a line with no variant and no variant of its `product_id`
+        When the audit block runs
+        Then it fails with a message that lists the line id and no label, name or amount
+        And no line receives a variant
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_025_order_line_variant_required/migration.sql, tests/integration/order/order-line-variant-required.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the audit stops on data it cannot explain instead of inventing a variant."
+    tests: |
+      copy | integration | AC-1, C-35 | replay the marked block on a line with an empty variant, twice → filled once, date moved once
+      audit | security | AB-1, CWE-20 | replay the audit block in a rolled-back transaction → ids only in the message, nothing filled
+      required | integration | AC-2, OrderLine:required | update to null → 23502; insert without it → filled
+    command: npx vitest run tests/integration/order/order-line-variant-required.test.ts
+    out_of_scope:
+      - "Removing `product_id` (the contract story, after every writer uses variants)."
+
+  - id: ORD-026
+    title: Order line rules read the variant
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [ORD-025, CAT-014]
+    amends: [ORD-005]
+    read_first: [prisma/migrations/20261004340000_sync_012_retired_product_lines/migration.sql, prisma/schema.prisma]
+    design_refs: [commandes-et-livraisons/order, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-15]
+    asvs: [v5.0.0-2.2.3, v5.0.0-8.2.2]
+    story: "Technical story: make the order line rules read the variant and its product, so that a line is accepted only for an active variant of the supplier."
+    context: |
+      - Exists: `order_lines_enforce_rules()` as SYNC-012 left it. It reads `products` by `product_id` and honours the setting `distribo.allow_retired_product`.
+      - Replace it with `CREATE OR REPLACE`. On insert it takes `coalesce(product_variant_id, product_id)`, reads that variant and its product, and refuses with 23514 when: the variant's `product_id` differs from the line's; the variant's business is not the supplier of the order's relationship; the setting is not 'on' and the variant is not ACTIVE or is deleted, or its product is deleted or paused (`paused_at` set); the order is placed by the CUSTOMER and the quantity is below the variant's `min_order_quantity`.
+      - Unchanged: an unknown variant is left to the key (23503); on a customer-placed order the applied price equals the reference price on insert and is never raised; the setting skips only the status, deletion and pause checks, never the business or product match.
+      - Old-style products keep working: their variant mirrors the status and the minimum (CAT-014) and the product's own `deleted_at` is read on the product.
+      - `prisma/schema.prisma`: update the `//` comment above `OrderLine` in plain words: lines are checked against their variant and its product, and the sync setting still lets a retired variant through.
+      - `C-15`: Every order line is for an ACTIVE variant of the relationship's supplier, of a product that is not paused; on a customer-placed order the quantity is at least the variant's `min_order_quantity` when sent.
+    acceptance: |
+      Scenario Outline: AC-1 Refused lines
+        When a line is inserted for <case>
+        Then it fails with 23514
+        Examples:
+          | case                                           |
+          | a variant of another business                  |
+          | an INACTIVE variant                            |
+          | a deleted variant                              |
+          | a variant of a deleted product                 |
+          | a variant of a paused product                  |
+          | a variant that belongs to another product than the line's product_id |
+      Scenario: AC-2 The minimum is the variant's
+        Given a variant with minimum 5
+        When a customer-placed order gets a line of 4.999
+        Then it fails with 23514
+        And a line of 5 is accepted, and so is a line of 1 on an order the supplier placed
+      Scenario: AC-3 Retired variants through synchronization
+        Given the setting is 'on' for the transaction
+        When lines are inserted for an INACTIVE variant, a deleted variant and a variant of a paused product
+        Then they are accepted
+        And a variant of another business is still refused
+      Scenario: AC-4 Old-style products behave as before
+        Given a product written the old way and then set INACTIVE with a direct update
+        When a line is inserted for it
+        Then it fails with 23514
+    abuse: |
+      Scenario: AB-1 A line borrows another business's variant, with the sync setting on (access control)
+        Given the setting is 'on'
+        When a line names a variant of a business that is not the order's supplier
+        Then it fails with 23514
+    implementation:
+      create: [prisma/migrations/<timestamp>_ord_026_line_rules_by_variant/migration.sql, tests/integration/order/line-rules-variant.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the rules are checked by the database on every insert, whoever writes."
+      - "v5.0.0-8.2.2: the variant's business must be the order's supplier, even when the retired-variant setting is on."
+    tests: |
+      refused lines | integration | AC-1, C-15 | each Examples row → 23514
+      minimum | integration | AC-2, C-15 | 4.999 → 23514; 5 → ok; supplier order with 1 → ok
+      sync setting | integration | AC-3 | setting on → retired accepted, other business refused
+      old style | integration | AC-4 | legacy product set INACTIVE → 23514
+      other business | security | AB-1, CWE-639 | setting on, variant of another business → 23514
+    command: npx vitest run tests/integration/order/line-rules-variant.test.ts tests/integration/order/line-rules.test.ts tests/integration/sync/push-orders.test.ts
+    out_of_scope:
+      - "Reading the variant in the services (ORD-027)."
+      - "Changing the sync setting or the code that sets it (the synchronization stories)."
+
+  - id: ORD-027
+    title: Order lines are priced from the variant
+    kind: change
+    size: S
+    risk: high
+    depends_on: [ORD-026, CAT-016, CAT-017, CAT-019]
+    amends: [ORD-009, ORD-010, ORD-013, ORD-014]
+    read_first: [src/modules/order/order.service.ts, src/modules/order/order.repository.ts]
+    design_refs: [commandes-et-livraisons/orderline, commandes-et-livraisons/order]
+    constraints: [C-15, C-20, CM-11]
+    asvs: [v5.0.0-2.2.1, v5.0.0-8.2.2]
+    story: As a customer, I want my order priced and labelled from the variant I chose so that the price and the name on my order are those of that size, color or pack.
+    context: |
+      - Exists: `priceLine` (customer orders) and `priceEnteredLine` (seller orders, edits, counter sale) read `getActiveProduct` and label the line `<name> (<unit>)`.
+      - Change in `order.service.ts`: both read `getActiveVariant(tx, organizationId, id)`; the minimum uses the variant's `minOrderQuantity`; the reference price is `getReferencePrice(tx, relationshipId, variant.id)`; `labelApplied` is `variantLabel(variant.productName, variant.variantName, variant.unit)`.
+      - The line keeps `productId: variant.productId` and gains `productVariantId: variant.id` (`NewOrderLine` in `order.repository.ts`).
+      - The request field stays `product_id` and carries the variant id until ORD-028; an existing product's id equals its variant's id.
+      - `C-15`: Every order line is for an ACTIVE variant of the relationship's supplier, of a product that is not paused; on a customer-placed order the quantity is at least the variant's `min_order_quantity` when sent.
+      - `C-20`: `label_applied` is composed by the shared label function; `unit_price_applied` equals `reference_price` on a customer order.
+      - `CM-11`: Reference price = negotiated price when one exists, else the variant price.
+    acceptance: |
+      Scenario: AC-1 Label, variant and prices come from the variant
+        Given the variant "Rouge / L" (unit "pièce") of "T-shirt", priced 3000, with a negotiated price of 2800
+        When a seller enters an order for it at 2500
+        Then label_applied is "T-shirt — Rouge / L (pièce)" and productVariantId is the variant's id
+        And reference_price is 2800 and unit_price_applied 2500
+      Scenario Outline: AC-2 Minimum quantity of the variant
+        Given a variant with minimum 5
+        When <who> orders a quantity of 4
+        Then the result is <result>
+        Examples:
+          | who                     | result               |
+          | a customer              | 400 VALIDATION_ERROR |
+          | a seller for a customer | accepted             |
+      Scenario Outline: AC-3 Variants that cannot be ordered
+        When a line names <variant>
+        Then the answer is 404 NOT_FOUND with the same message, and nothing is stored
+        Examples:
+          | variant                       |
+          | an INACTIVE variant           |
+          | a deleted variant             |
+          | a variant of a paused product |
+          | an id that does not exist     |
+    abuse: |
+      Scenario: AB-1 A customer names another supplier's variant (access control)
+        When a customer orders a variant of a business that is not the relationship's supplier
+        Then the answer is 404 NOT_FOUND and no order is stored
+    implementation:
+      create: [tests/integration/order/order-by-variant.test.ts]
+      modify: [src/modules/order/order.service.ts, src/modules/order/order.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "priceLine(tx, supplierOrganizationId: string, relationshipId: string, line: { id: string; product_id: string; quantity: string | number }): Promise<NewOrderLine & { quantityMilli: bigint }>"
+      types:
+        - "NewOrderLine = { id: string; productId: string; productVariantId: string; labelApplied: string; quantity: string; referencePrice: bigint; unitPriceApplied: bigint; amount: bigint }"
+      errors:
+        - "404 NOT_FOUND when the variant cannot be ordered (any reason, same message)"
+        - "400 VALIDATION_ERROR for a quantity below the minimum on a customer order"
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: price, label and amount are computed on the server from the variant."
+      - "v5.0.0-8.2.2: the variant must belong to the relationship's supplier; every other case is 404."
+    tests: |
+      prices and label | integration | AC-1, C-20, CM-11 | variant with a negotiated price, seller gap → label by the shared function, variant stored, both prices
+      minimum | integration | AC-2, C-15 | each Examples row → refused or accepted
+      unavailable | integration | AC-3, C-15 | each Examples row → 404 and nothing stored
+      other supplier | security | AB-1, CWE-639 | variant of another business → 404, no order
+    command: npx vitest run tests/integration/order
+    out_of_scope:
+      - "Renaming the request and answer field (ORD-028)."
+      - "The rest of a partial delivery, the counter sale insert and phone pushes (delivery and synchronization stories)."
+    tests_to_update:
+      - "tests/integration/order/place-order.test.ts | it expects labels like 'Rice (sack)' | expect 'Rice — sack', the label of a variant without a name"
+
+  - id: ORD-028
+    title: Order lines name their variant in requests and answers
+    kind: change
+    size: S
+    risk: medium
+    depends_on: [ORD-027]
+    amends: [ORD-009, ORD-010, ORD-013, ORD-014, ORD-019, ORD-020, ORD-021]
+    read_first: [src/modules/order/order.schemas.ts, src/modules/order/order.views.ts]
+    design_refs: [commandes-et-livraisons/orderline]
+    constraints: [C-20]
+    asvs: [v5.0.0-15.3.3, v5.0.0-15.3.1]
+    story: As a seller, I want an order line to say which variant was sold so that my quantities are counted by variant and my customers see the exact item.
+    context: |
+      - Exists: both line schemas in `order.schemas.ts` take `product_id`; `OrderLineView` and the documents say `product_id` (ORD-027 already reads it as a variant id).
+      - Change: the two line schemas (place and enter/edit) take `product_variant_id` instead; they stay strict, so `product_id` answers 400. The line views in `order.views.ts` return `product_variant_id` from `line.productVariantId`, and `order.openapi.ts` documents the new name in requests and answers.
+      - A clean cut: no alias, the old name is refused.
+      - `ORD-027` already reads the id as a variant's; the counter sale reuses the seller's line schema, so it changes with it.
+      - `C-20`: Line `amount` is quantity times applied price rounded to the franc, half up; `label_applied` is composed by the shared label function; on a customer-placed order `unit_price_applied` equals `reference_price` when sent and is never raised afterward.
+    acceptance: |
+      Scenario Outline: AC-1 Requests use the new name
+        When <gesture> sends lines with `product_variant_id`
+        Then it succeeds, and the answer's lines carry `product_variant_id` and no `product_id`
+        Examples:
+          | gesture                     |
+          | a customer places an order  |
+          | a manager orders from a supplier |
+          | a seller enters an order    |
+          | a seller edits an order     |
+          | a seller sells at the counter |
+      Scenario: AC-2 Reads show the variant
+        When both parties list and open an order
+        Then each line carries `product_variant_id`
+      Scenario: AC-3 The old name is gone
+        When a line sends `product_id`
+        Then the answer is 400 VALIDATION_ERROR
+        And GET /api/v1/docs/openapi.json lists `product_variant_id` for the lines and no `product_id`
+    abuse: |
+      Scenario: AB-1 A line carries fields the server fixes (mass assignment)
+        When a line carries `product_id`, `label_applied`, `reference_price` or `amount`
+        Then the answer is 400 VALIDATION_ERROR and no order is stored
+    implementation:
+      create: [tests/integration/order/line-variant-field.test.ts]
+      modify: [src/modules/order/order.schemas.ts, src/modules/order/order.views.ts, src/modules/order/order.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types:
+        - "OrderLineView.product_variant_id: string replaces product_id"
+      errors:
+        - "400 VALIDATION_ERROR for the old field name or any unknown field"
+      dependencies: [zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-15.3.3: a line accepts an id, a variant id, a quantity and, for a seller, a price; every other field is refused."
+      - "v5.0.0-15.3.1: the line view lists its fields one by one."
+    tests: |
+      requests | integration | AC-1, C-20 | each Examples row → success, new field in the answer
+      reads | integration | AC-2 | list and open as both parties → product_variant_id
+      old name | integration | AC-3 | product_id → 400; openapi.json names product_variant_id
+      extra fields | security | AB-1, CWE-915 | the four fields → 400, nothing stored
+    command: npx vitest run tests/integration/order tests/integration/delivery/counter-sale.test.ts tests/integration/api-docs
+    out_of_scope:
+      - "Removing `order_lines.product_id` (the contract story)."
+      - "The lines pushed by a phone: the synchronization stories."
+    tests_to_update:
+      - "tests/integration/order/place-order.test.ts | the lines send product_id | send product_variant_id with the same ids"
+      - "tests/integration/order/place-purchase.test.ts | the lines send product_id | send product_variant_id with the same ids"
+      - "tests/integration/order/enter-order.test.ts | the lines send product_id | send product_variant_id with the same ids"
+      - "tests/integration/order/edit-order.test.ts | the lines send product_id | send product_variant_id with the same ids"
+      - "tests/integration/delivery/counter-sale.test.ts | the lines send product_id | send product_variant_id with the same ids"
+
+  - id: ORD-029
+    title: A supplier's orders are counted by variant over a period
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [ORD-025]
+    read_first: [src/modules/order/order.repository.ts]
+    design_refs: [commandes-et-livraisons/orderline]
+    asvs: [v5.0.0-8.2.2]
+    story: "Technical story: give the order module one function that counts the lines ordered from a supplier per variant since a date, so that billing can keep the most ordered products when a plan runs out."
+    context: |
+      - Exists: every line names its variant (ORD-025); an order reaches its supplier through its relationship (`customerRelationship.supplierOrganizationId`).
+      - New in `order.repository.ts`: `countOrderedLinesByVariant(tx, supplierOrganizationId, since)` returns a `Map` from variant id to a count. It counts the not deleted lines of the not deleted orders of that supplier created at or after `since`, leaving out the orders with status CANCELLED. A variant with no line is absent.
+      - One parameterized query grouped in SQL. First usage: billing (BIL-020), which ships after this story.
+    acceptance: |
+      Scenario: AC-1 Counting
+        Given a supplier with 3 lines of one variant in two orders and 1 line of another variant, all created in the last 90 days
+        When the function runs with `since` 90 days ago
+        Then the first variant counts 3, the second 1, and a third variant with no line is absent
+      Scenario Outline: AC-2 What is left out
+        When the function runs and the supplier has <case>
+        Then <result>
+        Examples:
+          | case                                  | result                              |
+          | a line of an order created before `since` | it is not counted                |
+          | a line of a CANCELLED order           | it is not counted                   |
+          | a deleted line                        | it is not counted                   |
+          | a line of a deleted order             | it is not counted                   |
+          | a line of another supplier's order    | it is not counted                   |
+      Scenario: AC-3 Nothing ordered
+        When the supplier has no order
+        Then the map is empty
+    implementation:
+      create: [tests/integration/order/demand-by-variant.test.ts]
+      modify: [src/modules/order/order.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "countOrderedLinesByVariant(tx: Prisma.TransactionClient, supplierOrganizationId: string, since: Date): Promise<Map<string, number>>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the supplier id comes from server code, and orders of another supplier never enter the count."
+    tests: |
+      counting | integration | AC-1 | counts per variant
+      left out | integration | AC-2 | each Examples row → not counted
+      empty | integration | AC-3 | empty map
+    command: npx vitest run tests/integration/order/demand-by-variant.test.ts
+    out_of_scope:
+      - "Choosing which products stay on a plan: billing (BIL-020)."
+
+  - id: ORD-030
+    title: The order module says which variants order lines cite
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [ORD-025]
+    read_first: [src/modules/order/order.repository.ts]
+    design_refs: [commandes-et-livraisons/orderline, catalogue/productvariant]
+    constraints: [C-48]
+    asvs: [v5.0.0-8.2.2]
+    story: "Technical story: give the order module one function that tells which variants of a list are cited by an order line, so that the catalog never deletes a variant that the sales history needs."
+    context: |
+      - Exists: every line names its variant (ORD-025).
+      - New in `order.repository.ts`: `listOrderedVariantIds(tx, variantIds)` returns the `Set` of those ids that at least one order line cites, whatever the state of the line or of its order: a deleted line or a cancelled order still counts, because the history must keep its link to the variant (C-48). An empty list answers an empty set without a query.
+      - One parameterized query. First usage: the catalog delete routes (CAT-026) and the synchronization of a variant deleted on a phone.
+    acceptance: |
+      Scenario: AC-1 Cited variants
+        Given three variants, the first cited by two lines and the second by one line
+        When the function runs with the three ids
+        Then it returns the first two ids and not the third
+      Scenario Outline: AC-2 Any state counts
+        When a variant is cited only by <case>
+        Then it is returned
+        Examples:
+          | case                    |
+          | a deleted line          |
+          | a CANCELLED order       |
+          | a deleted order         |
+      Scenario: AC-3 Nothing asked
+        When the list is empty
+        Then the set is empty and no query is sent
+    implementation:
+      create: [tests/integration/order/ordered-variant-ids.test.ts]
+      modify: [src/modules/order/order.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "listOrderedVariantIds(tx: Prisma.TransactionClient, variantIds: string[]): Promise<Set<string>>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the ids come from server code that has already checked the organization; the function reads no other column."
+    tests: |
+      cited | integration | AC-1, C-48 | two ids returned
+      any state | integration | AC-2, C-48 | each Examples row → returned
+      empty list | integration | AC-3 | empty set
+    command: npx vitest run tests/integration/order/ordered-variant-ids.test.ts
+    out_of_scope:
+      - "Deciding what to do with a cited variant: the catalog stories."
+  - id: ORD-031
+    title: Order tests seed products through the catalog helper
+    kind: technical
+    size: M
+    risk: low
+    amends: []
+    depends_on: [CAT-040, ORD-028]
+    read_first: [tests/helpers/catalog-fixtures.ts, tests/integration/order/line-rules.test.ts]
+    design_refs: [catalogue/product, commandes-et-livraisons/orderline]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: the order tests create their products with `seedProduct`, so that the old columns of `products` can go without breaking them."
+    context: |
+      - Exists: `seedProduct(client, input)` (CAT-040), which creates a product new-style and one variant with the same id. The order tests still insert products with `unit`, `price`, `status` and `min_order_quantity`, which CAT-041 drops.
+      - Every product these fifteen files create is created with `seedProduct`, passing the same id, name, unit, price, minimum and status as today. The variant has the product's id, so order lines that hold that id keep working.
+      - An update of `status`, `min_order_quantity` or `deleted_at` that targets `products` in `line-rules.test.ts` becomes an update of the variant of the same id (`status`, `min_order_quantity`), or stays on the product (`deleted_at`). The same for `place-order.test.ts` and `place-purchase.test.ts`, which raise `minOrderQuantity`.
+      - Nothing else changes in these fifteen files: assertions, ids and test order stay.
+    acceptance: |
+      Scenario: AC-1 No test inserts the old columns
+        When the fifteen files below are read
+        Then none inserts into `products` with a `unit` or a `price`, and none updates `status`, `price` or `min_order_quantity` on `products`
+      Scenario: AC-2 Same behavior
+        When the fifteen files run
+        Then they pass and assert what they asserted before
+    implementation:
+      create: [tests/unit/order/seed-products.test.ts]
+      modify: []
+      pattern: tests/unit/shared/money.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-2.2.1: the fixtures hold fake data only."
+    tests: |
+      no old columns | unit | AC-1 | the fifteen sources contain no insert of unit or price into products
+      same behavior | integration | AC-2 | the fifteen files pass
+    command: npx vitest run tests/unit/order/seed-products.test.ts tests/integration/order
+    out_of_scope:
+      - "Dropping the columns: CAT-041. Delivery and synchronization tests: DLV-016, SYNC-043."
+    tests_to_update:
+      - "tests/integration/order/accept-order.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/order/cancel-order-customer.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+      - "tests/integration/order/cancel-order-supplier.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+      - "tests/integration/order/customer-orders.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/order/edit-order.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/order/enter-order.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/order/get-order.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/order/line-rules.test.ts | inserts products and updates their status, minimum and deletion on `products` | seeds with `seedProduct`; status and minimum are updated on the variant"
+      - "tests/integration/order/list-orders.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/order/order-line-table.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+      - "tests/integration/order/order-note.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/order/place-order.test.ts | inserts products and raises the minimum on `products` | seeds with `seedProduct`; the minimum is raised on the variant"
+      - "tests/integration/order/place-purchase.test.ts | inserts products and raises the minimum on `products` | seeds with `seedProduct`; the minimum is raised on the variant"
+      - "tests/integration/order/refuse-order.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+      - "tests/integration/order/total-check.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+  - id: ORD-032
+    title: An order line may be saved without its product
+    kind: migration
+    size: S
+    risk: high
+    amends: [ORD-004, ORD-026]
+    depends_on: [ORD-026, ORD-027, ORD-031]
+    read_first: [prisma/schema.prisma, tests/integration/order/order-line-table.test.ts]
+    design_refs: [commandes-et-livraisons/orderline, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-15]
+    asvs: [v5.0.0-2.2.1, v5.0.0-8.2.2]
+    story: "Technical story: let `order_lines.product_id` be empty, the first step of removing it, so that the code can stop writing it before the column goes."
+    context: |
+      - Exists: `order_lines.product_id`, required (ORD-004); `product_variant_id`, required and filled on insert from `product_id` when empty (ORD-024, ORD-025); `order_lines_enforce_rules()` as ORD-026 left it, which reads the variant by `coalesce(product_variant_id, product_id)` and refuses a variant whose `product_id` differs from the line's.
+      - One migration, one transaction: `product_id` may be empty. `order_lines_enforce_rules()` is replaced (`CREATE OR REPLACE`) so that it reads the variant by `product_variant_id` only, and compares the variant's product with the line's `product_id` only when the line has one. Every other refusal is unchanged (business, status, deletion, pause, minimum, price, unknown variant 23503).
+      - `prisma/schema.prisma`: `productId String?` and `product Product?` on `OrderLine`; update the `//` comment above it in plain words: the product of a line is optional and checked only when given, the variant decides.
+      - `C-15`: Every order line is for an ACTIVE variant of the relationship's supplier, of a product that is not paused; on a customer-placed order the quantity is at least the variant's `min_order_quantity` when sent.
+    acceptance: |
+      Scenario: AC-1 No product needed
+        When a line is inserted with a variant and no `product_id`
+        Then it is saved and `product_id` is empty
+      Scenario Outline: AC-2 The rules still hold without a product
+        When a line without `product_id` names <variant>
+        Then the database <result>
+        Examples:
+          | variant                                | result          |
+          | an ACTIVE variant of the supplier      | accepts         |
+          | a variant of another business          | rejects (23514) |
+          | an INACTIVE variant                    | rejects (23514) |
+          | an unknown id                          | rejects (23503) |
+      Scenario: AC-3 A given product must match
+        When a line names a variant and a `product_id` that is not its product
+        Then the database rejects it with 23514
+    abuse: |
+      Scenario: AB-1 Leaving the product out to skip the business check (broken object access)
+        When a raw insert omits `product_id` and names a variant of another business
+        Then PostgreSQL refuses it with 23514 and no line exists
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_ord_032_line_product_optional/migration.sql
+        - tests/integration/order/line-product-optional.test.ts
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the supplier check reads the variant, so an empty product cannot skip it."
+      - "v5.0.0-2.2.1: a given product is still compared with the variant's."
+    tests: |
+      no product | integration | AC-1 | insert without product_id → saved, empty
+      rules | integration | AC-2, C-15 | each Examples row → accepted, 23514 or 23503
+      mismatch | integration | AC-3 | other product → 23514
+      skipped check | security | AB-1, CWE-639 | other business's variant, no product → 23514
+    command: npx vitest run tests/integration/order/line-product-optional.test.ts tests/integration/order/line-rules.test.ts
+    out_of_scope:
+      - "The code that stops writing `product_id`: ORD-033. Dropping the column: ORD-034."
+    tests_to_update:
+      - "tests/integration/order/order-line-table.test.ts | expects `product_id` to be required (NOT NULL) | expects it to be nullable"
+  - id: ORD-033
+    title: Orders, rests and synced lines are saved without a product
+    kind: change
+    size: M
+    risk: medium
+    amends: [ORD-027, DLV-014, SYNC-029]
+    depends_on: [ORD-032, ORD-028, DLV-014, SYNC-029]
+    read_first: [src/modules/order/order.repository.ts, tests/integration/order/order-line-table.test.ts]
+    design_refs: [commandes-et-livraisons/orderline]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: save order lines with their variant only, so that the product column of a line can be dropped."
+    context: |
+      - Exists: `product_id` of a line is optional (ORD-032). The code still writes it next to `product_variant_id`: `NewOrderLine.productId` (`order.repository.ts`, filled by `priceLine` in `order.service.ts`), `RestLine.productId` (`delivery.repository.ts`, copied in `delivery.service.ts`), and the line built by `createLine` in `adapters/order.push.ts`.
+      - Remove `productId` from `NewOrderLine`, `RestLine` and what builds them; the line is saved with its variant, and `product_id` stays empty.
+      - `no-line-product-id.test.ts` reads `src/` and `tests/` and lists the paths that insert into `order_lines` with `product_id`, or create an order line with `productId`.
+      - The tests listed by the scan insert their lines with `product_variant_id` (the variant has the product's id) and no `product_id`.
+    acceptance: |
+      Scenario: AC-1 Placed and entered orders
+        When an order is placed and another is entered with two lines each
+        Then every saved line has its `product_variant_id` and an empty `product_id`
+      Scenario: AC-2 The rest of a delivery
+        When a delivery leaves a rest for later
+        Then the new lines have the variant of the short lines and an empty `product_id`
+      Scenario: AC-3 A line sent by a phone
+        When a phone sends an order with one line
+        Then the saved line has its variant and an empty `product_id`
+      Scenario: AC-4 No file writes the product of a line
+        When the scan test reads `src/` and `tests/`
+        Then it lists no path
+    implementation:
+      create: [tests/integration/order/line-without-product.test.ts, tests/unit/order/no-line-product-id.test.ts]
+      modify: [src/modules/order/order.repository.ts, src/modules/order/order.service.ts, src/modules/delivery/delivery.repository.ts, src/modules/delivery/delivery.service.ts, src/modules/sync/adapters/order.push.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types:
+        - "NewOrderLine = { id: string; productVariantId: string; labelApplied: string; quantity: string; referencePrice: bigint; unitPriceApplied: bigint; amount: bigint }"
+        - "RestLine = { productVariantId: string; labelApplied: string; quantity: string; referencePrice: bigint; unitPriceApplied: bigint; amount: bigint; priceSetById: string | null; priceSetAt: Date | null }"
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-2.2.1: the variant, checked by the database against the supplier, is the only reference a line keeps."
+    tests: |
+      placed and entered | integration | AC-1 | two orders → lines with variant, no product
+      rest | integration | AC-2 | partial delivery → rest lines without product
+      synced | integration | AC-3 | pushed order → line without product
+      scan | unit | AC-4 | read the sources → no path listed
+    command: npx vitest run tests/integration/order/line-without-product.test.ts tests/unit/order/no-line-product-id.test.ts
+    out_of_scope:
+      - "Dropping the column and its trigger: ORD-034."
+    tests_to_update:
+      - "every file under `tests/` that the scan lists | inserts order lines with `product_id`, or creates them with `productId` | inserts them with `product_variant_id` and no `product_id`"
+  - id: ORD-034
+    title: Order lines lose their product column
+    kind: migration
+    size: M
+    risk: high
+    amends: [ORD-004, ORD-024, ORD-025, ORD-026, ORD-032]
+    depends_on: [ORD-033, CAT-041]
+    read_first: [prisma/schema.prisma, tests/integration/order/order-line-table.test.ts]
+    design_refs: [commandes-et-livraisons/orderline, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-15]
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: drop `product_id` from order lines, which now name a variant, so that a line points at one thing only."
+    context: |
+      - Exists: no code writes `product_id` of a line (ORD-033); trigger `order_lines_a_fill_variant` (ORD-024) still fills the variant from it; `order_lines_enforce_rules()` compares it with the variant's product when set (ORD-032).
+      - One migration, one transaction: replace `order_lines_enforce_rules()` without that comparison; drop trigger `order_lines_a_fill_variant` and its function; drop index `order_lines_product_id_idx`, key `order_lines_product_id_fkey` and the column `product_id`.
+      - `prisma/schema.prisma`: `OrderLine` loses `productId`, `product` and its index, `Product` loses `orderLines`, and `productVariantId` loses `@default(dbgenerated())`: the code always gives it. Rewrite the `//` comment above `OrderLine` in plain words: a line names its variant, nothing fills it, and the database checks the variant against the supplier.
+      - `npm run typecheck` fails on any reader of `line.productId` left.
+      - `C-15`: Every order line is for an ACTIVE variant of the relationship's supplier, of a product that is not paused; on a customer-placed order the quantity is at least the variant's `min_order_quantity` when sent.
+    acceptance: |
+      Scenario: AC-1 The product column is gone
+        When the columns of `order_lines` are read
+        Then `product_id` and its index and key are absent and `product_variant_id` is required
+      Scenario: AC-2 Nothing fills the variant
+        When a line is inserted without `product_variant_id`
+        Then the database rejects it with 23502
+      Scenario Outline: AC-3 The rules still hold
+        When a line names <variant>
+        Then the database <result>
+        Examples:
+          | variant                           | result          |
+          | an ACTIVE variant of the supplier | accepts         |
+          | a variant of another business     | rejects (23514) |
+          | an unknown id                     | rejects (23503) |
+    abuse: |
+      Scenario: AB-1 An old-style insert after the drop (silent loss)
+        When a raw insert still sets `product_id`
+        Then PostgreSQL refuses it with 42703 and no line exists
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_ord_034_drop_line_product_id/migration.sql
+        - tests/integration/order/line-product-dropped.test.ts
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: no trigger guesses a variant any more; a missing one fails closed."
+    tests: |
+      columns | integration | AC-1 | read the columns → product_id absent
+      no filling | integration | AC-2 | insert without variant → 23502
+      rules | integration | AC-3, C-15 | each Examples row → accepted, 23514 or 23503
+      old insert | security | AB-1, CWE-20 | raw insert with product_id → 42703
+    command: npx vitest run tests/integration/order/line-product-dropped.test.ts tests/integration/order/order-line-table.test.ts tests/integration/order/line-rules.test.ts
+    out_of_scope:
+      - "Anything outside `order_lines`."
+    tests_to_update:
+      - "tests/integration/order/order-line-table.test.ts | asserts the `product_id` column, its key, its index and the filling trigger | those assertions go; the rest stays"
+      - "tests/integration/order/line-rules.test.ts | has tests on a product that differs from the variant's, and on a line saved without a variant | the first is removed with the column; the second expects 23502"

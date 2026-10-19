@@ -2,29 +2,43 @@ kind: module
 module: organization
 prefix: ORG
 title: Organization
-responsibility: Owns businesses, their team with fixed roles and ownership, closing, public contact numbers and the subscription history.
-entities: [Organization, Collaboration, Subscription]
+responsibility: Owns businesses, their team with fixed roles and ownership, closing and reopening, the verified public contacts (numbers and email) and the plan fields of a business, which billing writes.
+entities: [Organization, Collaboration, OrganizationContact]
 depends_on: [foundation, person, notification, access, auth]
 asvs_level: L2
-asvs_rationale: Roles decide who can move money and change rights; team, ownership and closing gestures change other people's access.
+asvs_rationale: Roles decide who can move money and change rights; team, ownership and closing gestures change other people's access; a public contact decides to whom a customer believes they send money, so it is published only once verified.
 classification:
-  - "Organization.name, description, email | public | visible to anyone who finds the business"
+  - "Organization.name, description, logo_key | public | visible to anyone who finds the business"
+  - "Organization.payment_code, plan, plan_ends_at, grace_ends_at, max_collaborators, max_products | confidential | visible to the team of the business only, never to its customers or suppliers; written by the server only"
+  - "OrganizationContact.value | public | a verified contact is visible to the team and to customers, suppliers and drivers of the business; a pending contact is visible to the team only"
+  - "OrganizationContact.verification_method, created_by_id | internal | visible to the team"
   - "Collaboration.amount_held | confidential | visible to the collaborator and the owner"
   - "Collaboration.role | internal | visible to the team"
 threats:
   - "T1 | E | A member of one business acts in another | every organization route loads the actor from an ACTIVE collaboration of that organization, else 404 | ORG-005 AB-1"
   - "T2 | E | A manager or seller changes the team or the owner | team gestures need OWNER and the network | ORG-007 AB-1, ORG-009 AB-1, ORG-010 AB-1"
   - "T3 | E | The owner is demoted, revoked or left with two owners | the database keeps exactly one active OWNER and the routes refuse to touch it | ORG-003 AB-1, ORG-010 AB-2"
-  - "T4 | S | Someone is found under a number that is not theirs | public contacts are ACTIVE collaborators with a verified active number who agreed | ORG-011 AB-1, ORG-018 AB-1"
+  - "T4 | S | A business is found under a number that is not its own | a contact is published only when it is the owner's own verified number or when its code, received on that number or address, was entered | ORG-024 AB-1, ORG-025 AB-1, ORG-029 AB-1"
   - "T5 | I | Enumerating businesses by number | per-person lookup limit shared with person lookups | ORG-018 AB-2"
+  - "T6 | E | A manager, seller or driver changes the public contacts | the contact gestures need OWNER and the network | ORG-024 AB-2, ORG-027 AB-1"
+  - "T7 | S | A verification code is guessed, or used on another contact | a code belongs to one contact and its target, allows 5 attempts and is consumed once | ORG-025 AB-2"
+  - "T8 | S | A recycled number keeps a business findable | a number that changes holder sends its contacts back to pending and warns the owner | ORG-037 AB-1"
+  - "T9 | I | The plan of a business reaches a customer or a supplier | no organization view returns the plan fields to anyone who is not an ACTIVE member of the team | ORG-028 AB-1"
 constraints:
-  C-05: "`Collaboration` is unique per (`person_id`, `organization_id`); an ACTIVE collaboration needs a registered person; every organization has exactly one ACTIVE OWNER at the end of each transaction; `is_public_contact` needs ACTIVE status and a person with an active number."
-  C-31: "`Subscription` allows at most one ACTIVE row per organization (partial unique index); EXPIRED rows stay as history."
+  C-05: "`Collaboration` is unique per (`person_id`, `organization_id`); an ACTIVE collaboration needs a registered person; every organization has exactly one ACTIVE OWNER at the end of each transaction."
+  C-41: "`Organization.payment_code` is unique; `plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators` and `max_products` are written by the server only and sent to the team of the business only; `plan = FREE` exactly when `plan_ends_at` is empty; a set `grace_ends_at` is after `plan_ends_at`."
+  C-42: "At each invitation, the ACTIVE or INVITED collaborators of an organization, owner excluded, number at most `Organization.max_collaborators`; the status PAUSED is written by the server only and never for the OWNER."
+  C-43: "`OrganizationContact`: `slot` is set exactly when `kind = PHONE` and is between 1 and 3, unique per (`organization_id`, `slot`); at most one EMAIL per organization (partial unique index); unique per (`organization_id`, `value`); a PHONE `value` is in E.164 format; `verification_method` is set exactly when `verified_at` is set; all these uniqueness rules ignore deleted rows."
+  C-44: "`OrganizationContact` is written by the owner only, online; `verified_at` and `verification_method` are set by the server."
+  C-33: "`OtpChallenge`: `attempts` is at most 5; a consumed or expired code is no longer usable; SMS only to +237 numbers; with `channel = EMAIL`, `target` is the person's email or an administrator's recovery email, already verified except for `EMAIL_VERIFICATION`, or the email of the targeted contact for `ORG_CONTACT_VERIFICATION`; `organization_contact_id` is set exactly when `purpose = ORG_CONTACT_VERIFICATION`, and `target` equals its value."
+  C-46: "`Product.paused_at` is written by the server only; products on sale (not deleted, not paused, with at least one ACTIVE variant) number at most `Organization.max_products`, checked by the phone and by the online routes; what arrives in excess through synchronization is paused, never refused."
+  C-49: "`Product.image_keys` and `ProductVariant.image_keys` hold at most 5 keys (database limit); the application allows `k` of them (5 at most, set at deployment); a key is cited by one card only, across all tables; `image_keys`, `Organization.logo_key` and `Person.avatar_key` are written by the server only."
   CM-03: "`Person.scope_version` is incremented by the server on every rights change."
   C-37: "`CustomerRelationship.balance` and `Collaboration.amount_held` are updated by adding the effect of each operation inside its transaction, always relationship first then collaboration; a nightly check compares each total with the sum of its entries."
   CM-09: "The OWNER can be neither demoted nor revoked; an ownership transfer makes the chosen ACTIVE collaborator OWNER and the former owner MANAGER in one transaction; a revocation takes effect immediately."
-  CM-10: "CLOSED (by the owner, reopenable): no new order or customer, not findable by number, pending orders refused with reason 'Commerce fermé', team revoked, subscription stopped; relations, balances and history stay visible and payments stay possible."
-  CM-26: "Finding an organization by number returns only ACTIVE organizations whose public-contact collaborators hold that active number; a number that is not a public organization number leads to an invitation for every person."
+  CM-10: "CLOSED (by the owner, reopenable): no new order or customer, not findable by number, pending orders refused with reason 'Commerce fermé', team revoked, plans stopped without refund; relations, balances, history and verified public contacts stay visible and payments stay possible; a reopened business restarts from the free plan."
+  CM-26: "Finding an organization by number returns only ACTIVE organizations that have a verified PHONE contact with that number; a number that is not a verified public number of any organization leads to an invitation for every person."
+  CM-36: "When a phone number changes holder (recycled number), every `OrganizationContact` with that number goes back to pending (`verified_at` and `verification_method` cleared), is no longer published, and the owner is notified; when the owner changes their own number, nothing changes by itself."
   C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
   C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
 contracts:
@@ -47,13 +61,53 @@ contracts:
       file: src/modules/organization/organization.repository.ts
       story: ORG-018
       items:
-        - "findOrganizationsByPublicNumber(e164: string): Promise<Array<{ id: string; name: string; description: string | null }>>"
+        - "findOrganizationsByPublicNumber(e164: string): Promise<Array<{ id: string; name: string; description: string | null }>> — ACTIVE organizations with a verified PHONE contact holding the number"
       used_by: [relationship]
+    - name: OrganizationLifecycleHooks
+      file: src/modules/organization/lifecycle-hooks.ts
+      story: ORG-034
+      items:
+        - "registerLifecycleHook(hook: { onClose?: (tx: Prisma.TransactionClient, organizationId: string, now: Date) => Promise<void>; onReopen?: (tx: Prisma.TransactionClient, organizationId: string, now: Date) => Promise<void> }): () => void — hooks run inside the closing or reopening transaction, in registration order; the returned function removes the hook"
+      used_by: [billing]
+    - name: SubscriptionFields
+      file: src/modules/organization/organization.repository.ts
+      story: ORG-035
+      items:
+        - "writePlanFields(tx: Prisma.TransactionClient, organizationId: string, fields: PlanFields): Promise<void> — after creation, the only writer of `plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators`, `max_products`; the database refuses an impossible combination"
+        - "listTeamSeats(tx: Prisma.TransactionClient, organizationId: string): Promise<TeamSeat[]> — non-owner collaborations ACTIVE, INVITED or PAUSED, oldest invitation first; TeamSeat = { id, personId, role, status, invitedAt, acceptedAt }"
+        - "setSeatPaused(tx: Prisma.TransactionClient, collaborationId: string, paused: boolean): Promise<boolean> — PAUSED from ACTIVE or INVITED; back to ACTIVE, or INVITED when `accepted_at` is empty; never for the OWNER; a change bumps the person's scope version and returns true"
+      used_by: [billing]
+    - name: PaymentTargets
+      file: src/modules/organization/organization.repository.ts
+      story: ORG-044
+      items:
+        - "findOrganizationByPaymentCode(code: string, tx?: Prisma.TransactionClient): Promise<OrganizationSummary | null> — exact match, non-deleted; no trimming or case change; OrganizationSummary = { id, name, status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED' }"
+        - "findOrganizationSummary(organizationId: string, tx?: Prisma.TransactionClient): Promise<OrganizationSummary | null> — null when absent or deleted"
+        - "findActiveOwnerId(tx: Prisma.TransactionClient, organizationId: string): Promise<string | null> — person id of the ACTIVE OWNER"
+      used_by: [billing]
+    - name: PlanRefresh
+      file: src/modules/organization/organization.repository.ts
+      story: ORG-045
+      items:
+        - "readPlanFields(tx: Prisma.TransactionClient, organizationId: string): Promise<PlanFields | null> — the five plan fields of a non-deleted business, else null"
+        - "listOrganizationsEnding(from: Date, to: Date, limit: number, afterId?: string): Promise<string[]> — ids of non-deleted businesses, ascending, whose plan is not FREE and whose `plan_ends_at` is in [from, to); reads only"
+        - "listOrganizationsToRefresh(now: Date, limit: number, afterId?: string): Promise<string[]> — ids of non-deleted businesses, ascending, whose plan is not FREE and whose grace or plan end is past, or whose ACTIVE and INVITED non-owner seats exceed `max_collaborators`; reads only"
+      used_by: [billing]
+    - name: OrganizationLogo
+      file: src/modules/organization/organization.repository.ts
+      story: ORG-038
+      items:
+        - "getLogoKey(organizationId: string): Promise<string | null>"
+        - "setLogoKey(tx: Prisma.TransactionClient, organizationId: string, key: string | null): Promise<string | null> — the only writer of `logo_key`; returns the previous key; a key outside `logos/` throws a RangeError"
+      used_by: [images]
   consumes:
-    - "person: PersonRepository, require_registered_person (docs/stories/modules/person/contracts.md)"
+    - "person: PersonRepository, require_registered_person, registerPhoneReleasedHandler (docs/stories/modules/person/contracts.md)"
     - "access: requireAbility, idempotent, abilityFor (docs/stories/modules/access/contracts.md)"
     - "notification: notify (docs/stories/modules/notification/contracts.md)"
-    - "auth: authMiddleware, revokeSessions (docs/stories/modules/auth/contracts.md)"
+    - "auth: authMiddleware, revokeSessions, OtpService issueCode and verifyCode (docs/stories/modules/auth/contracts.md)"
+    - "foundation: generatePaymentCode, PLANS (docs/stories/modules/foundation/contracts.md)"
+pointers:
+  - "Decision: `docs/stories/decisions/ADR-004-modules-for-design-v16.md`"
 stories:
   - id: ORG-001
     title: Organizations table

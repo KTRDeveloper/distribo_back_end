@@ -10,6 +10,9 @@ What this module provides to other modules, and what it consumes from them. A co
 ### AbandonedRests (`src/modules/delivery/delivery.repository.ts`, created by DLV-012)
 - `findAbandonedRests(tx, organizationId: string, period: { from: Date; toExclusive: Date }, excludePersonId: string): Promise<Map<string, { count: number; amount: bigint }>>`: per deliverer, the lines of DELIVERED orders without a child order whose delivered quantity is below the ordered one, valued at the applied price
 - Used by: `finance`
+### OpenDeliveries (`src/modules/delivery/delivery.repository.ts`, created by DLV-015)
+- `findDriversWithOpenDeliveries(tx, organizationId: string, personIds: string[]): Promise<Set<string>>`: of those people, the ones assigned a delivery of the organization's orders that has left and neither arrived nor failed
+- Used by: `billing`
 
 ## Consumes
 - order: transitionOrder, lineAmountOf, orderTotal, projectOrderForSupplier (docs/stories/modules/order/contracts.md)

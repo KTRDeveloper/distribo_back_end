@@ -1,0 +1,135 @@
+kind: stories
+module: privacy
+constraints:
+  C-02: "`phone_number` is unique, E.164; exactly one of `phone_number` and `released_phone_number` is set; status ANONYMIZED means `phone_number` and `avatar_key` are empty."
+  CM-43: "Anonymization also clears the profile photo key in the same transaction and, once it is committed, deletes the photo file from storage; a file that cannot be deleted is removed by the nightly cleanup."
+  CM-44: "The daily purge deletes subscription payment requests that ended FAILED or EXPIRED 90 days after their creation, because they hold the payer's phone number; a payment that succeeded, was refunded, is still pending or is cited by a receipt, a period or an event is never deleted."
+stories:
+  - id: PRIV-004
+    title: Account deletion also clears and removes the profile photo
+    kind: change
+    size: S
+    risk: high
+    amends: [PRIV-002]
+    depends_on: [PRIV-002, PER-013, IMG-002]
+    read_first: [src/modules/privacy/privacy.service.ts]
+    design_refs: [identite-et-organisation/person, donnees-personnelles-et-conservation/durees-de-conservation]
+    constraints: [CM-43, C-02]
+    asvs: [v5.0.0-14.2.4, v5.0.0-2.3.3]
+    story: "As a customer, I want my profile photo to disappear when I delete my account so that my face is not kept after my personal data is erased."
+    context: |
+      - Exists: `anonymizePerson(personId)` in one transaction (PRIV-002); `setAvatarKey(personId, key, tx?)` returns the previous key (PER-013); `deleteImageFiles(keys)` never fails its caller and skips a key a card still cites (IMG-002).
+      - Why: the database refuses an anonymized person that still has a photo key (PER-010), so without this change a person with a photo could not delete their account.
+      - Change in `anonymizePerson`: inside the transaction, first `setAvatarKey(personId, null, tx)` and keep the previous key, then the existing steps. After the commit, when there was a previous key, call `deleteImageFiles([previous])`. A rolled-back transaction leaves the key and the file as they were.
+      - A storage error is logged by `deleteImageFiles` and does not undo the deletion: the nightly cleanup (IMG-007) removes the file within a day.
+      - The log `account_anonymized` is unchanged and still carries the person id only.
+    acceptance: |
+      Scenario: AC-1 Photo removed
+        Given a person with a profile photo key and its file in storage
+        When they delete their account
+        Then the answer is 204, `avatar_key` is empty and the file is gone from storage
+      Scenario: AC-2 No photo
+        Given a person without a photo
+        When they delete their account
+        Then the answer is 204 and storage is not called
+      Scenario: AC-3 Atomic
+        Given a later step of the anonymization fails
+        Then the person keeps the key and the file stays in storage
+      Scenario: AC-4 Storage trouble
+        Given storage refuses to delete the file
+        When the person deletes their account
+        Then the answer is 204 and the key is empty
+    abuse: |
+      Scenario: AB-1 Photo left behind (information disclosure)
+        When the cards and the storage are read after the deletion
+        Then no card cites the key and the file is not in storage
+      Scenario: AB-2 Another person's photo (tampering)
+        When person A deletes their account
+        Then the photo key and the file of person B are unchanged
+    implementation:
+      create: [tests/integration/privacy/anonymize-avatar.test.ts]
+      modify: [src/modules/privacy/privacy.service.ts]
+      pattern: src/modules/privacy/privacy.service.ts
+      signatures:
+        - "anonymizePerson(personId: string): Promise<void>"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-14.2.4: the photo key and its file are removed with the other personal data."
+      - "v5.0.0-2.3.3: the key is cleared in the same transaction as the other columns."
+    tests: |
+      photo removed | integration | AC-1, CM-43, C-02 | person with key and file → 204, key empty, file absent
+      no photo | integration | AC-2 | no key → 204, storage delete not called
+      atomic | integration | AC-3, CWE-362 | revokeSessions throws → key and file kept
+      storage trouble | integration | AC-4 | storage delete rejects → 204, key empty
+      photo left behind | security | AB-1, CWE-212 | key cited nowhere, file absent
+      other photos | security | AB-2, CWE-284 | neighbour keeps key and file
+    command: npx vitest run tests/integration/privacy/anonymize-avatar.test.ts tests/integration/privacy/anonymize.test.ts
+    out_of_scope:
+      - "The photo routes (IMG-004). The nightly cleanup of files no card cites (IMG-007)."
+    tests_to_update:
+      - "tests/integration/privacy/anonymize.test.ts | none expected: its people hold no photo, so the new step changes nothing for them | no assertion changes; the run confirms it"
+  - id: PRIV-005
+    title: The purge deletes failed and expired payment requests after 90 days
+    kind: change
+    size: S
+    risk: high
+    amends: [PRIV-003]
+    depends_on: [PRIV-003, BIL-001]
+    read_first: [src/modules/privacy/purge.service.ts]
+    design_refs: [donnees-personnelles-et-conservation/durees-de-conservation, finances/subscriptionpayment]
+    constraints: [CM-44]
+    asvs: [v5.0.0-14.2.4]
+    story: "Technical story: let the daily purge delete the subscription payment requests that never succeeded, so that the payer's phone number is not kept longer than 90 days."
+    context: |
+      - Exists: `purge(now)` and its `DELETERS` table, one batched delete per table (PRIV-003); `subscription_payments` with `status` and `created_at` (BIL-001). A receipt, a period and an event may cite a payment through `payment_id`.
+      - New deleter `subscription_payments` in `purge.service.ts`, written like the others (batches of 1000 by physical row id, cutoff computed by the database from `now`): status FAILED or EXPIRED, `created_at` more than 90 days before `now`, and cited by no row of `subscription_receipts`, `subscriptions` or `subscription_events`.
+      - Rows that succeeded, were refunded or are still pending are commercial data and are never deleted here.
+      - The counts returned and logged by `purge` gain the key `subscription_payments`.
+      - Why: a request that never succeeded still holds `payer_phone_number` and the aggregator answer `provider_payload`.
+    acceptance: |
+      Scenario Outline: AC-1 Retention of payment requests
+        Given a payment request <status> created <age> ago
+        When the purge runs
+        Then the row is <result>
+        Examples:
+          | status    | age      | result  |
+          | FAILED    | 91 days  | deleted |
+          | EXPIRED   | 91 days  | deleted |
+          | FAILED    | 89 days  | kept    |
+          | PENDING   | 91 days  | kept    |
+          | SUCCEEDED | 400 days | kept    |
+          | REFUNDED  | 400 days | kept    |
+      Scenario: AC-2 A cited payment stays
+        Given an EXPIRED payment request 91 days old that an event cites
+        When the purge runs
+        Then the row is kept and the purge does not fail
+      Scenario: AC-3 Batches and counts
+        When 2500 payment requests are due
+        Then all are deleted, the counts show `subscription_payments` 2500 and a second run shows 0
+    abuse: |
+      Scenario: AB-1 Purging a payment that happened (tampering)
+        When the purge runs on a database with 11-year-old SUCCEEDED and REFUNDED payments that have receipts
+        Then they and their receipts are untouched
+    implementation:
+      create: [tests/integration/privacy/purge-payments.test.ts]
+      modify: [src/modules/privacy/purge.service.ts]
+      pattern: src/modules/privacy/purge.service.ts
+      signatures:
+        - "purge(now: Date): Promise<Record<string, number>>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-14.2.4: payer phone numbers of requests that never succeeded are removed after 90 days."
+    tests: |
+      retention | integration | AC-1, CM-44 | each Examples row → deleted or kept
+      cited kept | integration | AC-2 | event cites the row → kept, no error
+      batches | integration | AC-3 | 2500 deleted, then 0
+      history kept | security | AB-1, CWE-284 | old succeeded and refunded payments untouched
+    command: npx vitest run tests/integration/privacy/purge-payments.test.ts tests/integration/privacy/purge.test.ts
+    out_of_scope:
+      - "Settling payments that stay pending (BIL-021). Purging commercial data after 10 years (not in v1)."
+    tests_to_update:
+      - "tests/integration/privacy/purge.test.ts | the expected counts list five tables | add `subscription_payments: 0` (no payment is seeded there)"

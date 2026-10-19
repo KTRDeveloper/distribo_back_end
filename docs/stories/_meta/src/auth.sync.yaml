@@ -1,0 +1,762 @@
+kind: stories
+module: auth
+stories:
+  - id: AUTH-027
+    title: Two new purposes for one-time codes
+    kind: migration
+    size: XS
+    risk: high
+    depends_on: [AUTH-001]
+    amends: [AUTH-001]
+    read_first: [prisma/schema.prisma, tests/integration/auth/otp-table.test.ts]
+    design_refs: [acces-et-securite/otpchallenge]
+    constraints: [OtpChallenge.purpose:enum]
+    asvs: [v5.0.0-6.5.1]
+    fields: ["OtpChallenge.purpose"]
+    story: "Technical story: add the two code purposes the new design introduces, so that later stories can issue a code for a shop contact and for the support giving an account back."
+    context: |
+      - Exists: the enum `OtpPurpose` in `prisma/schema.prisma` holds REGISTRATION, LOGIN, PASSWORD_RESET, PHONE_CHANGE, EMAIL_VERIFICATION and TOTP_RECOVERY.
+      - Adds one migration with two `ALTER TYPE "OtpPurpose" ADD VALUE` statements: `ORG_CONTACT_VERIFICATION` (a shop's public contact, ORG-023) and `ACCESS_RESTORE` (the support gives an account back, ADM). The Prisma enum gets both values.
+      - Existing rows keep their purpose; nothing is rewritten.
+      - Nothing issues these codes yet: each one ships with the first story that uses it. The link from a code to a shop contact and its CHECK come with ORG-023, once the contacts table exists.
+    acceptance: |
+      Scenario Outline: AC-1 Purposes accepted
+        When a challenge row is inserted with purpose <purpose>
+        Then the insert <result>
+        Examples:
+          | purpose                  | result  |
+          | ORG_CONTACT_VERIFICATION | accepts |
+          | ACCESS_RESTORE           | accepts |
+          | LOGIN                    | accepts |
+          | TOTP_RECOVERY            | accepts |
+      Scenario: AC-2 Generated client
+        When the Prisma `OtpPurpose` object is read
+        Then it holds exactly the eight values of the design
+    abuse: |
+      Scenario: AB-1 An unlisted purpose is stored (tampering)
+        When a row is inserted with purpose "ADMIN_OVERRIDE" or "NEW_DEVICE"
+        Then the database rejects it
+    implementation:
+      create: [prisma/migrations/<timestamp>_auth_027_otp_purposes/migration.sql, tests/integration/auth/otp-purposes.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/auth/otp-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-6.5.1: a code stays bound to one purpose from a closed list, so a code made for one use never serves another."
+    tests: |
+      purposes | integration | AC-1, OtpChallenge.purpose:enum | each Examples row → accepted
+      client enum | integration | AC-2 | Object.keys(OtpPurpose) → the eight values
+      unlisted purpose | security | AB-1, CWE-20 | ADMIN_OVERRIDE and NEW_DEVICE → rejected (22P02)
+    command: npx vitest run tests/integration/auth/otp-purposes.test.ts tests/integration/auth/otp-table.test.ts
+    out_of_scope:
+      - "Issuing or checking these two codes (ORG-023 for a shop contact, ADM for restoring access)."
+      - "The column `organization_contact_id` and its CHECK (ORG-023)."
+  - id: AUTH-028
+    title: Sign-in tells the person what to do
+    kind: change
+    size: S
+    risk: high
+    depends_on: [AUTH-013]
+    amends: [AUTH-013]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/otp.service.ts]
+    design_refs: [identite-et-organisation/person, acces-et-securite/connexion-verrouillage-et-telephone]
+    constraints: [CM-05]
+    asvs: [v5.0.0-6.3.1, v5.0.0-2.4.1, v5.0.0-16.3.1]
+    story: "As a customer, I want sign-in to tell me whether my number has an account so that I know to create one or to retype my password."
+    context: |
+      - Exists: `requestLogin` counts failures under `login:fail:<phone>` (5 lock the number, 429 `LOGIN_LOCKED`) and answers one 401 for an unknown, guest, released or wrong-password case, with a dummy-hash check; `ClientKeys` carries `ip`; `configService.get(category, key)` returns null when unset.
+      - `POST /api/v1/auth/login` now answers: no registered holder with a password (unknown number, guest, released number) 404 `ACCOUNT_NOT_FOUND`; wrong password 401 `INVALID_CREDENTIALS`; right password on a suspended account 403 `ACCOUNT_SUSPENDED`, with no code. A wrong password on a suspended account is the plain 401. The dummy hash is dropped: existence is no longer hidden. The lock is unchanged.
+      - Adds `src/modules/auth/number-check-limit.ts` with `checkNumberQuota(ip)`: one count per call under `numcheck:ip:<ip>` for 3600 s against `configService.get<number>('auth', 'max_number_checks_per_ip_per_hour')`; unset = off. Over the limit: 429 `RATE_LIMITED` and a `warn` log, event `number_check_limited`, without the number. `requestLogin` calls it first; AUTH-029, AUTH-031 and AUTH-033 call it too. No device id exists before sign-in, so the IP is the only key.
+    acceptance: |
+      Scenario: AC-1 Right password
+        Given a registered person with a verified number
+        When they post the number and password
+        Then the response is 202 with channel SMS and one LOGIN code is queued to the number
+      Scenario Outline: AC-2 No account
+        When the login uses <case>
+        Then the response is 404 `ACCOUNT_NOT_FOUND` and nothing is queued
+        Examples:
+          | case              |
+          | an unknown number |
+          | a guest's number  |
+          | a released number |
+      Scenario: AC-3 Wrong password
+        When a registered holder's number is posted with a wrong password
+        Then the response is 401 `INVALID_CREDENTIALS` and the failure counter rises by 1
+      Scenario: AC-4 Suspended account
+        When a suspended person sends the right password
+        Then the response is 403 `ACCOUNT_SUSPENDED` and no code is queued
+        And a wrong password for that person answers 401 `INVALID_CREDENTIALS`
+      Scenario: AC-5 Number checks are counted
+        Given the limit is 2 per hour and per IP
+        When one IP checks 3 different numbers
+        Then the third answers 429 `RATE_LIMITED`
+        And with the limit unset 50 checks are all answered
+    abuse: |
+      Scenario: AB-1 Scanning numbers to list accounts (information disclosure)
+        Given the limit is 5 per hour
+        When one IP posts 20 different numbers
+        Then at most 5 are answered about existence and the rest answer 429
+      Scenario: AB-2 Suspension shown to a guesser (information disclosure)
+        When a wrong password is sent for a suspended account
+        Then the answer is the same 401 as for any wrong password
+    implementation:
+      create: [src/modules/auth/number-check-limit.ts, tests/integration/auth/login-answers.test.ts]
+      modify: [src/modules/auth/auth.service.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "checkNumberQuota(ip: string | undefined): Promise<void>"
+      types: []
+      errors: [ACCOUNT_NOT_FOUND 404, INVALID_CREDENTIALS 401, ACCOUNT_SUSPENDED 403, LOGIN_LOCKED 429, RATE_LIMITED 429]
+      dependencies: [express, zod, argon2]
+    security:
+      - "v5.0.0-6.3.1: 5 failures lock a number, and a per-IP limit counts every number check, because the answers now say whether an account exists."
+      - "v5.0.0-2.4.1: the number-check limit stops automated scans of numbers."
+      - "v5.0.0-16.3.1: failures and limit hits are logged with fixed event names and ids, never numbers."
+    tests: |
+      right password | integration | AC-1, CM-05 | 202 SMS; job queued to the number
+      no account | integration | AC-2 | each Examples row → 404 ACCOUNT_NOT_FOUND, nothing queued
+      wrong password | integration | AC-3 | 401; counter 1
+      suspended | integration | AC-4 | right password 403; wrong password 401
+      number checks | integration | AC-5 | limit 2 → third is 429; unset → 50 answered
+      scan | security | AB-1, WSTG-IDNT-04, CWE-204 | 20 numbers, limit 5 → 15 answer 429
+      suspension hidden | security | AB-2, CWE-204 | wrong password on suspended → same 401 body
+    command: npx vitest run tests/integration/auth/login-answers.test.ts tests/integration/auth/login-request.test.ts
+    out_of_scope:
+      - "The email as a way to sign in: AUTH-036. The lock, the code and the session steps keep their behaviour."
+      - "The number-check limit value: the design gives none for this step (open question); unset means off."
+      - "Play Integrity on code requests."
+    tests_to_update:
+      - "tests/integration/auth/login-request.test.ts | 'failures alike' expects one 401 INVALID_CREDENTIALS for unknown, guest, released and wrong-password cases, and 'enumeration' expects the same status and code, and one password check, for a known and an unknown number | unknown, guest and released numbers answer 404 ACCOUNT_NOT_FOUND, the wrong password 401 INVALID_CREDENTIALS, and an unknown number runs no password check"
+  - id: AUTH-029
+    title: A registered number gets no registration code
+    kind: change
+    size: S
+    risk: high
+    depends_on: [AUTH-028, AUTH-009]
+    amends: [AUTH-009]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/number-check-limit.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-07, C-02]
+    asvs: [v5.0.0-2.4.1, v5.0.0-6.6.1, v5.0.0-8.2.2]
+    story: "As a visitor, I want the registration screen to tell me when my number already has an account so that I do not register twice."
+    context: |
+      - Exists: `requestRegistrationCode` sends a REGISTRATION code to every number and answers 202 `{ sent: true, expires_in, existing_account }`; `maskName`; `checkNumberQuota` (AUTH-028).
+      - `POST /api/v1/auth/register/request` calls `checkNumberQuota` first. Unknown number or guest: a code is sent, as today. Registered holder: no code and no challenge; the answer is 202 `{ sent: false, expires_in: 0, existing_account: { masked_name } }` and the phone asks "Is this your account?".
+      - The recycled-number path no longer starts here: a visitor who says "not me" calls the claim route (AUTH-031).
+      - The answer carries the masked name only: never a photo address, id or email, even though the person now has a photo (PER-011).
+      - `CM-07`: sending limits per number, device and IP; a registered holder is no longer a target of this route, so it cannot be used to flood their phone.
+    acceptance: |
+      Scenario: AC-1 Unknown number
+        When a visitor posts "6 77 12 34 56"
+        Then the response is 202 with sent true and existing_account null, and one REGISTRATION code is queued to +237677123456
+      Scenario: AC-2 Guest number
+        Given a guest holds the number
+        Then the response is 202 with sent true, existing_account null, and the challenge points to the guest
+      Scenario: AC-3 Registered number
+        Given a registered person "Béatrice Ngono" holds the number
+        Then the response is 202 with sent false, expires_in 0 and masked_name "Béatrice N…"
+        And no challenge exists and nothing is queued
+      Scenario: AC-4 Number checks are counted
+        Given the limit is 2 per hour and per IP
+        When one IP posts 3 numbers
+        Then the third answers 429 `RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 Flooding a registered person with codes (denial of service)
+        When 10 requests name the number of a registered person
+        Then no SMS is queued
+      Scenario: AB-2 More than the masked name is shown (information disclosure)
+        When a registered number is posted
+        Then `existing_account` holds only `masked_name`
+    implementation:
+      create: [tests/integration/auth/register-request-no-code.test.ts]
+      modify: [src/modules/auth/auth.service.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "requestRegistrationCode(input: { phone_number: string }, clientKeys: ClientKeys): Promise<{ sent: boolean; expires_in: number; existing_account: { masked_name: string } | null }>"
+      types: []
+      errors: [VALIDATION_ERROR 400, UNSUPPORTED_NUMBER 400, OTP_RATE_LIMITED 429, RATE_LIMITED 429]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-2.4.1: number checks and code sends are limited by IP, and a registered number sends nothing."
+      - "v5.0.0-6.6.1: SMS still goes only to +237 mobiles."
+      - "v5.0.0-8.2.2: the answer is built from an explicit field list: the masked name and nothing else of the holder."
+    tests: |
+      unknown number | integration | AC-1, CM-07 | 202 sent true, one job
+      guest number | integration | AC-2 | challenge person_id is the guest
+      registered number | integration | AC-3, C-02 | 202 sent false, masked name; zero challenges, zero jobs
+      number checks | integration | AC-4 | limit 2 → third 429
+      no flooding | security | AB-1, CWE-400 | 10 requests → zero jobs
+      masked name only | security | AB-2, CWE-200 | existing_account has the key masked_name only
+    command: npx vitest run tests/integration/auth/register-request-no-code.test.ts tests/integration/auth/register-request.test.ts
+    out_of_scope:
+      - "The claim of a recycled number (AUTH-031, AUTH-032)."
+      - "Listing what is attached to the number after the code (relationship and organization modules)."
+    tests_to_update:
+      - "tests/integration/auth/register-request.test.ts | the 'registered' case expects the code queued and `sent: true` | expects `sent: false`, `expires_in: 0`, the masked name, no challenge and no job"
+  - id: AUTH-030
+    title: Registration saves the interface language
+    kind: change
+    size: XS
+    risk: high
+    depends_on: [AUTH-010]
+    amends: [AUTH-010]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-05]
+    asvs: [v5.0.0-2.2.1, v5.0.0-6.2.1]
+    fields: ["Person.preferred_language"]
+    story: "As a visitor, I want my language saved when I register so that the app and the messages I receive use it on every phone."
+    context: |
+      - Exists: `POST /api/v1/auth/register` takes `{ phone_number, code, full_name, password, device }`; `register` refuses a weak password before it spends the code; `completeRegistration(tx, { phone, fullName, passwordHash })`.
+      - Adds the optional body field `preferred_language` (`FR` or `EN`). When present it is stored in `Person.preferred_language` for a new person and for a guest who is completed; when absent the column stays empty, as for people who registered before. The language of the code message does not change here.
+      - A weak password keeps the code: the person corrects it and sends again with the same code, with no new SMS. It already holds; this story pins it with a test.
+      - `CM-05`: password rules.
+    acceptance: |
+      Scenario Outline: AC-1 Language stored
+        When a visitor registers with preferred_language <sent>
+        Then the person has preferred_language <stored>
+        Examples:
+          | sent   | stored |
+          | EN     | EN     |
+          | FR     | FR     |
+          | absent | empty  |
+      Scenario: AC-2 Guest completed
+        Given a guest holds the number
+        When the visitor registers with preferred_language "EN"
+        Then the same row becomes the registered person with language EN
+      Scenario Outline: AC-3 Invalid language
+        When preferred_language is <value>
+        Then the response is 400 `VALIDATION_ERROR` and no person is created
+        Examples:
+          | value                |
+          | "fr"                 |
+          | "DE"                 |
+          | ""                   |
+          | a string of 1000 characters |
+      Scenario: AC-4 Weak password keeps the code
+        When a visitor posts password "1234567" with a valid code, then a valid password with the same code
+        Then the first answers 400 `WEAK_PASSWORD` and the second 201
+    abuse: |
+      Scenario: AB-1 A free-text language reaches storage (tampering)
+        When preferred_language is "<script>alert(1)</script>"
+        Then the response is 400 and nothing is stored
+    implementation:
+      create: [tests/integration/auth/register-language.test.ts]
+      modify: [src/modules/auth/auth.service.ts, src/modules/auth/auth.repository.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "completeRegistration(tx: Prisma.TransactionClient, input: { phone: string; fullName: string; passwordHash: string; preferredLanguage?: 'FR' | 'EN' }): Promise<Person | null>"
+      types:
+        - "RegisterInput = RegisterInput & { preferred_language?: 'FR' | 'EN' }"
+      errors: [VALIDATION_ERROR 400, WEAK_PASSWORD 400]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the language is an enum, so no other text reaches the column."
+      - "v5.0.0-6.2.1: the password is checked before the code is spent."
+    tests: |
+      language stored | integration | AC-1 | each Examples row → stored value
+      guest completed | integration | AC-2 | same id, language EN
+      invalid language | integration | AC-3 | each Examples row → 400, no row
+      weak password keeps the code | integration | AC-4, CM-05 | 400, then 201 with the same code
+      free text | security | AB-1, CWE-20 | script text → 400
+    command: npx vitest run tests/integration/auth/register-language.test.ts tests/integration/auth/register.test.ts
+    out_of_scope:
+      - "Changing the language afterwards in the settings (person module)."
+      - "Sending the code message in the visitor's language."
+    tests_to_update:
+      - "tests/integration/auth/register.test.ts | the register body gains an optional field | unchanged: bodies without `preferred_language` still pass and the column stays empty"
+  - id: AUTH-031
+    title: A recycled number can be claimed after six idle months
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [AUTH-029, AUTH-011, AUTH-007]
+    read_first: [src/modules/auth/auth.repository.ts, src/modules/auth/otp.service.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-07]
+    asvs: [v5.0.0-2.4.1, v5.0.0-6.3.8, v5.0.0-16.3.1]
+    fields: ["Device.{last_synced_at,created_at,revoked_at}"]
+    story: "As a visitor, I want to ask for a code for a number that used to belong to someone else so that I can create my own account."
+    context: |
+      - Exists: `findByActivePhone`, `issueCode(input, clientKeys)`, `checkNumberQuota` (AUTH-028); devices keep `last_synced_at` and stay in the table when revoked.
+      - Adds `POST /api/v1/auth/register/claim` with `{ phone_number }`, answer 202 `{ sent: true, expires_in: 600 }`. It calls `checkNumberQuota` first.
+      - Refusal, before any code: 409 `NUMBER_NOT_AVAILABLE`, one body for both reasons so a suspension is never shown. The holder is suspended, or their latest device activity is within 6 months (the same date and time six calendar months earlier, UTC). Activity = the latest `COALESCE(last_synced_at, created_at)` over all their devices, revoked ones included; a device that never synchronized counts from its creation, so a new account is protected (open question). A holder with no device is idle.
+      - `claimRefusal(holder, now)` returns `SUSPENDED`, `RECENTLY_ACTIVE` or null and is exported for AUTH-032 and AUTH-037. The repository adds `latestDeviceActivity(personId)`.
+      - Allowed: a REGISTRATION code goes by SMS to the number with `personId` null. A number with no registered holder is treated alike: the code is sent. A refusal logs `warn` event `number_claim_refused` with the holder id and the reason.
+    acceptance: |
+      Scenario: AC-1 Idle holder
+        Given a registered active holder whose devices last synchronized 7 months ago
+        When a visitor claims the number
+        Then the response is 202 and one REGISTRATION code is queued with a challenge whose person is empty
+      Scenario Outline: AC-2 Refused
+        Given the holder is <holder>
+        When a visitor claims the number
+        Then the response is 409 `NUMBER_NOT_AVAILABLE` with the same body, and no challenge or job exists
+        Examples:
+          | holder                                                     |
+          | active, last synchronization 5 months ago                  |
+          | active, last synchronization yesterday on a revoked device |
+          | suspended, last synchronization 2 years ago                |
+          | active, one device created 2 days ago, never synchronized  |
+      Scenario: AC-3 Limits
+        When one IP claims 3 numbers with the limit at 2, or a fourth code is asked for one number in an hour
+        Then the answer is 429 `RATE_LIMITED` or 429 `OTP_RATE_LIMITED`
+      Scenario: AC-4 No registered holder
+        When a visitor claims an unknown number
+        Then the response is 202 and a code is queued
+    abuse: |
+      Scenario: AB-1 Claiming a live number to flood its holder (denial of service)
+        When 100 claims name the number of an active holder
+        Then no code is sent
+      Scenario: AB-2 Suspension shown to the claimant (information disclosure)
+        When the refusals of a suspended holder and of an active holder are compared
+        Then status, code and body are identical
+    implementation:
+      create: [src/modules/auth/number-claim.service.ts, tests/integration/auth/number-claim.test.ts]
+      modify: [src/modules/auth/auth.repository.ts, src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "requestNumberClaim(input: { phone_number: string }, clientKeys: ClientKeys): Promise<{ sent: true; expires_in: number }>"
+        - "claimRefusal(holder: { id: string; status: string }, now: Date): Promise<'SUSPENDED' | 'RECENTLY_ACTIVE' | null>"
+        - "latestDeviceActivity(personId: string): Promise<Date | null>"
+      types: []
+      errors: [NUMBER_NOT_AVAILABLE 409, RATE_LIMITED 429, OTP_RATE_LIMITED 429, VALIDATION_ERROR 400, UNSUPPORTED_NUMBER 400]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi", "@prisma/client"]
+    security:
+      - "v5.0.0-2.4.1: number checks and code sends are limited, so the route cannot flood a code."
+      - "v5.0.0-6.3.8: both refusals answer alike, so a suspension is never revealed."
+      - "v5.0.0-16.3.1: refusals are logged with ids and the reason, never the number."
+    tests: |
+      idle holder | integration | AC-1 | 202; challenge person_id empty
+      refused | integration | AC-2 | each Examples row → 409, equal bodies, nothing created
+      limits | integration | AC-3, CM-07 | quota 429 RATE_LIMITED; fourth code 429 OTP_RATE_LIMITED
+      no registered holder | integration | AC-4 | unknown number → 202, one job
+      flooding | security | AB-1, CWE-799 | 100 claims → zero codes
+      refusals alike | security | AB-2, CWE-204 | suspended vs active → equal bodies
+    command: npx vitest run tests/integration/auth/number-claim.test.ts
+    out_of_scope:
+      - "Warning the active holder (AUTH-037)."
+      - "Registering with the code and releasing the old holder (AUTH-032)."
+      - "Support releasing a number by hand (RELEASE_PHONE, admin module)."
+  - id: AUTH-032
+    title: Registering on a recycled number re-checks the old holder
+    kind: change
+    size: S
+    risk: high
+    depends_on: [AUTH-031, AUTH-030, AUTH-011, PER-014]
+    amends: [AUTH-011]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/number-claim.service.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-04, C-02]
+    asvs: [v5.0.0-8.2.2, v5.0.0-6.4.3, v5.0.0-16.3.1]
+    story: "As a visitor, I want my registration on a recycled number to be refused if the old holder came back so that nobody can take the number of a live account."
+    context: |
+      - Exists: `register` with `new_holder: true` releases a registered holder in one transaction (`releaseRegisteredHolder`), notifies them (`phone.taken_over`) and registers the new person; `claimRefusal` (AUTH-031); `firePhoneReleased(phoneNumber, tx)` from `src/modules/person/phone-released.ts` (PER-014).
+      - With `new_holder: true` and a registered holder, the code is checked as before, then `claimRefusal` runs before the code is spent: a refusal answers 409 `NUMBER_NOT_AVAILABLE`, the code stays unspent and nothing changes. The rule is checked again here because the holder may have come back between the claim and the registration.
+      - After the release and inside the same transaction, `firePhoneReleased(phone, tx)` runs, so the shop contacts that carry the number go back to pending (ORG-037). If a handler throws, the whole registration is rolled back and the old holder keeps the number.
+      - A holder with no device is idle, so the fixtures of AUTH-011 stay valid. Without `new_holder`, a registered holder still answers 409 `ACCOUNT_EXISTS`.
+      - `CM-04`: releasing a number moves it to `released_phone_number`. `C-02`: one number, one holder.
+    acceptance: |
+      Scenario: AC-1 Idle holder released
+        Given a registered holder idle for 7 months and a valid code
+        When the visitor registers with new_holder true
+        Then the response is 201, the holder's number is released and `firePhoneReleased` ran once with the number
+      Scenario Outline: AC-2 Refused
+        Given the holder is <holder>
+        When the visitor registers with new_holder true and a valid code
+        Then the response is 409 `NUMBER_NOT_AVAILABLE`, the holder keeps the number and the code is unspent
+        Examples:
+          | holder                                       |
+          | active, last synchronization 5 months ago    |
+          | suspended, last synchronization 2 years ago  |
+      Scenario: AC-3 A failing handler undoes the release
+        Given a handler that throws
+        When the visitor registers with new_holder true
+        Then the answer is 500, no person is created and the old holder keeps the number
+      Scenario: AC-4 No holder to release
+        When new_holder is true and the number is unknown or a guest's
+        Then the visitor is registered as usual and no handler runs
+    abuse: |
+      Scenario: AB-1 A code kept while the holder was idle (elevation)
+        Given a claim code obtained when the holder was idle, and the holder synchronizes afterwards
+        When the visitor registers with new_holder true
+        Then the response is 409 and the holder keeps the account and the number
+    implementation:
+      create: [tests/integration/auth/register-recycled-recheck.test.ts]
+      modify: [src/modules/auth/auth.service.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "releaseHolderAndRegister(input: RegisterInput): Promise<SessionResponse>"
+      types: []
+      errors: [NUMBER_NOT_AVAILABLE 409, ACCOUNT_EXISTS 409, OTP_INVALID 400]
+      dependencies: ["@prisma/client", zod]
+    security:
+      - "v5.0.0-8.2.2: nothing owned by the old holder moves; a refusal leaves the account as it was."
+      - "v5.0.0-6.4.3: a code alone does not give a live number: the holder's activity is checked again."
+      - "v5.0.0-16.3.1: a refusal is logged with the holder id."
+    tests: |
+      idle holder released | integration | AC-1, CM-04, C-02 | 201; number released; handler called once
+      refused | integration | AC-2 | each Examples row → 409; code still valid
+      handler fails | integration | AC-3 | throwing handler → 500; holder unchanged; no new person
+      no holder | integration | AC-4 | unknown and guest numbers → 201; handler not called
+      stale code | security | AB-1, CWE-367 | holder synchronizes between claim and register → 409
+    command: npx vitest run tests/integration/auth/register-recycled-recheck.test.ts tests/integration/auth/register-new-holder.test.ts
+    out_of_scope:
+      - "What a handler does with the number (ORG-037 for shop contacts)."
+      - "The text of the notice to the old holder: it does not change."
+    tests_to_update:
+      - "tests/integration/auth/register-new-holder.test.ts | the claim check and the release hook run on the same path | unchanged: its holders have no device, so the old assertions hold"
+  - id: AUTH-033
+    title: The reset code comes by SMS only
+    kind: change
+    size: XS
+    risk: high
+    depends_on: [AUTH-028, AUTH-019]
+    amends: [AUTH-019]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/number-check-limit.ts]
+    design_refs: [identite-et-organisation/person, acces-et-securite/otpchallenge]
+    constraints: [C-33, CM-07]
+    asvs: [v5.0.0-6.4.3, v5.0.0-2.4.1]
+    story: "As a customer, I want the reset code to come by SMS only so that nobody who reads my email can take my account."
+    context: |
+      - Exists: `requestPasswordReset(input, clientKeys)` takes `{ phone_number, use_email? }`, always answers 202 `{ sent: true, expires_in, existing_account }` and sends a code to a registered holder only.
+      - The body becomes `{ phone_number }`: `use_email` is refused with 400 and the code always goes by SMS to the number. `checkNumberQuota` runs first (AUTH-028).
+      - Unknown number or guest: nothing is sent and the 202 keeps the same keys with `existing_account` null, as today. A registered holder gets the code and `masked_name` (the phone asks "Is this your account?").
+      - The email no longer resets a password: only the support gives an account back (ADM).
+      - `C-33`: an EMAIL code is never used for PASSWORD_RESET. `CM-07`: sending limits stay.
+    acceptance: |
+      Scenario: AC-1 Registered holder
+        When the holder's number is posted
+        Then the response is 202 with masked_name and one PASSWORD_RESET code is queued by SMS to the number
+      Scenario: AC-2 The email is refused
+        When the body has `use_email` true
+        Then the response is 400 `VALIDATION_ERROR` and nothing is queued
+      Scenario Outline: AC-3 Nothing sent
+        When the request is for <case>
+        Then the response is 202 with existing_account null and nothing is queued
+        Examples:
+          | case              |
+          | an unknown number |
+          | a guest's number  |
+      Scenario: AC-4 Number checks are counted
+        Given the limit is 2 per hour and per IP
+        When one IP posts 3 numbers
+        Then the third answers 429 `RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 A reset code sent to an email (spoofing)
+        Given a person with a verified email
+        When `use_email` is true
+        Then no email job is queued
+    implementation:
+      create: [tests/integration/auth/password-reset-sms-only.test.ts]
+      modify: [src/modules/auth/auth.service.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "requestPasswordReset(input: { phone_number: string }, clientKeys: ClientKeys): Promise<{ sent: true; expires_in: number; existing_account: { masked_name: string } | null }>"
+      types: []
+      errors: [VALIDATION_ERROR 400, OTP_RATE_LIMITED 429, RATE_LIMITED 429]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-6.4.3: the reset code goes only to the SIM of the number."
+      - "v5.0.0-2.4.1: number checks and sends are limited by IP."
+    tests: |
+      registered holder | integration | AC-1, C-33, CM-07 | 202; job to the number
+      email refused | integration | AC-2 | use_email → 400; no job
+      nothing sent | integration | AC-3 | each Examples row → 202, no job
+      number checks | integration | AC-4 | limit 2 → third 429
+      no email reset | security | AB-1, CWE-640 | verified email and use_email → no email job
+    command: npx vitest run tests/integration/auth/password-reset-sms-only.test.ts tests/integration/auth/password-reset-request.test.ts
+    out_of_scope:
+      - "Choosing the new password with the code (AUTH-034)."
+    tests_to_update:
+      - "tests/integration/auth/password-reset-request.test.ts | the 'email' case expects a code queued to the verified email, and the 'unverified email' case sends `use_email` | `use_email` answers 400 VALIDATION_ERROR and nothing is queued"
+  - id: AUTH-034
+    title: The new password opens the session on this phone
+    kind: change
+    size: S
+    risk: high
+    depends_on: [AUTH-033, AUTH-020, AUTH-008]
+    amends: [AUTH-020]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/session.service.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-05, C-03]
+    asvs: [v5.0.0-6.4.3, v5.0.0-7.4.3, v5.0.0-16.3.1]
+    story: "As a customer, I want to set a new password with the code and be signed in on this phone so that I do not have to sign in again with a second code."
+    context: |
+      - Exists: `confirmPasswordReset` stores the new hash and revokes every device (reason `PASSWORD_RESET`) in one transaction, answers 204; `issueSession(personId, device, tx)`; `DeviceInfo` and `SessionResponse` (AUTH-010).
+      - `POST /api/v1/auth/password-reset/confirm` takes `{ phone_number, code, new_password, device }`; `use_email` is refused with 400. Success is 200 `SessionResponse`: in one transaction the hash changes, every existing device is revoked, then a new device and tokens are issued for this phone. The failure counter of the number is cleared. Logs `info` event `password_reset` with person and device ids.
+      - A suspended account learns it only after the code: the code is checked and spent, then 403 `ACCOUNT_SUSPENDED`, with the password and the sessions untouched.
+      - Other refusals are as before. `CM-05`: password rules. `C-03`: a registered person keeps a hash.
+    acceptance: |
+      Scenario: AC-1 Reset opens a session
+        Given the person has two signed-in devices
+        When the right code, a valid password and device info are posted
+        Then the response is 200 with access and refresh tokens and the new password verifies
+        And both old devices are revoked with reason PASSWORD_RESET and only the new device is live
+      Scenario: AC-2 Suspended account
+        When a suspended person posts the right code
+        Then the response is 403 `ACCOUNT_SUSPENDED`, the password and the devices are unchanged
+        And posting the same code again answers 400 `OTP_INVALID`
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status>, the password is unchanged and no device is created
+        Examples:
+          | problem                | status               |
+          | a wrong code           | 400 OTP_INVALID      |
+          | an expired code        | 400 OTP_EXPIRED      |
+          | new_password "1234567" | 400 WEAK_PASSWORD    |
+          | an unregistered number | 400 OTP_INVALID      |
+          | no device              | 400 VALIDATION_ERROR |
+          | use_email true         | 400 VALIDATION_ERROR |
+      Scenario: AC-4 All or nothing
+        Given the session cannot be issued
+        When the reset is posted
+        Then the password is unchanged and the old devices are still live
+    abuse: |
+      Scenario: AB-1 A code from another number (spoofing)
+        When the code sent to person A's number is posted with person B's number
+        Then the response is 400 `OTP_INVALID` and B's password is unchanged
+      Scenario: AB-2 A suspended account is revealed before the code (information disclosure)
+        When a wrong code is posted for a suspended account
+        Then the answer is 400 `OTP_INVALID`, like any wrong code
+    implementation:
+      create: [tests/integration/auth/password-reset-session.test.ts]
+      modify: [src/modules/auth/auth.service.ts, src/modules/auth/auth.routes.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/session.service.ts
+      signatures:
+        - "confirmPasswordReset(input: PasswordResetConfirmInput): Promise<SessionResponse>"
+      types:
+        - "PasswordResetConfirmInput = { phone_number: string; code: string; new_password: string; device: DeviceInfo }"
+      errors: [OTP_INVALID 400, OTP_EXPIRED 400, WEAK_PASSWORD 400, VALIDATION_ERROR 400, ACCOUNT_SUSPENDED 403]
+      dependencies: [express, zod, argon2]
+    security:
+      - "v5.0.0-6.4.3: the code proves the SIM; a code made for another number is refused."
+      - "v5.0.0-7.4.3: a reset ends every other session and starts a new one."
+      - "v5.0.0-16.3.1: the reset is logged with ids, never the password or the code."
+    tests: |
+      session opened | integration | AC-1, CM-05, C-03 | 200 tokens; new hash; old devices revoked; one live device
+      suspended | integration | AC-2 | 403; hash unchanged; code spent
+      refusals | integration | AC-3 | each Examples row → status; hash unchanged
+      all or nothing | integration | AC-4 | forced session failure → old hash, old devices live
+      other number | security | AB-1, CWE-287 | code of A with B's number → 400
+      suspension hidden | security | AB-2, CWE-204 | wrong code on suspended → 400 OTP_INVALID
+    command: npx vitest run tests/integration/auth/password-reset-session.test.ts tests/integration/auth/password-reset-confirm.test.ts tests/integration/auth/password-reset-atomic.test.ts
+    out_of_scope:
+      - "Asking for the code (AUTH-033)."
+    tests_to_update:
+      - "tests/integration/auth/password-reset-confirm.test.ts | posts without `device` and expects 204; has email cases | posts a `device`, expects 200 with tokens; the email cases expect 400"
+      - "tests/integration/auth/password-reset-atomic.test.ts | posts without `device` | posts a `device` and still expects the password and the live devices unchanged after the forced failure"
+  - id: AUTH-035
+    title: Remove the verified-email lookup
+    kind: removal
+    size: XS
+    risk: medium
+    depends_on: [AUTH-036]
+    amends: [AUTH-015]
+    read_first: [src/modules/person/person.repository.ts, src/modules/auth/auth.service.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: []
+    asvs: [v5.0.0-6.4.3]
+    story: "Technical story: remove the function that finds a person by verified email, so that no code path can sign anyone in with an email."
+    context: |
+      - Exists: `findByVerifiedEmail(email)` in `src/modules/person/person.repository.ts`, listed in the person contracts as added by AUTH-015. AUTH-036 removed its two callers; no other file imports it.
+      - Removes the function and its contract entry. The partial unique index on verified emails (PER-003) and the email verification flow stay: an email still proves who a person is to the support.
+      - A source scan finds no remaining reference to the name under `src/`.
+    acceptance: |
+      Scenario: AC-1 Function removed
+        When the person repository module is imported
+        Then it has no export named `findByVerifiedEmail`
+      Scenario: AC-2 No caller left
+        When the files under `src/` are scanned for the name
+        Then no file mentions it
+    implementation:
+      create: [tests/unit/person/removed-email-lookup.test.ts]
+      modify: [src/modules/person/person.repository.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-6.4.3: with no lookup by email, the email cannot be used as a way to sign in."
+    tests: |
+      export gone | unit | AC-1 | module namespace has no findByVerifiedEmail
+      no reference | unit | AC-2 | scan of src/ files → zero matches
+    command: npx vitest run tests/unit/person/removed-email-lookup.test.ts tests/integration/auth
+    out_of_scope:
+      - "Email verification, the unique index on verified emails and the email in the profile: unchanged."
+  - id: AUTH-036
+    title: Sign-in no longer uses the email
+    kind: change
+    size: S
+    risk: high
+    depends_on: [AUTH-028, AUTH-014, AUTH-015]
+    amends: [AUTH-013, AUTH-014, AUTH-015]
+    read_first: [src/modules/auth/auth.service.ts, src/modules/auth/auth.schemas.ts]
+    design_refs: [acces-et-securite/otpchallenge, identite-et-organisation/person]
+    constraints: [C-33]
+    asvs: [v5.0.0-6.4.3, v5.0.0-6.3.3]
+    story: "As a customer, I want sign-in to use my phone number only so that someone who reads my email cannot get into my account."
+    context: |
+      - Exists: both login bodies accept `use_email` (the code goes by email) or `email` (sign in by email); `requestLoginByEmail` sends the code to the verified email and `completeLogin` finds the person with `findByVerifiedEmail`.
+      - Removes `email` and `use_email` from `POST /api/v1/auth/login` and `/auth/login/verify`. The bodies are strict, so the old fields answer 400 `VALIDATION_ERROR`. The code always goes by SMS and the response keeps `channel: 'SMS'`.
+      - Deletes `requestLoginByEmail` and the email branch of `completeLogin`; `findByVerifiedEmail` keeps no caller (AUTH-035 removes it).
+      - `C-33`: an EMAIL code only proves an email address; it never opens or gives back an account.
+    acceptance: |
+      Scenario: AC-1 Code by email refused
+        When the login body has `use_email` true
+        Then the response is 400 `VALIDATION_ERROR` and nothing is queued
+      Scenario: AC-2 Sign-in by email refused
+        When the login body has `email` and no phone_number
+        Then the response is 400 `VALIDATION_ERROR` and nothing is queued
+      Scenario: AC-3 Verify with the email refused
+        When the verify body has `email` or `use_email`
+        Then the response is 400 `VALIDATION_ERROR` and no session is issued
+      Scenario: AC-4 Sign-in by SMS still works
+        When a person posts the number and password, then the SMS code with device info
+        Then the first answer is 202 with channel SMS and the second is 200 with tokens
+    abuse: |
+      Scenario: AB-1 The email as a way around the SIM (spoofing)
+        Given a person with an active number and a verified email
+        When someone posts that email and the password
+        Then the response is 400 and no code is sent
+    implementation:
+      create: [tests/integration/auth/login-sms-only.test.ts]
+      modify: [src/modules/auth/auth.service.ts, src/modules/auth/auth.schemas.ts, src/modules/auth/auth.openapi.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "requestLogin(input: LoginInput, clientKeys: ClientKeys): Promise<{ sent: true; channel: 'SMS'; expires_in: number }>"
+      types:
+        - "LoginInput = { phone_number: string; password: string }"
+        - "LoginVerifyInput = { phone_number: string; code: string; device: DeviceInfo }"
+      errors: [VALIDATION_ERROR 400]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-6.4.3: a sign-in code goes only to the SIM of the number."
+      - "v5.0.0-6.3.3: the password alone never opens a session; the SMS code follows."
+    tests: |
+      email code refused | integration | AC-1, C-33 | use_email → 400; no job
+      email sign-in refused | integration | AC-2 | email without phone_number → 400
+      verify refused | integration | AC-3 | email or use_email → 400; no session
+      sms still works | integration | AC-4 | 202 SMS then 200 tokens
+      email bypass | security | AB-1, CWE-288 | email with active number → 400; no job
+    command: npx vitest run tests/integration/auth/login-sms-only.test.ts tests/integration/auth/login-request.test.ts tests/integration/auth/login-verify.test.ts tests/integration/auth/login-by-email.test.ts
+    out_of_scope:
+      - "The lookup `findByVerifiedEmail`: AUTH-035."
+      - "The answers about the account and the number-check limit (AUTH-028)."
+    tests_to_update:
+      - "tests/integration/auth/login-request.test.ts | 'email code' expects a code queued to the verified email, and 'email unverified' expects 400 EMAIL_NOT_VERIFIED | both post `use_email` and expect 400 VALIDATION_ERROR with nothing queued"
+      - "tests/integration/auth/login-verify.test.ts | 'email channel' signs in with an EMAIL code | `use_email` answers 400 VALIDATION_ERROR"
+      - "tests/integration/auth/login-by-email.test.ts | the email sign-in it tests no longer exists | every case posts `email` and expects 400 VALIDATION_ERROR; the success case is removed"
+  - id: AUTH-037
+    title: The active holder is told someone claimed their number
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [AUTH-031, NTF-002]
+    read_first: [src/modules/auth/number-claim.service.ts, src/lib/rate-limit.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [CM-07]
+    asvs: [v5.0.0-2.4.1, v5.0.0-16.3.1]
+    story: "As a customer, I want to be told when someone claims my number so that I can change it before I lose my account."
+    context: |
+      - Exists: `requestNumberClaim` and `claimRefusal` (AUTH-031), `notify` and `recipientLanguage` (NTF-002), `checkAndConsume(key, limit, windowSeconds)`.
+      - When a claim is refused as `RECENTLY_ACTIVE`, the holder gets one in-app notification `phone.claimed`. French: "Quelqu'un indique détenir votre numéro. Si vous ne l'utilisez plus, changez-le dans votre profil." English: "Someone says they hold your number. If you no longer use it, change it in your profile." The language comes from `recipientLanguage`.
+      - At most one per holder per 24 hours: `checkAndConsume('phone-claimed:<personId>', 1, 86400)`; a second claim in the day sends nothing.
+      - A holder refused as `SUSPENDED` is never warned, and neither is a holder whose claim is allowed. The claimant's answer does not change: the same 409 body.
+    acceptance: |
+      Scenario Outline: AC-1 Active holder warned
+        Given an active holder who synchronized yesterday and whose language is <language>
+        When a visitor claims the number
+        Then the response is 409 and the holder has one unread notification `phone.claimed` in <language>
+        Examples:
+          | language |
+          | FR       |
+          | EN       |
+      Scenario: AC-2 One warning a day
+        When 3 claims arrive within 24 hours, then one more after the 24-hour window has passed
+        Then the holder has 1 notification after the first three and 2 after the last
+      Scenario Outline: AC-3 No warning
+        Given the holder is <holder>
+        When a visitor claims the number
+        Then the holder has no notification
+        Examples:
+          | holder                                            |
+          | suspended, last synchronization yesterday         |
+          | active, last synchronization 7 months ago         |
+    abuse: |
+      Scenario: AB-1 Claims used to bury the holder in notices (denial of service)
+        When 100 claims name the number of an active holder within one day
+        Then the holder has at most one notification
+    implementation:
+      create: [tests/integration/auth/number-claim-warning.test.ts]
+      modify: [src/modules/auth/number-claim.service.ts]
+      pattern: src/modules/auth/otp.service.ts
+      signatures:
+        - "warnHolderOfClaim(holderId: string): Promise<void>"
+      types: []
+      errors: []
+      dependencies: [ioredis]
+    security:
+      - "v5.0.0-2.4.1: one warning per holder per day, so claims cannot be used to flood a person."
+      - "v5.0.0-16.3.1: the warning is stored for the holder only; logs carry ids, never the number."
+    tests: |
+      holder warned | integration | AC-1, CM-07 | each Examples row → 409; one notification in the language
+      one a day | integration | AC-2 | 1 notification, then 2 after the window
+      no warning | integration | AC-3 | each Examples row → zero notifications
+      burying | security | AB-1, CWE-799 | 100 claims → one notification
+    command: npx vitest run tests/integration/auth/number-claim-warning.test.ts tests/integration/auth/number-claim.test.ts
+    out_of_scope:
+      - "Who else is told (the shop owner of a contact on this number is told by ORG-037, when the number is released)."
+      - "An email or SMS to the holder: the notice is in the app only."
+  - id: AUTH-038
+    title: A verified email is unique whatever the letter case
+    kind: test
+    size: XS
+    risk: medium
+    amends: []
+    depends_on: [AUTH-023, PER-003]
+    read_first: [src/modules/auth/auth.service.ts, tests/integration/auth/email-verify-confirm.test.ts]
+    design_refs: [identite-et-organisation/person, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-40]
+    asvs: [v5.0.0-2.2.3]
+    story: "As a customer, I want an email that someone else has already verified to be refused whatever its capital letters, so that two people can never hold the same address as their recovery key."
+    context: |
+      - Exists: the confirmation route (AUTH-023) and the partial unique index on `lower(email)` for verified emails (PER-003).
+      - Characterization test only, no production code. `confirmEmail` first looks for a verified holder with the exact same text; an address that differs only by letter case passes that look-up and is stopped by the index, and the unique violation is mapped to 409 `EMAIL_TAKEN`.
+      - A failing case goes back to AUTH-023 or PER-003.
+    acceptance: |
+      Scenario: AC-1 Same address, other letter case
+        Given person one has verified `Shop.Owner@example.com`
+        When person two, whose saved email is `shop.owner@example.com`, posts the right code
+        Then the response is 409 `EMAIL_TAKEN` and person two's email stays unverified
+      Scenario: AC-2 Another address
+        Given person one has verified `shop.owner@example.com`
+        When person two, whose saved email is `other.owner@example.com`, posts the right code
+        Then the response is 204 and person two's email is verified
+    abuse: |
+      Scenario: AB-1 Taking over an address by changing its capitals (spoofing)
+        Given person one has verified `shop.owner@example.com`
+        When person two saves `SHOP.OWNER@EXAMPLE.COM`, asks for a code and confirms it
+        Then at most one person holds that address as verified
+    implementation:
+      create: [tests/integration/auth/email-verify-case.test.ts]
+      modify: []
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the rule is checked on the data as stored, in any letter case, so a changed capital cannot bypass it."
+    tests: |
+      other case | integration | AC-1, C-40 | 409 EMAIL_TAKEN, email not verified
+      other address | integration | AC-2 | 204, email verified
+      capitals trick | security | AB-1, CWE-289 | one verified holder in the table
+    command: npx vitest run tests/integration/auth/email-verify-case.test.ts tests/integration/auth/email-verify-confirm.test.ts
+    out_of_scope:
+      - "Changing the confirmation route: AUTH-023. The unique index: PER-003."

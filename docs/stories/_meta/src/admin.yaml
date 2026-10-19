@@ -19,8 +19,10 @@ threats:
   - "T4 | E | A moderator appoints or removes administrators | only SUPER_ADMIN | ADM-009 AB-1, ADM-010 AB-1"
   - "T5 | R | A suspension leaves no trace | every suspension, reactivation and dismissal writes the immutable journal | ADM-013 AB-1, ADM-014 AB-1"
   - "T6 | T | The journal is rewritten | the application account cannot update or delete it | ADM-002 AB-1"
+  - "T7 | E | A moderator frees a number or hands out an account | RELEASE_PHONE and RESTORE_ACCESS need a SUPER_ADMIN, checked by the route and by the database | ADM-017 AB-1, ADM-016 AB-1"
+  - "T8 | S | Support gives an account to someone who is not its owner | a code to the verified email and a code to the new number are both needed, and an account with no verified email is refused | ADM-020 AB-1, ADM-019 AB-1"
 constraints:
-  C-29: "`Administrator.totp_secret` is required; `recovery_email` differs from `Person.email`; `AdminAction` has exactly one target, a reason, `sync_archive_id` only for REPLAY_SYNC (super administrators only), and is immutable."
+  C-29: "`Administrator.totp_secret` is required; `recovery_email` differs from `Person.email`; `AdminAction` has exactly one target, a reason, `sync_archive_id` only for REPLAY_SYNC, and is immutable. REPLAY_SYNC, GIFT_DAYS, RECORD_PAYMENT, REFUND_PAYMENT, RELEASE_PHONE and RESTORE_ACCESS are for super administrators only; GIFT_DAYS, RECORD_PAYMENT and REFUND_PAYMENT target a business, RELEASE_PHONE and RESTORE_ACCESS a person."
   C-28: "A report has exactly one target, a person or an organization."
   C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
   C-32: "Immutable journals are never updated or deleted by the application; only the retention purge removes them."
@@ -45,7 +47,7 @@ contracts:
         - "requireAdminRole(min: 'MODERATOR' | 'SUPER_ADMIN'): RequestHandler"
       used_by: [sync]
   consumes:
-    - "auth: issue and verify one-time codes (issueCode, verifyCode), hashPassword and verifyPassword, revokeSessions (docs/stories/modules/auth/contracts.md)"
+    - "auth: issue and verify one-time codes (issueCode, verifyCode), hashPassword and verifyPassword, revokeSessions, releaseNumberOfPerson, moveAccountToNumber (docs/stories/modules/auth/contracts.md)"
     - "person: findByActivePhone, toPublicPerson (docs/stories/modules/person/contracts.md)"
     - "notification: notify (docs/stories/modules/notification/contracts.md)"
 stories:

@@ -212,3 +212,197 @@ stories:
     out_of_scope:
       - "The `Application error` and `Unhandled error` branches, including the 500 log's `error` and `stack`."
       - "Documenting `details` in the OpenAPI `Error` schema (`src/lib/openapi/registry.ts`)."
+---
+kind: stories
+module: foundation
+stories:
+  - id: FND-013
+    title: Image keys and public image addresses
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [FND-005]
+    read_first: [src/shared/ids.ts, src/config/env.ts]
+    design_refs: [images/stockage]
+    constraints: []
+    asvs: [v5.0.0-5.3.2, v5.0.0-13.2.4]
+    story: "Technical story: the server builds the storage key of every image and turns a stored key into its public address, so that no module writes a key or an address by hand."
+    context: |
+      - Exists: `newId()` (UUIDv7, `src/shared/ids.ts`); `env` is validated once at startup in `src/config/env.ts`. No image code exists.
+      - A key is `<folder>/<UUIDv4>.webp` with folder `logos`, `avatars` or `products` (product photos and variant photos share `products`). A UUIDv4, never a UUIDv7, which carries its creation time; no organization, product or person id appears in a key.
+      - The database keeps keys only. The address is the base address plus `/` plus the key; the base address is set per deployment in `IMAGE_PUBLIC_BASE_URL`, so changing the storage provider touches no row.
+      - Adds: `src/lib/image-keys.ts`, the variable `IMAGE_PUBLIC_BASE_URL` (required, `http` or `https`, no trailing `/`, no query, no fragment), a placeholder line in `.env.example`.
+      - First usage: IMG-002 (stores files under these keys) and the views that return a photo address. The helpers ship here so that every module can use them without importing `images` (ADR-004).
+    acceptance: |
+      Scenario Outline: AC-1 A new key has a fixed shape
+        When `newImageKey("<folder>")` is called
+        Then the result is "<folder>/", then a lower-case UUIDv4, then ".webp"
+        Examples:
+          | folder |
+          | logos |
+          | avatars |
+          | products |
+      Scenario: AC-2 A key reveals nothing and is never repeated
+        When 1000 keys are created for the folder `products`
+        Then the 1000 keys are all different
+        And none of the 36-character identifiers passes `uuidV7Schema`
+      Scenario Outline: AC-3 Only canonical keys are accepted
+        When `imageKeySchema` parses <key>
+        Then the result is <result>
+        Examples:
+          | key | result |
+          | products/3f8a2c4e-9b1d-4e6f-8a7b-1c2d3e4f5a6b.webp | accepted |
+          | logos/3f8a2c4e-9b1d-4e6f-8a7b-1c2d3e4f5a6b.webp | accepted |
+          | avatars/3f8a2c4e-9b1d-7e6f-8a7b-1c2d3e4f5a6b.webp | rejected |
+          | products/3F8A2C4E-9B1D-4E6F-8A7B-1C2D3E4F5A6B.webp | rejected |
+          | products/3f8a2c4e-9b1d-4e6f-8a7b-1c2d3e4f5a6b.png | rejected |
+          | other/3f8a2c4e-9b1d-4e6f-8a7b-1c2d3e4f5a6b.webp | rejected |
+      Scenario: AC-4 The address is the base address plus the key
+        Given `IMAGE_PUBLIC_BASE_URL` is "http://localhost:3000/images"
+        When `imageUrl("products/3f8a2c4e-9b1d-4e6f-8a7b-1c2d3e4f5a6b.webp")` is called
+        Then the result is "http://localhost:3000/images/products/3f8a2c4e-9b1d-4e6f-8a7b-1c2d3e4f5a6b.webp"
+        And `imageUrl(null)` is null
+      Scenario Outline: AC-5 A wrong base address stops the application at startup
+        When the environment is validated with `IMAGE_PUBLIC_BASE_URL` set to <value>
+        Then validation fails and names `IMAGE_PUBLIC_BASE_URL`
+        Examples:
+          | value |
+          | missing |
+          | localhost:3000/images |
+          | http://localhost:3000/images/ |
+          | http://localhost:3000/images?size=1 |
+          | javascript:alert(1) |
+    abuse: |
+      Scenario: AB-1 A crafted key points outside the image address (tampering)
+        When `imageUrl` receives "../secret" or "products/../../secret" or "//other-host/x.webp"
+        Then it throws a RangeError and builds no address
+    implementation:
+      create: [src/lib/image-keys.ts, tests/unit/lib/image-keys.test.ts]
+      modify: [src/config/env.ts, .env.example]
+      pattern: src/shared/ids.ts
+      signatures:
+        - "newImageKey(folder: ImageFolder): string"
+        - "imageKeySchema: z.ZodString"
+        - "buildImageUrl(baseUrl: string, key: string): string"
+        - "imageUrl(key: string | null): string | null"
+      types: ["ImageFolder = 'logos' | 'avatars' | 'products'"]
+      errors: []
+      dependencies: [uuid, zod]
+    security:
+      - "v5.0.0-5.3.2: a key is always built by `newImageKey` from a random identifier; no client text becomes part of a key or an address."
+      - "v5.0.0-13.2.4: images are served from one base address fixed at deployment and validated at startup; `imageUrl` accepts only canonical keys, so it cannot point elsewhere."
+    tests: |
+      key shape | unit | AC-1 | each folder → matches the pattern with a lower-case UUIDv4
+      keys are mute and distinct | unit | AC-2 | 1000 keys → distinct, no UUIDv7
+      canonical keys only | unit | AC-3 | each Examples row → accepted or rejected
+      address building | unit | AC-4 | `buildImageUrl` with a base address and `imageUrl` with the test base address → expected address; null → null
+      base address validation | unit | AC-5 | `vi.resetModules()`, set the variable, import `src/config/env.ts` → rejects with `IMAGE_PUBLIC_BASE_URL` in the error
+      crafted key | security | AB-1, CWE-22 | the three values → RangeError and no address
+    command: npx vitest run tests/unit/lib/image-keys.test.ts
+    out_of_scope:
+      - "Storing, reading or deleting image files, and the limit `k` of photos per card: IMG-002 and IMG-004."
+      - "The `*_key` columns: each owning module adds its own."
+      - "The `ImageStorage` and `ImageProcessor` ports (ADR-005)."
+    tests_to_update:
+      - "tests/setup.ts | the application now requires `IMAGE_PUBLIC_BASE_URL` at startup and the test environment does not set it | set the fake value http://localhost:3000/images with the other fake variables"
+---
+kind: stories
+module: foundation
+constraints:
+  C-41: "`Organization.payment_code` is unique; `plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators` and `max_products` are written by the server only and sent to the team of the business only; `plan = FREE` exactly when `plan_ends_at` is empty; a set `grace_ends_at` is after `plan_ends_at`."
+stories:
+  - id: FND-014
+    title: Plan grid and business payment codes
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [FND-003]
+    read_first: [src/shared/money.ts, src/shared/ids.ts]
+    design_refs: [finances/subscription/plans-on-paie-pour-son-equipe, finances/subscription/prix-et-forfaits, identite-et-organisation/organization]
+    constraints: [C-41]
+    asvs: [v5.0.0-2.2.1, v5.0.0-11.5.1]
+    story: "Technical story: the server holds the plans, their limits and the price grid in one file, and draws business payment codes, so that a limit or a price is never written twice."
+    context: |
+      - Exists: money is `bigint` XAF (`src/shared/money.ts`); no plan or payment code exists.
+      - Plans: `FREE` (2 collaborators, 30 products, price 0), `ESSENTIAL` (5, no limit, 5 000 a month), `PRO` (10, no limit, 10 000), `ENTERPRISE` (no limit, no limit, 25 000). No limit is `null`. Limits and prices are versioned with the code.
+      - Price grid, for packs of 1, 3, 6 or 12 months, in XAF: ESSENTIAL 5 000, 15 000, 25 000, 50 000; PRO 10 000, 30 000, 50 000, 100 000; ENTERPRISE 25 000, 75 000, 125 000, 250 000. The server alone chooses the price; a pack keeps the price paid.
+      - Payment code: 8 characters from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ` (no `0`, `O`, `1`, `I`), drawn at random, unrelated to the name. It is not a secret (the site shows only the business name); the lookup is rate limited by IP in BIL-007.
+      - Adds: `src/shared/plans.ts` (no Node-only import) and `src/lib/payment-code.ts`.
+      - First usage: ORG-028 (code and FREE limits at creation) and BIL-009 (price of a payment). They ship here because both need them.
+    acceptance: |
+      Scenario Outline: AC-1 Each plan carries its limits and monthly price
+        When `PLANS.<plan>` is read
+        Then `maxCollaborators` is <collaborators>, `maxProducts` is <products> and `monthlyPrice` is <price>
+        Examples:
+          | plan | collaborators | products | price |
+          | FREE | 2 | 30 | 0n |
+          | ESSENTIAL | 5 | null | 5000n |
+          | PRO | 10 | null | 10000n |
+          | ENTERPRISE | null | null | 25000n |
+      Scenario Outline: AC-2 The price of a pack comes from the grid
+        When `priceFor("<plan>", <months>)` is called
+        Then the result is <price>
+        Examples:
+          | plan | months | price |
+          | ESSENTIAL | 1 | 5000n |
+          | ESSENTIAL | 3 | 15000n |
+          | ESSENTIAL | 6 | 25000n |
+          | ESSENTIAL | 12 | 50000n |
+          | PRO | 1 | 10000n |
+          | PRO | 3 | 30000n |
+          | PRO | 6 | 50000n |
+          | PRO | 12 | 100000n |
+          | ENTERPRISE | 1 | 25000n |
+          | ENTERPRISE | 3 | 75000n |
+          | ENTERPRISE | 6 | 125000n |
+          | ENTERPRISE | 12 | 250000n |
+      Scenario Outline: AC-3 Anything outside the grid has no price
+        When `priceFor("<plan>", <months>)` is called
+        Then it throws a RangeError
+        Examples:
+          | plan | months |
+          | FREE | 1 |
+          | PRO | 2 |
+          | PRO | 0 |
+          | GOLD | 1 |
+      Scenario: AC-4 A payment code has the fixed shape
+        When `generatePaymentCode()` is called 1000 times
+        Then every result has 8 characters, all from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`
+        And no result contains `0`, `O`, `1` or `I`
+        And the 1000 results are all different
+      Scenario: AC-5 Every symbol of the alphabet is drawn
+        When 1000 payment codes are drawn
+        Then each of the 32 symbols appears at least once
+    abuse: |
+      Scenario: AB-1 A price or a limit chosen by the caller (tampering)
+        When `priceFor` receives a plan or a number of months that the grid does not list
+        Then it throws a RangeError and returns no amount
+    implementation:
+      create: [src/shared/plans.ts, src/lib/payment-code.ts, tests/unit/shared/plans.test.ts, tests/unit/lib/payment-code.test.ts]
+      modify: []
+      pattern: src/shared/ids.ts
+      signatures:
+        - "priceFor(plan: PaidPlanCode, months: PackMonths): bigint"
+        - "generatePaymentCode(): string"
+      types:
+        - "PlanCode = 'FREE' | 'ESSENTIAL' | 'PRO' | 'ENTERPRISE'"
+        - "PaidPlanCode = Exclude<PlanCode, 'FREE'>"
+        - "PackMonths = 1 | 3 | 6 | 12"
+        - "PLANS: Record<PlanCode, { maxCollaborators: number | null; maxProducts: number | null; monthlyPrice: bigint }>"
+        - "PACK_MONTHS: readonly PackMonths[]"
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-2.2.1: `priceFor` accepts only the pairs the grid lists and throws for any other pair."
+      - "v5.0.0-11.5.1: the code is drawn with `crypto.randomInt`, never `Math.random`; it is an identifier, not a secret."
+    tests: |
+      plan limits | unit | AC-1, C-41 | each plan → limits and monthly price from the table
+      price grid | unit | AC-2 | each of the 12 pairs → the amount of the grid
+      no price outside the grid | security | AC-3, AB-1, CWE-472 | FREE, 2 months, 0 months, unknown plan → RangeError
+      code shape | unit | AC-4 | 1000 codes → length 8, alphabet only, no look-alike, all different
+      symbol coverage | unit | AC-5 | 1000 codes → all 32 symbols appear
+    command: npx vitest run tests/unit/shared/plans.test.ts tests/unit/lib/payment-code.test.ts
+    out_of_scope:
+      - "Storing the code or the plan on `organizations` (ORG-020) and drawing a new code after a unique violation (ORG-028)."
+      - "Reading a code typed on the site: trimming, upper-casing, checking the alphabet (BIL-007)."
+      - "Comparing plans, converting remaining days when upgrading and the discount rule (BIL-010)."

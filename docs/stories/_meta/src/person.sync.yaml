@@ -1,0 +1,353 @@
+kind: stories
+module: person
+constraints:
+  C-02: "`phone_number` is unique, E.164 (`^\\+[1-9][0-9]{7,14}$`); exactly one of `phone_number` and `released_phone_number` is set; status ANONYMIZED means `phone_number` and `avatar_key` are empty."
+  C-49: "A guest has no `avatar_key`; a key is cited by one card only, across all tables; `Person.avatar_key` is written by the server only. The rules for product and variant keys belong to the images and catalog modules."
+stories:
+  - id: PER-010
+    title: Profile photo key on the person
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [PER-003]
+    amends: [PER-002, PER-003]
+    read_first: [prisma/schema.prisma, tests/integration/person/person-repository.test.ts]
+    design_refs: [identite-et-organisation/person, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-02, C-49]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Person.avatar_key"]
+    story: "Technical story: add the column that holds the key of a person's profile photo, with the database rules that keep it empty for a guest and for an anonymized person and unique among people."
+    context: |
+      - Exists: `people` with the PER-002 columns and the PER-003 CHECKs; no photo column.
+      - Adds one migration, run in one transaction: `avatar_key` (text, empty by default) with a unique index, a CHECK that a guest (empty `registered_at`) has no key, and a CHECK that an anonymized person has no key (C-02).
+      - Every existing row keeps an empty key, so the new rules already hold: no backfill and no audit are needed.
+      - The key is written by the server only (C-49): PER-013 adds the writer and IMG-003 the route. Nothing else writes the column.
+      - A key cited by one card only across all tables (people, organizations, products, variants) cannot be a rule of one table: the images module checks it (IMG-004, IMG-006).
+      - `prisma/schema.prisma`: add the field `avatarKey` to `model Person` (`String?`, `@unique`, `@map("avatar_key")`) and add to the `//` comment block above `model Person` a plain-language entry: a guest has no profile photo; an anonymized person has none; one photo file belongs to one person; the rule across tables is kept by the images module; migration name `per_010_person_avatar_key`.
+    acceptance: |
+      Scenario: AC-1 Empty by default
+        When a person is inserted without mentioning `avatar_key`
+        Then the stored `avatar_key` is empty
+      Scenario Outline: AC-2 Photo key rules
+        When a row is inserted directly with <values>
+        Then the database <result>
+        Examples:
+          | values                                      | result          |
+          | registered person with a key                | accepts         |
+          | registered person without a key             | accepts         |
+          | guest with a key                            | rejects (23514) |
+          | anonymized person with a key                | rejects (23514) |
+      Scenario: AC-3 One file, one person
+        Given a registered person holds a key
+        When another person is given the same key
+        Then the database rejects it with 23505
+        And any number of people may have an empty key
+      Scenario: AC-4 Anonymizing removes the key
+        Given a registered person holds a key
+        When the person is set to ANONYMIZED and the key is left in place
+        Then the database rejects the update with 23514
+        And the same update that also empties the key is accepted
+    abuse: |
+      Scenario: AB-1 A photo kept where none is allowed (information disclosure)
+        When code gives a key to a guest, straight in the database
+        Then PostgreSQL rejects it with 23514, even though no application check ran
+    implementation:
+      create: [prisma/migrations/<timestamp>_per_010_person_avatar_key/migration.sql, tests/integration/person/person-avatar-checks.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/person/person-repository.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: related columns (`status`, `registered_at`, `avatar_key`) are checked together in the database, not only in code."
+    tests: |
+      empty by default | integration | AC-1 | insert without a key → NULL
+      key rules | integration | AC-2, C-02 | each Examples row → accepted or 23514
+      one file one person | integration | AC-3, C-49 | same key on two people → 23505; two empty keys → accepted
+      anonymized without key | integration | AC-4, C-02 | status ANONYMIZED with the key kept → 23514; with the key emptied → accepted
+      no validation bypass | security | AB-1, CWE-20 | raw update giving a key to a guest → 23514
+    command: npx vitest run tests/integration/person/person-avatar-checks.test.ts tests/integration/person/person-table.test.ts tests/integration/person/person-checks.test.ts
+    out_of_scope:
+      - "The writer of the key (PER-013) and the upload routes (IMG-003)."
+      - "Showing the photo address (PER-011, PER-012)."
+      - "Emptying the key and deleting the file when a person is anonymized: a change story of the privacy module. Until it ships, anonymizing a person who has a photo fails on the CHECK."
+      - "The rule that a key is cited by one card only across tables (IMG-004, IMG-006)."
+  - id: PER-011
+    title: The public view of a person carries the photo address
+    kind: change
+    size: S
+    risk: medium
+    depends_on: [PER-010, FND-013]
+    amends: [PER-005, PER-006]
+    read_first: [src/modules/person/person.repository.ts, docs/stories/modules/foundation/contracts.md]
+    design_refs: [identite-et-organisation/person, images/stockage]
+    constraints: [CM-20]
+    asvs: [v5.0.0-8.2.3, v5.0.0-15.3.1]
+    story: As a seller, I want to see a customer's name and photo when I type their number so that I catch typing mistakes.
+    context: |
+      - Exists: `toPublicPerson` returns `{ public_name, phone_number, registered }` (PER-005); `GET /api/v1/people/lookup` returns that view or the unregistered answer (PER-006); `imageUrl(key)` turns a key into an address (FND-013); `Person.avatar_key` (PER-010).
+      - Changes: the view gains `avatar_url: string | null`, the address built by `imageUrl` from the stored key; null when there is no key. The key itself is never in the view.
+      - The unregistered answer (unknown number, guest, released number) becomes `{ phone_number, registered: false, public_name: null, avatar_url: null }`: the three cases stay identical.
+      - Every caller of `toPublicPerson` (team lists, relation views, reports) now returns the new key; their response documents change in their own modules' stories.
+    acceptance: |
+      Scenario: AC-1 The view carries the address
+        Given a registered person with a photo key
+        When `toPublicPerson` is applied
+        Then the result has exactly the keys `public_name`, `phone_number`, `registered`, `avatar_url`
+        And `avatar_url` is the base address, a slash and the key
+      Scenario: AC-2 No photo, no address
+        When `toPublicPerson` is applied to a registered person without a key, to a guest and to a person whose number is released
+        Then `avatar_url` is null in each result
+      Scenario: AC-3 Lookup shows name and photo
+        Given a registered person named "Béatrice Ngono" with a photo
+        When a signed-in person looks up the number
+        Then the response is 200 with the name and the photo address
+      Scenario: AC-4 Unknown numbers stay identical
+        When a signed-in person looks up an unknown number, a guest's number and a released number
+        Then each response is 200 with registered false, public_name null and avatar_url null
+    abuse: |
+      Scenario: AB-1 Private fields leak through the view (information disclosure)
+        When `toPublicPerson` is applied to a person with every field set
+        Then the serialized result contains none of email, password hash, dates, language or the raw key
+      Scenario: AB-2 A guest reveals a photo (information disclosure)
+        When a lookup hits a guest or an unknown number
+        Then the body is the same for both and holds no address
+    implementation:
+      create: [tests/integration/person/public-person-avatar.test.ts]
+      modify: [src/modules/person/person.repository.ts, src/modules/person/person.routes.ts, src/modules/person/person.schemas.ts, src/modules/person/person.openapi.ts]
+      pattern: tests/integration/person/person-repository.test.ts
+      signatures:
+        - "toPublicPerson(person: Person): PublicPerson"
+      types:
+        - "PublicPerson = { public_name: string | null; phone_number: string | null; registered: boolean; avatar_url: string | null }"
+      errors: []
+      dependencies: ["@prisma/client", zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.3: `toPublicPerson` builds the object from an explicit list of four fields."
+      - "v5.0.0-15.3.1: the lookup response schema lists the four fields and rejects any other."
+    tests: |
+      view with photo | integration | AC-1, CM-20 | person with a key → exactly four keys; address = base + "/" + key
+      view without photo | integration | AC-2 | no key, guest, released number → avatar_url null
+      lookup with photo | integration | AC-3 | registered person with a key → 200 with the address (in person-lookup.test.ts)
+      unknown numbers | integration | AC-4 | unknown, guest, released → identical four-key bodies (in person-lookup.test.ts)
+      no private leak | security | AB-1, CWE-200 | JSON holds none of the private values and no avatar_key
+      guest and unknown | security | AB-2, WSTG-ATHZ-02 | both bodies deep-equal apart from the echoed number (in person-lookup.test.ts)
+    command: npx vitest run tests/integration/person tests/integration/relationship tests/integration/organization/team-list.test.ts tests/integration/admin/list-reports.test.ts
+    out_of_scope:
+      - "Response documents and types of the other modules that return the view: ORG-036, the relationship, administration and synchronization change stories."
+      - "Uploading a photo (IMG-003) and the profile view (PER-012)."
+    tests_to_update:
+      - "tests/integration/person/person-repository.test.ts | closed list has three keys | four keys, avatar_url added"
+      - "tests/integration/person/person-lookup.test.ts | answers and key list have three fields | add avatar_url"
+      - "tests/integration/organization/team-list.test.ts | person key list has three entries | add avatar_url"
+      - "tests/integration/admin/list-reports.test.ts | reporter key list has three entries | add avatar_url"
+      - "tests/integration/relationship/visibility.test.ts | fixture `person()` lacks `avatarKey`; views list three fields | add `avatarKey: null` and avatar_url"
+      - "tests/integration/relationship/supplier-invitations.test.ts | customer person equals three fields | add avatar_url"
+  - id: PER-012
+    title: Own profile shows the photo address
+    kind: change
+    size: XS
+    risk: low
+    depends_on: [PER-010, FND-013]
+    amends: [PER-007]
+    read_first: [src/modules/user/user.repository.ts, src/modules/user/user.types.ts]
+    design_refs: [identite-et-organisation/person]
+    constraints: [C-49]
+    asvs: [v5.0.0-15.3.1, v5.0.0-15.3.3]
+    fields: ["Person.avatar_key"]
+    story: As a customer, I want my profile to show my photo so that I see what others see when they type my number.
+    context: |
+      - Exists: `GET` and `PATCH /api/v1/users/me` return ten fields (PER-007); PATCH accepts only `full_name`, `preferred_language` and `email`, with a strict schema.
+      - Changes: both responses gain `avatar_url: string | null`, built by `imageUrl` (FND-013) from the stored key; null without a photo. The key is never returned.
+      - PATCH stays strict: `avatar_key` and `avatar_url` are unknown fields and are refused, because only the server writes the photo (C-49; the route is IMG-003).
+      - Wording only (no code): the email is added from the profile and never at registration; `preferred_language` is the interface language kept on the account, the same on every phone.
+    acceptance: |
+      Scenario: AC-1 Read own profile with a photo
+        Given a registered person with a photo key
+        When they GET /api/v1/users/me
+        Then the response is 200 with eleven fields, among them `avatar_url` holding the address
+        And no field named `avatar_key` and no `password_hash`
+      Scenario: AC-2 No photo
+        When a registered person without a key reads the profile
+        Then `avatar_url` is null
+      Scenario: AC-3 PATCH response
+        Given a registered person with a photo
+        When they PATCH full_name
+        Then the response carries the same `avatar_url` and the new name
+      Scenario Outline: AC-4 The photo cannot be written here
+        When they PATCH <field> with a text
+        Then the response is 400 `VALIDATION_ERROR` and nothing is stored
+        Examples:
+          | field      |
+          | avatar_key |
+          | avatar_url |
+    abuse: |
+      Scenario: AB-1 A client writes a storage key (tampering)
+        When a PATCH carries `avatar_key` with a well-formed key of another person's photo
+        Then the response is 400, the stored key is unchanged and no file is touched
+      Scenario: AB-2 The key leaks in a body (information disclosure)
+        When any profile response is read
+        Then its field names do not include `avatar_key`
+    implementation:
+      create: []
+      modify: [src/modules/user/user.repository.ts, src/modules/user/user.types.ts, src/modules/user/user.openapi.ts]
+      pattern: src/modules/user/user.repository.ts
+      signatures:
+        - "getProfile(personId: string): Promise<Profile>"
+      types:
+        - "Profile gains avatar_url: string | null"
+      errors: ["VALIDATION_ERROR 400"]
+      dependencies: ["@prisma/client", zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-15.3.1: the profile select lists `avatarKey` only to build the address; the key is not copied into the response."
+      - "v5.0.0-15.3.3: the PATCH schema keeps its three writable fields."
+    tests: |
+      read with photo | integration | AC-1 | person with a key → eleven fields, address present, no avatar_key
+      read without photo | integration | AC-2 | no key → avatar_url null
+      patch response | integration | AC-3 | PATCH full_name → same address, new name
+      photo not writable | integration | AC-4, C-49 | each Examples row → 400
+      client key refused | security | AB-1, CWE-915 | avatar_key of another person → 400, stored key unchanged
+      no key in bodies | security | AB-2, CWE-200 | GET and PATCH bodies → no field named avatar_key
+    command: npx vitest run tests/integration/person/profile.test.ts tests/integration/user.test.ts
+    out_of_scope:
+      - "Uploading or removing the photo (IMG-003)."
+      - "The screen text « Visible de quiconque saisit votre numéro »: the phone's."
+    tests_to_update:
+      - "tests/integration/person/profile.test.ts | AC-1 lists ten response fields | eleven fields, `avatar_url` added"
+  - id: PER-013
+    title: Server-side writer of the profile photo key
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [PER-010, FND-013, PER-005]
+    read_first: [src/modules/person/person.repository.ts, docs/stories/modules/foundation/contracts.md]
+    design_refs: [identite-et-organisation/person, images/stockage]
+    constraints: [C-49]
+    asvs: [v5.0.0-15.3.3, v5.0.0-2.2.3]
+    fields: ["Person.avatar_key"]
+    story: "Technical story: provide the one function that writes or clears a person's photo key and hands back the previous key, so that the images module can delete the old file after the commit."
+    context: |
+      - Exists: `person.repository.ts` with `bumpScopeVersion(personId, tx?)` (PER-005); `imageKeySchema` and the folder `avatars` (FND-013); the column and its CHECKs (PER-010).
+      - Adds `setAvatarKey(personId, key, tx?)` in `person.repository.ts`: inside the caller's transaction (it opens its own when none is given) it locks the person row, reads the previous key, writes the new key (`null` clears it) and returns the previous key.
+      - Only the server calls it: the upload and removal routes of the images module (IMG-003). No profile schema accepts a key (PER-012).
+      - A key must match `imageKeySchema` and start with `avatars/`; otherwise a RangeError is thrown and nothing is written.
+      - A guest or an anonymized person cannot hold a key: the PER-010 CHECK rejects the write and the error is not caught.
+      - First usage: IMG-003. It ships here because the images module may import `person` only through its contract (ADR-004).
+    acceptance: |
+      Scenario Outline: AC-1 Set, replace and clear
+        Given a registered person whose key is <before>
+        When `setAvatarKey` is called with <given>
+        Then it returns <returned> and the stored key is <given>
+        Examples:
+          | before | given  | returned |
+          | empty  | key A  | null     |
+          | key A  | key B  | key A    |
+          | key B  | null   | key B    |
+      Scenario: AC-2 Unknown person
+        When `setAvatarKey` is called with an id that is not a person
+        Then it fails with 404 `NOT_FOUND` and writes nothing
+      Scenario: AC-3 A guest cannot hold a key
+        When `setAvatarKey` is called for a guest
+        Then the call fails and the guest's key stays empty
+      Scenario: AC-4 Same transaction as the caller
+        Given the caller's transaction is rolled back after `setAvatarKey`
+        Then the stored key is the one from before
+      Scenario: AC-5 Two replacements at once
+        Given a person holds key A
+        When two calls replace it with key B and key C at the same time
+        Then one returns key A and the other returns the key the first wrote
+    abuse: |
+      Scenario: AB-1 A key from another folder or a crafted key (tampering)
+        When `setAvatarKey` receives `products/<uuid>.webp`, `avatars/../x.webp` or an uppercase UUID
+        Then it throws a RangeError and the stored key is unchanged
+    implementation:
+      create: [tests/integration/person/avatar-key-writer.test.ts]
+      modify: [src/modules/person/person.repository.ts]
+      pattern: src/modules/person/person.repository.ts
+      signatures:
+        - "setAvatarKey(personId: string, key: string | null, tx?: Prisma.TransactionClient): Promise<string | null>"
+      types: []
+      errors: ["NOT_FOUND 404"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-15.3.3: the photo key has exactly one writer, and it validates the key."
+      - "v5.0.0-2.2.3: the row is locked before the previous key is read, so two writers never return the same previous key."
+    tests: |
+      set replace clear | integration | AC-1, C-49 | each Examples row → returned and stored values
+      unknown person | integration | AC-2 | random UUID → 404 NOT_FOUND
+      guest | integration | AC-3, C-49 | guest id → rejected, key empty
+      same transaction | integration | AC-4 | rollback after the call → previous key stored
+      concurrent | integration | AC-5 | `Promise.all` of two replacements → the two returned values are A and the first writer's key
+      crafted key | security | AB-1, CWE-22 | the three values → RangeError and key unchanged
+    command: npx vitest run tests/integration/person/avatar-key-writer.test.ts
+    out_of_scope:
+      - "Receiving, re-encoding and storing the file, and deleting the previous file: IMG-002 and IMG-003."
+      - "Checking that the key is not cited by another card (IMG-004, IMG-006)."
+  - id: PER-014
+    title: Handlers called when a phone number is released
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [PER-005]
+    read_first: [src/modules/person/person.repository.ts, docs/stories/modules/person/contracts.md]
+    design_refs: [identite-et-organisation/person]
+    constraints: [C-02]
+    asvs: [v5.0.0-2.2.1, v5.0.0-16.2.5]
+    story: "Technical story: provide the registry where other modules attach what must happen when a phone number changes holder, so that the person module calls them without importing any of them."
+    context: |
+      - Exists: nothing for this; `findByActivePhone` and the other repository functions (PER-005).
+      - Adds `src/modules/person/phone-released.ts` with `registerPhoneReleasedHandler(handler)` and `firePhoneReleased(phoneNumber, tx)`.
+      - A handler is `(event: { phoneNumber: string }, tx: Prisma.TransactionClient) => Promise<void>`. Registering the same function twice keeps one entry. Handlers run one after the other, in registration order, inside the caller's transaction.
+      - A number is released by a recycled-number claim (AUTH) and by the administrators' `RELEASE_PHONE` gesture (ADM); both call `firePhoneReleased` in the transaction that frees the number. The organization module registers a handler (ORG-037).
+      - A failing handler stops the chain and its error reaches the caller, which rolls back: a number is never freed while a handler has not done its part (fail closed).
+      - `firePhoneReleased` logs nothing about the number.
+      - First usages: AUTH recycled-number claim, ADM `RELEASE_PHONE` and ORG-037. It ships here because the person module cannot import them (ADR-004).
+    acceptance: |
+      Scenario: AC-1 Handlers run in order with the caller's transaction
+        Given two handlers registered in order
+        When `firePhoneReleased` is called with a number and a transaction
+        Then both run once, the first before the second, each with that number and that transaction
+      Scenario: AC-2 Same function twice
+        When one handler is registered twice
+        Then it runs once per call to `firePhoneReleased`
+      Scenario: AC-3 No handler
+        When `firePhoneReleased` is called and none is registered
+        Then it resolves and does nothing
+      Scenario: AC-4 A failing handler stops the chain
+        Given the first of two handlers throws
+        When `firePhoneReleased` is called
+        Then the call rejects with that error and the second handler does not run
+      Scenario: AC-5 Not a phone number
+        When `firePhoneReleased` receives "0677123456"
+        Then it throws a RangeError and no handler runs
+    abuse: |
+      Scenario: AB-1 A release leaves a handler undone (tampering)
+        Given one handler writes a row and the next handler throws, inside one transaction
+        When `firePhoneReleased` is called and the transaction is rolled back
+        Then the row of the first handler is not stored
+    implementation:
+      create: [src/modules/person/phone-released.ts, tests/integration/person/phone-released.test.ts]
+      modify: []
+      pattern: src/modules/person/person.repository.ts
+      signatures:
+        - "registerPhoneReleasedHandler(handler: PhoneReleasedHandler): void"
+        - "firePhoneReleased(phoneNumber: string, tx: Prisma.TransactionClient): Promise<void>"
+      types:
+        - "PhoneReleasedHandler = (event: { phoneNumber: string }, tx: Prisma.TransactionClient) => Promise<void>"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the number is checked against the E.164 pattern of C-02 before any handler sees it."
+      - "v5.0.0-16.2.5: the registry writes no log entry, so a phone number never reaches the logs."
+    tests: |
+      order and transaction | integration | AC-1 | two handlers → call order and the same tx object
+      same function twice | integration | AC-2 | register twice → one run
+      no handler | integration | AC-3 | empty registry → resolves
+      failing handler | integration | AC-4 | first throws → rejection, second not called
+      not E.164 | integration | AC-5, C-02 | "0677123456" → RangeError, no handler call
+      rollback with the caller | security | AB-1, CWE-662 | write then throw in a real transaction → no row stored
+    command: npx vitest run tests/integration/person/phone-released.test.ts
+    out_of_scope:
+      - "Releasing the number itself and the recycled-number claim (AUTH), the `RELEASE_PHONE` gesture (ADM)."
+      - "What the organization module does with a released number (ORG-037)."

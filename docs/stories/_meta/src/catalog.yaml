@@ -2,25 +2,34 @@ kind: module
 module: catalog
 prefix: CAT
 title: Catalog
-responsibility: Owns each organization's own articles, the negotiated price per customer, and the reference price an order line freezes.
-entities: [Product, CustomerPrice]
-depends_on: [foundation, person, notification, access, organization, relationship]
+responsibility: Owns each organization's own catalog at two levels (products and their variants), the negotiated price per customer for one variant, and the reference price an order line freezes.
+entities: [Product, ProductVariant, CustomerPrice]
+depends_on: [foundation, person, notification, access, organization, relationship, order, images]
 asvs_level: L2
 asvs_rationale: Prices are business data; a customer must never see another customer's negotiated price, and only managers change prices.
 classification:
-  - "Product.price | internal | public to anyone who finds the business, as the default price"
+  - "ProductVariant.price | internal | public to anyone who finds the business, as the default price"
   - "CustomerPrice.price | confidential | visible to the supplier team and to that customer only"
 threats:
   - "T1 | I | A customer reads another customer's negotiated price | the catalog view builds prices from the caller's own relationship only | CAT-007 AB-1"
   - "T2 | E | A seller or driver changes prices or the catalog | product and price gestures need MANAGER online or OWNER | CAT-004 AB-1, CAT-008 AB-1"
   - "T3 | E | A manager sets their own negotiated price | own customer record is refused | CAT-008 AB-2"
-  - "T4 | T | A price is written for a product of another business | the product must belong to the relationship's supplier | CAT-008 AB-3"
+  - "T4 | T | A price is written for a variant of another business | the variant must belong to the relationship's supplier | CAT-008 AB-3, CAT-015 AB-1"
+  - "T5 | E | A business goes past its product limit by creating products or putting them back on sale | the online routes refuse at the limit (409 PRODUCT_LIMIT_REACHED); what arrives by synchronization is paused afterwards | CAT-022 AC-3, CAT-024 AC-3, CAT-038 AC-2"
+  - "T6 | T | A deletion erases the article of past sales | a variant cited by an order line or a negotiated price is never deleted, online or by synchronization | CAT-026 AB-1, CAT-036 AB-1"
+  - "T7 | E | A phone un-pauses a product, writes photo keys or the merge link | the sync writers read named fields only | CAT-033 AB-2, CAT-034 AC-5, CAT-035 AB-2"
 constraints:
-  C-11: "`CustomerPrice` is unique per (relationship, product) among rows not deleted; the product belongs to the supplier of the relationship."
-  C-13: "`Product.price` > 0; `min_order_quantity` > 0 when set; `price_updated_at` is set by the server on every price change."
-  C-15: "Every order line is for an ACTIVE product of the relationship's supplier; on a customer-placed order the quantity is at least `min_order_quantity` when sent."
+  C-11: "`CustomerPrice` is unique per (relationship, variant) among rows not deleted; the variant belongs to the supplier of the relationship."
+  C-13: "`ProductVariant.price` > 0; `min_order_quantity` > 0 when set; `price_updated_at` is set by the server on every price change."
+  C-15: "Every order line is for an ACTIVE variant of the relationship's supplier, of a product that is not paused; on a customer-placed order the quantity is at least the variant's `min_order_quantity` when sent."
+  C-45: "A product that is not deleted has at least one variant that is not deleted; `ProductVariant.organization_id` equals `Product.organization_id`."
+  C-46: "`Product.paused_at` is written by the server only; the products on sale (not deleted, not paused, with at least one ACTIVE variant) number at most `Organization.max_products`, checked by the phone and by the online routes; what arrives in excess through synchronization is paused, never refused."
+  C-47: "Two variants of one product that are not deleted never share both the same simplified name and the same simplified unit (capitals and extra spaces ignored, an empty name counts as empty text); `merged_into_id` set implies the variant is deleted."
+  C-48: "A variant cited by an order line or a negotiated price is never deleted, only taken off sale (`INACTIVE`); a deletion received for a cited variant becomes a withdrawal from sale, and a line received for a deleted variant restores it, off sale."
+  C-49: "`Product.image_keys` and `ProductVariant.image_keys` hold at most 5 keys (CHECK) with a GIN index; a key is cited by one record only, across all tables; the image keys, `Organization.logo_key` and `Person.avatar_key` are written by the server only."
+  CM-42: "Every insert or update of a `ProductVariant` also sets `server_updated_at` of its product to the database time, so that a product and its variants always travel together to the phones."
   C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
-  CM-11: "Reference price of a line = negotiated price when one exists (even higher than the product price), else the product price."
+  CM-11: "Reference price of a line = negotiated price when one exists (even higher than the variant price), else the variant price."
   C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
   C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
 contracts:
@@ -29,13 +38,65 @@ contracts:
       file: src/modules/catalog/catalog.repository.ts
       story: CAT-003
       items:
-        - "getReferencePrice(tx, relationshipId: string, productId: string): Promise<{ price: bigint; negotiated: boolean; changedAt: Date }> — negotiated price when a live one exists, else the product price"
-        - "getActiveProduct(tx, organizationId: string, productId: string): Promise<Product> — 404 unless ACTIVE and owned by the organization"
+        - "getReferencePrice(tx, relationshipId: string, variantId: string): Promise<{ price: bigint; negotiated: boolean; changedAt: Date }> — negotiated price when a live one exists, else the variant price (CAT-017)"
+        - "getActiveVariant(tx, organizationId: string, variantId: string): Promise<ActiveVariant> — 404 unless the variant is ACTIVE, owned by the organization and its product is not deleted or paused; carries the product name, variant name, unit, price, `priceUpdatedAt` and `minOrderQuantity` (CAT-019)"
       used_by: [order, sync]
+    - name: VariantText
+      file: src/shared/variant.ts
+      story: CAT-016
+      items:
+        - "variantLabel(productName: string, variantName: string | null, unit: string): string — the label frozen on an order line"
+        - "simplifyText(text: string | null): string — the comparison form used for variants of one product"
+      used_by: [order, sync]
+    - name: ProductPause
+      file: src/modules/catalog/catalog.repository.ts
+      story: CAT-020
+      items:
+        - "listProductsOnSale(tx, organizationId: string): Promise<SaleProduct[]> — the products not deleted, not paused and with an ACTIVE variant, newest first; each with its id, creation date and all its variant ids"
+        - "listPausedProducts(tx, organizationId: string): Promise<SaleProduct[]> — the paused products that would be on sale again if resumed, same shape and order"
+        - "setProductsPaused(tx, organizationId: string, productIds: string[], paused: boolean, now: Date): Promise<string[]> — sets or clears `paused_at` on the organization's own products that are not in that state, returns the ids it changed"
+      used_by: [billing]
+    - name: ImageKeyWriters
+      file: src/modules/catalog/catalog.repository.ts
+      story: CAT-032
+      items:
+        - "setProductImageKeys(tx, organizationId: string, productId: string, keys: string[]): Promise<string[]> — replaces the photo keys of a product of the organization, returns the previous keys, 404 if the product is not found"
+        - "setVariantImageKeys(tx, organizationId: string, variantId: string, keys: string[]): Promise<string[]> — same for a variant"
+      used_by: [images]
+    - name: ImageKeyReaders
+      file: src/modules/catalog/catalog.repository.ts
+      story: CAT-044
+      items:
+        - "lockProductImageKeys(tx, organizationId: string, productId: string): Promise<string[]> — reads the photo keys of a product of the organization under a row lock, 404 if the product is not found"
+        - "lockVariantImageKeys(tx, organizationId: string, variantId: string): Promise<{ productId: string; keys: string[] }> — same for a variant"
+        - "readProductImageKeys(tx, organizationId: string, productId: string): Promise<string[]> — the same read of a product without a lock"
+        - "readVariantImageKeys(tx, organizationId: string, variantId: string): Promise<{ productId: string; keys: string[] }> — the same read without a lock"
+      used_by: [images]
+    - name: ImageKeyRelease
+      file: src/modules/catalog/catalog.repository.ts
+      story: CAT-046
+      items:
+        - "releaseDeletedImageKeys(tx, deletedBefore: Date, limit: number): Promise<string[]> — empties the photo keys of products and variants deleted before the date and returns the released keys"
+      used_by: [images]
+    - name: CatalogSyncWriters
+      file: src/modules/catalog/catalog.sync-writers.ts
+      story: CAT-033
+      items:
+        - "applyProductFromSync(tx, organizationId: string, input: ProductSyncInput, now: Date): Promise<ProductSyncResult> — creates or edits a product sent by a phone (CAT-033)"
+        - "applyVariantFromSync(tx, organizationId: string, input: VariantSyncInput, now: Date): Promise<VariantSyncResult> — creates or edits a variant (CAT-034); a duplicate is folded into the first one (CAT-035)"
+        - "deleteVariantFromSync(tx, organizationId: string, variantId: string, now: Date): Promise<DeleteSyncResult> — deletes an unused variant, takes a used one off sale (CAT-036)"
+        - "deleteProductFromSync(tx, organizationId: string, productId: string, now: Date): Promise<DeleteSyncResult> — same for a product and its variants (CAT-036)"
+        - "resolveVariantForLine(tx, organizationId: string, variantId: string, now: Date): Promise<ResolvedVariant | null> — the live variant a sale or a negotiated price cites, following a merge or bringing a deleted variant back off sale (CAT-037)"
+        - "applyPriceFromSync(tx, organizationId: string, input: PriceSyncInput, now: Date): Promise<PriceSyncResult> — writes a negotiated price sent by a phone; a price entered twice keeps the last (CAT-039)"
+        - "deletePriceFromSync(tx, organizationId: string, priceId: string, now: Date): Promise<'DELETED' | 'ALREADY' | 'NOT_FOUND'> — removes a negotiated price sent by a phone (CAT-039)"
+      used_by: [sync]
   consumes:
-    - "organization: loadActor, assertOrganizationActive (docs/stories/modules/organization/contracts.md)"
+    - "organization: loadActor, assertOrganizationActive, PlanRefresh (docs/stories/modules/organization/contracts.md)"
     - "relationship: visibleRelationsWhere, projectForSupplier (docs/stories/modules/relationship/contracts.md)"
     - "access: requireAbility, abilityFor, idempotent (docs/stories/modules/access/contracts.md)"
+    - "order: VariantUsage (docs/stories/modules/order/contracts.md)"
+    - "foundation: ImageKeys (docs/stories/modules/foundation/contracts.md)"
+    - "images: ImageCopies copyImage (docs/stories/modules/images/contracts.md)"
 stories:
   - id: CAT-001
     title: Products table

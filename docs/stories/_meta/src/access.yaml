@@ -10,8 +10,8 @@ asvs_rationale: Every module trusts this one for authorization decisions; the ru
 classification:
   - "IdempotencyKey.response_body | confidential | stored 30 days, never logged"
 threats:
-  - "T1 | E | A lower role reaches a higher role's action | rules table, `atLeast` refuses unknown roles, table tests | ACC-001 AB-1, ACC-006 AB-1"
-  - "T2 | E | A manager power is used offline with a stale role | those rules are ONLINE or NETWORK only | ACC-002 AB-1, ACC-005 AB-1"
+  - "T1 | E | A lower role reaches a higher role's action | rules table, `atLeast` refuses unknown roles, an unknown availability value grants nothing, table tests | ACC-001 AB-1, ACC-006 AB-1, ACC-008 AB-1"
+  - "T2 | E | A manager power is used offline with a stale role | those rules need a live connection (`ONLINE_EXCEPT_OWNER` or `ONLINE_FOR_ALL`) | ACC-002 AB-1, ACC-005 AB-1"
   - "T3 | T | A gesture sent twice counts twice | idempotency key per person and gesture id | ACC-007 AB-1"
 constraints:
   C-38: "Every online route that changes data carries the client-created id; an id already received changes nothing and returns the first result."
@@ -24,6 +24,7 @@ contracts:
         - "ROLES, atLeast(role: string, min: string): boolean — false for an unknown role or minimum"
         - "abilityFor(role: string, ctx: AccessContext): MongoAbility — deny by default"
         - "AccessContext = { onServer: boolean; online: boolean; daysSinceSync: number }"
+        - "Where = 'ALWAYS' | 'DAYS_3' | 'ONLINE_EXCEPT_OWNER' | 'ONLINE_FOR_ALL' — the availability of a rule"
       used_by: [organization, relationship, catalog, order, finance, delivery, sync]
     - name: RequireAbility
       file: src/middleware/require-ability.ts

@@ -9,3 +9,5 @@ What this module provides to other modules, and what it consumes from them. A co
 ## Consumes
 - auth: revokeSessions, verifyPassword (docs/stories/modules/auth/contracts.md)
 - organization: collaborations (docs/stories/modules/organization/contracts.md)
+- person: PersonRepository setAvatarKey (docs/stories/modules/person/contracts.md)
+- images: ImageFiles deleteImageFiles (docs/stories/modules/images/contracts.md)

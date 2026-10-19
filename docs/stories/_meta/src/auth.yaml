@@ -18,11 +18,12 @@ threats:
   - "T2 | S | Code guessing | 5 attempts per code, single use, 10 minute expiry | AUTH-003 AB-1"
   - "T3 | D | SMS pumping and code flooding | +237 only, 3 per hour per number, 60 seconds apart, device and IP caps | AUTH-002 AB-1, AUTH-004 AB-1"
   - "T4 | S | Stolen refresh token replayed | rotation at every use, reuse revokes that device | AUTH-016 AB-1"
-  - "T5 | I | Account enumeration by login errors | one generic error for unknown, guest and wrong password | AUTH-013 AB-2"
+  - "T5 | I | Account enumeration by number checks | sign-in and registration tell the user what to do (no account, wrong password), so every number check counts in a per-IP limit and nothing private is shown before the code | AUTH-028 AB-1, AUTH-029 AB-1"
   - "T6 | E | Recycled number lets a new holder take the old account | the new holder gets a new person; the old one keeps the account and history | AUTH-011 AB-1"
   - "T7 | R | Sensitive account changes leave no trace | login alerts, immutable number-change journal, security log events | AUTH-014 AB-2, AUTH-025 AB-2"
+  - "T8 | D | Claiming a number to harass its active holder | the claim is refused when the old account synced in the last 6 months or is suspended, with one message for both; the holder is warned at most once a day | AUTH-031 AB-1, AUTH-032 AB-1"
 constraints:
-  C-33: "`OtpChallenge` allows 5 attempts at most; a consumed or expired code is never accepted; SMS goes only to +237 mobile numbers; an EMAIL code goes to the person's verified email, or to the administrator's recovery address, except for EMAIL_VERIFICATION."
+  C-33: "`OtpChallenge` allows 5 attempts at most; a consumed or expired code is never accepted; SMS goes only to +237 mobile numbers; an EMAIL code goes to the person's verified email, to the administrator's recovery address, or, for ORG_CONTACT_VERIFICATION, to the email of the contact being verified, except for EMAIL_VERIFICATION; `organization_contact_id` is set if and only if `purpose = ORG_CONTACT_VERIFICATION`, and then `target` equals the contact's value."
   C-34: "`Device.last_synced_at` and `Device.scope_version_seen` are set by the server only; `RefreshToken.token_hash` is unique; `revoked_reason` is set if and only if `revoked_at` is set."
   CM-05: "Password: 8 to 64 characters, spaces allowed, no composition rules, refused when on the blocklist, hashed with Argon2id; 5 failed attempts force a wait."
   CM-06: "A code expires 10 minutes after sending and works once."
@@ -36,9 +37,9 @@ contracts:
       file: src/modules/auth/otp.service.ts
       story: AUTH-002
       items:
-        - "issueCode(input: { personId: string | null; target: string; purpose: OtpPurpose; channel: OtpChannel }): Promise<{ challengeId: string; expiresAt: Date }>"
-        - "verifyCode(input: { target: string; purpose: OtpPurpose; code: string }): Promise<{ challengeId: string; personId: string | null }>"
-      used_by: [admin]
+        - "issueCode(input: IssueCodeInput, clientKeys?: ClientKeys): Promise<{ challengeId: string; expiresAt: Date }> — IssueCodeInput = { personId: string | null; target: string; purpose: OtpPurpose; channel: OtpChannel; contact?: { id: string; organizationName: string } }; contact is required with the purpose ORG_CONTACT_VERIFICATION and refused with any other (ORG-041)"
+        - "verifyCode(input: { target: string; purpose: OtpPurpose; code: string; organizationContactId?: string }): Promise<{ challengeId: string; personId: string | null }> — organizationContactId is required with ORG_CONTACT_VERIFICATION and refused with any other (ORG-041)"
+      used_by: [admin, organization]
     - name: PasswordLib
       file: src/lib/password.ts
       story: AUTH-005
@@ -54,6 +55,13 @@ contracts:
         - "issueSession(personId: string, device: DeviceInfo, tx?): Promise<SessionTokens>"
         - "revokeSessions(personId: string, reason: RevokedReason, options?: { exceptDeviceId?: string }): Promise<number>"
       used_by: [admin, sync]
+    - name: SupportAccess
+      file: src/modules/auth/support-access.service.ts
+      story: ADM-017
+      items:
+        - "releaseNumberOfPerson(tx: Prisma.TransactionClient, personId: string): Promise<string | null> — releases the active number of a registered person as a recycled-number claim does and returns it; null for a guest or a person with no active number (ADM-017)"
+        - "moveAccountToNumber(tx: Prisma.TransactionClient, personId: string, newPhone: string): Promise<boolean> — replaces the active number and writes the PhoneNumberChangeLog row; false when the person has no number to replace; throws on a number taken (ADM-020)"
+      used_by: [admin]
     - name: AuthMiddleware
       file: src/middleware/auth.ts
       story: AUTH-006

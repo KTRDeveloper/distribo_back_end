@@ -4,7 +4,7 @@ prefix: PRIV
 title: Privacy
 responsibility: Owns account deletion by anonymization and the daily purge of data that has reached its retention period.
 entities: []
-depends_on: [foundation, person, notification, access, auth, organization, relationship, order, finance, sync]
+depends_on: [foundation, person, notification, access, auth, organization, relationship, order, finance, sync, images, billing]
 asvs_level: L2
 asvs_rationale: Personal data must be erased or anonymized when the law and the design say so, without breaking the commercial history of businesses.
 classification:
@@ -14,6 +14,8 @@ threats:
   - "T2 | R | An owner deletes their account leaving a business without an owner | deletion is blocked until every owned business is transferred or closed | PRIV-001 AB-1"
   - "T3 | I | Personal data survives deletion | every personal column is erased and sessions and codes removed | PRIV-002 AB-2"
   - "T4 | T | The purge deletes commercial history | the purge touches only the tables and periods of the retention table | PRIV-003 AB-1"
+  - "T5 | I | The profile photo survives the deletion of the account | the photo key is cleared and the file deleted in the anonymization transaction | PRIV-004 AB-1"
+  - "T6 | I | A failed payment request keeps a phone number for ever | the purge deletes failed and expired payment requests after 90 days and never a cited payment | PRIV-005 AB-1"
 constraints:
   CM-01: "Anonymization erases full_name, email, email_verified_at, preferred_language and password_hash, releases the number (moves it to released_phone_number), sets status ANONYMIZED and anonymized_at."
   CM-02: "Account deletion is refused while the person has a positive balance on a relation where they are the customer, or owns an organization that is neither transferred nor closed."
@@ -31,6 +33,8 @@ contracts:
   consumes:
     - "auth: revokeSessions, verifyPassword (docs/stories/modules/auth/contracts.md)"
     - "organization: collaborations (docs/stories/modules/organization/contracts.md)"
+    - "person: PersonRepository setAvatarKey (docs/stories/modules/person/contracts.md)"
+    - "images: ImageFiles deleteImageFiles (docs/stories/modules/images/contracts.md)"
 stories:
   - id: PRIV-001
     title: Person checks whether they can delete their account

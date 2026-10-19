@@ -1,0 +1,338 @@
+kind: stories
+module: admin
+constraints:
+  CM-40: "Access restored by support (RESTORE_ACCESS, super administrators only) needs a verified email, a code sent to that email and a code sent to the new number (purpose ACCESS_RESTORE). The number is replaced like a number change (PhoneNumberChangeLog), every device is signed out and the person is notified. Without a verified email support can do nothing."
+  CM-41: "Number released by support (RELEASE_PHONE, super administrators only, reason required): when a former holder who is still active wrongly blocks the new one, support releases the number as a recycled-number claim does, and the person is notified."
+  CM-04: "Releasing a number moves it from phone_number to released_phone_number and clears phone_verified_at; lookups, SMS and registration read only the active number."
+stories:
+  - id: ADM-016
+    title: The journal accepts five more actions
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [ADM-002]
+    amends: [ADM-002]
+    read_first: [prisma/schema.prisma, prisma/migrations/20261004180000_adm_002_admin_actions/migration.sql]
+    design_refs: [gouvernance-de-la-plateforme/adminaction, contraintes-a-poser-au-niveau-base-de]
+    constraints: [AdminAction.action:enum, C-29]
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.3.1]
+    story: "Technical story: let the administration journal hold the five new actions, with the database refusing a reserved action from a moderator and a target of the wrong kind, so that no route can bypass these rules."
+    context: |
+      - Exists: the enum `AdminActionType` (seven values), the table `admin_actions` and the trigger `admin_actions_check_replay_role`, which refuses a REPLAY_SYNC row from a non-SUPER_ADMIN author with 23514 (ADM-002).
+      - One migration adds GIFT_DAYS, RECORD_PAYMENT, REFUND_PAYMENT, RELEASE_PHONE and RESTORE_ACCESS (`ALTER TYPE ... ADD VALUE`). A new value cannot be used in the same transaction, so every rule compares `action::text` with text.
+      - It replaces the trigger by `admin_actions_check_super_admin_role`: the same 23514 refusal for REPLAY_SYNC and the five new values when the author is not a SUPER_ADMIN.
+      - Constraint `admin_actions_target_kind`: the first three new actions need `target_organization_id`, the last two `target_person_id`. No existing row holds a new value: nothing to audit or fill.
+      - `prisma/schema.prisma`: the five values, and the `//` comment above `AdminAction` rewritten in plain words (who may record which action, which target each needs, the migration that holds it). `admin.repository.ts`, `admin.schemas.ts` (the filter of `GET /api/v1/admin/actions`) and `admin.openapi.ts` list the twelve values.
+    acceptance: |
+      Scenario: AC-1 The five actions are accepted
+        When a SUPER_ADMIN inserts GIFT_DAYS, RECORD_PAYMENT and REFUND_PAYMENT with a business, and RELEASE_PHONE and RESTORE_ACCESS with a person
+        Then each insert succeeds
+      Scenario: AC-2 Only a SUPER_ADMIN
+        When a MODERATOR inserts REPLAY_SYNC, GIFT_DAYS, RECORD_PAYMENT, REFUND_PAYMENT, RELEASE_PHONE or RESTORE_ACCESS, each with the right kind of target
+        Then each fails with 23514 and no row is stored
+      Scenario: AC-3 The right kind of target
+        When a SUPER_ADMIN inserts GIFT_DAYS, RECORD_PAYMENT or REFUND_PAYMENT with a person, or RELEASE_PHONE or RESTORE_ACCESS with a business
+        Then each fails with 23514
+      Scenario: AC-4 Earlier actions and rows are unchanged
+        When a MODERATOR inserts SUSPEND, a SUPER_ADMIN inserts REPLAY_SYNC with an archive, and "DELETE_USER" is inserted
+        Then the first two succeed, the third fails, and rows saved before the migration can still be read
+      Scenario: AC-5 The code lists the twelve actions
+        When an administrator calls GET /api/v1/admin/actions?action=RESTORE_ACCESS and reads /api/v1/docs/openapi.json
+        Then the answer is 200 and the document lists twelve values for the filter and for the answer
+    abuse: |
+      Scenario: AB-1 A moderator frees a number or hands out an account (elevation)
+        Given the route guard is bypassed
+        When a MODERATOR author inserts RELEASE_PHONE or RESTORE_ACCESS with SQL
+        Then the database refuses with 23514 and no row is stored
+      Scenario: AB-2 The journal stays append-only (tampering)
+        When the application account updates or deletes a row of a new action
+        Then the database refuses with 42501
+    implementation:
+      create: [prisma/migrations/<timestamp>_adm_016_admin_actions_five_more/migration.sql, tests/integration/admin/admin-action-more-actions.test.ts]
+      modify: [prisma/schema.prisma, src/modules/admin/admin.repository.ts, src/modules/admin/admin.schemas.ts, src/modules/admin/admin.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types:
+        - "AdminActionType gains GIFT_DAYS | RECORD_PAYMENT | REFUND_PAYMENT | RELEASE_PHONE | RESTORE_ACCESS"
+      errors: []
+      dependencies: [prisma, "@prisma/client", zod]
+    security:
+      - "v5.0.0-8.2.1: the database checks the author's role for the six reserved actions, whatever the route does."
+      - "v5.0.0-16.3.1: the new trigger and constraint leave the journal insert-only for the application account."
+    tests: |
+      five actions | integration | AC-1, AdminAction.action:enum | SUPER_ADMIN inserts the five with the right target → five rows
+      reserved | integration | AC-2, C-29 | MODERATOR inserts each of the six → 23514
+      targets | integration | AC-3 | each wrong pairing → 23514
+      earlier actions | integration | AC-4 | SUSPEND, REPLAY_SYNC, an old row and "DELETE_USER"
+      lists | integration | AC-5 | filter RESTORE_ACCESS → 200; openapi.json lists twelve values
+      moderator bypass | security | AB-1, CWE-269 | direct insert of RELEASE_PHONE by a MODERATOR → 23514
+      append only | security | AB-2, CWE-284 | UPDATE and DELETE as the application role → 42501
+    command: npx vitest run tests/integration/admin/admin-action-more-actions.test.ts tests/integration/admin/admin-action-table.test.ts tests/integration/admin/action-journal.test.ts
+    out_of_scope:
+      - "The routes that record these actions: ADM-017 to ADM-020 here, and the subscription stories."
+
+  - id: ADM-017
+    title: Support releases the number of a person
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ADM-016, ADM-014, PER-014]
+    read_first: [src/modules/admin/admin.service.ts, src/modules/auth/auth.repository.ts]
+    design_refs: [gouvernance-de-la-plateforme/adminaction, identite-et-organisation/person]
+    constraints: [CM-41, CM-04, C-29]
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.3.1]
+    story: As a super-admin, I want to release the number of a person who still holds it so that the new holder of that number can register.
+    context: |
+      - Exists: `releaseRegisteredHolder(tx, phone)` in `auth.repository.ts`, `firePhoneReleased` (PER-014), `recordAdminAction`, `findPersonStatus`, `notify`; RELEASE_PHONE (ADM-016).
+      - Adds `POST /api/v1/admin/people/{personId}/release-phone` with `{ reason }` (1 to 2000), SUPER_ADMIN only, answer 204. Add the path to `admin.openapi.ts` and to the route lists in `tests/integration/api-docs/catalog.test.ts` and `per-001.test.ts`.
+      - New file `src/modules/auth/support-access.service.ts`: `releaseNumberOfPerson(tx, personId): Promise<string | null>` reads the registered person's active number, calls `releaseRegisteredHolder`, then `firePhoneReleased(number, tx)`; null for a guest or a person with no active number. Listed in the auth contracts.
+      - One transaction: the release, a RELEASE_PHONE row (author, person, reason) and the notice `admin.phone_released`. FR: "Le support a libéré votre numéro. Ajoutez votre nouveau numéro pour continuer." EN: "Support has released your number. Add your new number to keep using the app."
+      - Unknown id 404 `NOT_FOUND`; ANONYMIZED 409 `TARGET_ANONYMIZED`; no active number 409 `NO_ACTIVE_NUMBER`. Logs `warn` `phone_released_by_support`, ids only.
+    acceptance: |
+      Scenario: AC-1 Number released
+        Given a registered person who holds a number
+        When a SUPER_ADMIN posts a reason
+        Then the response is 204 and `released_phone_number` holds the number, `phone_number` is empty and the sessions are untouched
+        And `firePhoneReleased` ran once with the number, one RELEASE_PHONE row names author, person and reason, and the person has one notice
+        And a visitor can now register with the number
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                              | status                |
+          | an unknown id                        | 404 NOT_FOUND         |
+          | an anonymized person                 | 409 TARGET_ANONYMIZED |
+          | a guest or a number already released | 409 NO_ACTIVE_NUMBER  |
+          | an empty reason                      | 400 VALIDATION_ERROR  |
+      Scenario: AC-3 A failing handler undoes the release
+        Given a handler that throws
+        When a SUPER_ADMIN releases a number
+        Then the response is 500, the person keeps the number, and there is no journal row and no notice
+    abuse: |
+      Scenario: AB-1 A moderator frees a number (elevation)
+        When a MODERATOR posts the request
+        Then the response is 403 and the number is unchanged
+      Scenario: AB-2 A release with no trace (repudiation)
+        Given the journal insert fails
+        When a SUPER_ADMIN releases a number
+        Then the number is not released
+    implementation:
+      create: [src/modules/auth/support-access.service.ts, tests/integration/admin/release-phone.test.ts]
+      modify: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "releasePhone(admin: AdminContext, personId: string, input: { reason: string }): Promise<void>"
+        - "releaseNumberOfPerson(tx: Prisma.TransactionClient, personId: string): Promise<string | null>"
+      types: []
+      errors: [NOT_FOUND 404, TARGET_ANONYMIZED 409, NO_ACTIVE_NUMBER 409, VALIDATION_ERROR 400]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: SUPER_ADMIN only, checked by the route and by the database."
+      - "v5.0.0-16.3.1: the release, the journal row and the notice share one transaction; the log holds ids only."
+    tests: |
+      release | integration | AC-1, CM-41, CM-04 | super admin releases → 204, number moved, handler ran, journal row, notice, sessions kept
+      refusals | integration | AC-2 | each Examples row → status, nothing changes
+      handler fails | integration | AC-3 | throwing handler → 500, number kept, no journal row, no notice
+      moderator | security | AB-1, C-29, CWE-269 | MODERATOR → 403, number unchanged
+      no trace | security | AB-2, CWE-778 | journal insert fails → number kept
+    command: npx vitest run tests/integration/admin/release-phone.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Registering the new holder: the registration stories of AUTH."
+
+  - id: ADM-018
+    title: The access-restore code has its fixed text
+    kind: change
+    size: XS
+    risk: medium
+    depends_on: [ORG-041, AUTH-027]
+    amends: [AUTH-002, ORG-041]
+    read_first: [src/modules/auth/otp.service.ts, tests/integration/auth/otp-issue.test.ts]
+    design_refs: [acces-et-securite/otpchallenge]
+    constraints: [CM-40]
+    asvs: [v5.0.0-6.6.2, v5.0.0-16.2.5]
+    story: "Technical story: give the codes of the access restoration their own fixed text, so that the person is told to give them only to the support agent they contacted."
+    context: |
+      - Exists: `messageFor` in `otp.service.ts` builds the text of a code from the code and the language; ORG-041 gives the contact purpose its own text. The purpose ACCESS_RESTORE exists (AUTH-027) and nothing issues it yet.
+      - `messageFor` also takes the purpose. For ACCESS_RESTORE, by SMS and by email alike, FR: `Code 482913. Ne le donnez qu'à l'agent du support que vous avez contacté vous-même.` EN: `Code 482913. Only give it to the support agent you contacted yourself.` There is no expiry sentence. The language is the one of `personId`.
+      - Every other purpose keeps its text. This ships before its first use (ADM-019).
+    acceptance: |
+      Scenario: AC-1 The fixed text in French and in English
+        Given a person whose language is FR, then one whose language is EN
+        When issueCode runs with the purpose ACCESS_RESTORE, by SMS and by email
+        Then each queued message is the fixed text of its language with the 6-digit code
+      Scenario: AC-2 Other purposes unchanged
+        When issueCode runs with the purpose REGISTRATION
+        Then the queued message is the text it had before
+    abuse: |
+      Scenario: AB-1 The message carries personal data (information disclosure)
+        When a code is issued for ACCESS_RESTORE
+        Then the message holds only the code and the fixed sentence, no name, email or number
+    implementation:
+      create: [tests/integration/auth/otp-access-restore-text.test.ts]
+      modify: [src/modules/auth/otp.service.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "messageFor(code: string, language: 'FR' | 'EN', purpose: OtpPurpose): string"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-6.6.2: the text tells the person that the code serves one conversation with the support agent."
+      - "v5.0.0-16.2.5: the message carries no personal data and the log never holds the code."
+    tests: |
+      fixed text | integration | AC-1, CM-40 | FR and EN, SMS and email → the fixed message with the code
+      other purposes | integration | AC-2 | REGISTRATION → the earlier text
+      no personal data | security | AB-1, CWE-200 | the ACCESS_RESTORE message holds only the code and the sentence
+    command: npx vitest run tests/integration/auth/otp-access-restore-text.test.ts tests/integration/auth/otp-issue.test.ts
+    out_of_scope:
+      - "Issuing the codes: ADM-019."
+
+    tests_to_update:
+      - "tests/integration/auth/otp-issue.test.ts | line 53 matches the French text of a code sent for another purpose | unchanged: every purpose other than ACCESS_RESTORE keeps its text"
+  - id: ADM-019
+    title: Support sends the two codes to restore an access
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ADM-018, ADM-016, ADM-014]
+    read_first: [src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts]
+    design_refs: [identite-et-organisation/person, gouvernance-de-la-plateforme/adminaction]
+    constraints: [CM-40]
+    asvs: [v5.0.0-6.4.4, v5.0.0-6.4.6, v5.0.0-8.2.1]
+    story: As a super-admin, I want to send a code to the verified email of a person and a code to their new number so that I can give them their account back after they lost their SIM.
+    context: |
+      - Exists: `issueCode` with the purpose ACCESS_RESTORE (AUTH-027) and its fixed text (ADM-018), `requireAdminRole`, `normalizeE164`, `isCameroonMobile`, `findByActivePhone`.
+      - Adds `POST /api/v1/admin/people/{personId}/restore-access/start` with `{ new_phone_number }`, SUPER_ADMIN only, answer 204. Add the path to `admin.openapi.ts` and to the route lists in `tests/integration/api-docs/catalog.test.ts` and `per-001.test.ts`.
+      - `findPersonForRestore(personId)` in `admin.repository.ts` returns status, registered, email, emailVerified and phoneNumber of the person in the path.
+      - Checks, in this order, before any code is sent: unknown or unregistered person 404 `NOT_FOUND`; ANONYMIZED 409 `TARGET_ANONYMIZED`; SUSPENDED 409 `INVALID_STATE`; no verified email 409 `NO_VERIFIED_EMAIL`; not a +237 mobile 400 `VALIDATION_ERROR`; held by another person 409 `PHONE_TAKEN`; the person's own number 400 `SAME_NUMBER`.
+      - Then two `issueCode` calls with the person id and the purpose ACCESS_RESTORE: EMAIL to the saved verified email, SMS to the new number. Their send limits apply. Nothing is journaled here: the row comes with ADM-020. Logs `warn` `access_restore_started`, ids only.
+    acceptance: |
+      Scenario: AC-1 Two codes sent
+        Given a registered person with a verified email
+        When a SUPER_ADMIN posts a new +237 mobile number
+        Then the response is 204 with no code in the body
+        And one EMAIL code goes to the verified email and one SMS code to the new number, both for ACCESS_RESTORE and the person, and no journal row exists
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing is sent
+        Examples:
+          | problem                                | status                |
+          | an unknown id or a guest               | 404 NOT_FOUND         |
+          | an anonymized person                   | 409 TARGET_ANONYMIZED |
+          | a suspended person                     | 409 INVALID_STATE     |
+          | a number held by someone else          | 409 PHONE_TAKEN       |
+          | the person's own number                | 400 SAME_NUMBER       |
+          | a number outside +237 mobiles          | 400 VALIDATION_ERROR  |
+      Scenario: AC-3 Too soon
+        When the same start is posted twice within a minute
+        Then the second answer is 429 `OTP_RATE_LIMITED`
+    abuse: |
+      Scenario: AB-1 An account with no verified email (spoofing)
+        Given a person whose email is saved but not verified, and a person with no email
+        When a SUPER_ADMIN starts the restoration of each
+        Then both answers are 409 `NO_VERIFIED_EMAIL` and nothing is sent
+      Scenario: AB-2 A moderator starts a restoration (elevation)
+        When a MODERATOR posts the request
+        Then the response is 403 and nothing is sent
+    implementation:
+      create: [tests/integration/admin/restore-access-start.test.ts]
+      modify: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.repository.ts, src/modules/admin/admin.schemas.ts, src/modules/admin/admin.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "startAccessRestore(admin: AdminContext, personId: string, input: RestoreStartInput): Promise<void>"
+        - "findPersonForRestore(personId: string): Promise<RestoreTarget | null>"
+      types:
+        - "RestoreStartInput = { new_phone_number: string }"
+        - "RestoreTarget = { status: PersonStatus; registered: boolean; email: string | null; emailVerified: boolean; phoneNumber: string | null }"
+      errors: [NOT_FOUND 404, TARGET_ANONYMIZED 409, INVALID_STATE 409, NO_VERIFIED_EMAIL 409, PHONE_TAKEN 409, SAME_NUMBER 400, VALIDATION_ERROR 400, OTP_RATE_LIMITED 429]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-6.4.4: access is given back only on two proofs, the verified email and the new number."
+      - "v5.0.0-6.4.6: the administrator starts the process and never sees a code."
+      - "v5.0.0-8.2.1: SUPER_ADMIN only; the person comes from the path and the email from the database."
+    tests: |
+      two codes | integration | AC-1, CM-40 | start → 204, one EMAIL and one SMS challenge for the person, no journal row
+      refusals | integration | AC-2 | each Examples row → status, nothing queued
+      too soon | integration | AC-3 | two starts within a minute → second 429
+      no verified email | security | AB-1, CWE-287 | email saved but not verified, and no email → 409, nothing queued
+      moderator | security | AB-2, CWE-269 | MODERATOR → 403, nothing queued
+    command: npx vitest run tests/integration/admin/restore-access-start.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Entering the codes and moving the account: ADM-020."
+      - "Giving a verified email to a person who has none: the person does it in the application (AUTH-022, AUTH-023)."
+
+  - id: ADM-020
+    title: Support gives the account back on the new number
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ADM-019, ADM-017]
+    read_first: [src/modules/admin/admin.service.ts, src/modules/auth/auth.repository.ts]
+    design_refs: [identite-et-organisation/person, identite-et-organisation/phonenumberchangelog]
+    constraints: [CM-40]
+    asvs: [v5.0.0-6.4.4, v5.0.0-6.6.2, v5.0.0-7.4.1]
+    story: As a super-admin, I want to enter the two codes the person gives me so that their account moves to the new number and they can sign in again.
+    context: |
+      - Exists: the start and `findPersonForRestore` (ADM-019); `verifyCode`, `revokeSessions`, `recordAdminAction`, `notify`; `movePhoneNumber` in `auth.repository.ts`; `support-access.service.ts` (ADM-017).
+      - Adds `POST /api/v1/admin/people/{personId}/restore-access/complete` with `{ new_phone_number, email_code, sms_code, reason }`, SUPER_ADMIN only, answer 204. Add the path to `admin.openapi.ts` and to the route lists in `tests/integration/api-docs/catalog.test.ts` and `per-001.test.ts`.
+      - `moveAccountToNumber(tx, personId, newPhone): Promise<boolean>` in `support-access.service.ts` calls `movePhoneNumber`; false when the person has no number. Listed in the auth contracts.
+      - The checks of ADM-019 run again. Then `verifyCode` for the EMAIL code (target: the verified email) and the SMS code (target: the new number), each bound to the person (400 `OTP_INVALID`, 400 `OTP_EXPIRED`, 429 `OTP_LOCKED`).
+      - One transaction: `moveAccountToNumber`, `revokeSessions(personId, 'LOGOUT_ALL', { tx })`, a RESTORE_ACCESS row and the notice `admin.access_restored`. FR: "Le support a rendu l'accès à votre compte sur un nouveau numéro. Ce n'était pas vous ? Contactez-nous." EN: "Support has given your account back on a new number. Not you? Contact us."
+      - A number taken meanwhile answers 409 `PHONE_TAKEN`. Logs `warn` `access_restored`, ids only.
+    acceptance: |
+      Scenario: AC-1 Account moved
+        Given a started restoration
+        When a SUPER_ADMIN posts the two right codes with a reason
+        Then the response is 204 and `phone_number` is the new number, verified now
+        And one `PhoneNumberChangeLog` row holds the old number and the new one, and every refresh token of the person is revoked
+        And one RESTORE_ACCESS row and one notice exist, and the person signs in with the new number
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                | status               |
+          | a wrong or used code   | 400 OTP_INVALID      |
+          | an expired code        | 400 OTP_EXPIRED      |
+          | a number taken meanwhile | 409 PHONE_TAKEN    |
+          | an empty reason        | 400 VALIDATION_ERROR |
+      Scenario: AC-3 All or nothing
+        Given the journal insert fails
+        When the codes are right
+        Then the number is unchanged and the sessions are kept
+    abuse: |
+      Scenario: AB-1 One proof is not enough (spoofing)
+        Given the email code is right and the SMS code wrong, then the reverse
+        When a SUPER_ADMIN posts each pair
+        Then both answers are 400 and the number and the sessions are unchanged
+      Scenario: AB-2 Codes of another restoration (spoofing)
+        Given two people each in a started restoration
+        When the codes of the first are posted for the second
+        Then the response is 400 `OTP_INVALID` and nothing changes
+      Scenario: AB-3 A moderator gives an account away (elevation)
+        When a MODERATOR posts the request
+        Then the response is 403 and nothing changes
+    implementation:
+      create: [tests/integration/admin/restore-access-complete.test.ts]
+      modify: [src/modules/admin/admin.routes.ts, src/modules/admin/admin.service.ts, src/modules/admin/admin.schemas.ts, src/modules/admin/admin.openapi.ts, src/modules/auth/support-access.service.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "completeAccessRestore(admin: AdminContext, personId: string, input: RestoreCompleteInput): Promise<void>"
+        - "moveAccountToNumber(tx: Prisma.TransactionClient, personId: string, newPhone: string): Promise<boolean>"
+      types:
+        - "RestoreCompleteInput = { new_phone_number: string; email_code: string; sms_code: string; reason: string }"
+      errors: [OTP_INVALID 400, OTP_EXPIRED 400, OTP_LOCKED 429, NO_VERIFIED_EMAIL 409, PHONE_TAKEN 409, NOT_FOUND 404, VALIDATION_ERROR 400]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-6.4.4: both proofs are checked, each code bound to the person and its target."
+      - "v5.0.0-6.6.2: a code of another restoration is refused."
+      - "v5.0.0-7.4.1: every device is signed out in the same transaction."
+    tests: |
+      restore | integration | AC-1, CM-40 | right codes → 204, number moved, change log, tokens revoked, journal row, notice, sign-in works
+      refusals | integration | AC-2 | each Examples row → status, nothing changes
+      atomic | integration | AC-3 | journal insert fails → number and sessions kept
+      one proof | security | AB-1, CWE-287 | one wrong code, both orders → 400, nothing changes
+      other restoration | security | AB-2, CWE-639 | codes of person A posted for person B → 400
+      moderator | security | AB-3, CWE-269 | MODERATOR → 403
+    command: npx vitest run tests/integration/admin/restore-access-complete.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Announcing the old number as released to the shop contacts (CM-36)."

@@ -1,0 +1,226 @@
+kind: stories
+module: delivery
+constraints:
+  CM-38: "The pool of orders to take lists the confirmed orders with a delivery address; a driver does not see there an order assigned to another driver, and sees it again when that assignment ends (failed attempt or removal); managers, owners and sellers see every order of the pool."
+stories:
+  - id: DLV-013
+    title: An order assigned to a driver leaves the pool of the other drivers
+    kind: change
+    size: XS
+    risk: medium
+    depends_on: [DLV-003, DLV-004]
+    amends: [DLV-003]
+    read_first: [src/modules/delivery/delivery.repository.ts]
+    design_refs: [commandes-et-livraisons/delivery]
+    constraints: [CM-38]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.3.1]
+    story: As a driver, I want an order given to another driver to leave "À prendre" so that I do not depart with goods already assigned.
+    context: |
+      - Exists: `listToDeliverOrders` returns every CONFIRMED order with an address of the organization, and every role sees the same pool (DLV-003 AC-4). An assignment (DLV-004) is a delivery row with `assigned_to_id` and no `departed_at`.
+      - Change in `delivery.repository.ts`: for a viewer whose role is DRIVER, the query also leaves out the orders that have a live delivery (not deleted, neither arrived nor failed) assigned to someone else. The role comes from the actor, which `listToDeliver` already passes.
+      - The assigned driver still sees the order, and so do MANAGER, OWNER and SELLER, so a manager can reassign it (DLV-004).
+      - A failed attempt or a removed assignment puts the order back in the pool of every driver; a reassignment moves it from one driver to the other.
+      - `CM-38`: The pool of orders to take lists the confirmed orders with a delivery address; a driver does not see there an order assigned to another driver, and sees it again when that assignment ends (failed attempt or removal); managers, owners and sellers see every order of the pool.
+    acceptance: |
+      Scenario: AC-1 Assigned to another driver
+        Given a CONFIRMED order with an address, assigned to driver B and not departed
+        When driver A lists the orders to deliver
+        Then the order is absent
+        And driver B sees it
+      Scenario Outline: AC-2 Who still sees an assigned order
+        Given an order assigned to driver B
+        When <viewer> lists the orders to deliver
+        Then the order is <result>
+        Examples:
+          | viewer          | result  |
+          | the owner       | listed  |
+          | a manager       | listed  |
+          | a seller        | listed  |
+          | another driver  | absent  |
+      Scenario Outline: AC-3 An assignment that ended
+        Given an order whose delivery assigned to driver B is <state>
+        When driver A lists the orders to deliver
+        Then the order is listed
+        Examples:
+          | state                          |
+          | failed                         |
+          | removed (deleted_at set)       |
+      Scenario: AC-4 Reassignment
+        When a manager moves the assignment from driver B to driver A
+        Then driver A sees the order and driver B no longer does
+    implementation:
+      create: [tests/integration/delivery/pool-assigned.test.ts]
+      modify: [src/modules/delivery/delivery.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "listToDeliverOrders(viewer: Viewer & { role: Role }, query: { limit: number; cursor?: string }): Promise<{ rows: OrderForDriver[]; nextCursor: string | null }>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the query still starts from the actor's organization; person and role come from the actor, never from the request."
+      - "v5.0.0-8.3.1: the server hides the order; the phone's own filter only repeats it."
+    tests: |
+      hidden | integration | AC-1, CM-38 | order assigned to B → absent for A, listed for B
+      roles | integration | AC-2, CM-38 | each Examples row → listed or absent
+      ended | integration | AC-3, CM-38 | each Examples row → listed for A
+      reassign | integration | AC-4 | manager reassigns B to A → A sees it, B no longer
+    command: npx vitest run tests/integration/delivery/driver-lists.test.ts tests/integration/delivery/pool-assigned.test.ts
+    out_of_scope:
+      - "The same filter on the orders a phone receives by synchronization (the synchronization stories)."
+      - "The pool of a person who is both owner and driver: the role of the actor decides."
+
+    tests_to_update:
+      - "tests/integration/delivery/driver-lists.test.ts | AC-4 compares the pools of two drivers and seeds no assignment | unchanged; the assigned case is covered by the new test file"
+  - id: DLV-014
+    title: The rest of a delivery and a counter sale keep the variant of each line
+    kind: change
+    size: XS
+    risk: medium
+    depends_on: [ORD-025, ORD-027]
+    amends: [DLV-008, DLV-009]
+    read_first: [src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.repository.ts]
+    design_refs: [commandes-et-livraisons/orderline]
+    constraints: []
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.3.3]
+    story: As a seller, I want the rest of a partial delivery and a counter sale to name the variant of each line so that stock-free sales still say which size or color was sold.
+    context: |
+      - Exists: `deliverOrder` with the rest `LATER` copies each short line into the order for the rest (`restLines`, `productId: line.productId`); `sellAtCounter` inserts the lines `priceEnteredLine` returns (ORD-027) as `CounterSaleLine`.
+      - Change in `delivery.repository.ts`: `RestLine` and `CounterSaleLine` gain `productVariantId: string`. In `delivery.service.ts`, `restLines` copies `productVariantId: line.productVariantId` next to `productId`; the counter sale takes it from the priced line through the spread it already uses.
+      - Why: the trigger of ORD-024 fills the variant only for a product's legacy variant; a line of a new-style variant would otherwise be refused by the not-null column (ORD-025).
+      - Label, quantity, prices and price author are copied as before: the rest keeps the original prices. The two inserts stay inside the delivery transaction.
+    acceptance: |
+      Scenario Outline: AC-1 The rest keeps the variant
+        Given an order line of 5 units of <variant>
+        When the order is delivered with 3 units and the rest LATER
+        Then the order for the rest has a line of 2 units of the same variant, with the same label and prices
+        Examples:
+          | variant                                       |
+          | the only variant of a product                 |
+          | a variant "Rouge / L" among several variants  |
+      Scenario: AC-2 A counter sale names the variant
+        When a seller sells a variant "Rouge / L" at the counter
+        Then the stored line has the variant id and the product id of that variant
+    implementation:
+      create: [tests/integration/delivery/line-variant.test.ts]
+      modify: [src/modules/delivery/delivery.service.ts, src/modules/delivery/delivery.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types:
+        - "RestLine = { productId: string; productVariantId: string; labelApplied: string; quantity: string; referencePrice: bigint; unitPriceApplied: bigint; amount: bigint; priceSetById: string | null; priceSetAt: Date | null }"
+        - "CounterSaleLine gains productVariantId: string"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the copied line keeps the server-computed prices; nothing comes from the request."
+      - "v5.0.0-2.3.3: the order for the rest and the delivery stay one transaction."
+    tests: |
+      rest | integration | AC-1 | each Examples row → rest line with the variant, label and prices of the original
+      counter | integration | AC-2 | counter sale of a named variant → line with variant and product ids
+    command: npx vitest run tests/integration/delivery
+    out_of_scope:
+      - "Lines pushed by a phone when it closes an order (the synchronization stories)."
+
+    tests_to_update:
+      - "tests/integration/delivery/partial-delivery.test.ts | checks the label, quantity and prices of the rest lines | unchanged: the rest lines now also carry the variant, which the ORD-024 trigger already filled"
+      - "tests/integration/delivery/counter-sale.test.ts | checks the sale lines and their prices | unchanged: the lines also carry the variant"
+  - id: DLV-015
+    title: Find the drivers who still have deliveries on the road
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [DLV-005, DLV-012]
+    read_first: [src/modules/delivery/delivery.repository.ts]
+    design_refs: [commandes-et-livraisons/delivery]
+    asvs: [v5.0.0-8.2.2]
+    story: "Technical story: give the delivery module one function that says which drivers still have a delivery on the road for a business, so that billing never pauses a driver in the middle of a round."
+    context: |
+      - Exists: a delivery is assigned to a driver, gets `departed_at` when the driver leaves, then `arrived_at` or `failed_at` (DLV-005, DLV-006). `findAbandonedRests` in `delivery.repository.ts` already reads deliveries together with their orders for one business.
+      - New in `delivery.repository.ts`: `findDriversWithOpenDeliveries(tx, organizationId, personIds)` returns the set of those people who are `assigned_to_id` of a delivery with `departed_at` set, `arrived_at` and `failed_at` empty and `deleted_at` empty, whose order is not deleted and belongs to the business as supplier (through the order's relationship).
+      - An empty list of people returns an empty set without a query. First usage: billing (BIL-019).
+    acceptance: |
+      Scenario: AC-1 A driver on the road
+        Given a delivery of the business that left and has neither arrived nor failed, assigned to driver A
+        When the function runs with A and driver B, who has no delivery
+        Then the set holds A only
+      Scenario Outline: AC-2 Not on the road
+        When the function runs for a driver whose only delivery is <case>
+        Then the set is empty
+        Examples:
+          | case                                  |
+          | assigned but not departed             |
+          | arrived                               |
+          | failed                                |
+          | deleted                               |
+          | of another business's order           |
+      Scenario: AC-3 Nobody given
+        When the function runs with an empty list
+        Then it returns an empty set
+    implementation:
+      create: [tests/integration/delivery/open-deliveries.test.ts]
+      modify: [src/modules/delivery/delivery.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "findDriversWithOpenDeliveries(tx: Prisma.TransactionClient, organizationId: string, personIds: string[]): Promise<Set<string>>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the business id comes from server code, and deliveries of another business never count."
+    tests: |
+      on the road | integration | AC-1 | A in the set, B not
+      not on the road | integration | AC-2 | each Examples row → empty
+      nobody | integration | AC-3 | empty list → empty set
+    command: npx vitest run tests/integration/delivery/open-deliveries.test.ts
+    out_of_scope:
+      - "Pausing the driver: billing (BIL-019)."
+  - id: DLV-016
+    title: Delivery and finance tests seed products through the catalog helper
+    kind: technical
+    size: S
+    risk: low
+    amends: []
+    depends_on: [CAT-040, DLV-014]
+    read_first: [tests/helpers/catalog-fixtures.ts, tests/integration/delivery/counter-sale.test.ts]
+    design_refs: [catalogue/product, commandes-et-livraisons/orderline]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: the delivery and finance tests create their products with `seedProduct`, so that the old columns of `products` can go without breaking them."
+    context: |
+      - Exists: `seedProduct(client, input)` (CAT-040), which creates a product new-style and one variant with the same id. These tests still insert products with `unit`, `price`, `status` and `min_order_quantity`, which CAT-041 drops.
+      - Every product the ten files below create is created with `seedProduct`, passing the same id, name, unit, price and status as today. The variant has the product's id, so lines that hold that id keep working.
+      - Nothing else changes: the assertions, the ids and the order of the tests stay.
+    acceptance: |
+      Scenario: AC-1 No test inserts the old columns
+        When the ten files below are read
+        Then none inserts into `products` with a `unit` or a `price`
+      Scenario: AC-2 Same behavior
+        When the ten files run
+        Then they pass and assert what they asserted before
+    implementation:
+      create: [tests/unit/delivery/seed-products.test.ts]
+      modify: []
+      pattern: tests/unit/shared/money.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-2.2.1: the fixtures hold fake data only."
+    tests: |
+      no old columns | unit | AC-1 | the ten sources contain no insert of unit or price into products
+      same behavior | integration | AC-2 | the ten files pass
+    command: npx vitest run tests/unit/delivery/seed-products.test.ts tests/integration/delivery tests/integration/finance/money-exceptions.test.ts
+    out_of_scope:
+      - "Dropping the columns: CAT-041."
+    tests_to_update:
+      - "tests/integration/delivery/abandoned-rests.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/delivery/assign.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/delivery/counter-sale.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/delivery/deliver.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+      - "tests/integration/delivery/depart.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/delivery/driver-lists.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/delivery/fail.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/delivery/partial-delivery.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+      - "tests/integration/delivery/unstarted-cleanup.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+      - "tests/integration/finance/money-exceptions.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"

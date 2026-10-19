@@ -1,0 +1,112 @@
+kind: stories
+module: finance
+constraints:
+  CM-39: "A paused member keeps the money they hold, visible to the owner: for the payer of an expense and the person who hands money over, a paused member counts like a departed one, so that money can be collected and expenses recorded."
+stories:
+  - id: FIN-021
+    title: Expenses and handovers accept a paused member
+    kind: change
+    size: XS
+    risk: medium
+    depends_on: [FIN-012, FIN-015, ORG-022]
+    amends: [FIN-012, FIN-015]
+    read_first: [src/modules/finance/finance.service.ts]
+    design_refs: [finances/handover, identite-et-organisation/collaboration]
+    constraints: [CM-39]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: As an owner, I want to record the handover of a paused team member so that the money they hold does not stay on their name once they lose access.
+    context: |
+      - Exists: `recordExpense` and `recordHandover` in `finance.service.ts` accept a payer or a remitter whose collaboration is ACTIVE or REVOKED and answer 404 NOT_FOUND for any other status. The tables' database rules accept every status (FIN-011, FIN-014), so no migration is needed.
+      - Change: both services also accept a PAUSED collaboration (ORG-022). INVITED stays refused, and so does a person of another business or an unknown id.
+      - Nothing else moves: the receiver of a handover is still an ACTIVE OWNER or MANAGER, held money rises and falls by the same operations, and the nightly check (FIN-018) already covers every collaboration.
+      - The doc comments of both functions and the `@throws` lines say ACTIVE, PAUSED or revoked.
+      - `CM-39`: A paused member keeps the money they hold, visible to the owner: for the payer of an expense and the person who hands money over, a paused member counts like a departed one, so that money can be collected and expenses recorded.
+    acceptance: |
+      Scenario Outline: AC-1 Handover from a member in each status
+        Given a member holding 10000 whose collaboration is <status>
+        When the owner records a handover of 4000 from them
+        Then the answer is <result>
+        Examples:
+          | status  | result        |
+          | ACTIVE  | 201           |
+          | PAUSED  | 201           |
+          | REVOKED | 201           |
+          | INVITED | 404 NOT_FOUND |
+      Scenario: AC-2 The money moves
+        When the owner records a handover of 4000 from a PAUSED member holding 10000
+        Then the member's held money is 6000 and the owner's rises by 4000
+      Scenario Outline: AC-3 Expense paid by a member in each status
+        When the owner records an expense paid by a member whose collaboration is <status>
+        Then the answer is <result>
+        Examples:
+          | status  | result        |
+          | PAUSED  | 201           |
+          | INVITED | 404 NOT_FOUND |
+    abuse: |
+      Scenario: AB-1 A person of another business is named (access control)
+        When the owner records a handover from a PAUSED member of another business
+        Then the answer is 404 NOT_FOUND and no handover exists
+    implementation:
+      create: [tests/integration/finance/paused-member.test.ts]
+      modify: [src/modules/finance/finance.service.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors:
+        - "404 NOT_FOUND when the payer or remitter has no collaboration in the caller's business, or only an invitation"
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.2: the collaboration is looked up inside the caller's own business; a person of another business is the same 404."
+      - "v5.0.0-2.3.3: the row, the held money and the notice stay one transaction."
+    tests: |
+      handover statuses | integration | AC-1, CM-39 | each Examples row → status code
+      money | integration | AC-2 | handover from a paused member → held money falls, receiver's rises
+      expense statuses | integration | AC-3, CM-39 | each Examples row → status code
+      other business | security | AB-1, CWE-639 | paused member of another business → 404, nothing stored
+    command: npx vitest run tests/integration/finance
+    out_of_scope:
+      - "Who may be paused, and when (billing stories)."
+      - "Revoked members and the departure of a person: unchanged."
+
+    tests_to_update:
+      - "tests/integration/finance/record-expense.test.ts | refuses an INVITED payer and one of another business; no case uses PAUSED | unchanged"
+      - "tests/integration/finance/record-handover.test.ts | refuses an INVITED remitter and one of another business; no case uses PAUSED | unchanged"
+  - id: FIN-022
+    title: The dispute notice says versement
+    kind: change
+    size: XS
+    risk: low
+    depends_on: [FIN-016]
+    amends: [FIN-016]
+    read_first: [src/modules/finance/finance.service.ts]
+    design_refs: [finances/handover]
+    constraints: []
+    asvs: [v5.0.0-16.3.2]
+    story: As an owner, I want the notice of a disputed amount to use the word versement so that "remise" keeps meaning a price reduction.
+    context: |
+      - Exists: `HANDOVER_DISPUTED_CONTENT.FR` in `finance.service.ts` reads "<name> conteste le montant de <amount> noté pour sa remise d'argent." The design (v16) reserves "remise" for price reductions and calls the money brought to the owner a "versement".
+      - Change: the French text becomes "<name> conteste le montant de <amount> noté pour son versement." The English text and the received notice (`HANDOVER_CONTENT`) stay as they are.
+      - The sentence keeps the accents of the existing text; the name and the amount keep their places.
+    acceptance: |
+      Scenario: AC-1 The owner reads the new wording
+        Given an owner whose language is French
+        When a remitter disputes a handover of 5000
+        Then the owner's notification reads "<name> conteste le montant de 5000 noté pour son versement."
+        And the English text is unchanged
+    implementation:
+      create: [tests/integration/finance/dispute-wording.test.ts]
+      modify: [src/modules/finance/finance.service.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-16.3.2: the notice names the remitter and the amount only, no other personal data."
+    tests: |
+      wording | integration | AC-1 | French owner, disputed handover → exact French text; English owner → unchanged text
+    command: npx vitest run tests/integration/finance
+    out_of_scope:
+      - "Any other text that mentions money handed over: no other server text uses the old word."
+    tests_to_update:
+      - "tests/integration/finance/handover-cancel-dispute.test.ts | checks the amount and the name inside the notice, not the old French wording | unchanged"

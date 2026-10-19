@@ -1,0 +1,2451 @@
+kind: stories
+module: catalog
+constraints:
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+  C-36: "No uniqueness rule makes a sync fail; every possible duplicate has a written behavior, and a line no rule can write is set aside."
+  C-50: "A photo file is deleted from storage as soon as its key leaves its card or its card is deleted; a nightly cleanup deletes every file older than 24 hours that no card cites."
+  C-56: "`ImageCopy` has `copy_key` as primary key; `root_key` equals the source's `root_key` when the source is itself a copy, else the source key; written by the server only, in the transaction that stores the copy's key; never synchronized; never updated, deleted or purged."
+  CM-27: "Sync: computed fields (balance, amount_held, balance_effect, totals, line amounts, sale amount, customer-order reference price, price_updated_at, credit_limit_set_at, ended_by_party, last_synced_at, scope_version, server_updated_at) are ignored on receipt and recomputed."
+stories:
+  - id: CAT-012
+    title: Product variants table
+    kind: migration
+    size: M
+    risk: high
+    depends_on: [CAT-001]
+    amends: [CAT-001]
+    read_first: [prisma/schema.prisma, tests/integration/organization/organization-table.test.ts]
+    design_refs: [catalogue/productvariant, contraintes-a-poser-au-niveau-base-de]
+    constraints: [ProductVariant:required, 'ProductVariant.status:enum', ProductVariant:fk, C-13, C-45, C-49, C-35]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["ProductVariant.{product_id,organization_id,name,unit,price,price_updated_at,min_order_quantity,image_keys,status,created_at,merged_into_id}"]
+    story: "Technical story: create the variants table, the sold level of the catalog, so that a product can carry several units and prices."
+    context: |
+      - Exists: `products` (CAT-001) with `set_product_price_updated_at()` and `set_server_updated_at()`.
+      - One migration, one transaction: table `product_variants` with `id`, the fields above, `server_updated_at` and `deleted_at`. `name`, `min_order_quantity` and `merged_into_id` may be empty; `status` uses `ProductStatus`, ACTIVE by default; `price` bigint, `min_order_quantity` numeric(12,3).
+      - Keys: (`product_id`, `organization_id`) refers to `products` (`id`, `organization_id`), which gets a unique index on that pair (C-45); `merged_into_id` is a foreign key too. CHECKs: `price` > 0 and `min_order_quantity` > 0 when set (C-13); at most 5 `image_keys`, with a GIN index (C-49).
+      - The two functions become triggers: the price date follows the price only; the server date is the database time.
+      - `prisma/schema.prisma`: add `model ProductVariant` with its relations (the list `variants` on the model `Product`) and `@@unique([id, organizationId])` on `Product`. Above the model, a plain-words `//` comment: a variant belongs to the business of its product; a live product keeps one live variant, which the code ensures, not the database.
+    acceptance: |
+      Scenario: AC-1 Defaults and server dates
+        When a variant is inserted with product, business, unit, price 3000 and a `price_updated_at` of 2020
+        Then `name` and `min_order_quantity` are empty, `status` is ACTIVE and `image_keys` is empty
+        And `price_updated_at`, `created_at` and `server_updated_at` are the database time
+      Scenario Outline: AC-2 Value rules
+        When a variant has <values>
+        Then the database <result>
+        Examples:
+          | values | result |
+          | price 0 | rejects (23514) |
+          | min_order_quantity 0 | rejects (23514) |
+          | 5 image keys | accepts |
+          | 6 image keys | rejects (23514) |
+      Scenario: AC-3 The price date moves with the price only
+        Given a variant
+        When its price changes, and then only its unit changes
+        Then `price_updated_at` moves with the price and stays on the unit change
+      Scenario: AC-4 Required values and keys
+        When `product_id`, `unit` or `price` is empty, a key refers to nothing, or `status` is not ACTIVE or INACTIVE
+        Then the insert fails with 23502, 23503 or 22P02
+    abuse: |
+      Scenario: AB-1 A variant slipped under another business's product (tampering)
+        When code inserts, straight in the database, a variant of business A under a product of business B
+        Then PostgreSQL rejects it with 23503, even though no application check ran
+    implementation:
+      create: [prisma/migrations/<timestamp>_cat_012_product_variants/migration.sql, tests/integration/catalog/product-variant-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: related values are checked by the database, not only by code: the business of a variant is that of its product (composite key), prices and quantities are positive, photos are at most 5."
+    tests: |
+      defaults | integration | AC-1, C-35 | insert → defaults, database dates
+      value rules | integration | AC-2, C-13, C-49 | each Examples row → accepted or 23514
+      price date | integration | AC-3, C-13 | price change moves it; unit change keeps it
+      required and keys | integration | AC-4, ProductVariant:required, ProductVariant.status:enum, ProductVariant:fk | empty or unknown values → 23502, 23503, 22P02
+      crafted write | security | AB-1, C-45, CWE-20 | raw insert under a product of another business → 23503
+    command: npx vitest run tests/integration/catalog/product-variant-table.test.ts
+    out_of_scope:
+      - "The copy of existing products (CAT-013), new product columns (CAT-014), negotiated prices (CAT-015), one name and unit per product (CAT-018)."
+  - id: CAT-013
+    title: Every existing product gets its variant
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [CAT-012]
+    amends: [CAT-001]
+    read_first: [prisma/schema.prisma, tests/integration/organization/organization-table.test.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: [C-45, C-35]
+    asvs: [v5.0.0-2.2.3]
+    story: "Technical story: give every product already stored one variant that carries what it sold, so that nothing is lost when selling moves from the product to the variant."
+    context: |
+      - Exists: `products` (CAT-001), each row with its own `unit`, `price`, `price_updated_at`, `min_order_quantity` and `status`; `product_variants` (CAT-012), empty.
+      - One migration, one transaction, no new column. The variant takes the same `id` as its product, so that order lines and negotiated prices, which hold the product id today, find it with the id they already hold.
+      - Between the lines `-- copy start` and `-- copy end`: switch off the price-date trigger of `product_variants`, one `INSERT ... SELECT` of every product without a variant, switch the trigger on again. The variant has an empty name and copies `organization_id`, `unit`, `price`, `price_updated_at`, `min_order_quantity`, `status`, `created_at` and `deleted_at`.
+      - The server date of the variant is the migration time (the existing trigger), so phones fetch the new rows. Deleted products are copied too, deleted.
+      - The test replays the lines between the two markers on rows it inserts, so that the copy is proved on old-shaped data and proved safe to run twice.
+    acceptance: |
+      Scenario: AC-1 Each product gets one variant
+        Given a product at 3000 XAF with minimum 2.5 whose price changed in 2024, and a deleted product
+        When the copy runs
+        Then each has one variant with the same id, the same business, an empty name, and the same unit, price, `price_updated_at`, minimum, status and `deleted_at`
+      Scenario: AC-2 Dates
+        When the copy runs
+        Then `price_updated_at` is still the 2024 date of the product
+        And `server_updated_at` of the variant is later than that of the product
+      Scenario: AC-3 Running it again changes nothing
+        Given a variant whose price was then set to 3500
+        When the copy runs again
+        Then no variant is added and the price is still 3500
+      Scenario: AC-4 A product that already has a variant is skipped
+        Given a product with a variant under another id
+        When the copy runs
+        Then no second variant is created for that product
+      Scenario: AC-5 The price-date trigger is back on
+        When the copy has run and a variant's price changes, and then only its unit changes
+        Then `price_updated_at` moves with the price change and stays on the unit change
+    abuse: |
+      Scenario: AB-1 A copied variant lands in another business (information disclosure)
+        When the copy runs for products of two businesses
+        Then every variant has the business of its own product, and none has the other
+    implementation:
+      create: [prisma/migrations/<timestamp>_cat_013_variant_per_product/migration.sql, tests/integration/catalog/variant-per-product.test.ts]
+      modify: []
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the copy takes the business from the product row, never from another source."
+    tests: |
+      copy | integration | AC-1, C-45 | replay the marked lines on old rows → one variant each, same values
+      dates | integration | AC-2, C-35 | price date kept; server date later
+      twice | integration | AC-3 | replay again → no row added, price unchanged
+      skip | integration | AC-4 | product with another variant → no second one
+      trigger | integration | AC-5 | price change moves the date; unit change keeps it
+      two businesses | security | AB-1, CWE-639 | each variant has its product's business
+    command: npx vitest run tests/integration/catalog/variant-per-product.test.ts
+    out_of_scope:
+      - "The new product columns and the old-style writes that must still reach the variants (CAT-014)."
+      - "Pointing negotiated prices at variants (CAT-015) and order lines (ORD)."
+  - id: CAT-014
+    title: Products carry photos and a pause date, and old-style writes reach the variants
+    kind: migration
+    size: M
+    risk: high
+    depends_on: [CAT-013]
+    amends: [CAT-001]
+    read_first: [prisma/schema.prisma, tests/integration/organization/organization-table.test.ts]
+    design_refs: [catalogue/product, contraintes-a-poser-au-niveau-base-de]
+    constraints: [Product:required, C-46, C-49, C-35]
+    asvs: [v5.0.0-2.2.1]
+    fields: ["Product.image_keys", "Product.paused_at"]
+    story: "Technical story: give products their photos and pause date, and keep old-style writes reaching the variants, so that nothing breaks while the code moves to variants."
+    context: |
+      - Exists: `products` with the old columns `unit`, `price`, `min_order_quantity`, `status` (CAT-001), and a variant per product (CAT-012, CAT-013). Old code and tests still write those columns.
+      - One migration, one transaction: on `products`, `image_keys` (text[], empty by default, at most 5 keys, GIN index) and `paused_at` (timestamptz, empty by default; only the server writes it, C-46).
+      - Between `-- touch start` and `-- touch end`: one statement moving every product's `server_updated_at` to the migration time, so phones fetch it again.
+      - `unit` gets the default empty text and `price` the default 1, so a row written the new way needs neither. An empty `unit` marks it new-style: its old columns are never read.
+      - Two triggers, dropped with the old columns. After an insert or an update with a non-empty `unit`, the variant of the same id is inserted (empty name, old columns copied) or updated (the five old columns, only when one changed). An empty `unit` is never copied: the code inserts its variants itself.
+      - `prisma/schema.prisma`: `imageKeys`, `pausedAt`, the two defaults and the GIN index on `Product`, and above it a plain-words `//` comment: old columns ignored, empty `unit` means new-style, the triggers copy old-style writes to the variant of the same id until the story that drops them.
+    acceptance: |
+      Scenario: AC-1 New-style row
+        When a product is inserted with a business and a name only
+        Then `image_keys` is empty, `paused_at` is empty, `unit` is empty, `price` is 1 and `status` is ACTIVE
+        And no variant is created
+      Scenario Outline: AC-2 Photo limit
+        When a product has <keys>
+        Then the database <result>
+        Examples:
+          | keys            | result          |
+          | 5 image keys    | accepts         |
+          | 6 image keys    | rejects (23514) |
+          | image_keys null | rejects (23502) |
+      Scenario: AC-3 An old-style insert reaches a variant
+        When a product is inserted with unit "sac", price 3000 and minimum 2.5
+        Then one variant exists with the same id, an empty name, unit "sac", price 3000, minimum 2.5 and status ACTIVE
+      Scenario Outline: AC-4 An old-style update reaches the variant
+        Given a product inserted the old way
+        When its <column> is set to <value>
+        Then its variant <effect>
+        Examples:
+          | column     | value    | effect                                |
+          | price      | 3500     | has price 3500 and a later price date |
+          | status     | INACTIVE | is INACTIVE                           |
+      Scenario: AC-5 A new-style product keeps its own variants
+        Given a product with an empty `unit` and a variant with a new id
+        When the product is renamed
+        Then no variant with the id of the product appears
+      Scenario: AC-6 Phones fetch the products again
+        When the touch statement of the migration runs on products a day old
+        Then every `server_updated_at` is later than before
+    abuse: |
+      Scenario: AB-1 A thousand photos on one product (resource exhaustion)
+        When code sets a list of 1000 keys on a product, straight in the database
+        Then PostgreSQL rejects it with 23514
+    implementation:
+      create: [prisma/migrations/<timestamp>_cat_014_product_photos_pause_mirror/migration.sql, tests/integration/catalog/product-new-columns.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the number of photos of a product is limited in the database."
+    tests: |
+      new-style row | integration | AC-1, C-46, C-35 | insert with a name → defaults, no variant
+      photo limit | integration | AC-2, C-49, Product:required | each Examples row → accepted, 23514 or 23502
+      old insert | integration | AC-3 | insert the old way → one variant, same id and values
+      old update | integration | AC-4 | each Examples row → variant changed
+      new-style product | integration | AC-5 | rename → variants unchanged
+      touch | integration | AC-6, C-35 | replay the marked lines → dates later
+      thousand photos | security | AB-1, CWE-400 | raw update with 1000 keys → 23514
+    command: npx vitest run tests/integration/catalog/product-new-columns.test.ts
+    out_of_scope:
+      - "Writing photos (IMG) and pausing products (BIL); dropping the old columns and triggers (a later story)."
+  - id: CAT-015
+    title: Negotiated prices point at a variant
+    kind: migration
+    size: M
+    risk: high
+    depends_on: [CAT-013]
+    amends: [CAT-002, CAT-008]
+    read_first: [prisma/schema.prisma, src/modules/catalog/catalog.repository.ts]
+    design_refs: [relations-commerciales/customerprice, contraintes-a-poser-au-niveau-base-de]
+    constraints: [CustomerPrice:fk, C-11, C-35]
+    asvs: [v5.0.0-2.2.3, v5.0.0-8.2.2]
+    fields: ["CustomerPrice.product_variant_id"]
+    story: "Technical story: let a negotiated price name a variant instead of a product, so that a customer can have a different price for each variant."
+    context: |
+      - Exists: `customer_prices` with `product_id`, one live row per (`customer_relationship_id`, `product_id`) through `customer_prices_live_relationship_product_key`, and a trigger that checks the product's business (CAT-002); a variant of the same id for each old product (CAT-013).
+      - One migration, one transaction: `product_variant_id` (uuid, foreign key to `product_variants`, empty allowed for now), copied from `product_id` by one statement between `-- copy start` and `-- copy end`. `product_id` stays, required, until a later story drops it. Every `server_updated_at` moves to the migration time.
+      - A trigger fills `product_variant_id` from `product_id` when an insert leaves it empty, so old code and tests keep working. A second refuses (23514) a variant not owned by the relationship's supplier, as CAT-002 does for products.
+      - The old unique index goes: two variants of a product may each carry a price for one customer. New unique index on live (`customer_relationship_id`, `product_variant_id`) (C-11).
+      - `catalog.repository.ts`: `upsertCustomerPrice` conflicts on (`customer_relationship_id`, `product_variant_id`) where `deleted_at` is empty; the rest is unchanged.
+      - `prisma/schema.prisma`: `productVariantId` and its relation on `CustomerPrice`; the `//` comment above it now says: unique per variant among live rows, the variant is the supplier's, the old column goes later.
+    acceptance: |
+      Scenario: AC-1 Every existing price names its variant
+        Given a price inserted with no `product_variant_id`
+        When the copy statement of the migration runs
+        Then `product_variant_id` equals `product_id`, and `server_updated_at` is later than before
+      Scenario: AC-2 An old-style insert is completed
+        When a price is inserted with `product_id` only
+        Then `product_variant_id` equals `product_id`
+      Scenario Outline: AC-3 One live price per customer and variant
+        When a second price for the same relationship is inserted for <variant>, the first being <state>
+        Then the insert <result>
+        Examples:
+          | variant                             | state   | result          |
+          | the same variant                    | live    | rejects (23505) |
+          | the same variant                    | deleted | accepts         |
+          | another variant of the same product | live    | accepts         |
+      Scenario: AC-4 Replacing a price keeps one row
+        Given a live price for a relationship and a variant
+        When `upsertCustomerPrice` is called again for the same pair with another price
+        Then the row keeps its id and takes the new price, and no second live row exists
+      Scenario: AC-5 Keys
+        When `product_variant_id` names no variant
+        Then the insert fails with 23503
+    abuse: |
+      Scenario: AB-1 A price for a variant of another business (tampering)
+        When code inserts a price for a variant of business B on a relationship of business A, straight in the database
+        Then PostgreSQL rejects it with 23514, even though no application check ran
+    implementation:
+      create: [prisma/migrations/<timestamp>_cat_015_customer_price_variant/migration.sql, tests/integration/catalog/customer-price-variant.test.ts]
+      modify: [prisma/schema.prisma, src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures:
+        - "upsertCustomerPrice(tx: Prisma.TransactionClient, data: { id: string; relationshipId: string; productId: string; price: bigint; setById: string }): Promise<{ productId: string; price: bigint; setById: string; setAt: Date }>"
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the supplier's ownership of the variant is checked in the database."
+      - "v5.0.0-8.2.2: one live price per customer and variant."
+    tests: |
+      copy | integration | AC-1, C-35 | replay the marked lines → variant id = product id
+      old insert | integration | AC-2 | insert with `product_id` only → filled
+      uniqueness | integration | AC-3, C-11 | each Examples row → accepted or 23505
+      replace | integration | AC-4 | upsert twice → one live row, new price
+      keys | integration | AC-5, CustomerPrice:fk | unknown variant → 23503
+      crafted write | security | AB-1, CWE-639 | raw insert for another business's variant → 23514
+    command: npx vitest run tests/integration/catalog/customer-price-variant.test.ts tests/integration/catalog/customer-price-table.test.ts
+    out_of_scope:
+      - "Routes that set, list, remove and copy prices by variant, and dropping `product_id` with the filling trigger: later stories."
+    tests_to_update:
+      - "tests/integration/catalog/customer-price-table.test.ts | the old unique index is replaced by one on the variant | a second live price for the same relationship and product still fails with 23505"
+  - id: CAT-018
+    title: Two variants of a product never share a name and a unit
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [CAT-012]
+    read_first: [prisma/schema.prisma, tests/integration/organization/organization-table.test.ts]
+    design_refs: [catalogue/productvariant, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-47, C-35]
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: forbid, in the database, two live variants of one product with the same name and unit, and a merged variant that is not deleted, so that a customer never sees the same article twice."
+    context: |
+      - Exists: `product_variants` (CAT-012) with `name` (empty allowed), `unit`, `merged_into_id` and `deleted_at`.
+      - One migration, one transaction. Unique index (C-47) on (`product_id`, simplified name, simplified unit) where `deleted_at` is empty. Simplified text is `lower(btrim(regexp_replace(coalesce(x, ''), '[ \t\r\n]+', ' ', 'g')))`: capitals and extra spaces ignored, an empty name equals the empty text, nothing else guessed.
+      - CHECK: `merged_into_id` set means `deleted_at` is set. The code that merges variants (a later story) deletes and points in one write.
+      - `prisma/schema.prisma`: the unique index cannot be written as `@@unique` (it uses text functions and ignores deleted rows), so the `//` comment above `ProductVariant` gains, in plain words: one live variant per name and unit, compared without capitals or extra spaces, and a merged variant is always deleted.
+    acceptance: |
+      Scenario Outline: AC-1 One name and unit per product
+        Given a live variant of a product with name <n1> and unit <u1>
+        When another variant of <product> gets name <n2> and unit <u2>
+        Then the insert <result>
+        Examples:
+          | n1        | u1        | product | n2        | u2         | result          |
+          | empty     | sac 10 kg | same    | empty     | Sac  10 kg | rejects (23505) |
+          | Rouge / L | piece     | same    | rouge / l | PIECE      | rejects (23505) |
+          | empty     | sac 10 kg | same    | empty     | sac 10kg   | accepts         |
+          | Rouge / L | piece     | same    | Bleu / M  | piece      | accepts         |
+          | Rouge / L | piece     | other   | Rouge / L | piece      | accepts         |
+      Scenario: AC-2 A deleted variant frees its name and unit
+        Given a deleted variant with name "Rouge / L" and unit "piece"
+        When another variant of the same product gets the same name and unit
+        Then the insert is accepted
+      Scenario Outline: AC-3 A merged variant is deleted
+        When a variant has <values>
+        Then the database <result>
+        Examples:
+          | values                               | result          |
+          | merged_into_id set, deleted_at set   | accepts         |
+          | merged_into_id set, deleted_at empty | rejects (23514) |
+          | merged_into_id empty, deleted_at empty | accepts       |
+    abuse: |
+      Scenario: AB-1 The same article listed twice by concurrent writes (tampering)
+        When two transactions insert the same name and unit for one product at the same time
+        Then exactly one succeeds and the other fails with 23505
+    implementation:
+      create: [prisma/migrations/<timestamp>_cat_018_variant_name_unit/migration.sql, tests/integration/catalog/variant-name-unit.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the uniqueness is enforced by the database, so concurrent writes cannot both pass an application check."
+    tests: |
+      name and unit | integration | AC-1, C-47 | each Examples row → accepted or 23505
+      deleted frees | integration | AC-2, C-35 | deleted then re-added → accepted
+      merged | integration | AC-3, C-47 | each Examples row → accepted or 23514
+      concurrent | security | AB-1, CWE-362 | two parallel inserts → one 23505
+    command: npx vitest run tests/integration/catalog/variant-name-unit.test.ts
+    out_of_scope:
+      - "Merging two variants into one: a later story."
+      - "A TypeScript twin of the simplified text (CAT-016)."
+  - id: CAT-016
+    title: Variant label and comparison text shared by the app and the server
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [CAT-018]
+    read_first: [src/shared/money.ts, tests/unit/shared/money.test.ts]
+    design_refs: [catalogue/productvariant]
+    constraints: [C-47]
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: one function composes the label of a variant and one function simplifies a text for comparison, the same for the phone and the server, so that an order line and a duplicate check never differ between them."
+    context: |
+      - Exists: `src/shared/` holds code without Node-only imports (`money.ts`, `ids.ts`). The unique index of CAT-018 compares names and units in SQL.
+      - `variantLabel(productName, variantName, unit)`: the product name, then " \u2014 " (space, em dash, space), then the unit; with a variant name, the name then the unit in parentheses: "Riz \u2014 sac 50 kg", "T-shirt \u2014 Rouge / L (piece)". A variant name that is null or empty counts as no name. Nothing else is changed: no trimming, no case change (names stay as typed).
+      - `simplifyText(text)`: the comparison form. Null becomes empty; each run of space, tab, carriage return and line feed becomes one space; spaces at both ends go; then lower case. It is the SQL expression of CAT-018, `lower(btrim(regexp_replace(coalesce(x, ''), '[ \t\r\n]+', ' ', 'g')))`.
+      - The TypeScript twin never uses `trim()`, which also removes characters (a non-breaking space) that PostgreSQL keeps. Tests compare ASCII letters only: lower case of other letters depends on the database collation.
+      - Adds `src/shared/variant.ts` with no import. First usage: order lines freeze the label (ORD) and the catalog tells "already in your catalog" and merges duplicates. It ships here because both modules import it (ADR-004).
+    acceptance: |
+      Scenario Outline: AC-1 Label
+        When `variantLabel("<product>", <variant>, "<unit>")` is called
+        Then the result is "<label>"
+        Examples:
+          | product | variant   | unit      | label                      |
+          | Riz     | null      | sac 50 kg | Riz \u2014 sac 50 kg        |
+          | T-shirt | "Rouge/L" | piece     | T-shirt \u2014 Rouge/L (piece) |
+          | Riz     | ""        | sac 50 kg | Riz \u2014 sac 50 kg        |
+      Scenario Outline: AC-2 Comparison text
+        When `simplifyText(<input>)` is called
+        Then the result is <result>
+        Examples:
+          | input             | result       |
+          | "Sac 10 kg"       | "sac 10 kg"  |
+          | "  sac   10 kg "  | "sac 10 kg"  |
+          | "sac 10kg"        | "sac 10kg"   |
+          | "\tRiz\n\r"      | "riz"        |
+          | null              | ""           |
+          | "a\u00a0"         | "a\u00a0"    |
+      Scenario: AC-3 The function agrees with the database
+        Given pairs of names and units, among them the rows of AC-2
+        When two variants of one product are inserted for each pair
+        Then the second insert fails with 23505 exactly when `simplifyText` gives the same result for the names and for the units
+      Scenario: AC-4 The file imports nothing
+        When the source of `src/shared/variant.ts` is read
+        Then it has no `import` and no `require`
+    abuse: |
+      Scenario: AB-1 A huge name stalls the server (resource exhaustion)
+        When `simplifyText` receives a million spaces followed by one letter
+        Then it returns in under one second
+    implementation:
+      create: [src/shared/variant.ts, tests/unit/shared/variant.test.ts, tests/integration/catalog/variant-text.test.ts]
+      modify: []
+      pattern: tests/unit/shared/money.test.ts
+      signatures:
+        - "variantLabel(productName: string, variantName: string | null, unit: string): string"
+        - "simplifyText(text: string | null): string"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-2.2.1: the comparison the code uses to reject a duplicate is the one the database enforces, so a check never passes in code and fails in storage."
+    tests: |
+      label | unit | AC-1 | each Examples row → label
+      comparison | unit | AC-2, C-47 | each Examples row → simplified text
+      database twin | integration | AC-3, C-47 | pairs inserted → 23505 exactly when the texts match
+      no import | unit | AC-4 | source has no import
+      huge input | security | AB-1, CWE-1333 | one million spaces and a letter → under one second
+    command: npx vitest run tests/unit/shared/variant.test.ts tests/integration/catalog/variant-text.test.ts
+    out_of_scope:
+      - "Showing, merging or checking duplicates: the stories that use these functions."
+      - "Upper case and accents beyond ASCII letters: the database collation decides, the design says nothing more."
+  - id: CAT-017
+    title: Reference price is read by variant
+    kind: change
+    size: S
+    risk: high
+    depends_on: [CAT-003, CAT-014, CAT-015]
+    amends: [CAT-003]
+    read_first: [src/modules/catalog/catalog.repository.ts, prisma/schema.prisma]
+    design_refs: [catalogue/productvariant, relations-commerciales/customerprice]
+    constraints: [CM-11]
+    asvs: [v5.0.0-2.2.3, v5.0.0-8.2.2]
+    story: "As a seller, I want an order line to take the price of the variant that is sold, so that two sizes of one article each have their own price and their own negotiated price."
+    context: |
+      - Exists: `getReferencePrice(tx, relationshipId, productId)` in `catalog.repository.ts` reads the old product columns. Orders and synchronization call it with a product id.
+      - Change: `getReferencePrice` reads the variant of the relationship's supplier (any state, as the product was) and the live negotiated price of that relationship for that variant (`product_variant_id`), else the variant price. The result keeps its shape: `{ price, negotiated, changedAt }`. A price negotiated for another variant of the same product never applies.
+      - A product written the old way has a variant with its own id (CAT-013, CAT-014), so callers that still pass product ids get the same answers.
+      - Callers move to variant ids in the order and synchronization stories; none changes here.
+    acceptance: |
+      Scenario Outline: AC-1 Reference price of a variant
+        Given a variant priced 3000
+        When the negotiated price of the relationship for that variant is <negotiated>
+        Then `getReferencePrice` returns price <price> and negotiated <flag>
+        Examples:
+          | negotiated | price | flag  |
+          | none       | 3000  | false |
+          | 2800       | 2800  | true  |
+          | 3500       | 3500  | true  |
+          | deleted    | 3000  | false |
+      Scenario: AC-2 Each variant has its own negotiated price
+        Given two variants of one product and a negotiated price of 2800 for the first only
+        When the reference price is read for each
+        Then the first gives 2800 with negotiated true and the second gives its own price with negotiated false
+      Scenario Outline: AC-3 Reference price refused
+        When `getReferencePrice` is called with <case>
+        Then it throws 404 NOT_FOUND
+        Examples:
+          | case                                       |
+          | an unknown relationship                    |
+          | an unknown variant                         |
+          | a variant of another business              |
+      Scenario: AC-4 A product written the old way
+        Given a product inserted with unit and price, so its variant has the same id
+        When `getReferencePrice` is called with that id
+        Then it answers as for any variant
+    abuse: |
+      Scenario: AB-1 Another customer's price leaks (information disclosure)
+        Given two relationships of one supplier, each with its own negotiated price for a variant
+        When the reference price is read for the first
+        Then only the first price is used
+    implementation:
+      create: [tests/integration/catalog/variant-reference-price.test.ts]
+      modify: [src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "getReferencePrice(tx: Prisma.TransactionClient, relationshipId: string, variantId: string): Promise<{ price: bigint; negotiated: boolean; changedAt: Date }>"
+      types: []
+      errors:
+        - "404 NOT_FOUND 'Not found' (httpError), whatever the cause"
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the price is read from the database inside the caller's transaction, never from a value sent by the client."
+      - "v5.0.0-8.2.2: only the given relationship's price is read, and only a variant of that relationship's supplier."
+    tests: |
+      reference price | integration | AC-1, CM-11 | each Examples row → price and flag
+      own price | integration | AC-2, CM-11 | two variants → two answers
+      refused price | integration | AC-3 | each Examples row → 404
+      old-style product | integration | AC-4 | product id answers
+      other customer | security | AB-1, WSTG-ATHZ-02 | only the first price
+    command: npx vitest run tests/integration/catalog/variant-reference-price.test.ts tests/integration/catalog/reference-price.test.ts
+    out_of_scope:
+      - "Callers: order lines and synchronization move to variant ids in their own stories."
+      - "Reading an ACTIVE variant (CAT-019) and writing variants (later catalog stories)."
+    tests_to_update:
+      - "tests/integration/catalog/reference-price.test.ts | seeds products with the old price columns and passes product ids | unchanged: the legacy variant of each product (CAT-013, CAT-014) gives the same answers"
+  - id: CAT-019
+    title: An active variant is read with its product name
+    kind: technical
+    size: XS
+    risk: high
+    depends_on: [CAT-003, CAT-014]
+    read_first: [src/modules/catalog/catalog.repository.ts, prisma/schema.prisma]
+    design_refs: [catalogue/productvariant]
+    constraints: [C-15]
+    asvs: [v5.0.0-2.2.3, v5.0.0-8.2.2]
+    story: "Technical story: the catalog gives the orders one function that returns a variant on sale with the facts an order line freezes, so that no order module reads the products table itself."
+    context: |
+      - Exists: `getActiveProduct(tx, organizationId, productId)` in `catalog.repository.ts` returns a product row that is ACTIVE, not deleted and the organization's (C-15), read through the old columns.
+      - New: `getActiveVariant(tx, organizationId, variantId)` returns an `ActiveVariant` when the variant is ACTIVE and not deleted, belongs to the organization, and its product is neither deleted nor paused; otherwise 404 `NOT_FOUND` without saying which condition failed.
+      - `getActiveProduct` stays until the old columns go. First usage: order lines (ORD), which move from the product to the variant; the function ships here because the order module must not read catalog tables (ADR-004).
+      - A product written the old way has a variant with its own id (CAT-013, CAT-014), so the function answers for those ids too.
+    acceptance: |
+      Scenario: AC-1 Active variant
+        Given an ACTIVE variant "Rouge / L" of the product "T-shirt", priced 3000, minimum 2.5
+        When `getActiveVariant` is called for its business
+        Then it returns the variant id, the product id, "T-shirt", "Rouge / L", the unit, 3000, the price date and 2.5
+      Scenario Outline: AC-2 Refused
+        When `getActiveVariant` is called for <case>
+        Then it throws 404 NOT_FOUND with the same message
+        Examples:
+          | case                           |
+          | an INACTIVE variant            |
+          | a deleted variant              |
+          | a variant of a deleted product |
+          | a variant of a paused product  |
+          | a variant of another business  |
+          | an unknown variant             |
+      Scenario: AC-3 A product written the old way
+        Given a product inserted with unit and price, so its variant has the same id
+        When `getActiveVariant` is called with that id
+        Then it answers as for any variant
+    abuse: |
+      Scenario: AB-1 A variant of another business is confirmed to exist (information disclosure)
+        When a seller asks for a variant of another business, and then for a variant that does not exist
+        Then both answers are the same 404 body
+    implementation:
+      create: [tests/integration/catalog/active-variant.test.ts]
+      modify: [src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "getActiveVariant(tx: Prisma.TransactionClient, organizationId: string, variantId: string): Promise<ActiveVariant>"
+      types:
+        - "ActiveVariant = { id: string; productId: string; productName: string; variantName: string | null; unit: string; price: bigint; priceUpdatedAt: Date; minOrderQuantity: Prisma.Decimal | null }"
+      errors:
+        - "404 NOT_FOUND 'Not found' (httpError), whatever the cause"
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the variant is read from the database inside the caller's transaction, never from a value sent by the client."
+      - "v5.0.0-8.2.2: only a variant of the given business is returned, and a refusal never says why."
+    tests: |
+      active variant | integration | AC-1, C-15 | fields returned
+      refused | integration | AC-2, C-15 | each Examples row → 404, same message
+      old-style product | integration | AC-3 | product id answers
+      same 404 | security | AB-1, CWE-204 | other business and unknown give the same body
+    command: npx vitest run tests/integration/catalog/active-variant.test.ts
+    out_of_scope:
+      - "Callers: order lines move to variant ids in the order stories."
+      - "Removing `getActiveProduct`: the story that drops the old columns."
+
+
+  - id: CAT-020
+    title: The server can count, list and pause the products on sale
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [CAT-014, CAT-019]
+    read_first: [src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product]
+    constraints: [C-46]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: "Technical story: give the catalog the functions that list the products on sale and pause or resume them for one business, so that billing can enforce the product limit without reading the catalog tables."
+    context: |
+      - Exists: `products.paused_at`, written by the server only (CAT-014, C-46), and the variants of a product (CAT-013). No route or job pauses a product yet.
+      - New in `catalog.repository.ts`, each with the caller's transaction and an organization id:
+        - `listProductsOnSale`: products not deleted, with `paused_at` empty and at least one ACTIVE, not deleted variant. Newest first (`created_at` descending, then `id`). Each item is `{ productId, createdAt, variantIds }` with every not deleted variant of the product.
+        - `listPausedProducts`: products not deleted, with `paused_at` set and at least one ACTIVE, not deleted variant; same shape and order.
+        - `setProductsPaused(tx, organizationId, productIds, paused, now)`: for those ids that belong to the organization, are not deleted and are not already in that state, sets `paused_at = now` (pause) or clears it (resume) and sets `server_updated_at = now` so the phones receive it. It returns the ids it changed.
+      - First usage: billing (BIL-020). It ships here because billing must not read catalog tables (ADR-004).
+    acceptance: |
+      Scenario: AC-1 What is on sale
+        Given a business with a product with an ACTIVE variant, one whose variants are all INACTIVE, a deleted one and a paused one
+        When `listProductsOnSale` runs
+        Then it returns only the first, with the ids of all its not deleted variants
+      Scenario: AC-2 Newest first
+        Given three products created one after another
+        When `listProductsOnSale` runs
+        Then they come back newest first
+      Scenario: AC-3 Pausing
+        When `setProductsPaused` pauses two products at 2026-10-12T09:00:00Z
+        Then their `paused_at` and `server_updated_at` are that instant, both ids are returned, they leave the on-sale list and `listPausedProducts` returns them
+      Scenario: AC-4 Resuming
+        When `setProductsPaused` resumes a paused product
+        Then `paused_at` is empty, `server_updated_at` moves forward and the product is back on sale
+      Scenario Outline: AC-5 Ids that are left alone
+        When `setProductsPaused` pauses <given>
+        Then <result>
+        Examples:
+          | given                         | result                                       |
+          | a deleted product             | it is unchanged and not returned             |
+          | an already paused product     | its first `paused_at` is kept, not returned  |
+          | an empty list                 | it returns an empty list                     |
+    abuse: |
+      Scenario: AB-1 A caller names the products of another business (broken access control)
+        When `setProductsPaused` is called for business A with the id of a product of business B
+        Then that product is unchanged, and its id is not returned
+    implementation:
+      create: [tests/integration/catalog/product-pause.test.ts]
+      modify: [src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "listProductsOnSale(tx: Prisma.TransactionClient, organizationId: string): Promise<SaleProduct[]>"
+        - "listPausedProducts(tx: Prisma.TransactionClient, organizationId: string): Promise<SaleProduct[]>"
+        - "setProductsPaused(tx: Prisma.TransactionClient, organizationId: string, productIds: string[], paused: boolean, now: Date): Promise<string[]>"
+      types:
+        - "SaleProduct = { productId: string; createdAt: Date; variantIds: string[] }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: every query is bound to the organization id given by server code, and the update matches the product ids only inside it."
+      - "v5.0.0-2.3.3: the change runs in the caller's transaction."
+    tests: |
+      on sale | integration | AC-1, C-46 | four products → the one on sale, its variant ids
+      order | integration | AC-2 | three products → newest first
+      pause | integration | AC-3 | dates, returned ids, lists
+      resume | integration | AC-4 | empty date, back on sale
+      left alone | integration | AC-5 | each Examples row → result
+      other business | security | AB-1, CWE-639 | B's product unchanged, not returned
+    command: npx vitest run tests/integration/catalog/product-pause.test.ts
+    out_of_scope:
+      - "Deciding how many products may stay and which ones: billing (BIL-020)."
+      - "Refusing an excess product in the online catalog routes: the stories that write products."
+
+  - id: CAT-021
+    title: A variant change also moves its product's server date
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [CAT-012, CAT-014]
+    amends: [CAT-012]
+    read_first: [prisma/schema.prisma, tests/integration/catalog/product-variant-table.test.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: [CM-42, C-35]
+    asvs: [v5.0.0-2.3.3]
+    story: "Technical story: make every insert or update of a variant also move the server date of its product, so that phones always receive a product together with its variants."
+    context: |
+      - Exists: `products` and `product_variants`, each with a `server_updated_at` set by the database (CAT-001, CAT-012); the mirror triggers of CAT-014, which copy an old-style product write to the variant of the same id only when one of the five old columns changed.
+      - One migration, one transaction: a function and a trigger on `product_variants`, after every insert and every update (`deleted_at` included), that sets `products.server_updated_at` to the database time for the variant's `product_id`.
+      - Why: a phone pulls a table by `server_updated_at`. Without this, a changed variant would reach a customer's phone without its product, and a product put back on sale would not reach it at all (design 3.1).
+      - No loop: the CAT-014 mirror fires only when an old column changed, and this trigger changes none.
+      - `prisma/schema.prisma`: the `//` comment above `ProductVariant` gains, in plain words: saving a variant also marks its product as changed so that the phones receive both; a trigger does it, not the code.
+    acceptance: |
+      Scenario: AC-1 An insert
+        Given a product whose `server_updated_at` is old
+        When a variant is inserted for it
+        Then the product's `server_updated_at` is the database time
+      Scenario Outline: AC-2 An update
+        When a variant gets <change>
+        Then its product's `server_updated_at` moves to the database time
+        Examples:
+          | change                  |
+          | a new price             |
+          | status INACTIVE         |
+          | a new name              |
+          | `deleted_at` set        |
+          | a new `image_keys` list |
+      Scenario: AC-3 Only its own product
+        Given two products, each with a variant
+        When one variant changes
+        Then the other product's `server_updated_at` is unchanged
+      Scenario: AC-4 No loop
+        When the price of an old-style product (non-empty `unit`) is updated
+        Then the statement ends, and the product and its variant carry the new price
+    abuse: |
+      Scenario: AB-1 A write that skips the application (tampering)
+        When a variant is updated by a raw SQL statement
+        Then its product's `server_updated_at` still moves
+    implementation:
+      create: ["prisma/migrations/<timestamp>_cat_021_variant_touches_product/migration.sql", tests/integration/catalog/variant-touches-product.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: the product date moves in the same transaction as the variant write, so both succeed or neither does."
+    tests: |
+      insert | integration | AC-1, CM-42, C-35 | variant inserted → product date is database time
+      update | integration | AC-2, CM-42 | each Examples row → product date moves
+      own product | integration | AC-3 | other product unchanged
+      no loop | integration | AC-4 | old-style price update ends, both rows carry the price
+      raw write | security | AB-1, CWE-693 | raw SQL update → product date moves
+    command: npx vitest run tests/integration/catalog/variant-touches-product.test.ts tests/integration/catalog/product-new-columns.test.ts
+    out_of_scope:
+      - "Pulling products and variants: the synchronization stories."
+
+  - id: CAT-038
+    title: The plan's product limit is checked in one place
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [CAT-014, ORG-045]
+    read_first: [src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: [C-46]
+    asvs: [v5.0.0-2.3.2, v5.0.0-8.2.2]
+    story: "Technical story: give the catalog one function that refuses a new product on sale when the plan's product limit is reached, so that every online route applies the same count."
+    context: |
+      - Exists: `Product.paused_at` and the variant status (CAT-012, CAT-014); `readPlanFields` (ORG-045) with `max_products`, empty for no limit.
+      - New in `catalog.repository.ts`: `countProductsOnSale(tx, organizationId)` counts the products that are not deleted, not paused and have a variant that is ACTIVE and not deleted (C-46). New in `catalog.service.ts`: `assertRoomForProduct(tx, organizationId)` reads the plan and throws `httpError(409, 'PRODUCT_LIMIT_REACHED', ...)` when `max_products` is set and the count has reached it.
+      - It is asked by the online routes that add a product to the sale: create, add a variant, put back on sale, copy. What arrives by synchronization is never refused here: it is paused afterwards.
+      - First usage: CAT-022.
+    acceptance: |
+      Scenario Outline: AC-1 Count
+        Given a business with <products>
+        When `countProductsOnSale` runs
+        Then it answers <count>
+        Examples:
+          | products                                                                  | count |
+          | two products with an ACTIVE variant, one deleted, one paused               | 2     |
+          | a product whose variants are all INACTIVE or deleted                       | 0     |
+          | a product of another business with an ACTIVE variant                       | 0     |
+      Scenario Outline: AC-2 Limit
+        Given a plan with <limit> and 30 products on sale
+        When `assertRoomForProduct` runs
+        Then <result>
+        Examples:
+          | limit | result                                     |
+          | 30    | it throws 409 `PRODUCT_LIMIT_REACHED`      |
+          | 31    | it returns                                 |
+          | none  | it returns                                 |
+    abuse: |
+      Scenario: AB-1 A product counted for another business (broken access control)
+        When business A asks for its count while business B has 40 products on sale
+        Then the count only holds A's products
+    implementation:
+      modify: [src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.service.ts]
+      create: [tests/integration/catalog/product-limit.test.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "countProductsOnSale(tx: Prisma.TransactionClient, organizationId: string): Promise<number>"
+        - "assertRoomForProduct(tx: Prisma.TransactionClient, organizationId: string): Promise<void>"
+      types: []
+      errors: ["PRODUCT_LIMIT_REACHED 409"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.2: the limit is the one of the plan, read from the server, never from the request."
+      - "v5.0.0-8.2.2: the count is bound to the organization id."
+    tests: |
+      count | integration | AC-1, C-46 | each Examples row → count
+      limit | integration | AC-2, C-46 | each Examples row → thrown or not
+      other business | security | AB-1, CWE-639 | A's count excludes B
+    command: npx vitest run tests/integration/catalog/product-limit.test.ts
+    out_of_scope:
+      - "Pausing the excess that arrives by synchronization: the billing and synchronization stories."
+
+  - id: CAT-022
+    title: Manager creates a product with its variants
+    kind: change
+    size: M
+    risk: medium
+    depends_on: [CAT-004, CAT-014, CAT-016, CAT-018, CAT-021, CAT-038, ACC-008, FND-013]
+    amends: [CAT-004]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.schemas.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: [C-13, C-47]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-2.2.1]
+    story: As a manager, I want to add an article with its sizes or units in one step so that customers can order each of them.
+    context: |
+      - Exists: `POST .../products` with a flat body (CAT-004); `product_variants` (CAT-012); `variantLabel`, `simplifyText` (CAT-016); `assertRoomForProduct` (CAT-038); `imageUrl` (FND-013).
+      - Change: the body is `{ id, name, description?, category?, variants: [{ id, name?, unit, price, min_order_quantity? }] }`, 1 to 50 variants, the limits of CAT-004; a variant `name` is 1 to 100 when sent.
+      - One transaction runs `assertRoomForProduct` (C-46), writes the product with an empty `unit` (CAT-014 reads that as "the code writes the variants") and then each variant, ACTIVE, `price_updated_at` set by the server. Two variants with the same simplified name and unit: 409 `VARIANT_EXISTS`, nothing stored (C-47).
+      - Answer 201 `ProductView`, `image_urls` from `imageUrl`.
+      - `ability.ts`: export `CATALOG_FIELDS = ['name', 'description', 'category', 'unit', 'price', 'min_order_quantity', 'status']`; the `create Product` row gets `fields: CATALOG_FIELDS`; add the same row for `ProductVariant`.
+    acceptance: |
+      Scenario: AC-1 A product with variants
+        When a MANAGER posts name "Riz parfumé" and variants "sac 25 kg" at 15000 and "sac 10 kg" at 7000
+        Then the answer is 201 with both variants in order, ACTIVE, the first labelled "Riz parfumé — sac 25 kg"
+      Scenario Outline: AC-2 Refusals
+        When the body has <problem>
+        Then the answer is <status> and nothing is stored
+        Examples:
+          | problem                                         | status                      |
+          | no variant, 51 variants, price 0 or 1.5, no unit | 400 VALIDATION_ERROR        |
+          | a top-level unit or price, a variant status, or `organization_id`, `image_keys`, `paused_at` | 400 VALIDATION_ERROR |
+          | two variants "Sac 10 kg" and " sac  10 KG "     | 409 VARIANT_EXISTS          |
+          | a CLOSED or SUSPENDED organization              | 409 ORGANIZATION_NOT_ACTIVE |
+      Scenario: AC-3 Plan limit
+        Given a FREE business with 30 products on sale
+        When a MANAGER posts a product
+        Then the answer is 409 `PRODUCT_LIMIT_REACHED` and nothing is stored; an unlimited plan answers 201
+      Scenario: AC-4 Repeat
+        When the same body is posted twice
+        Then one product and its variants exist and both answers are equal
+    abuse: |
+      Scenario: AB-1 A seller creates articles (vertical)
+        When a SELLER or DRIVER posts
+        Then the answer is 403
+      Scenario: AB-2 Another business (horizontal)
+        When a member of A posts to the path of business B
+        Then the answer is 404
+    implementation:
+      create: [tests/integration/catalog/create-product-with-variants.test.ts]
+      modify: [src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts, src/shared/access/ability.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "createProduct(actor: Actor, input: CreateProductInput): Promise<ProductView>"
+      types:
+        - "CreateProductInput = { id: string; name: string; description?: string; category?: string; variants: VariantInput[] }"
+        - "VariantInput = { id: string; name?: string; unit: string; price: number; min_order_quantity?: number | string }"
+        - "ProductView = { id: string; name: string; description: string | null; category: string | null; image_urls: string[]; paused: boolean; variants: VariantView[] }"
+        - "VariantView = { id: string; name: string | null; unit: string; label: string; price: number; price_updated_at: string; min_order_quantity: string | null; image_urls: string[]; status: 'ACTIVE' | 'INACTIVE' }"
+      errors: [VALIDATION_ERROR 400, ORGANIZATION_NOT_ACTIVE 409, PRODUCT_LIMIT_REACHED 409, VARIANT_EXISTS 409, FORBIDDEN 403, NOT_FOUND 404]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner, by the rules table."
+      - "v5.0.0-15.3.3: strict schema; status, photos, pause date and organization come from the server."
+      - "v5.0.0-2.2.1: values are checked first."
+    tests: |
+      created | integration | AC-1, C-13 | 201, order, label
+      refusals | integration | AC-2, C-47 | each Examples row → status, no row
+      plan limit | integration | AC-3 | 30 on sale → 409
+      repeat | integration | AC-4 | one product
+      seller | security | AB-1, WSTG-ATHZ-03 | 403, nothing stored
+      other business | security | AB-2, WSTG-ATHZ-04 | 404
+    command: npx vitest run tests/integration/catalog/create-product-with-variants.test.ts tests/integration/catalog/create-product.test.ts tests/unit/access/ability.test.ts
+    out_of_scope:
+      - "Adding, editing and deleting a variant of an existing product: CAT-024 to CAT-026."
+    tests_to_update:
+      - "tests/integration/catalog/create-product.test.ts | bodies carry a top-level unit and price | send `variants`, expect the view with variants; other cases keep their meaning"
+
+  - id: CAT-023
+    title: Manager edits a product's name, description and category
+    kind: change
+    size: S
+    risk: medium
+    depends_on: [CAT-005, CAT-022]
+    amends: [CAT-005]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.schemas.ts]
+    design_refs: [catalogue/product]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, v5.0.0-8.2.2]
+    story: As a manager, I want to rename an article or change its description and family so that my catalog stays right.
+    context: |
+      - Exists: `PATCH .../products/{productId}` changes name, unit, price, min_order_quantity, description, category and status, and answers the flat view with `negotiated_prices_to_review` (CAT-005); `ProductView` (CAT-022).
+      - Change: PATCH accepts only `name` (1 to 100), `description` (up to 2000, null clears) and `category` (up to 100, null clears), at least one. `unit`, `price`, `min_order_quantity` and `status` belong to variants and are a 400 (CAT-025). The answer is 200 with the `ProductView`; `negotiated_prices_to_review` leaves this route.
+      - A product that is deleted or of another organization answers 404. A paused product can be edited.
+      - `ability.ts`: the `update Product` row gets `fields: CATALOG_FIELDS`; add the same `update` row for `ProductVariant` (used from CAT-025).
+    acceptance: |
+      Scenario: AC-1 Change fields
+        When a MANAGER patches name and category
+        Then the answer is 200 with the new values and the variants unchanged
+      Scenario: AC-2 Clear
+        When description is sent as null
+        Then the answer is 200 and description is null
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the answer is <status> and the product is unchanged
+        Examples:
+          | problem                                              | status                 |
+          | no field, or name empty                              | 400 VALIDATION_ERROR   |
+          | unit, price, min_order_quantity or status            | 400 VALIDATION_ERROR   |
+          | organization_id, image_keys or paused_at             | 400 VALIDATION_ERROR   |
+          | a product of another organization, or a deleted one  | 404 NOT_FOUND          |
+          | a SELLER or DRIVER caller                            | 403 FORBIDDEN          |
+    abuse: |
+      Scenario: AB-1 A seller renames an article (vertical)
+        When a SELLER patches the name
+        Then the answer is 403 and the name is unchanged
+      Scenario: AB-2 Editing another business's product (horizontal)
+        When a member of A patches a product of B under A's path
+        Then the answer is 404 and B's product is unchanged
+    implementation:
+      create: [tests/integration/catalog/edit-product-text.test.ts]
+      modify: [src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts, src/shared/access/ability.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "editProduct(actor: Actor, productId: string, input: EditProductInput): Promise<ProductView>"
+      types:
+        - "EditProductInput = { name?: string; description?: string | null; category?: string | null }"
+      errors: [VALIDATION_ERROR 400, FORBIDDEN 403, NOT_FOUND 404]
+      dependencies: [express, zod, "@casl/ability"]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner."
+      - "v5.0.0-8.2.2: the product is selected by id and organization id together."
+      - "v5.0.0-15.3.3: strict schema; prices and status can no longer be sent here."
+    tests: |
+      change | integration | AC-1 | 200, variants same
+      clear | integration | AC-2 | null description
+      refusals | integration | AC-3 | each Examples row → status
+      seller | security | AB-1, WSTG-ATHZ-03 | 403, unchanged
+      other business | security | AB-2, WSTG-ATHZ-04 | 404, unchanged
+    command: npx vitest run tests/integration/catalog/edit-product-text.test.ts tests/integration/catalog/edit-product.test.ts tests/unit/access/ability.test.ts
+    out_of_scope:
+      - "Price, unit, minimum quantity and status: CAT-025."
+    tests_to_update:
+      - "tests/integration/catalog/edit-product.test.ts | cases patch price, unit, min_order_quantity and status of a product and expect negotiated_prices_to_review | keep only the name, description, category, role and other-business cases, and expect the product view; price cases move to CAT-025"
+
+  - id: CAT-024
+    title: Manager adds a variant to a product
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [CAT-022, CAT-018, CAT-038]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.routes.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: [C-13, C-46, C-47]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a manager, I want to add a size, a colour or a format to an article so that customers can choose it.
+    context: |
+      - Exists: product creation with variants and `VariantView` (CAT-022); `assertRoomForProduct` (CAT-038); the unique index of C-47 (CAT-018).
+      - Adds: `POST /api/v1/organizations/{organizationId}/products/{productId}/variants` with `{ id, name?, unit, price, min_order_quantity? }`, the limits of CAT-022; answer 201 `VariantView`. The product must belong to the organization and not be deleted (else 404); a paused product accepts the variant.
+      - A live variant of the same product with the same simplified name and unit: 409 `VARIANT_EXISTS`. The service compares with `simplifyText`; a race falls on the unique index and gives the same answer.
+      - A product with no ACTIVE variant that is not paused returns to sale with this variant: `assertRoomForProduct` applies (C-46).
+    acceptance: |
+      Scenario: AC-1 Add
+        Given a product "T-shirt" with one variant
+        When a MANAGER posts name "Rouge / L", unit "pièce" and price 5000
+        Then the answer is 201 with label "T-shirt — Rouge / L (pièce)" and status ACTIVE
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the answer is <status> and nothing is stored
+        Examples:
+          | problem                                               | status                      |
+          | the name and unit of a live variant, in other case    | 409 VARIANT_EXISTS          |
+          | price 0, or an empty unit                             | 400 VALIDATION_ERROR        |
+          | status, product_id or organization_id in the body     | 400 VALIDATION_ERROR        |
+          | a deleted product, or a product of another business   | 404 NOT_FOUND               |
+          | a CLOSED or SUSPENDED organization                    | 409 ORGANIZATION_NOT_ACTIVE |
+          | a SELLER or DRIVER caller                             | 403 FORBIDDEN               |
+      Scenario: AC-3 Back on sale
+        Given a FREE business with 30 products on sale and a product whose variants are all INACTIVE
+        When a variant is added to that product
+        Then the answer is 409 `PRODUCT_LIMIT_REACHED`; for a product that has an ACTIVE variant it is 201
+      Scenario: AC-4 Repeat
+        When the same body is posted twice
+        Then one variant exists and both answers are equal
+    abuse: |
+      Scenario: AB-1 A seller adds variants (vertical)
+        When a SELLER posts
+        Then the answer is 403 and nothing is stored
+      Scenario: AB-2 A product of another business under one's own path (horizontal)
+        When a member of A posts a variant to the product id of B
+        Then the answer is 404 and B's product is unchanged
+    implementation:
+      create: [tests/integration/catalog/add-variant.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "addVariant(actor: Actor, productId: string, input: VariantInput): Promise<VariantView>"
+        - "findLiveVariantByText(tx: Prisma.TransactionClient, productId: string, name: string | undefined, unit: string): Promise<{ id: string; status: 'ACTIVE' | 'INACTIVE' } | null>"
+      types: []
+      errors: [VALIDATION_ERROR 400, ORGANIZATION_NOT_ACTIVE 409, PRODUCT_LIMIT_REACHED 409, VARIANT_EXISTS 409, FORBIDDEN 403, NOT_FOUND 404]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner, decided by the rules table (`create ProductVariant`)."
+      - "v5.0.0-8.2.2: the product is selected by id and organization id together."
+      - "v5.0.0-15.3.3: strict schema; status and the keys of the product come from the server."
+    tests: |
+      add | integration | AC-1 | 201, label
+      refusals | integration | AC-2, C-13, C-47 | each Examples row → status
+      back on sale | integration | AC-3, C-46 | 30 on sale → 409; with an ACTIVE variant → 201
+      repeat | integration | AC-4 | one variant
+      seller | security | AB-1, WSTG-ATHZ-03 | 403, nothing stored
+      other business | security | AB-2, WSTG-ATHZ-04 | 404, unchanged
+    command: npx vitest run tests/integration/catalog/add-variant.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Editing and deleting a variant: CAT-025, CAT-026."
+      - "Photos of a variant: the images module."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | route list | add the variant POST path, remove nothing"
+      - "tests/integration/per-001.test.ts | route list | add the variant POST path, remove nothing"
+
+  - id: CAT-025
+    title: Manager changes a variant's price, unit or availability
+    kind: feature
+    size: M
+    risk: medium
+    depends_on: [CAT-024, CAT-023, CAT-038]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.routes.ts]
+    design_refs: [catalogue/productvariant]
+    constraints: [C-13, C-46, C-47]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a manager, I want to change the price, the unit or the availability of one size of an article so that my catalog stays right.
+    context: |
+      - Exists: `addVariant`, `findLiveVariantByText` (CAT-024); the `update ProductVariant` rule (CAT-023); the price date trigger.
+      - Adds: `PATCH /api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}` with at least one of `name` (null clears), `unit`, `price`, `min_order_quantity` (null clears), `status` (ACTIVE or INACTIVE), the limits of CAT-022. Answer 200 `VariantView` plus `negotiated_prices_to_review`: the live negotiated prices of this variant older than the new `price_updated_at` (0 when the price did not change).
+      - The variant must belong to the product and the organization and not be deleted (else 404). A change that gives it the simplified name and unit of another live variant: 409 `VARIANT_EXISTS`.
+      - INACTIVE takes it off sale; old orders keep their lines. Back to ACTIVE on a product with no other ACTIVE variant that is not paused returns it to sale: `assertRoomForProduct` applies (C-46).
+    acceptance: |
+      Scenario: AC-1 Change fields
+        When a MANAGER patches the name and the minimum quantity
+        Then the answer is 200, `price_updated_at` unchanged
+      Scenario: AC-2 Price change
+        Given 3 customers with a negotiated price set before now
+        When the price goes from 15000 to 16000
+        Then `price_updated_at` is now and `negotiated_prices_to_review` is 3
+      Scenario: AC-3 Withdraw and restore
+        When the status is set INACTIVE, then ACTIVE
+        Then both answers are 200
+      Scenario Outline: AC-4 Refusals
+        When the request has <problem>
+        Then the answer is <status> and the variant is unchanged
+        Examples:
+          | problem                                              | status               |
+          | price 0, no field, or status "DELETED"               | 400 VALIDATION_ERROR |
+          | product_id, organization_id or image_keys            | 400 VALIDATION_ERROR |
+          | a name and unit equal to another live variant        | 409 VARIANT_EXISTS   |
+          | a variant of another business, or a deleted one      | 404 NOT_FOUND        |
+      Scenario: AC-5 Back on sale at the limit
+        Given a FREE business with 30 products on sale and a product whose only variant is INACTIVE
+        When that variant is set ACTIVE
+        Then the answer is 409 `PRODUCT_LIMIT_REACHED`
+    abuse: |
+      Scenario: AB-1 A seller changes a price (vertical)
+        When a SELLER or DRIVER patches the price
+        Then the answer is 403 and the price is unchanged
+      Scenario: AB-2 A variant of another business (horizontal)
+        When a member of A patches a variant of B
+        Then the answer is 404 and B's variant is unchanged
+    implementation:
+      create: [tests/integration/catalog/edit-variant.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "editVariant(actor: Actor, productId: string, variantId: string, input: EditVariantInput): Promise<VariantView & { negotiated_prices_to_review: number }>"
+      types:
+        - "EditVariantInput = { name?: string | null; unit?: string; price?: number; min_order_quantity?: number | string | null; status?: 'ACTIVE' | 'INACTIVE' }"
+      errors: [VALIDATION_ERROR 400, PRODUCT_LIMIT_REACHED 409, VARIANT_EXISTS 409, FORBIDDEN 403, NOT_FOUND 404]
+      dependencies: [express, zod, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner (`update ProductVariant`)."
+      - "v5.0.0-8.2.2: the variant is selected by id, product id and organization id together."
+      - "v5.0.0-15.3.3: strict schema; keys, product and organization are not accepted."
+    tests: |
+      change fields | integration | AC-1, C-13 | 200, price date same
+      price change | integration | AC-2, C-13 | date moves, 3 to review
+      withdraw and restore | integration | AC-3 | statuses follow
+      refusals | integration | AC-4, C-47 | each Examples row → status
+      limit | integration | AC-5, C-46 | 30 on sale → 409
+      seller price | security | AB-1, WSTG-ATHZ-03 | 403, unchanged
+      other business | security | AB-2, WSTG-ATHZ-04 | 404, unchanged
+    command: npx vitest run tests/integration/catalog/edit-variant.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Deleting a variant: CAT-026."
+    tests_to_update:
+      - "tests/integration/api-docs/catalog.test.ts | route list | add the variant PATCH path, remove nothing"
+      - "tests/integration/per-001.test.ts | route list | add the variant PATCH path, remove nothing"
+
+  - id: CAT-026
+    title: Manager deletes a variant or a whole product
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [CAT-025, ORD-030]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.routes.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: [C-45, C-48]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: As a manager, I want to delete an article or one of its sizes that I added by mistake so that my catalog stays clean, without losing any sale history.
+    context: |
+      - Exists: `editVariant` (CAT-025); `listOrderedVariantIds` of the order module (ORD-030).
+      - Adds: `DELETE /api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}` and `DELETE /api/v1/organizations/{organizationId}/products/{productId}`, both 204. Deleting sets `deleted_at` in one transaction; a product goes with all its variants.
+      - A variant is used when an order line or a live negotiated price cites it (C-48): new `findUsedVariantIds(tx, variantIds)` answers it, with `listOrderedVariantIds` for the lines. A used variant gives 409 `VARIANT_IN_USE`, nothing deleted: CAT-025 (INACTIVE) is the way out. One used variant refuses the whole product.
+      - The last live variant cannot be deleted alone: 409 `LAST_VARIANT` (C-45); delete the product.
+      - Deleting what is already deleted answers 204; an id outside the organization answers 404.
+      - `ability.ts`: add `delete` rows for `Product` and `ProductVariant`, MANAGER, `ONLINE_EXCEPT_OWNER`, with `fields: CATALOG_FIELDS`.
+    acceptance: |
+      Scenario: AC-1 Delete a variant never used
+        Given a product with two variants
+        When a MANAGER deletes one
+        Then the answer is 204 and the variant has `deleted_at`
+      Scenario: AC-2 Delete a product
+        Given a product with two unused variants
+        When a MANAGER deletes the product
+        Then the answer is 204 and the product and both variants are deleted
+      Scenario Outline: AC-3 A used variant stays
+        Given a variant cited by <use>
+        When a MANAGER deletes it, or deletes its product
+        Then the answer is 409 `VARIANT_IN_USE` and nothing is deleted
+        Examples:
+          | use                           |
+          | an order line                 |
+          | a live negotiated price       |
+      Scenario: AC-4 Past use does not block
+        Given a variant whose only negotiated price was deleted
+        Then deleting it answers 204
+      Scenario: AC-5 The last variant
+        When the only live variant of a product is deleted
+        Then the answer is 409 `LAST_VARIANT`
+      Scenario Outline: AC-6 Other answers
+        When <case>
+        Then the answer is <status>
+        Examples:
+          | case                                         | status        |
+          | the variant is already deleted               | 204           |
+          | the id belongs to another business           | 404 NOT_FOUND |
+    abuse: |
+      Scenario: AB-1 Deleting sales history (tampering)
+        When a MANAGER deletes the product of a variant that orders cite
+        Then the answer is 409 and the order lines keep their variant
+      Scenario: AB-2 A seller deletes articles (vertical)
+        When a SELLER calls either route
+        Then the answer is 403
+    implementation:
+      create: [tests/integration/catalog/delete-variant.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts, src/shared/access/ability.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "deleteVariant(actor: Actor, productId: string, variantId: string): Promise<void>"
+        - "deleteProduct(actor: Actor, productId: string): Promise<void>"
+        - "findUsedVariantIds(tx: Prisma.TransactionClient, variantIds: string[]): Promise<Set<string>>"
+      types: []
+      errors: [VARIANT_IN_USE 409, LAST_VARIANT 409, FORBIDDEN 403, NOT_FOUND 404]
+      dependencies: [express, "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner (`delete Product`, `delete ProductVariant`)."
+      - "v5.0.0-8.2.2: product and variant are selected by id and organization id together."
+      - "v5.0.0-2.3.3: checks and deletions run in one transaction."
+    tests: |
+      delete variant | integration | AC-1, C-45 | 204, deleted_at set
+      delete product | integration | AC-2 | product and variants deleted
+      used variant | integration | AC-3, C-48 | each Examples row → 409, nothing deleted
+      past use | integration | AC-4, C-48 | deleted price → 204
+      last variant | integration | AC-5, C-45 | 409
+      other answers | integration | AC-6 | each Examples row → status
+      history kept | security | AB-1, CWE-639 | 409, lines intact
+      seller | security | AB-2, WSTG-ATHZ-03 | 403 on both routes
+    command: npx vitest run tests/integration/catalog/delete-variant.test.ts tests/integration/api-docs tests/integration/per-001.test.ts tests/unit/access/ability.test.ts
+    out_of_scope:
+      - "A deletion by synchronization: CAT-036."
+    tests_to_update:
+      - "tests/unit/access/ability.test.ts | the role loop expects `delete` on Product false for everyone | expect `read` false; add: a MANAGER online and the OWNER may delete Product and ProductVariant, a MANAGER offline may not"
+      - "tests/integration/api-docs/catalog.test.ts | route list | add the two DELETE paths, remove nothing"
+      - "tests/integration/per-001.test.ts | route list | add the two DELETE paths, remove nothing"
+
+  - id: CAT-027
+    title: Seller lists the catalog with its variants
+    kind: change
+    size: S
+    risk: low
+    depends_on: [CAT-006, CAT-022]
+    amends: [CAT-006]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2]
+    story: As a seller, I want to see each article with its sizes so that I can quote the right one.
+    context: |
+      - Exists: `GET .../products?limit&cursor&status&category&q` answers flat items read from the old product columns (CAT-006); `ProductView` (CAT-022).
+      - Change: each item is a `ProductView` with all its variants not deleted, withdrawn ones included, oldest first. Products not deleted, newest first (`created_at` descending, then `id`); a paused product is listed with `paused: true`. The variants of a page come from one query on the page's ids, not one query per product.
+      - `status` ACTIVE keeps the products with at least one ACTIVE variant, INACTIVE those with none. `category` is an exact match. `q` (up to 100 characters) matches the product name or the name of any of its variants, case-insensitive.
+      - SELLER and above; a DRIVER gets 403. `catalog.openapi.ts` documents the new item.
+    acceptance: |
+      Scenario: AC-1 Products with variants
+        Given a product with two variants, one of them INACTIVE, and a product whose only variant is INACTIVE
+        When a SELLER lists
+        Then both products are returned with all their variants, newest product first
+      Scenario Outline: AC-2 Filters
+        When the query is <query>
+        Then the result is <result>
+        Examples:
+          | query                          | result                                         |
+          | status=ACTIVE                  | only the first product                         |
+          | status=INACTIVE                | only the second product                        |
+          | q=rouge, a variant named Rouge | the product of that variant                    |
+          | category=Boissons              | only the products of that category             |
+      Scenario: AC-3 Pages
+        Given 3 products and limit 2
+        When the first page and then the `cursor` page are read
+        Then they hold 2 and 1 products with no repeat
+      Scenario: AC-4 Roles and scope
+        Then a DRIVER gets 403, and a member of A listing the path of B gets 404
+    abuse: |
+      Scenario: AB-1 Listing another business's catalog (horizontal)
+        When a member of A lists the products under B's path
+        Then the answer is 404 and no product of B is returned
+    implementation:
+      create: [tests/integration/catalog/list-products-with-variants.test.ts]
+      modify: [src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "listProducts(actor: Actor, query: ListProductsQuery): Promise<ProductPage>"
+      types:
+        - "ProductPage = { items: ProductView[]; next_cursor: string | null }"
+      errors: [FORBIDDEN 403, NOT_FOUND 404]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: SELLER and above; a driver does not list the catalog."
+      - "v5.0.0-8.2.2: products and variants are selected by the actor's organization id."
+    tests: |
+      products with variants | integration | AC-1 | both products, all variants
+      filters | integration | AC-2 | each Examples row → result
+      pages | integration | AC-3 | 2 then 1, no repeat
+      roles | integration | AC-4 | 403 and 404
+      other business | security | AB-1, WSTG-ATHZ-04 | 404, nothing returned
+    command: npx vitest run tests/integration/catalog/list-products-with-variants.test.ts tests/integration/catalog/list-products.test.ts
+    out_of_scope:
+      - "What a customer sees of a supplier's catalog: CAT-028."
+    tests_to_update:
+      - "tests/integration/catalog/list-products.test.ts | items are flat with unit, price and status of the product | expect product views with `variants`; the filter, page and role cases keep their meaning with status taken from the variants"
+
+  - id: CAT-028
+    title: Customer browses a supplier's catalog by product and variant
+    kind: change
+    size: M
+    risk: medium
+    depends_on: [CAT-007, CAT-022, CAT-016]
+    amends: [CAT-007]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: [CM-11]
+    asvs: [v5.0.0-8.2.2, v5.0.0-8.3.1]
+    story: As a customer, I want to see a supplier's articles with each size and my own price so that I can order the right one.
+    context: |
+      - Exists: `GET .../catalog?limit&cursor&as_organization_id` lists ACTIVE products flat, with `price_is_negotiated` (CAT-007); `getReferencePrice`, `variantLabel`.
+      - Change: each item is `{ id, name, description, category, image_urls, variants: [{ id, name, unit, label, price, min_order_quantity, price_is_negotiated, image_urls }] }`. It lists the products not deleted and not paused that have at least one ACTIVE variant not deleted, newest first, and only those variants, oldest first. `image_urls` of a variant holds its own photos only; the phone falls back to the product's.
+      - `price` of a variant is the caller's negotiated price when the caller's own live relationship with this supplier has one, else the variant price (CM-11). With `as_organization_id` the organization's own relationship decides, the caller being its MANAGER or OWNER (else 404). Pages are of products.
+      - A CLOSED or SUSPENDED supplier, or an unknown id, answers 404 as before. Nothing reveals other customers' prices, the supplier's own suppliers, withdrawn variants or paused products.
+    acceptance: |
+      Scenario: AC-1 Products and variants
+        Given a supplier with a product of two ACTIVE variants and one INACTIVE
+        When a customer browses
+        Then the product appears once with its two ACTIVE variants and their labels
+      Scenario: AC-2 My price
+        Given a negotiated price of 2800 for the first variant, whose price is 3000
+        When the customer browses
+        Then the first variant shows 2800 with `price_is_negotiated` true and the second its own price with false
+      Scenario Outline: AC-3 Left out
+        When the supplier has <case>
+        Then it is not returned
+        Examples:
+          | case                                           |
+          | a product with all variants INACTIVE           |
+          | a paused product                               |
+          | a deleted product or a deleted variant         |
+      Scenario: AC-4 Organization as customer
+        When `as_organization_id` names an organization of which the caller is not MANAGER or OWNER
+        Then the answer is 404
+    abuse: |
+      Scenario: AB-1 Another customer's price leaks (information disclosure)
+        Given two customers of one supplier with different negotiated prices for a variant
+        When the first browses
+        Then only the first price appears, in no field of the answer
+    implementation:
+      create: [tests/integration/catalog/customer-catalog-variants.test.ts]
+      modify: [src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "browseCatalog(personId: string, supplierOrganizationId: string, query: BrowseQuery): Promise<CatalogPage>"
+      types:
+        - "CatalogItemView = { id: string; name: string; description: string | null; category: string | null; image_urls: string[]; variants: CatalogVariantView[] }"
+        - "CatalogVariantView = { id: string; name: string | null; unit: string; label: string; price: number; min_order_quantity: string | null; price_is_negotiated: boolean; image_urls: string[] }"
+      errors: [NOT_FOUND 404]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.2: negotiated prices are joined through the caller's own relationship only."
+      - "v5.0.0-8.3.1: the visibility predicate of the relationship decides which customer record applies."
+    tests: |
+      products and variants | integration | AC-1 | one product, two variants
+      my price | integration | AC-2, CM-11 | 2800 and 3000
+      left out | integration | AC-3 | each Examples row → absent
+      organization as customer | integration | AC-4 | 404
+      other customer | security | AB-1, WSTG-ATHZ-02 | only own price
+    command: npx vitest run tests/integration/catalog/customer-catalog-variants.test.ts tests/integration/catalog/customer-catalog.test.ts
+    out_of_scope:
+      - "Showing the product to a customer's phone through synchronization: customers browse online."
+    tests_to_update:
+      - "tests/integration/catalog/customer-catalog.test.ts | items are flat with unit and price of the product | expect products with `variants`, the ACTIVE ones only; the 404, as_organization_id and negotiated-price cases keep their meaning per variant"
+
+  - id: CAT-029
+    title: Negotiated prices are set and copied by variant
+    kind: change
+    size: M
+    risk: medium
+    depends_on: [CAT-008, CAT-010, CAT-015, CAT-022]
+    amends: [CAT-008, CAT-010]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product, relations-commerciales/customerprice]
+    constraints: [C-11, C-04]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a manager, I want to set and copy a customer's price for one size of an article so that each size has its own negotiated price.
+    context: |
+      - Exists: `PUT .../customers/{relationshipId}/prices/{productId}` with `{ id, price }` (CAT-008) and `POST .../prices/copy` (CAT-010); `customer_prices.product_variant_id` and the unique index per variant (CAT-015); `upsertCustomerPrice`, `findSupplierRelationshipForPrice`.
+      - Change: the path ends with `{variantId}` and the answer is `{ product_variant_id, price, set_by_id, set_at }`. The variant must belong to the organization, not be deleted, any status (else 404). The row is written with `product_variant_id` and, because the old column is still required, `product_id` of the variant's product.
+      - `upsertCustomerPrice` takes the variant: it replaces the live price of the pair, else creates one (the last writer wins). The notification `price.negotiated_changed` names the variant `label`.
+      - Copy: each live source price is copied by `product_variant_id` onto the target, with the same two columns; the answer stays `{ copied }`. The own-record rule, relationship checks and roles are unchanged.
+      - `catalog.openapi.ts` documents the renamed parameter and answer.
+    acceptance: |
+      Scenario: AC-1 Set for a variant
+        Given a product with two variants and a customer relationship
+        When a MANAGER puts 2800 on the first variant
+        Then the answer is 200 with `product_variant_id`, and the second variant has no negotiated price
+      Scenario: AC-2 Replace
+        When 2700 is put on the same variant again
+        Then one live price exists and it is 2700
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the answer is <status>
+        Examples:
+          | problem                                              | status               |
+          | price 0                                              | 400 VALIDATION_ERROR |
+          | a variant of another business, or a deleted one      | 404 NOT_FOUND        |
+          | the caller is the customer person                    | 403 OWN_RECORD       |
+          | a SELLER or DRIVER caller                            | 403 FORBIDDEN        |
+      Scenario: AC-4 Copy
+        Given a source relationship with prices on two variants
+        When they are copied to a target that already has a price on one of them
+        Then the target has both prices, the existing one replaced, and the answer is `{ copied: 2 }`
+    abuse: |
+      Scenario: AB-1 A price for a variant of another supplier (tampering)
+        When a manager of A puts a price on a variant id of business B
+        Then the answer is 404 and no price row is written
+      Scenario: AB-2 A manager prices themselves (elevation)
+        When a manager sets a price on their own customer record
+        Then the answer is 403 `OWN_RECORD`
+    implementation:
+      create: [tests/integration/catalog/variant-prices.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "setCustomerPrice(actor: Actor, relationshipId: string, variantId: string, input: SetCustomerPriceInput): Promise<CustomerPriceView>"
+        - "upsertCustomerPrice(tx: Prisma.TransactionClient, input: { id: string; relationshipId: string; variantId: string; productId: string; price: number; setById: string; now: Date }): Promise<void>"
+      types:
+        - "CustomerPriceView = { product_variant_id: string; price: number; set_by_id: string; set_at: string }"
+      errors: [VALIDATION_ERROR 400, FORBIDDEN 403, OWN_RECORD 403, NOT_FOUND 404]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner; the rules table decides."
+      - "v5.0.0-8.2.2: the variant is selected by id and the supplier's organization id together."
+      - "v5.0.0-15.3.3: strict schema; the author and the date come from the server."
+    tests: |
+      set | integration | AC-1, C-11 | price on one variant only
+      replace | integration | AC-2, C-11 | one live row
+      refusals | integration | AC-3, C-04 | each Examples row → status
+      copy | integration | AC-4, C-11 | two prices, one replaced
+      other supplier | security | AB-1, WSTG-ATHZ-04 | 404, no row
+      own record | security | AB-2, CWE-269 | 403
+    command: npx vitest run tests/integration/catalog/variant-prices.test.ts tests/integration/catalog/set-customer-price.test.ts tests/integration/catalog/copy-prices.test.ts
+    out_of_scope:
+      - "Listing and removing prices: CAT-030."
+    tests_to_update:
+      - "tests/integration/catalog/set-customer-price.test.ts | the path and the answer use `product_id` | use the variant id in the path and expect `product_variant_id`; the other cases keep their meaning"
+      - "tests/integration/catalog/copy-prices.test.ts | rows are read and compared through `product_id` | compare through `product_variant_id`; the counts and refusals keep their meaning"
+
+  - id: CAT-030
+    title: Negotiated prices are listed and removed by variant
+    kind: change
+    size: S
+    risk: low
+    depends_on: [CAT-009, CAT-029]
+    amends: [CAT-009]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product, relations-commerciales/customerprice]
+    constraints: [C-11]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2]
+    story: As a manager, I want to see and remove the negotiated prices of a customer per size of an article so that I know which ones to review.
+    context: |
+      - Exists: `GET .../customers/{relationshipId}/prices` and `DELETE .../prices/{productId}` (CAT-009); the variant-based price (CAT-029).
+      - Change: a list item is `{ product_variant_id, label, price, variant_price, set_by_id, set_at, to_review }`: `label` from `variantLabel`, `variant_price` the variant's current price, `to_review` true when the variant's `price_updated_at` is later than `set_at`. Same pagination, roles (SELLER and above) and scope as before.
+      - `DELETE .../prices/{variantId}` answers 204 and sets `deleted_at` on the live price of that variant; none answers 404. A registered customer gets `price.negotiated_changed` naming the label. Roles, own-record rule and relationship checks are unchanged.
+      - `catalog.openapi.ts` documents the renamed parameter and the new item.
+    acceptance: |
+      Scenario: AC-1 List
+        Given prices on two variants of one product, one set before the variant's last price change
+        When a SELLER lists
+        Then both items carry their label and `variant_price`, and only the older one has `to_review` true
+      Scenario: AC-2 Remove
+        When a MANAGER deletes the price of the first variant
+        Then the answer is 204, the list shows only the second, and a second delete answers 404
+      Scenario Outline: AC-3 Refusals
+        When <case>
+        Then the answer is <status>
+        Examples:
+          | case                                     | status         |
+          | a DRIVER lists                           | 403 FORBIDDEN  |
+          | a SELLER deletes                         | 403 FORBIDDEN  |
+          | the caller is the customer person        | 403 OWN_RECORD |
+          | the relationship is another business's   | 404 NOT_FOUND  |
+    abuse: |
+      Scenario: AB-1 Reading another supplier's prices (horizontal)
+        When a member of A lists the prices of a relationship of B
+        Then the answer is 404 and nothing is returned
+    implementation:
+      create: [tests/integration/catalog/variant-price-list.test.ts]
+      modify: [src/modules/catalog/catalog.routes.ts, src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "listCustomerPrices(actor: Actor, relationshipId: string, query: ListCustomerPricesQuery): Promise<CustomerPricePage>"
+        - "removeCustomerPrice(actor: Actor, relationshipId: string, variantId: string): Promise<void>"
+      types:
+        - "CustomerPriceListItem = { product_variant_id: string; label: string; price: number; variant_price: number; set_by_id: string; set_at: string; to_review: boolean }"
+      errors: [FORBIDDEN 403, OWN_RECORD 403, NOT_FOUND 404]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: reading needs SELLER; removing needs MANAGER online or OWNER."
+      - "v5.0.0-8.2.2: the relationship is selected through the organization's visible relations."
+    tests: |
+      list | integration | AC-1, C-11 | labels, to_review
+      remove | integration | AC-2 | 204 then 404
+      refusals | integration | AC-3 | each Examples row → status
+      other business | security | AB-1, WSTG-ATHZ-04 | 404, nothing returned
+    command: npx vitest run tests/integration/catalog/variant-price-list.test.ts tests/integration/catalog/list-remove-prices.test.ts
+    out_of_scope:
+      - "Setting and copying prices: CAT-029."
+    tests_to_update:
+      - "tests/integration/catalog/list-remove-prices.test.ts | items carry `product_id`, `product_name` and `product_price`, and the delete path takes a product id | expect `product_variant_id`, `label` and `variant_price`, and a variant id in the path"
+
+  - id: CAT-031
+    title: Reseller copies purchased variants into their catalog
+    kind: change
+    size: M
+    risk: medium
+    depends_on: [CAT-011, CAT-022, CAT-016, CAT-024, CAT-038]
+    amends: [CAT-011]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: [C-47]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a manager, I want to copy the articles I buy into my own catalog, size by size, with my own prices so that I can sell them.
+    context: |
+      - Exists: `POST .../products/copy` with `{ id, source_product_id, price }` copies one flat article (CAT-011); `findLiveVariantByText` (CAT-024); `assertRoomForProduct` (CAT-038); `simplifyText`.
+      - Change: body `{ id, source_product_id, destination, variants: [{ id, source_variant_id, price }] }`, 1 to 50 variants. `destination` is `{ product_id }` (a live product of the caller's organization) or `{ name? }` for a new product, whose id is the body's `id` and whose name defaults to the source's. Strict; no `status`, no photo.
+      - The source product must be live, not paused, of a supplier whose customer the caller's organization is in a live relationship, with every listed variant ACTIVE and not deleted (else 404). A new product takes the source's name, description and category; each variant its name and unit; never the price or the minimum quantity.
+      - A source variant matching a live variant of the destination (simplified name and unit) is not copied: `already_in_catalog` lists it with the existing id and status.
+      - A new product, or a destination with no ACTIVE variant that is not paused, runs `assertRoomForProduct` (C-46).
+      - Answer 201 `CopyProductResult`.
+    acceptance: |
+      Scenario: AC-1 New product
+        Given a supplier product "Riz" with ACTIVE variants "sac 25 kg" and "sac 50 kg"
+        When a reseller copies both with prices 16000 and 31000 to a new product
+        Then the answer is 201 with a product "Riz", two variants named and united as the source, priced as sent, `copied` listing both ids
+      Scenario: AC-2 Existing product
+        Given the reseller has "Riz" with a live "sac 25 kg"
+        When they copy both variants into it
+        Then only "sac 50 kg" is created and `already_in_catalog` lists the 25 kg one with its status
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the answer is <status> and nothing is stored
+        Examples:
+          | problem                                                 | status                |
+          | a source product of a supplier that is not theirs       | 404 NOT_FOUND         |
+          | a source variant INACTIVE or of another product, or a destination of another organization | 404 NOT_FOUND |
+          | a price of 0, or the same source variant twice          | 400 VALIDATION_ERROR  |
+          | a full plan and a new product                           | 409 PRODUCT_LIMIT_REACHED |
+          | a SELLER or DRIVER caller                               | 403 FORBIDDEN         |
+      Scenario: AC-4 Repeat
+        When the same body is posted twice
+        Then one copy exists
+    abuse: |
+      Scenario: AB-1 Copying a competitor's catalog (information disclosure)
+        When an organization with no live relationship to the supplier posts its product id
+        Then the answer is 404
+      Scenario: AB-2 Reading the supplier's price and minimum
+        When the copy is made
+        Then neither the answer nor the new rows carry the supplier's price or minimum
+    implementation:
+      create: [tests/integration/catalog/copy-variants.test.ts]
+      modify: [src/modules/catalog/catalog.schemas.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.openapi.ts]
+      pattern: src/modules/admin/report.routes.ts
+      signatures:
+        - "copyProduct(actor: Actor, input: CopyProductInput): Promise<CopyProductResult>"
+      types:
+        - "CopyProductInput = { id: string; source_product_id: string; destination: { product_id: string } | { name?: string }; variants: Array<{ id: string; source_variant_id: string; price: number }> }"
+        - "CopyProductResult = { product: ProductView; copied: string[]; already_in_catalog: Array<{ source_variant_id: string; variant_id: string; status: 'ACTIVE' | 'INACTIVE' }> }"
+      errors: [VALIDATION_ERROR 400, PRODUCT_LIMIT_REACHED 409, FORBIDDEN 403, NOT_FOUND 404]
+      dependencies: [express, zod]
+    security:
+      - "v5.0.0-8.2.1: manager online or owner, by the rules table."
+      - "v5.0.0-8.2.2: the source is found through the caller's own customer relationship, the destination through the actor's organization."
+      - "v5.0.0-15.3.3: strict schema; the supplier's price and minimum are never read."
+    tests: |
+      new product | integration | AC-1 | two variants copied
+      existing product | integration | AC-2, C-47 | one created, one reported
+      refusals | integration | AC-3 | each Examples row → status
+      repeat | integration | AC-4 | one copy
+      competitor | security | AB-1, WSTG-ATHZ-04 | 404, nothing stored
+      supplier price | security | AB-2, CWE-200 | no price or minimum copied
+    command: npx vitest run tests/integration/catalog/copy-variants.test.ts tests/integration/catalog/copy-product.test.ts
+    out_of_scope:
+      - "Copying the photos of the source: CAT-045."
+    tests_to_update:
+      - "tests/integration/catalog/copy-product.test.ts | body `{ id, source_product_id, price }`, flat answer | send `destination` and `variants`, expect AC-1; relationship, scope and repeat cases keep their meaning"
+
+  - id: CAT-032
+    title: The server writes the photo keys of a product or a variant
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [CAT-014, CAT-021, FND-013]
+    read_first: [src/modules/catalog/catalog.repository.ts, docs/stories/modules/foundation/contracts.md]
+    design_refs: [catalogue/product, catalogue/productvariant, images/stockage]
+    constraints: [C-49, C-35]
+    asvs: [v5.0.0-15.3.3, v5.0.0-2.2.3, v5.0.0-8.2.2]
+    fields: ["Product.image_keys", "ProductVariant.image_keys"]
+    story: "Technical story: provide the two functions that replace the photo keys of a product or of a variant and hand back the previous keys, so that the images module can delete the old files after the commit."
+    context: |
+      - Exists: the `image_keys` columns, 5 keys at most (CAT-012, CAT-014); `imageKeySchema` and the folder `products` (FND-013); the trigger that moves the product's `server_updated_at` when a variant changes (CAT-021).
+      - New in `catalog.repository.ts`, in the caller's transaction: `setProductImageKeys(tx, organizationId, productId, keys)` and `setVariantImageKeys(tx, organizationId, variantId, keys)`. They lock the row, write the new list (empty clears it), move `server_updated_at` and return the previous list.
+      - A product or variant that is unknown, deleted or of another organization: 404 `NOT_FOUND`, nothing written. An INACTIVE variant can be written.
+      - Every key must match `imageKeySchema` and start with `products/`, at most 5 distinct keys; otherwise a RangeError is thrown and nothing is written.
+      - No catalog schema accepts a key (C-49). First usage: the photo routes of the images module, which may import `catalog` only through its contract (ADR-004).
+    acceptance: |
+      Scenario Outline: AC-1 Set, replace and clear a product
+        Given a product whose keys are <before>
+        When `setProductImageKeys` is called with <given>
+        Then it returns <before> and the stored keys are <given>
+        Examples:
+          | before       | given        |
+          | none         | key A        |
+          | key A        | keys B and C |
+          | keys B and C | none         |
+      Scenario: AC-2 A variant, and its product travels with it
+        Given a variant whose product has `server_updated_at` T
+        When `setVariantImageKeys` writes key A at a later time
+        Then it returns an empty list, the variant holds key A and the product's `server_updated_at` is later than T
+      Scenario Outline: AC-3 Rows that cannot be written
+        When a writer is called for <target>
+        Then it fails with 404 `NOT_FOUND` and writes nothing
+        Examples:
+          | target                                  |
+          | an id that is not a product or variant  |
+          | a deleted product or variant            |
+      Scenario: AC-4 Two replacements at once
+        Given a product holds key A
+        When two calls replace it with key B and key C at the same time
+        Then one returns key A and the other returns the key the first wrote
+    abuse: |
+      Scenario: AB-1 A crafted key (tampering)
+        When a writer receives `avatars/<uuid>.webp`, `products/../x.webp`, an uppercase UUID, six keys or the same key twice
+        Then it throws a RangeError and the stored keys are unchanged
+      Scenario: AB-2 A product of another business (broken access control)
+        When a writer is called for business A with the id of a product or variant of business B
+        Then the answer is 404 `NOT_FOUND` and B's keys are unchanged
+    implementation:
+      create: [tests/integration/catalog/image-key-writers.test.ts]
+      modify: [src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "setProductImageKeys(tx: Prisma.TransactionClient, organizationId: string, productId: string, keys: string[]): Promise<string[]>"
+        - "setVariantImageKeys(tx: Prisma.TransactionClient, organizationId: string, variantId: string, keys: string[]): Promise<string[]>"
+      types: []
+      errors: ["NOT_FOUND 404"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-15.3.3: the photo keys have exactly one writer per table, and it validates every key."
+      - "v5.0.0-2.2.3: the row is locked before the previous keys are read."
+      - "v5.0.0-8.2.2: the row is selected by its id and the organization id together."
+    tests: |
+      product keys | integration | AC-1, C-49 | each Examples row → returned and stored lists
+      variant keys | integration | AC-2, C-35 | key stored, product date moved
+      not writable | integration | AC-3 | each Examples row → 404, nothing written
+      concurrent | integration | AC-4 | `Promise.all` of two replacements → A and the first writer's key
+      crafted key | security | AB-1, CWE-22 | the five values → RangeError, keys unchanged
+      other business | security | AB-2, CWE-639 | B's id → 404, B's keys unchanged
+    command: npx vitest run tests/integration/catalog/image-key-writers.test.ts
+    out_of_scope:
+      - "Receiving and storing the file, and deleting the old files: the images module."
+
+  - id: CAT-033
+    title: A product sent by a phone is applied without failing the batch
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [CAT-014, CAT-021, CAT-016]
+    read_first: [src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product, synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone]
+    constraints: [C-36, C-46, C-35]
+    asvs: [v5.0.0-15.3.3, v5.0.0-8.2.2, v5.0.0-2.2.1]
+    fields: ["Product.{name,description,category,paused_at,image_keys}"]
+    story: "Technical story: give the catalog the function that creates or edits a product sent by the owner's phone, so that the synchronization writes products without ever reaching the database rules."
+    context: |
+      - Exists: new-style product rows with an empty `unit` and the default price (CAT-014); `server_updated_at` set by the database (C-35).
+      - New `catalog.sync-writers.ts` and repository functions `findProductAnyState`, `insertProduct`, `updateProductText`. `applyProductFromSync(tx, organizationId, input, now)` takes `{ id, name, description, category }` and answers a result; it never throws for a business reason.
+      - Unknown id: the product is created new-style in the organization. Id of the organization: the three text fields are rewritten, nothing is written when unchanged. Id of another organization: `FOREIGN`. Deleted product: `GONE`. Neither writes anything.
+      - Limits as in CAT-004: `name` 1 to 100, `category` up to 100, `description` up to 2000. Beyond them: `INVALID` with the field names only, nothing written.
+      - `paused_at`, `image_keys`, `unit` and `price` are never taken from a phone (CM-27, C-46). The plan limit never refuses a product: the caller pauses the excess afterwards.
+      - First usage: the product push of the synchronization (ADR-004).
+    acceptance: |
+      Scenario: AC-1 A new product
+        When `applyProductFromSync` receives an unknown id with name "Riz parfumé"
+        Then the result is CREATED, the product belongs to the organization, `unit` is empty, `paused_at` and `image_keys` are empty, and `server_updated_at` is the database time
+      Scenario: AC-2 An edit
+        Given a product "Riz" with a description
+        When the input has name "Riz parfumé" and none
+        Then the result is UPDATED and the description is empty
+      Scenario: AC-3 The same input twice
+        Then the second result is UNCHANGED and `server_updated_at` did not move
+      Scenario Outline: AC-4 Nothing written
+        When the input is <case>
+        Then the result is <result> and the database is unchanged
+        Examples:
+          | case                                              | result                      |
+          | the id of a product of another organization       | FOREIGN                     |
+          | the id of a deleted product                       | GONE                        |
+          | an empty name, or a name of 101 characters        | INVALID with `name`         |
+          | a description of 2001 characters                  | INVALID with `description`  |
+      Scenario: AC-5 Server fields
+        When the input also carries `paused_at`, `image_keys`, `unit` and `price`
+        Then they are not written and the product keeps its own values
+    abuse: |
+      Scenario: AB-1 Taking over another business's product (broken access control)
+        When business A applies the id of a product of business B with a new name
+        Then the result is FOREIGN and B's product is unchanged
+      Scenario: AB-2 Un-pausing a product from a phone (tampering)
+        Given a paused product
+        When the input carries `paused_at` empty
+        Then the product stays paused
+    implementation:
+      create: [src/modules/catalog/catalog.sync-writers.ts, tests/integration/catalog/sync-apply-product.test.ts]
+      modify: [src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "applyProductFromSync(tx: Prisma.TransactionClient, organizationId: string, input: ProductSyncInput, now: Date): Promise<ProductSyncResult>"
+      types:
+        - "ProductSyncInput = { id: string; name: string; description: string | null; category: string | null }"
+        - "ProductSyncResult = { result: 'CREATED' | 'UPDATED' | 'UNCHANGED' | 'GONE' | 'FOREIGN' | 'INVALID'; invalidFields?: string[] }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-15.3.3: three fields are read from the phone's row; the pause and the photos have no way in."
+      - "v5.0.0-8.2.2: an id found in another organization is never written."
+      - "v5.0.0-2.2.1: lengths are checked before any write; only field names are reported."
+    tests: |
+      created | integration | AC-1, C-35 | new row, empty unit, database date
+      edited | integration | AC-2 | name and description
+      repeat | integration | AC-3 | UNCHANGED, same date
+      nothing written | integration | AC-4, C-36 | each Examples row → result, no change
+      server fields | integration | AC-5, C-46 | extra keys → not written
+      another business | security | AB-1, CWE-639 | FOREIGN, B unchanged
+      pause kept | security | AB-2, CWE-915 | still paused
+    command: npx vitest run tests/integration/catalog/sync-apply-product.test.ts
+    out_of_scope:
+      - "Judging the line and its role: the synchronization. Variants and deletions: CAT-034, CAT-036."
+
+  - id: CAT-034
+    title: A variant sent by a phone is created or edited without failing the batch
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [CAT-033, CAT-016, CAT-018, CAT-021]
+    read_first: [src/modules/catalog/catalog.sync-writers.ts, src/shared/variant.ts]
+    design_refs: [catalogue/productvariant, synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone]
+    constraints: [C-47, C-13]
+    asvs: [v5.0.0-15.3.3, v5.0.0-8.2.2, v5.0.0-2.2.1]
+    fields: ["ProductVariant.{product_id,name,unit,price,min_order_quantity,status,merged_into_id,price_updated_at,image_keys}"]
+    story: "Technical story: give the catalog the function that creates or edits a variant sent by the owner's phone, so that no variant fails a batch."
+    context: |
+      - Exists: `catalog.sync-writers.ts` (CAT-033); the variant table and its price date (CAT-012); the unique index of C-47 (CAT-018); `simplifyText` (CAT-016); the product date trigger (CAT-021).
+      - `applyVariantFromSync(tx, organizationId, input, now)` takes `{ id, product_id, name, unit, price, min_order_quantity, status }` and answers a result; it never throws for a business reason. Repository additions: `findVariantAnyState`, `findLiveTwin`, `insertVariant`, `updateVariant`.
+      - Limits as in CAT-022 (`unit` 1 to 100, `price` an integer of at least 1, `min_order_quantity` above 0, `status` ACTIVE or INACTIVE). Otherwise `INVALID` with the field names, nothing written (C-13).
+      - Unknown id: the product must be in the organization and not deleted, else `NO_PRODUCT`; then the variant is created. Id in the organization: the five fields are rewritten and the product never changes; deleted: `GONE`; id of another organization: `FOREIGN`.
+      - A live twin (same product, simplified name and unit) gives `COLLISION`, nothing written; CAT-035 turns a creation into a merge.
+      - `merged_into_id`, `price_updated_at`, `image_keys` and the product of an existing variant are never taken from a phone. A variant put back on sale never fails here: the caller pauses the excess.
+    acceptance: |
+      Scenario: AC-1 A new variant
+        When an unknown id arrives for a product of the organization with name "Rouge / L", unit "pièce" and price 5000
+        Then the result is CREATED and the variant is ACTIVE with `price_updated_at` set
+      Scenario: AC-2 An edit
+        When the same id arrives with price 5500 and status INACTIVE
+        Then the result is UPDATED and `price_updated_at` moved; an edit of the name alone leaves it
+      Scenario: AC-3 A twin
+        Given two live variants "pièce" and "carton"
+        When the second arrives with unit "Pièce"
+        Then the result is COLLISION, nothing written
+      Scenario Outline: AC-4 Nothing written
+        When the input is <case>
+        Then the result is <result> and the database is unchanged
+        Examples:
+          | case                                                | result                  |
+          | a product of another organization, or a deleted one | NO_PRODUCT              |
+          | the id of a variant of another organization         | FOREIGN                 |
+          | the id of a deleted variant                         | GONE                    |
+          | price 0, an empty unit, or minimum 0                | INVALID                 |
+      Scenario: AC-5 Server fields
+        When the input carries `merged_into_id`, `price_updated_at`, `image_keys` and another `product_id`
+        Then none is written
+    abuse: |
+      Scenario: AB-1 A variant slipped into another business's product (broken access control)
+        When business A sends a variant whose `product_id` is a product of business B
+        Then the result is NO_PRODUCT
+    implementation:
+      modify: [src/modules/catalog/catalog.sync-writers.ts, src/modules/catalog/catalog.repository.ts]
+      create: [tests/integration/catalog/sync-apply-variant.test.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "applyVariantFromSync(tx: Prisma.TransactionClient, organizationId: string, input: VariantSyncInput, now: Date): Promise<VariantSyncResult>"
+      types:
+        - "VariantSyncInput = { id: string; productId: string; name: string | null; unit: string; price: number; minOrderQuantity: string | null; status: 'ACTIVE' | 'INACTIVE' }"
+        - "VariantSyncResult = { result: 'CREATED' | 'UPDATED' | 'UNCHANGED' | 'MERGED' | 'COLLISION' | 'NO_PRODUCT' | 'FOREIGN' | 'GONE' | 'INVALID'; invalidFields?: string[]; mergedInto?: string; label?: string }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-15.3.3: five fields are read from the phone's row; the merge link, the price date and the photos have no way in."
+      - "v5.0.0-8.2.2: the product and any existing variant are found through the organization id."
+      - "v5.0.0-2.2.1: bad values stop before any write."
+    tests: |
+      created | integration | AC-1 | row, dates
+      edited | integration | AC-2, C-13 | price date moves with the price only
+      twin | integration | AC-3, C-47 | COLLISION, unchanged
+      nothing written | integration | AC-4 | each Examples row → result
+      server fields | integration | AC-5 | not written
+      other product | security | AB-1, CWE-639 | NO_PRODUCT, nothing stored
+    command: npx vitest run tests/integration/catalog/sync-apply-variant.test.ts
+    out_of_scope:
+      - "Folding a duplicate into the first: CAT-035. Deleting a variant: CAT-036."
+
+  - id: CAT-035
+    title: A variant created twice is folded into the first
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [CAT-034]
+    read_first: [src/modules/catalog/catalog.sync-writers.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/productvariant]
+    constraints: [C-47, C-36]
+    asvs: [v5.0.0-15.3.3, v5.0.0-8.2.2]
+    fields: ["ProductVariant.merged_into_id"]
+    story: "Technical story: make a variant that arrives as a duplicate of a live one fold into it, so that a second phone never blocks a batch and keeps its sales."
+    context: |
+      - Exists: `applyVariantFromSync`, which answers `COLLISION` for any live twin (CAT-034); `variantLabel` (CAT-016).
+      - Change: an unknown id whose product has a live twin (C-47) is stored at once as a deleted row (`deleted_at = now`) with `merged_into_id` set to the twin, so it never meets the unique index. The result is `MERGED` with `mergedInto` and the twin's `label`. The twin keeps its price, photos, minimum and status.
+      - The same id sent again finds the stored merged row and answers `MERGED` again with nothing new written. An edit that would make a twin stays `COLLISION`.
+      - The same text in another product, or against a deleted variant, is no twin: the variant is CREATED.
+    acceptance: |
+      Scenario: AC-1 Created twice
+        Given a live variant "Sac 10 kg" of a product
+        When an unknown id arrives for the same product with name empty and unit "sac 10 kg "
+        Then the result is MERGED with the first id and its label, and the new row is deleted with `merged_into_id` set
+      Scenario: AC-2 The first keeps its settings
+        Given the first has price 3000 and status INACTIVE
+        When the duplicate arrives with price 2500 and status ACTIVE
+        Then the first still has price 3000 and INACTIVE
+      Scenario: AC-3 The same row again
+        When the duplicate's id is sent a second time
+        Then the answer is MERGED again and one stored row exists for it
+      Scenario Outline: AC-4 Not a twin
+        When an unknown id arrives with the text of <other>
+        Then the result is CREATED
+        Examples:
+          | other                                   |
+          | a live variant of another product       |
+          | a deleted variant of the same product   |
+      Scenario: AC-5 An edit stays refused
+        When an edit would give a live variant the text of another
+        Then the result is COLLISION
+    abuse: |
+      Scenario: AB-1 Two phones add the same variant (denial of service)
+        When two batches carry the same variant text for one product
+        Then both applications succeed, one CREATED and one MERGED
+      Scenario: AB-2 A merge link chosen by the phone (tampering)
+        When the input carries `merged_into_id` of a variant of another business
+        Then it is ignored and the link points to the live twin only
+    implementation:
+      modify: [src/modules/catalog/catalog.sync-writers.ts, src/modules/catalog/catalog.repository.ts]
+      create: [tests/integration/catalog/sync-merge-variant.test.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "insertMergedVariant(tx: Prisma.TransactionClient, input: VariantSyncInput, organizationId: string, twinId: string, now: Date): Promise<void>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-15.3.3: the link is written by the server from its own search, never from the row."
+      - "v5.0.0-8.2.2: the twin is searched inside the organization's product."
+    tests: |
+      merged | integration | AC-1, C-47 | MERGED, deleted row, link
+      first kept | integration | AC-2 | price and status unchanged
+      repeat | integration | AC-3, C-36 | MERGED again, one row
+      not a twin | integration | AC-4 | each Examples row → CREATED
+      edit refused | integration | AC-5 | COLLISION
+      two phones | security | AB-1, CWE-400 | CREATED then MERGED
+      forged link | security | AB-2, CWE-915 | link ignored
+    command: npx vitest run tests/integration/catalog/sync-merge-variant.test.ts tests/integration/catalog/sync-apply-variant.test.ts
+    out_of_scope:
+      - "Pointing the order lines and negotiated prices that cite the merged variant to the first: CAT-037."
+      - "The information line: the synchronization."
+
+  - id: CAT-036
+    title: A deletion sent by a phone retires what was sold instead
+    kind: technical
+    size: M
+    risk: high
+    depends_on: [CAT-035, CAT-026, ORD-030]
+    read_first: [src/modules/catalog/catalog.sync-writers.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/productvariant, catalogue/product]
+    constraints: [C-48, C-45, C-36]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: "Technical story: give the catalog the functions that delete a variant or a product sent by the owner's phone, taking a variant that was sold off sale instead of deleting it, so that no sale ever loses its article."
+    context: |
+      - Exists: the sync writers (CAT-033 to CAT-035); `findUsedVariantIds` (CAT-026), over `listOrderedVariantIds` (ORD-030) and the live negotiated prices.
+      - `deleteVariantFromSync(tx, organizationId, variantId, now)` and `deleteProductFromSync(tx, organizationId, productId, now)` answer `{ result, retiredLabels }`.
+      - A used variant (C-48) is not deleted: it becomes INACTIVE, its `variantLabel` goes into `retiredLabels`, the result is `RETIRED`. An unused one gets `deleted_at = now`: `DELETED`.
+      - The last live variant of a live product, if unused, is kept: `LAST_VARIANT` (C-45); the phone deletes the product instead.
+      - A product: each live variant is handled as above. No used variant: the product is deleted with them (`DELETED`). Otherwise the product stays, the unused variants are deleted and the result is `RETIRED` with the labels. An already deleted target gives `ALREADY`; an unknown id or one of another organization gives `NOT_FOUND`. Neither writes anything.
+      - All in the caller's transaction; the product's `server_updated_at` moves with each variant change (CAT-021).
+    acceptance: |
+      Scenario: AC-1 Never sold
+        Given a product with two variants, none cited
+        When one is deleted
+        Then the result is DELETED and its `deleted_at` is `now`
+      Scenario Outline: AC-2 Sold, so retired
+        Given a variant cited by <use>
+        When its deletion is applied
+        Then the result is RETIRED with its label, it is INACTIVE and not deleted
+        Examples:
+          | use                                        |
+          | an order line in any state                 |
+          | a live negotiated price                    |
+      Scenario: AC-3 Last variant
+        Given a product with one variant, never sold
+        When the variant is deleted alone
+        Then the result is LAST_VARIANT and nothing changes
+      Scenario Outline: AC-4 A whole product
+        Given a product with three variants, <sold> sold
+        When the product's deletion is applied
+        Then the result is <result>, <effect>
+        Examples:
+          | sold | result  | effect                                                                  |
+          | one  | RETIRED | the sold one is INACTIVE, the other two are deleted, the product stays |
+          | none | DELETED | the product and its variants carry `deleted_at`                         |
+      Scenario Outline: AC-5 Other answers
+        When the target is <target>
+        Then the result is <result> and nothing is written
+        Examples:
+          | target                               | result     |
+          | already deleted                      | ALREADY    |
+          | unknown, or of another organization  | NOT_FOUND  |
+    abuse: |
+      Scenario: AB-1 Erasing sales history from an old phone (tampering)
+        When the deletion of a sold product arrives
+        Then every order line still finds its variant and its product
+      Scenario: AB-2 Deleting another business's article (broken access control)
+        When business A sends the id of a variant of business B
+        Then the result is NOT_FOUND and B's variant is unchanged
+    implementation:
+      modify: [src/modules/catalog/catalog.sync-writers.ts, src/modules/catalog/catalog.repository.ts]
+      create: [tests/integration/catalog/sync-delete.test.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "deleteVariantFromSync(tx: Prisma.TransactionClient, organizationId: string, variantId: string, now: Date): Promise<DeleteSyncResult>"
+        - "deleteProductFromSync(tx: Prisma.TransactionClient, organizationId: string, productId: string, now: Date): Promise<DeleteSyncResult>"
+      types:
+        - "DeleteSyncResult = { result: 'DELETED' | 'RETIRED' | 'ALREADY' | 'LAST_VARIANT' | 'NOT_FOUND'; retiredLabels: string[] }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: targets are found through the organization id; an id of another business is not found."
+      - "v5.0.0-2.3.3: the use check and the writes run in the caller's transaction."
+      - "v5.0.0-15.3.3: the only change to a retired variant is its status."
+    tests: |
+      never sold | integration | AC-1 | DELETED, date
+      sold | integration | AC-2, C-48 | each Examples row → RETIRED, INACTIVE
+      last variant | integration | AC-3, C-45 | LAST_VARIANT
+      whole product | integration | AC-4, C-48 | each Examples row → result, states
+      other answers | integration | AC-5, C-36 | each Examples row → result
+      history kept | security | AB-1, CWE-639 | lines intact
+      other business | security | AB-2, CWE-639 | NOT_FOUND, unchanged
+    command: npx vitest run tests/integration/catalog/sync-delete.test.ts
+    out_of_scope:
+      - "The information line for the author: the synchronization. Bringing a deleted variant back for a sale: CAT-037."
+
+  - id: CAT-037
+    title: A sale sent for a deleted or merged variant finds its variant again
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [CAT-036]
+    read_first: [src/modules/catalog/catalog.sync-writers.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/productvariant, catalogue/product]
+    constraints: [C-48, C-47, C-36]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: "Technical story: give the catalog the function that finds, or brings back, the variant that a sale or a negotiated price sent by a phone cites, so that no sale is lost because its article was deleted or merged in the meantime."
+    context: |
+      - Exists: deletion by synchronization (CAT-036) and merged duplicates (CAT-034).
+      - `resolveVariantForLine(tx, organizationId, variantId, now)` answers `{ variantId, productId, label, restored, redirectedFrom }` or `null`.
+      - A variant not deleted answers itself. A variant of another organization or an unknown id answers `null`.
+      - A deleted variant with `merged_into_id` answers the live variant at the end of that link, with `redirectedFrom` set to the id asked; the link is followed at most 5 times, and a link that leads to no live variant is treated as a deleted variant without a link.
+      - A deleted variant without a link is brought back (C-48): `deleted_at` is emptied, `status` becomes INACTIVE (off sale), its product is brought back too when deleted, and `restored` is true. When a live variant of the same product now has the same simplified name and unit (C-47), that live one is answered instead, `redirectedFrom` set, nothing restored.
+      - A brought-back variant and its product move their `server_updated_at`. Brought back off sale, it never counts as a product on sale.
+    acceptance: |
+      Scenario: AC-1 A live variant
+        When the id of a live variant is resolved
+        Then the same id is answered with `restored` false and `redirectedFrom` empty
+      Scenario: AC-2 A merged duplicate
+        Given variant B was merged into variant A
+        When B is resolved
+        Then A is answered with `redirectedFrom` B
+      Scenario: AC-3 A deleted variant comes back
+        Given a deleted variant of a deleted product
+        When it is resolved
+        Then it is INACTIVE and not deleted, its product is not deleted, and `restored` is true
+      Scenario: AC-4 Its place was taken
+        Given a deleted variant and a live variant of the same product with the same simplified name and unit
+        When the deleted one is resolved
+        Then the live one is answered with `redirectedFrom` set and nothing is restored
+      Scenario Outline: AC-5 Nothing found
+        When the id is <id>
+        Then the answer is null and nothing is written
+        Examples:
+          | id                                     |
+          | unknown                                |
+          | a variant of another organization      |
+      Scenario: AC-6 A broken chain
+        Given a merged variant whose target is itself deleted without a link
+        When the merged one is resolved
+        Then the target is brought back and answered
+    abuse: |
+      Scenario: AB-1 Reviving another business's article (broken access control)
+        When business A resolves the id of a deleted variant of business B
+        Then the answer is null and B's variant stays deleted
+    implementation:
+      modify: [src/modules/catalog/catalog.sync-writers.ts, src/modules/catalog/catalog.repository.ts]
+      create: [tests/integration/catalog/sync-resolve-variant.test.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "resolveVariantForLine(tx: Prisma.TransactionClient, organizationId: string, variantId: string, now: Date): Promise<ResolvedVariant | null>"
+      types:
+        - "ResolvedVariant = { variantId: string; productId: string; label: string; restored: boolean; redirectedFrom: string | null }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the variant and every link are read through the organization id."
+      - "v5.0.0-2.3.3: the restoration of a variant and of its product run in the caller's transaction."
+    tests: |
+      live | integration | AC-1 | same id
+      merged | integration | AC-2, C-47 | redirected id
+      restored | integration | AC-3, C-48 | INACTIVE, product back
+      place taken | integration | AC-4, C-47 | live twin answered
+      nothing found | integration | AC-5 | each Examples row → null
+      broken chain | integration | AC-6, C-36 | target restored
+      other business | security | AB-1, CWE-639 | null, still deleted
+    command: npx vitest run tests/integration/catalog/sync-resolve-variant.test.ts
+    out_of_scope:
+      - "Writing the order line with the resolved variant, and the information line: the synchronization."
+
+  - id: CAT-039
+    title: A negotiated price sent or removed by a phone is applied without failing the batch
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [CAT-029, CAT-037]
+    read_first: [src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product, synchronisation-hors-ligne/ce-que-le-serveur-fait-de-chaque-ligne]
+    constraints: [C-11, C-36]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.3, v5.0.0-2.2.1]
+    story: "Technical story: give the catalog the functions that write or remove a negotiated price sent by the owner's phone, so that a price entered twice never fails a batch."
+    context: |
+      - Exists: `upsertCustomerPrice` and the unique price per relationship and variant (CAT-029); `resolveVariantForLine` (CAT-037); `catalog.sync-writers.ts`.
+      - `applyPriceFromSync(tx, organizationId, input, now)` takes `{ id, relationshipId, variantId, price, setById }` and answers a result; it never throws for a business reason. `deletePriceFromSync(tx, organizationId, priceId, now)` answers DELETED, ALREADY or NOT_FOUND.
+      - The relationship must be live and supplied by the organization (else `NO_RELATIONSHIP`). The variant comes from `resolveVariantForLine`, which follows a merge or brings a deleted one back (else `NO_VARIANT`). `price` is an integer of at least 1 (else `INVALID`).
+      - Unknown id: the price is written with `product_variant_id`, and `product_id` of the variant's product. A live price of the same pair under another id is deleted first: the last arrival wins. Id of a live price of the organization: only `price` is rewritten, the pair never changes. Deleted price: `GONE`. Price of another organization: `FOREIGN`.
+    acceptance: |
+      Scenario: AC-1 A new price
+        When an unknown id arrives for a relationship of the organization and a live variant with price 6000
+        Then the result is CREATED, the row names the variant and its product, and `set_by_id` is the given person
+      Scenario: AC-2 Entered twice
+        Given a live price 6000 under id A for the pair
+        When id B arrives for the same pair with price 6500
+        Then the result is CREATED, A is deleted, and the pair holds one live price, 6500
+      Scenario: AC-3 An edit
+        When the id of a live price arrives with price 7000, then again
+        Then the results are UPDATED and UNCHANGED, and the pair did not change
+      Scenario: AC-4 A merged or deleted variant
+        When a price arrives for a variant merged into another, then for a deleted one
+        Then the first is written on the surviving variant, and the second brings its variant back off sale
+      Scenario Outline: AC-5 Nothing written
+        When the input is <case>
+        Then the result is <result> and the database is unchanged
+        Examples:
+          | case                                         | result           |
+          | a price of 0, or 12.5                        | INVALID `price`  |
+          | a relationship of another organization       | NO_RELATIONSHIP  |
+          | an unknown variant, or another business's   | NO_VARIANT       |
+          | the id of a deleted price                    | GONE             |
+          | the id of another business's price           | FOREIGN          |
+      Scenario: AC-6 Removal
+        When `deletePriceFromSync` runs on a live price, then again, then on an unknown id
+        Then the answers are DELETED, ALREADY and NOT_FOUND, and the first sets `deleted_at`
+    abuse: |
+      Scenario: AB-1 A price on another business's customer (broken access control)
+        When business A sends a price for a relationship of business B
+        Then the result is NO_RELATIONSHIP and nothing is written
+      Scenario: AB-2 Moving a price to another customer (tampering)
+        When the id of a live price arrives with another relationship and variant
+        Then only the price changes; the pair is as before
+    implementation:
+      modify: [src/modules/catalog/catalog.sync-writers.ts, src/modules/catalog/catalog.repository.ts]
+      create: [tests/integration/catalog/sync-apply-price.test.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "applyPriceFromSync(tx: Prisma.TransactionClient, organizationId: string, input: PriceSyncInput, now: Date): Promise<PriceSyncResult>"
+        - "deletePriceFromSync(tx: Prisma.TransactionClient, organizationId: string, priceId: string, now: Date): Promise<'DELETED' | 'ALREADY' | 'NOT_FOUND'>"
+      types:
+        - "PriceSyncInput = { id: string; relationshipId: string; variantId: string; price: number; setById: string }"
+        - "PriceSyncResult = { result: 'CREATED' | 'UPDATED' | 'UNCHANGED' | 'GONE' | 'FOREIGN' | 'NO_RELATIONSHIP' | 'NO_VARIANT' | 'INVALID'; invalidFields?: string[] }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the relationship, the variant and the price are all read through the organization id."
+      - "v5.0.0-15.3.3: on an existing price only `price` is written."
+      - "v5.0.0-2.2.1: the price is checked before any write."
+    tests: |
+      created | integration | AC-1 | row with variant and product
+      entered twice | integration | AC-2, C-11 | one live price, the last
+      edited | integration | AC-3 | UPDATED, UNCHANGED, same pair
+      variant followed | integration | AC-4 | surviving variant, brought back
+      nothing written | integration | AC-5, C-36 | each Examples row → result
+      removal | integration | AC-6 | DELETED, ALREADY, NOT_FOUND
+      another business | security | AB-1, CWE-639 | NO_RELATIONSHIP
+      pair kept | security | AB-2, CWE-915 | only the price moves
+    command: npx vitest run tests/integration/catalog/sync-apply-price.test.ts
+    out_of_scope:
+      - "Judging the line and its role: the synchronization."
+  - id: CAT-040
+    title: Catalog tests seed products through one helper
+    kind: technical
+    size: M
+    risk: low
+    amends: []
+    depends_on: [CAT-031, CAT-037, CAT-039]
+    read_first: [tests/integration/catalog/reference-price.test.ts]
+    design_refs: [catalogue/product, catalogue/productvariant]
+    constraints: [C-45]
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: give the tests one function that creates a product with its variant, so that the old columns of `products` can go without rewriting every test twice."
+    context: |
+      - Exists: tests insert products with `unit`, `price`, `status` and `min_order_quantity` (`prisma.product.create` or `INSERT INTO products`), and the triggers of CAT-014 copy those columns to a variant of the same id. Those columns go in CAT-041.
+      - New `tests/helpers/catalog-fixtures.ts`: `seedProduct(client, input)` creates the product new-style (name, `paused_at`, `deleted_at`; the old columns keep their defaults) and one variant with the same id as the product, as CAT-013 did, so that lines and prices that hold the product id still find a variant.
+      - Options of the input go to the right row: `unit`, `price`, `minOrderQuantity`, `status` and `variantName` to the variant; `pausedAt` to the product; `deletedAt` to both. Defaults: name "Product", unit "kg", price 1000, ACTIVE, no variant name.
+      - The nine catalog tests below use it for every product they create. An update of `status`, `price`, `unit` or `min_order_quantity` on `products` becomes an update of the variant of the same id.
+      - `C-45`: A product that is not deleted has at least one variant that is not deleted; `ProductVariant.organization_id` equals `Product.organization_id`.
+    acceptance: |
+      Scenario: AC-1 One product, one variant
+        When `seedProduct` is called with an id and an organization
+        Then one product has that id and one variant has the same id, `product_id` and organization, ACTIVE, unit "kg", price 1000
+      Scenario: AC-2 Options reach the right row
+        When it is called with unit "sac", price 15000, minimum "2.000", INACTIVE, variant name "25 kg", a pause date and a deletion date
+        Then the variant holds the first five and the product holds the pause date, and both hold the deletion date
+      Scenario: AC-3 Inside a transaction
+        When it is called with the client of `prisma.$transaction`
+        Then both rows exist after the commit and none after a rollback
+      Scenario: AC-4 The converted tests
+        When the nine catalog test files run
+        Then they pass and assert what they asserted before
+    implementation:
+      create: [tests/helpers/catalog-fixtures.ts, tests/integration/catalog/seed-product.test.ts]
+      modify: []
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "seedProduct(client: Prisma.TransactionClient, input: SeedProductInput): Promise<{ productId: string; variantId: string }>"
+      types:
+        - "SeedProductInput = { id: string; organizationId: string; name?: string; unit?: string; price?: bigint; minOrderQuantity?: string | null; status?: 'ACTIVE' | 'INACTIVE'; variantName?: string | null; pausedAt?: Date | null; deletedAt?: Date | null }"
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the helper writes fake data only, and every value passes through the client's parameters."
+    tests: |
+      product and variant | integration | AC-1, C-45 | both rows, same id
+      options | integration | AC-2 | each option on its row
+      transaction | integration | AC-3 | commit and rollback
+      converted files | integration | AC-4 | the nine files pass
+    command: npx vitest run tests/integration/catalog/seed-product.test.ts tests/integration/catalog
+    out_of_scope:
+      - "Tests of other modules: ORD-031, DLV-016, SYNC-043. `product-table.test.ts`, which tests the old columns themselves: CAT-041."
+    tests_to_update:
+      - "tests/integration/catalog/copy-prices.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/catalog/copy-product.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/catalog/customer-catalog.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/catalog/customer-price-table.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+      - "tests/integration/catalog/edit-product.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/catalog/list-products.test.ts | inserts a product with unit and price | inserts it with `seedProduct`"
+      - "tests/integration/catalog/list-remove-prices.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+      - "tests/integration/catalog/reference-price.test.ts | inserts a product with unit, price, status and deleted_at | inserts it with `seedProduct`, passing status and deletedAt"
+      - "tests/integration/catalog/set-customer-price.test.ts | inserts products with unit and price | inserts them with `seedProduct`"
+  - id: CAT-041
+    title: Products lose their old price, unit, minimum and status
+    kind: migration
+    size: M
+    risk: high
+    amends: [CAT-001, CAT-014]
+    depends_on: [CAT-040, ORD-031, DLV-016, SYNC-043, CAT-039, ORD-028, DLV-014, SYNC-026, SYNC-029]
+    read_first: [prisma/schema.prisma, tests/integration/catalog/product-new-columns.test.ts]
+    design_refs: [catalogue/product, contraintes-a-poser-au-niveau-base-de]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: drop the old price, unit, minimum and status of `products`, which the variants now carry, so that a price lives in one place only."
+    context: |
+      - Exists: every reader and writer of those columns uses the variants (CAT-017, CAT-019, CAT-039, ORD-027, ORD-028, DLV-014, SYNC-026, SYNC-029), and the tests seed products with `seedProduct` (CAT-040, ORD-031, DLV-016, SYNC-043). The two mirror triggers of CAT-014 still copy old-style writes to the variants.
+      - One migration, one transaction. First, between `-- guard start` and `-- guard end`, a block that raises an exception when a product not deleted has no variant not deleted: a price must not be lost.
+      - Then drop: the two mirror triggers and their functions (names in the `cat_014` migration), trigger `products_set_price_updated_at`, CHECKs `products_price_positive` and `products_min_order_quantity_positive`, and the columns `unit`, `price`, `price_updated_at`, `min_order_quantity`, `status`.
+      - Kept: trigger `products_set_server_updated_at`; functions `set_product_price_updated_at()` and `set_server_updated_at()` and enum `ProductStatus`, which the variants use.
+      - `catalog.repository.ts`: remove `getActiveProduct`. No other production file changes; `npm run typecheck` fails on any reader left.
+      - `prisma/schema.prisma`: remove the five fields of `Product`; one `//` comment in plain words replaces those of CAT-001 and CAT-014: price, unit, minimum and status live on the variants, and the database sets the server date on every change.
+      - `no-old-product-columns.test.ts` reads every `.ts` file of `src/` and `tests/` and lists the paths that insert into `products` with `unit` or `price`, or read or write those five fields on a `Product`.
+    acceptance: |
+      Scenario: AC-1 The old columns are gone
+        When the columns of `products` are read
+        Then `unit`, `price`, `price_updated_at`, `min_order_quantity` and `status` are absent, and `name`, `image_keys`, `paused_at`, `deleted_at` are present
+      Scenario: AC-2 Triggers and checks
+        When a product is renamed and a variant price changes
+        Then the product's `server_updated_at` moves and the variant's `price_updated_at` moves; only the server-date trigger is left on `products`
+      Scenario: AC-3 A product without a variant stops the migration
+        Given a product not deleted without a variant not deleted
+        When the guard lines run
+        Then they raise an exception; with a variant, or a deleted product, they pass
+      Scenario: AC-4 The old lookup is gone
+        When the catalog repository is imported
+        Then it has no `getActiveProduct`
+      Scenario: AC-5 No file uses the old columns
+        When the scan test reads `src/` and `tests/`
+        Then it lists no path
+    abuse: |
+      Scenario: AB-1 Stale code writes a dropped column (silent loss)
+        When a raw insert into `products` sets `unit` and `price`
+        Then PostgreSQL refuses it with 42703 and no row exists
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_cat_041_drop_product_price_columns/migration.sql
+        - tests/integration/catalog/product-columns-dropped.test.ts
+        - tests/unit/catalog/no-old-product-columns.test.ts
+      modify: [prisma/schema.prisma, src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the guard refuses to run on data it would lose."
+    tests: |
+      columns | integration | AC-1 | read the columns → five absent, four present
+      triggers | integration | AC-2 | rename a product, change a variant price → both dates move
+      guard | integration | AC-3 | replay the guard lines with and without a variant → error, or none
+      lookup | unit | AC-4 | import the repository → no `getActiveProduct`
+      scan | unit | AC-5 | read the sources → no path listed
+      stale write | security | AB-1, CWE-20 | raw insert with unit and price → 42703
+    command: npx vitest run tests/integration/catalog/product-columns-dropped.test.ts tests/unit/catalog/no-old-product-columns.test.ts
+    out_of_scope:
+      - "`customer_prices.product_id`: CAT-043. `order_lines.product_id`: ORD-032."
+    tests_to_update:
+      - "tests/integration/catalog/product-table.test.ts | asserts the five old columns, their CHECKs, the status enum and the price date | those assertions go; the rest stays"
+      - "tests/integration/catalog/reference-price.test.ts | the block `getActiveProduct (AC-3, C-15)` calls the removed function | the block is removed"
+      - "tests/integration/catalog/product-new-columns.test.ts | expects `unit` empty and `price` 1, and old-style writes reaching a variant | the default expectations and the two old-style tests are removed"
+      - "tests/integration/catalog/variant-per-product.test.ts | inserts old-style products to replay the backfill | the backfill tests are removed; the trigger test stays, seeded with `seedProduct`"
+      - "tests/integration/catalog/product-variant-table.test.ts | inserts parent products with `unit` and `price` | inserts them with `seedProduct`"
+      - "tests/integration/catalog/customer-price-variant.test.ts | inserts products with `unit` and `price` | inserts them with `seedProduct`"
+      - "every other file under `tests/` that the scan lists | inserts products with `unit` and `price`, or updates them on `products` | `seedProduct`; updates go to the variant"
+  - id: CAT-042
+    title: Price tests name the variant of a negotiated price
+    kind: technical
+    size: M
+    risk: low
+    amends: []
+    depends_on: [CAT-040, CAT-029, CAT-030, CAT-039]
+    read_first: [tests/helpers/catalog-fixtures.ts, tests/integration/catalog/set-customer-price.test.ts]
+    design_refs: [relations-commerciales/customerprice, catalogue/productvariant]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: the tests that seed negotiated prices name a variant and no product, so that `customer_prices.product_id` can go without breaking them."
+    context: |
+      - Exists: `customer_prices.product_variant_id` (CAT-015) and `seedProduct` (CAT-040), which gives each product a variant with the same id. Eleven test files still insert prices with `product_id`, or read rows through it; CAT-043 drops that column.
+      - Each of these files inserts its prices with `product_variant_id`, set to the id it used for the product (the variant has the same id), and no longer passes `product_id`. Reads and comparisons of price rows use `product_variant_id`.
+      - Nothing else changes: the assertions, the ids and the order of the tests stay.
+    acceptance: |
+      Scenario: AC-1 No test uses the product column
+        When the eleven files below are read
+        Then none inserts into `customer_prices` with `product_id` or reads a price row through it
+      Scenario: AC-2 Same behavior
+        When the eleven files run
+        Then they pass and assert what they asserted before
+    implementation:
+      create: [tests/unit/catalog/price-seeds.test.ts]
+      modify: []
+      pattern: tests/unit/shared/money.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-2.2.1: the fixtures hold fake data only."
+    tests: |
+      no product column | unit | AC-1 | the eleven sources contain no price insert with product_id
+      same behavior | integration | AC-2 | the eleven files pass
+    command: npx vitest run tests/unit/catalog/price-seeds.test.ts tests/integration/catalog tests/integration/order tests/integration/sync
+    out_of_scope:
+      - "Dropping the column: CAT-043."
+    tests_to_update:
+      - "tests/integration/catalog/copy-prices.test.ts | inserts and compares prices through `product_id` | uses `product_variant_id`"
+      - "tests/integration/catalog/customer-catalog.test.ts | inserts prices with `product_id` | inserts them with `product_variant_id`"
+      - "tests/integration/catalog/edit-product.test.ts | inserts prices with `product_id` | inserts them with `product_variant_id`"
+      - "tests/integration/catalog/list-remove-prices.test.ts | inserts prices with `product_id` | inserts them with `product_variant_id`"
+      - "tests/integration/catalog/reference-price.test.ts | inserts prices with `product_id` | inserts them with `product_variant_id`"
+      - "tests/integration/catalog/set-customer-price.test.ts | reads and inserts prices with `product_id` | uses `product_variant_id`"
+      - "tests/integration/order/enter-order.test.ts | inserts prices with `product_id` | inserts them with `product_variant_id`"
+      - "tests/integration/order/place-order.test.ts | inserts prices with `product_id` | inserts them with `product_variant_id`"
+      - "tests/integration/order/place-purchase.test.ts | inserts prices with `product_id` | inserts them with `product_variant_id`"
+      - "tests/integration/sync/pull-relationships.test.ts | inserts prices with `product_id` | inserts them with `product_variant_id`"
+      - "tests/integration/sync/rights-change.test.ts | inserts prices with `product_id` | inserts them with `product_variant_id`"
+  - id: CAT-043
+    title: Negotiated prices lose their product column
+    kind: migration
+    size: M
+    risk: high
+    amends: [CAT-002, CAT-015]
+    depends_on: [CAT-041, CAT-042, CAT-029, CAT-030, CAT-039]
+    read_first: [prisma/schema.prisma, tests/integration/catalog/customer-price-variant.test.ts]
+    design_refs: [relations-commerciales/customerprice, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-11]
+    asvs: [v5.0.0-2.2.1, v5.0.0-8.2.2]
+    story: "Technical story: drop `product_id` from negotiated prices, which now name a variant, so that a price points at one thing only."
+    context: |
+      - Exists: prices are read and written by `product_variant_id` (CAT-017, CAT-029, CAT-030, CAT-039); `product_id` is still required and written as the variant's product. A trigger of CAT-015 fills the variant from the product, and one of CAT-015 refuses a variant not owned by the relationship's supplier.
+      - One migration, one transaction. Between `-- guard start` and `-- guard end`, a block that raises an exception when a row has no `product_variant_id`.
+      - Then: `product_variant_id` becomes required; drop the filling trigger (CAT-015), trigger and function `customer_prices_require_supplier_product` (CAT-002), index `customer_prices_product_id_idx`, key `customer_prices_product_id_fkey` and the column `product_id`.
+      - Kept: the trigger that refuses a variant of another business, and the unique index per live (relationship, variant).
+      - `upsertCustomerPrice` (`catalog.repository.ts`) loses `productId`; `catalog.service.ts` and `catalog.sync-writers.ts` stop passing it.
+      - `prisma/schema.prisma`: `CustomerPrice` loses `productId`, its relation and index, `Product` loses `customerPrices`; `productVariantId` is required. The `//` comment above `CustomerPrice` is rewritten in plain words: one live price per relationship and variant, the variant is the supplier's, and the database refuses otherwise.
+      - `no-price-product-id.test.ts` reads `src/` and `tests/` and lists the paths that insert into `customer_prices` with `product_id` or pass `productId` to `upsertCustomerPrice`.
+      - `C-11`: `CustomerPrice` is unique per (relationship, variant) among rows not deleted; the variant belongs to the supplier of the relationship.
+    acceptance: |
+      Scenario: AC-1 The product column is gone
+        When the columns of `customer_prices` are read
+        Then `product_id` and its index and key are absent, and `product_variant_id` is required
+      Scenario: AC-2 The rules that stay
+        When a price is inserted for a variant of another business, then twice for one live pair
+        Then the first fails with 23514 and the second with 23505
+      Scenario: AC-3 Rows without a variant stop the migration
+        Given a price with an empty `product_variant_id`
+        When the guard lines run
+        Then they raise an exception; without such a row they pass
+      Scenario: AC-4 The writer needs no product
+        When `upsertCustomerPrice` sets a price for a variant
+        Then the row holds that variant and the relationship
+      Scenario: AC-5 No file uses the product column
+        When the scan test reads `src/` and `tests/`
+        Then it lists no path
+    abuse: |
+      Scenario: AB-1 A price for another supplier's variant (broken object access)
+        When a raw insert names a variant of a business that is not the supplier of the relationship
+        Then PostgreSQL refuses it with 23514 and no row exists
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_cat_043_drop_price_product_id/migration.sql
+        - tests/integration/catalog/price-product-dropped.test.ts
+        - tests/unit/catalog/no-price-product-id.test.ts
+      modify: [prisma/schema.prisma, src/modules/catalog/catalog.repository.ts, src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.sync-writers.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "upsertCustomerPrice(tx: Prisma.TransactionClient, input: { id: string; relationshipId: string; variantId: string; price: number; setById: string; now: Date }): Promise<void>"
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the guard refuses to run on data it would lose."
+      - "v5.0.0-8.2.2: the variant of a price is still checked in the database against the supplier."
+    tests: |
+      columns | integration | AC-1 | read the columns and keys → product_id absent, variant required
+      rules | integration | AC-2, C-11 | other business, duplicate pair → 23514, 23505
+      guard | integration | AC-3 | replay the guard lines with and without an empty variant → error, or none
+      writer | integration | AC-4 | set a price → row with the variant
+      scan | unit | AC-5 | read the sources → no path listed
+      other supplier | security | AB-1, CWE-639 | raw insert for another business's variant → 23514
+    command: npx vitest run tests/integration/catalog/price-product-dropped.test.ts tests/unit/catalog/no-price-product-id.test.ts
+    out_of_scope:
+      - "`order_lines.product_id`: ORD-032."
+    tests_to_update:
+      - "tests/integration/catalog/customer-price-table.test.ts | asserts `product_id`, its index and key, and the product-ownership trigger | those assertions go; the variant checks stay"
+      - "tests/integration/catalog/customer-price-variant.test.ts | tests the copy of `product_id` and an insert with `product_id` only | those two tests are removed"
+      - "every other file under `tests/` that the scan lists | inserts prices with `product_id` | inserts them with `product_variant_id`"
+  - id: CAT-044
+    title: The server reads the photo keys of a product or a variant under a lock
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [CAT-032]
+    read_first: [src/modules/catalog/catalog.repository.ts]
+    design_refs: [catalogue/product, catalogue/productvariant, images/stockage]
+    constraints: [C-49]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: "Technical story: provide the functions that read the current photo keys of a product or a variant, with a row lock when the caller is going to change them, so that two photo changes made at once never overwrite each other."
+    context: |
+      - Exists: `setProductImageKeys` and `setVariantImageKeys` replace the whole list and return the previous one (CAT-032).
+      - New in `catalog.repository.ts`, in the caller's transaction: `lockProductImageKeys(tx, organizationId, productId)` and `lockVariantImageKeys(tx, organizationId, variantId)` read the row `FOR UPDATE` and return the keys in display order; the variant one also returns its `productId`. `readProductImageKeys` and `readVariantImageKeys` are the same reads without the lock, for a card a photo is copied from.
+      - A row that is unknown, deleted or of another organization: 404 `NOT_FOUND`, nothing returned. An INACTIVE variant can be read.
+      - Keys never leave the server through a catalog route (C-49). First usage: the photo routes of the images module (IMG-008 to IMG-011) and the copy of CAT-045.
+    acceptance: |
+      Scenario: AC-1 A product
+        Given a product whose keys are A then B
+        When `lockProductImageKeys` or `readProductImageKeys` is called
+        Then it returns A then B
+      Scenario: AC-2 A variant
+        Given a variant of a product with the keys C
+        When `lockVariantImageKeys` or `readVariantImageKeys` is called
+        Then it returns the product id and C
+      Scenario: AC-3 The lock holds
+        Given a transaction that locked a product and has not ended
+        When a second transaction calls `lockProductImageKeys`
+        Then it waits, and after the first commits a new list it returns that list
+      Scenario Outline: AC-4 Rows that cannot be read
+        When a reader is called for <target>
+        Then it fails with 404 `NOT_FOUND`
+        Examples:
+          | target                  |
+          | an unknown id           |
+          | a deleted product       |
+          | a deleted variant       |
+    abuse: |
+      Scenario: AB-1 A card of another organization (horizontal access)
+        When organization B asks for the keys of a product or a variant of organization A
+        Then the answer is 404 `NOT_FOUND` and no key is returned
+    implementation:
+      create: [tests/integration/catalog/image-key-readers.test.ts]
+      modify: [src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "lockProductImageKeys(tx: Prisma.TransactionClient, organizationId: string, productId: string): Promise<string[]>"
+        - "readProductImageKeys(tx: Prisma.TransactionClient, organizationId: string, productId: string): Promise<string[]>"
+        - "lockVariantImageKeys(tx: Prisma.TransactionClient, organizationId: string, variantId: string): Promise<VariantImageKeys>"
+        - "readVariantImageKeys(tx: Prisma.TransactionClient, organizationId: string, variantId: string): Promise<VariantImageKeys>"
+      types:
+        - "VariantImageKeys = { productId: string; keys: string[] }"
+      errors: ["NOT_FOUND 404"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: every read filters on the organization given by the caller, never on an id alone."
+      - "v5.0.0-2.3.3: the lock lives as long as the caller's transaction, so the read and the write that follows are one step."
+    tests: |
+      product | integration | AC-1, C-49 | keys A, B → A, B in order
+      variant | integration | AC-2 | product id and keys, locked and not locked
+      lock holds | integration | AC-3, CWE-362 | second transaction waits, then sees the first write
+      missing rows | integration | AC-4 | each Examples row → 404 NOT_FOUND
+      other organization | security | AB-1, CWE-639 | product and variant of A asked by B → 404, no key
+    command: npx vitest run tests/integration/catalog/image-key-readers.test.ts
+    out_of_scope:
+      - "The routes that change photos: IMG-008 to IMG-010. Releasing the keys of deleted cards: CAT-046."
+  - id: CAT-045
+    title: Copied variants and new products take copies of the photos
+    kind: change
+    size: M
+    risk: high
+    amends: [CAT-031]
+    depends_on: [CAT-031, CAT-032, CAT-044, IMG-006]
+    read_first: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts]
+    design_refs: [images/ajouter-a-mon-catalogue, images/imagecopy]
+    constraints: [C-56, C-49]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3]
+    story: "As a manager, I want the photos of the articles I copy into my catalog to come with them so that my customers see what I sell without my taking new pictures."
+    context: |
+      - Exists: `copyProduct` (CAT-031) creates or reuses the destination product and creates the variants in one transaction; `setProductImageKeys`, `setVariantImageKeys` (CAT-032); `readProductImageKeys`, `readVariantImageKeys` (CAT-044); `copyImage(tx, sourceKey)` returns a new key or null when the source file is gone (IMG-006).
+      - Change in `copyProduct`, in that same transaction and once the rows exist: a variant that is created takes a copy of every photo of its source variant, and a new product also takes a copy of every photo of the source product, in the same order. The source cards are read with the supplier's organization id.
+      - An existing destination product, and a variant listed in `already_in_catalog`, keep their photos: nothing is copied for them.
+      - Each key goes through `copyImage`; a null is skipped, so a card may end with fewer photos. The new keys are written with the setters. A storage or database error fails the whole copy (500, nothing created); files already stored wait for the nightly cleanup (IMG-007).
+      - The answer shows the copies' `image_urls` only. No key of the supplier and no registry row is ever returned.
+    acceptance: |
+      Scenario: AC-1 New product
+        Given a supplier product "Riz" with one photo and a variant "sac 25 kg" with one photo
+        When a reseller copies the variant into a new product
+        Then the new product and the new variant each have one photo, under keys different from the supplier's, and the supplier's keys are unchanged
+      Scenario: AC-2 Existing destination
+        Given the reseller's product "Riz" already has two photos
+        When a variant is copied into it
+        Then its two photos are unchanged and the new variant has a copy of its source photos
+      Scenario: AC-3 Variant already there
+        When a variant listed in `already_in_catalog` is copied again
+        Then its photos are unchanged
+      Scenario: AC-4 A source file is gone
+        Given one of two source photos is missing in storage
+        Then the copy answers 201 and the card holds one photo
+      Scenario: AC-5 The registry
+        Then each copied photo has one `image_copies` row with its source and root keys
+    abuse: |
+      Scenario: AB-1 Two resellers copy the same photo (information disclosure, T5)
+        When two resellers copy the same variant
+        Then the two files differ from the source and from each other
+      Scenario: AB-2 The supplier's key reaches the reseller (information disclosure)
+        When the answer and the rows of the reseller are read
+        Then no key of the supplier appears in them
+    implementation:
+      create: [tests/integration/catalog/copy-photos.test.ts]
+      modify: [src/modules/catalog/catalog.service.ts, src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "copyProduct(actor: Actor, input: CopyProductInput): Promise<CopyProductResult>"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.2: the source cards are read through the caller's customer relationship, never by an id alone."
+      - "v5.0.0-2.3.3: the cards, their keys and the registry rows are written in one transaction."
+    tests: |
+      new product | integration | AC-1, C-49 | product and variant photos copied, new keys
+      existing destination | integration | AC-2 | old photos kept, new variant has copies
+      already there | integration | AC-3 | no change
+      file gone | integration | AC-4 | 201, one photo
+      registry | integration | AC-5, C-56 | one row per copy with root key
+      same source twice | security | AB-1, CWE-200 | files differ from the source and each other
+      supplier key | security | AB-2, CWE-200 | no supplier key in the answer or the rows
+    command: npx vitest run tests/integration/catalog/copy-photos.test.ts tests/integration/catalog/copy-variants.test.ts
+    out_of_scope:
+      - "Copying a photo between two variants of one product: IMG-011."
+    tests_to_update: []
+  - id: CAT-046
+    title: The server empties the photo keys of deleted products and variants
+    kind: technical
+    size: S
+    risk: medium
+    depends_on: [CAT-032]
+    read_first: [src/modules/catalog/catalog.repository.ts]
+    design_refs: [images/ajouter-remplacer-retirer-une-photo, catalogue/productvariant]
+    constraints: [C-50]
+    asvs: [v5.0.0-2.3.3]
+    story: "Technical story: provide the function that empties the photo keys of products and variants deleted a while ago and returns them, so that the images module can delete their files and a deleted card no longer holds any."
+    context: |
+      - Exists: products and variants are deleted by setting `deleted_at` (CAT-012, CAT-014); `image_keys` and the setters (CAT-032).
+      - New in `catalog.repository.ts`, in the caller's transaction: `releaseDeletedImageKeys(tx, deletedBefore, limit)`. For up to `limit` products and up to `limit` variants whose `deleted_at` is before `deletedBefore` and whose `image_keys` is not empty, oldest deletion first, it sets `image_keys` to empty and returns every key it released.
+      - A row that is not deleted, or deleted after the date, keeps its keys whatever the date given.
+      - First usage: the nightly cleanup of the images module (IMG-012), which then deletes the files.
+    acceptance: |
+      Scenario: AC-1 Released
+        Given a product deleted 30 hours ago with keys A and B, and a variant deleted 25 hours ago with key C
+        When the function is called for the date 24 hours ago with limit 100
+        Then it returns A, B and C and both rows hold no key
+      Scenario: AC-2 Kept
+        Given a live product with key D and a product deleted 2 hours ago with key E
+        When the same call is made
+        Then both rows keep their keys and nothing is returned for them
+      Scenario: AC-3 Limit
+        Given three products deleted long ago, each with a key
+        When the function is called with limit 2
+        Then the two oldest deletions are released and the third keeps its key
+      Scenario: AC-4 Repeat
+        When the function is called twice with the same date
+        Then the second call returns an empty list
+    abuse: |
+      Scenario: AB-1 A live card loses its photos (data loss)
+        When the function is called with a date in the future
+        Then a product or a variant that is not deleted keeps its keys
+    implementation:
+      create: [tests/integration/catalog/release-image-keys.test.ts]
+      modify: [src/modules/catalog/catalog.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "releaseDeletedImageKeys(tx: Prisma.TransactionClient, deletedBefore: Date, limit: number): Promise<string[]>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.3: the keys are emptied and returned in one statement of the caller's transaction."
+    tests: |
+      released | integration | AC-1, C-50 | deleted cards → keys returned, columns empty
+      kept | integration | AC-2 | live and recent → untouched
+      limit | integration | AC-3 | three rows, limit 2 → oldest two
+      repeat | integration | AC-4 | second call → empty list
+      live cards | security | AB-1, CWE-284 | future date → live rows untouched
+    command: npx vitest run tests/integration/catalog/release-image-keys.test.ts
+    out_of_scope:
+      - "Deleting the files and the nightly schedule: IMG-012."

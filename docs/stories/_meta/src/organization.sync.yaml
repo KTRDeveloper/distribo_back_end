@@ -1,0 +1,1762 @@
+kind: stories
+module: organization
+constraints:
+  C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+stories:
+  - id: ORG-020
+    title: Plan fields and logo key on the organization
+    kind: migration
+    size: M
+    risk: high
+    depends_on: [ORG-001, FND-014]
+    amends: [ORG-001]
+    read_first: [prisma/schema.prisma, tests/integration/organization/organization-table.test.ts]
+    design_refs: [identite-et-organisation/organization, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-41, 'Organization.plan:enum', 'Organization.payment_code:unique', C-49]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Organization.logo_key", "Organization.payment_code", "Organization.plan", "Organization.plan_ends_at", "Organization.grace_ends_at", "Organization.max_collaborators", "Organization.max_products"]
+    story: "Technical story: add to the organizations table the logo key, the business code and the plan fields, with the database rules that keep them consistent, and give every existing business the free plan and a code."
+    context: |
+      - Exists: `organizations` (ORG-001); `PLANS.FREE` (FND-014): 2 collaborators, 30 products.
+      - Adds one migration, run in one transaction: `logo_key` (text, empty, unique); `payment_code` (text, not null, unique); `plan` (new type `OrganizationPlan`, default FREE); `plan_ends_at` and `grace_ends_at` (timestamptz, empty); `max_collaborators` (integer, default 2) and `max_products` (integer, default 30), empty = no limit.
+      - A SQL function `organization_payment_code()` returns 8 characters of `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, drawn from the bytes of `gen_random_uuid()` (secure, no bias). It is the default of `payment_code` and fills existing rows before the column becomes not null.
+      - CHECKs (C-41): `plan = 'FREE'` exactly when `plan_ends_at` is empty; a set `grace_ends_at` needs `plan_ends_at` and is later; the two limits are zero or more.
+      - Existing rows get FREE, empty dates, 2 and 30: every rule holds.
+      - `prisma/schema.prisma`: add the fields and the enum to `model Organization` and its `//` comment, in plain words: the server alone writes the plan fields and the code, shown to the team only; a free business has no end date; codes and logo files are unique; migration `org_020_organization_plan_fields`.
+    acceptance: |
+      Scenario: AC-1 Defaults
+        When an organization is inserted with a name only
+        Then `plan` is FREE, `max_collaborators` is 2, `max_products` is 30, `plan_ends_at`, `grace_ends_at` and `logo_key` are empty
+        And `payment_code` has 8 characters from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`
+      Scenario: AC-2 Each row gets its own code
+        When two organizations are inserted without a code
+        Then their `payment_code` values differ
+      Scenario Outline: AC-3 Plan rules
+        When a row has <values>
+        Then the database <result>
+        Examples:
+          | values | result |
+          | plan ESSENTIAL with plan_ends_at set | accepts |
+          | plan ESSENTIAL without plan_ends_at | rejects (23514) |
+          | plan FREE with plan_ends_at set | rejects (23514) |
+          | grace_ends_at before plan_ends_at | rejects (23514) |
+          | max_collaborators -1 | rejects (23514) |
+          | plan GOLD | rejects (22P02) |
+      Scenario: AC-4 One code, one business
+        When two organizations are given the same `payment_code`
+        Then the second insert is rejected with 23505
+      Scenario: AC-5 One logo file, one business
+        When two organizations are given the same `logo_key`
+        Then the second insert is rejected with 23505
+        And any number of organizations may have an empty key
+    abuse: |
+      Scenario: AB-1 A plan granted without an end date (elevation)
+        When code sets `plan = 'PRO'` and leaves `plan_ends_at` empty, straight in the database
+        Then PostgreSQL rejects it with 23514, even though no application check ran
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_020_organization_plan_fields/migration.sql, tests/integration/organization/organization-plan-fields.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: related columns (`plan`, `plan_ends_at`, `grace_ends_at`) are checked together in the database."
+    tests: |
+      defaults | integration | AC-1 | insert with a name → FREE, 2, 30, empty dates, code of 8 allowed characters
+      own code | integration | AC-2, C-41 | two inserts without a code → two different codes
+      plan rules | integration | AC-3, C-41, Organization.plan:enum | each Examples row → accepted or 23514
+      unique code | integration | AC-4, C-41, Organization.payment_code:unique | same code twice → 23505
+      unique logo key | integration | AC-5, C-49 | same key twice → 23505; two empty keys → accepted
+      plan without end date | security | AB-1, CWE-20 | raw update to PRO without plan_ends_at → 23514
+    command: npx vitest run tests/integration/organization/organization-plan-fields.test.ts
+    out_of_scope:
+      - "The writers of the plan fields (ORG-035), the logo key (ORG-038) and the code at creation (ORG-028); sending the fields to the team only (ORG-028, SYNC); the cross-table key rule (IMG-006)."
+  - id: ORG-021
+    title: Organization contacts table
+    kind: migration
+    size: M
+    risk: high
+    depends_on: [ORG-001, PER-003]
+    amends: [ORG-001]
+    read_first: [prisma/schema.prisma, tests/integration/organization/organization-table.test.ts]
+    design_refs: [identite-et-organisation/organizationcontact, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-43, OrganizationContact:required, 'OrganizationContact.kind:enum', 'OrganizationContact.verification_method:enum', OrganizationContact:fk, C-35, C-01]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["OrganizationContact.{kind,slot,value,verified_at,verification_method,created_by_id}"]
+    story: "Technical story: create the table of public contacts of a business, with the database rules that keep at most three numbers and one email."
+    context: |
+      - Exists: `organizations` (ORG-001), `people`, `set_server_updated_at()` (FND-002).
+      - Adds one migration, run in one transaction: table `organization_contacts` with `id`, `organization_id` (FK), `kind` (new type `OrganizationContactKind`), `slot` (integer, empty), `value`, `verified_at` (empty = pending), `verification_method` (new type `ContactVerificationMethod`, empty), `created_by_id` (FK to people), `created_at`, `server_updated_at`, `deleted_at`.
+      - CHECKs (C-43), besides the slot and verification rules: a PHONE `value` matches `^\+[1-9][0-9]{7,14}$`; an EMAIL `value` is lower case.
+      - The unique indexes (C-43) ignore deleted rows (C-35), so they are not written as `@@unique`. One number may belong to several organizations.
+      - `prisma/schema.prisma`: add `model OrganizationContact` and its enums, with above it a `//` comment in plain words: at most three numbers and one email per business, pending ones included; a deleted contact frees its place; one number may be public for several businesses; migration `org_021_organization_contacts`.
+    acceptance: |
+      Scenario: AC-1 Defaults
+        When a PHONE contact with slot 1 is inserted
+        Then `verified_at`, `verification_method` and `deleted_at` are empty and `server_updated_at` is set
+      Scenario Outline: AC-2 Row rules
+        When a row is inserted with <values>
+        Then the database <result>
+        Examples:
+          | values | result |
+          | PHONE without slot | rejects (23514) |
+          | EMAIL with a slot | rejects (23514) |
+          | PHONE with slot 4 | rejects (23514) |
+          | PHONE value without +237 | rejects (23514) |
+          | EMAIL value Shop@Example.cm | rejects (23514) |
+          | verified_at set without verification_method | rejects (23514) |
+      Scenario Outline: AC-3 Uniqueness among live rows
+        Given an organization has a live contact PHONE slot 1 +237677000001
+        When another row is inserted with <values>
+        Then the database <result>
+        Examples:
+          | values | result |
+          | same organization, slot 1, other number | rejects (23505) |
+          | same organization, slot 2, same number | rejects (23505) |
+          | other organization, slot 1, same number | accepts |
+          | same organization, a second EMAIL | rejects (23505) |
+      Scenario: AC-4 A deleted contact frees its place
+        Given the contact PHONE slot 1 is marked deleted
+        When a new contact takes slot 1 with the same number
+        Then the insert is accepted
+    abuse: |
+      Scenario: AB-1 A fourth number slips in (tampering)
+        Given an organization holds the slots 1, 2 and 3
+        When code inserts another PHONE contact, straight in the database
+        Then PostgreSQL rejects it
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_021_organization_contacts/migration.sql, tests/integration/organization/organization-contact-table.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: the slot, kind and verification columns are checked in the database, not only in code."
+    tests: |
+      defaults | integration | AC-1, C-35 | insert → pending, live, server_updated_at set
+      row rules | integration | AC-2, C-43 | each Examples row → accepted or 23514
+      uniqueness | integration | AC-3, C-43 | each Examples row → accepted or 23505
+      deleted frees | integration | AC-4, C-35 | deleted then re-added → accepted
+      required, lists, keys | integration | OrganizationContact:required, OrganizationContact.kind:enum, OrganizationContact.verification_method:enum, OrganizationContact:fk | empty or unknown values → 23502, 22P02, 23503
+      column types | integration | C-01 | uuid ids, timestamptz dates
+      slot overflow | security | AB-1, CWE-20 | a fourth number → rejected
+    command: npx vitest run tests/integration/organization/organization-contact-table.test.ts
+    out_of_scope:
+      - "Routes and services on contacts (ORG-024 to ORG-027); synchronization (SYNC)."
+  - id: ORG-022
+    title: A collaboration can be paused
+    kind: migration
+    size: XS
+    risk: high
+    depends_on: [ORG-003]
+    amends: [ORG-003]
+    read_first: [prisma/schema.prisma, tests/integration/organization/amount-held.test.ts]
+    design_refs: [identite-et-organisation/collaboration, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-42, C-05]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["Collaboration.status"]
+    story: "Technical story: add the PAUSED status to collaborations and make the database refuse it for the owner."
+    context: |
+      - Exists: `CollaborationStatus` INVITED, ACTIVE, REVOKED; the one-owner trigger and `collaborations_check_row()` (ORG-003).
+      - Adds one migration, run in one transaction: the value PAUSED in the type, and a CHECK that no OWNER row is PAUSED (C-42). PAUSED means: over the limit of the plan, no access, still in the team (billing writes it, ORG-035).
+      - Existing rows hold no PAUSED value, so the CHECK already holds: no audit is needed.
+      - The one-owner trigger counts ACTIVE owners only; a paused owner is impossible, so it does not change.
+      - `prisma/schema.prisma`: add PAUSED to `enum CollaborationStatus`, and to the `//` comment above `model Collaboration` a plain-language line: a paused member keeps their place in the team but has no access; the owner is never paused; the server alone sets the status; migration name `org_022_collaboration_paused`.
+    acceptance: |
+      Scenario Outline: AC-1 Paused rows
+        When a collaboration is inserted with role <role> and status <status>
+        Then the database <result>
+        Examples:
+          | role    | status | result          |
+          | MANAGER | PAUSED | accepts         |
+          | SELLER  | PAUSED | accepts         |
+          | OWNER   | PAUSED | rejects (23514) |
+          | OWNER   | ACTIVE | accepts         |
+      Scenario: AC-2 An owner cannot be paused later
+        Given an ACTIVE owner
+        When its status is updated to PAUSED
+        Then the update is rejected with 23514
+      Scenario: AC-3 A paused member is not an owner
+        Given a paused manager and an ACTIVE owner
+        Then the organization still has exactly one ACTIVE owner
+    abuse: |
+      Scenario: AB-1 The owner is paused so the business has none (denial of service)
+        When code sets the OWNER collaboration to PAUSED, straight in the database
+        Then PostgreSQL rejects it with 23514
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_022_collaboration_paused/migration.sql, tests/integration/organization/collaboration-paused.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: role and status are checked together in the database, so no code path can pause the owner."
+    tests: |
+      paused rows | integration | AC-1, C-42 | each Examples row → accepted or 23514
+      owner stays active | integration | AC-2, C-42 | OWNER updated to PAUSED → 23514
+      one owner | integration | AC-3, C-05 | paused manager + ACTIVE owner → one ACTIVE owner
+      owner never paused | security | AB-1, CWE-20 | raw update of the owner to PAUSED → 23514
+    command: npx vitest run tests/integration/organization/collaboration-paused.test.ts tests/integration/organization/collaboration-table.test.ts
+    out_of_scope:
+      - "Pausing and restoring members (ORG-035) and the limit rules (ORG-030)."
+      - "Showing PAUSED in views and documents (ORG-036)."
+  - id: ORG-023
+    title: A one-time code can be tied to a business contact
+    kind: migration
+    size: XS
+    risk: high
+    depends_on: [ORG-021, AUTH-027]
+    amends: [AUTH-001]
+    read_first: [prisma/schema.prisma, tests/integration/auth/otp-table.test.ts]
+    design_refs: [acces-et-securite/otpchallenge]
+    constraints: [C-33]
+    asvs: [v5.0.0-2.2.3]
+    fields: ["OtpChallenge.organization_contact_id"]
+    story: "Technical story: add to one-time codes the contact of a business they confirm, with the database rule that ties it to the purpose, so that a code for one contact cannot confirm another."
+    context: |
+      - Exists: `otp_challenges` (AUTH-001) and the purpose ORG_CONTACT_VERIFICATION (AUTH-027); `organization_contacts` (ORG-021).
+      - Adds one migration, run in one transaction: `organization_contact_id` (uuid, empty by default, FK to `organization_contacts`) and a CHECK (C-33): it is set exactly when `purpose = 'ORG_CONTACT_VERIFICATION'`.
+      - Existing rows have no contact and none uses this purpose yet, so the CHECK already holds: no audit is needed.
+      - That `target` equals the value of the contact is not a database rule (it spans two tables): the callers check it (ORG-024, ORG-026).
+      - `prisma/schema.prisma`: add the field to `model OtpChallenge`, and to the `//` comment above it, in plain words: a code for a business contact belongs to that one contact, because two businesses may show the same number; migration `org_023_otp_contact_link`.
+    acceptance: |
+      Scenario Outline: AC-1 The id goes with the purpose
+        When a challenge is inserted with purpose <purpose> and <contact>
+        Then the database <result>
+        Examples:
+          | purpose                  | contact       | result          |
+          | ORG_CONTACT_VERIFICATION | a contact id  | accepts         |
+          | ORG_CONTACT_VERIFICATION | no contact id | rejects (23514) |
+          | LOGIN                    | a contact id  | rejects (23514) |
+          | LOGIN                    | no contact id | accepts         |
+      Scenario: AC-2 The contact must exist
+        When a challenge is inserted with an unknown contact id
+        Then the database rejects it with 23503
+    abuse: |
+      Scenario: AB-1 A login code is reused for a contact (spoofing)
+        When code inserts a LOGIN challenge that carries a contact id, straight in the database
+        Then PostgreSQL rejects it with 23514
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_023_otp_contact_link/migration.sql, tests/integration/auth/otp-contact-link.test.ts]
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/auth/otp-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.3: purpose and contact id are checked together in the database."
+    tests: |
+      id and purpose | integration | AC-1, C-33 | each Examples row → accepted or 23514
+      known contact | integration | AC-2, C-33 | unknown contact id → 23503
+      login code with a contact | security | AB-1, CWE-345 | raw insert → 23514
+    command: npx vitest run tests/integration/auth/otp-contact-link.test.ts tests/integration/auth/otp-table.test.ts
+    out_of_scope:
+      - "Issuing and verifying such codes (ORG-041)."
+  - id: ORG-041
+    title: A contact code names the business and serves one contact
+    kind: change
+    size: S
+    risk: high
+    depends_on: [ORG-023, AUTH-003]
+    amends: [AUTH-002, AUTH-003]
+    read_first: [src/modules/auth/otp.service.ts, tests/integration/auth/otp-issue.test.ts]
+    design_refs: [acces-et-securite/otpchallenge, identite-et-organisation/organizationcontact]
+    constraints: [C-33]
+    asvs: [v5.0.0-6.6.3]
+    story: "Technical story: let issueCode and verifyCode work on one contact of a business, with the fixed text that names the business, so that a code given for one contact cannot confirm another."
+    context: |
+      - Exists: `issueCode`, `verifyCode` in `src/modules/auth/otp.service.ts`; `findLatest(target, purpose)` and the type `OtpPurpose` in `otp.repository.ts`; the column from ORG-023.
+      - `IssueCodeInput` gains `contact?: { id: string; organizationName: string }`: required with the purpose ORG_CONTACT_VERIFICATION, refused with any other (an `Error`, a programming mistake, never user input). The row keeps the contact id. The language is the one of `personId`, the owner.
+      - The text is fixed. FR: `Code 482913. Boutique Fotso veut afficher ce numéro comme contact sur Distribo. Ne donnez ce code que si vous acceptez.` EN: `Code 482913. Boutique Fotso wants to show this number as a contact on Distribo. Only give this code if you agree.` For an email, "ce numéro" becomes "cette adresse" and "this number" "this address" (open question).
+      - The business name is cleaned: control characters removed, cut at 40 characters, so a name cannot add lines or a second message.
+      - `verifyCode` takes `organizationContactId`, and `findLatest` filters by it when given. Refused with 400 OTP_INVALID: the purpose without the id, or another purpose with one.
+      - This ships before its first use (ORG-024, ORG-025).
+    acceptance: |
+      Scenario: AC-1 The text names the business
+        When issueCode runs for a contact of "Boutique Fotso" by SMS
+        Then the queued message is the fixed text with the 6-digit code, in French or English
+        And the challenge row keeps the contact id
+      Scenario: AC-2 The name is cleaned
+        When the business name holds a line break and 60 characters
+        Then the message holds no control character and 40 characters of the name
+      Scenario: AC-3 A code serves one contact
+        Given two contacts show the same number and a code was issued for the first
+        When verifyCode is called with the second contact id and the right code
+        Then it throws 400 OTP_INVALID
+        And with the first contact id it succeeds
+      Scenario: AC-4 Wrong pairing
+        When verifyCode is called for ORG_CONTACT_VERIFICATION without an id, or for LOGIN with one
+        Then it throws 400 OTP_INVALID
+      Scenario: AC-5 Other purposes unchanged
+        When the tests of otp-issue and otp-verify run
+        Then they pass as before
+    abuse: |
+      Scenario: AB-1 A code given for one business confirms another (spoofing)
+        Given the same number is a pending contact of two businesses
+        When the code issued for business A is entered for the contact of business B
+        Then it is refused and B stays pending
+    implementation:
+      create: [tests/integration/auth/otp-contact-code.test.ts]
+      modify: [src/modules/auth/otp.service.ts, src/modules/auth/otp.repository.ts]
+      pattern: tests/integration/auth/otp-issue.test.ts
+      signatures:
+        - "issueCode(input: IssueCodeInput, clientKeys?: ClientKeys): Promise<{ challengeId: string; expiresAt: Date }>"
+        - "verifyCode(input: { target: string; purpose: OtpPurpose; code: string; organizationContactId?: string }): Promise<{ challengeId: string; personId: string | null }>"
+        - "contactCodeMessage(code: string, language: 'FR' | 'EN', organizationName: string, channel: 'SMS' | 'EMAIL'): string"
+      types:
+        - "OtpPurpose gains 'ORG_CONTACT_VERIFICATION'"
+      errors: ["OTP_INVALID 400"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-6.6.3: a code stays limited to 5 attempts and one use, and is now tied to one contact."
+    tests: |
+      fixed text | integration | AC-1 | message equals the French and the English text; row has the contact id
+      clean name | unit | AC-2 | line break removed, name of 60 characters cut to 40
+      one contact | integration | AC-3, C-33 | code of A with the id of B → 400 OTP_INVALID; with the id of A → success
+      wrong pairing | integration | AC-4 | both cases → 400 OTP_INVALID
+      others unchanged | integration | AC-5 | otp-issue and otp-verify pass
+      cross-business code | security | AB-1, CWE-345 | code of A entered for B → refused, B stays pending
+    command: npx vitest run tests/integration/auth/otp-contact-code.test.ts tests/integration/auth/otp-issue.test.ts tests/integration/auth/otp-verify.test.ts
+    out_of_scope:
+      - "The routes that issue and confirm contact codes (ORG-024, ORG-025, ORG-026)."
+      - "The purpose ACCESS_RESTORE in the TypeScript type: it ships with the administrator story that uses it."
+    tests_to_update:
+      - "tests/integration/auth/otp-issue.test.ts | line 53 matches the French text of a code sent for another purpose | unchanged"
+      - "tests/integration/auth/otp-verify.test.ts | verifies codes without a contact id for other purposes | unchanged: the id is refused only for another purpose than ORG_CONTACT_VERIFICATION"
+  - id: ORG-040
+    title: The owner rules for the team and the contacts are written out
+    kind: change
+    size: S
+    risk: high
+    depends_on: [ACC-008, ORG-007, ORG-009, ORG-010]
+    amends: [ACC-005, ORG-007, ORG-009, ORG-010]
+    read_first: [src/shared/access/ability.ts, tests/unit/access/ability.test.ts]
+    design_refs: [annexe-la-table-des-regles/qui-et-ou, annexe-la-table-des-regles/extrait-du-fichier]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: "Technical story: replace the single manage rule on the team with the rows the design lists, and add the rows for business contacts, so that the fields an owner may write are named."
+    context: |
+      - Exists: `{ who: OWNER, where: ONLINE_FOR_ALL, action: manage, subject: Collaboration }` in `src/shared/access/ability.ts`; the invite POST, the role PATCH and the revoke DELETE of `organization.routes.ts` call `requireAbility('manage', 'Collaboration')`.
+      - Replaces it by two OWNER rows, ONLINE_FOR_ALL: `create` Collaboration with fields `['role']` (invite) and `update` Collaboration with fields `['role', 'status']` (change a role, revoke). The three routes call `create` for the invite and `update` for the other two.
+      - Adds two OWNER rows, ONLINE_FOR_ALL: `create` and `delete` on OrganizationContact with fields `['kind', 'slot', 'value']`. They ship before their first use (ORG-024, ORG-027).
+      - Unchanged: `manage Subscription` (BIL-006 removes it), `transfer_ownership`, `close`, `reopen`.
+      - No route changes its answer: owner and network allowed, everyone else 403 FORBIDDEN.
+    acceptance: |
+      Scenario Outline: AC-1 The owner's rows
+        When abilityFor is built for <role> with <ctx>
+        Then can(<action>, <subject>) is <result>
+        Examples:
+          | role    | ctx     | action | subject             | result |
+          | OWNER   | online  | create | Collaboration       | true   |
+          | OWNER   | online  | update | Collaboration       | true   |
+          | OWNER   | online  | create | OrganizationContact | true   |
+          | OWNER   | online  | delete | OrganizationContact | true   |
+          | OWNER   | offline | create | OrganizationContact | false  |
+          | OWNER   | offline | update | Collaboration       | false  |
+          | MANAGER | online  | update | Collaboration       | false  |
+          | MANAGER | online  | create | OrganizationContact | false  |
+      Scenario: AC-2 Writable fields are named
+        Given the OWNER online
+        Then `update` is allowed on the fields role and status of Collaboration, not on amount_held
+        And `create` is allowed on the field role of Collaboration, not on status
+      Scenario: AC-3 No manage left on the team
+        Then can('manage', 'Collaboration') is false for every role and context
+        And no row of `RULES` names `manage` with the subject Collaboration
+      Scenario: AC-4 The routes keep their answers
+        When the tests of invite, change-role and revoke run
+        Then they pass as before
+    abuse: |
+      Scenario: AB-1 A manager changes the team or the contacts (elevation)
+        Given a MANAGER, online
+        When abilityFor is built
+        Then it cannot create or update Collaboration, nor create or delete OrganizationContact
+    implementation:
+      create: [tests/unit/access/owner-rules.test.ts]
+      modify: [src/shared/access/ability.ts, src/modules/organization/organization.routes.ts]
+      pattern: src/shared/access/roles.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@casl/ability"]
+    security:
+      - "v5.0.0-8.2.1: the team and contact gestures stay owner-only, online, and refused for every other role."
+      - "v5.0.0-15.3.3: the fields an owner may write on a collaboration or a contact are listed per action."
+    tests: |
+      owner rows | unit | AC-1 | each Examples row → result
+      fields | unit | AC-2 | update on role and status true, on amount_held false; create on role true, on status false
+      no manage | unit | AC-3 | can manage Collaboration false; no RULES row with manage and Collaboration
+      routes | integration | AC-4 | invite, change-role and revoke suites pass
+      manager refused | security | AB-1, CWE-285 | MANAGER online → the four actions false
+    command: npx vitest run tests/unit/access tests/integration/organization/invite.test.ts tests/integration/organization/change-role.test.ts tests/integration/organization/revoke.test.ts
+    out_of_scope:
+      - "The routes and services of the contacts (ORG-024 to ORG-027)."
+      - "Removing `manage Subscription` and the guard that no rule uses `manage` (BIL-006)."
+    tests_to_update:
+      - "tests/unit/access/ability.test.ts | the rows, the rule list and the manager test name `manage` on Collaboration | same expectations with `create` and `update` on Collaboration"
+  - id: ORG-024
+    title: The owner adds a public phone number to the business
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORG-021, ORG-040, ORG-041, PER-001]
+    read_first: [src/middleware/idempotent.ts, tests/integration/organization/invite.test.ts]
+    design_refs: [identite-et-organisation/organizationcontact, acces-et-securite/otpchallenge]
+    constraints: [C-43, C-44]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: As an owner, I want to add a phone number as a public contact so that customers can find and reach my business.
+    context: |
+      - Exists: `loadActor`, `requireAbility`, `idempotent`, `assertOrganizationActive` (ORG-005); the OWNER rule row (ORG-040); `issueCode` with a contact (ORG-041); `findByActivePhone` (person repository).
+      - Route `POST /api/v1/organizations/{organizationId}/contacts`, body (strict) `{ id: UUIDv7, kind: 'PHONE', slot: 1..3, value }`; `value` goes through `phoneNumberSchema`.
+      - The owner's own active number, with `phone_verified_at` set, is stored verified at once (`verified_at` now, `verification_method` OWNER_PHONE, no code). Any other number is stored pending and `issueCode` sends it a code by SMS.
+      - Pending contacts count in the limit of three (ORG-021); a request that loses a race (23505) is answered like the pre-check.
+      - If the code cannot be sent (429 OTP_RATE_LIMITED), the contact stays pending and the answer is that 429: the owner resends (ORG-026).
+      - Response 201 with `ContactView`. No list or edit route exists: contacts arrive by synchronization.
+      - Add the path to `organization.openapi.ts` and to the route lists in `tests/integration/api-docs/catalog.test.ts` and `per-001.test.ts`.
+    acceptance: |
+      Scenario: AC-1 The owner's own number is verified at once
+        Given the owner's active number is verified
+        When they add it
+        Then the answer is 201 with `verification_method` OWNER_PHONE and no code is sent
+      Scenario: AC-2 Another number waits for a code
+        When the owner adds a Cameroon mobile number that is not theirs
+        Then the answer is 201 with `verified_at` null and one SMS code tied to this contact is sent
+      Scenario Outline: AC-3 Refusals
+        When the owner adds <case>
+        Then the answer is <status> <code>
+        Examples:
+          | case                                   | status | code                   |
+          | a taken slot, or a fourth number       | 409    | CONTACT_SLOT_TAKEN     |
+          | a number already listed                | 409    | CONTACT_ALREADY_EXISTS |
+          | a number that is not a Cameroon mobile | 400    | UNSUPPORTED_NUMBER     |
+          | an unknown field, or no slot           | 400    | VALIDATION_ERROR       |
+          | a closed or suspended business         | 409    | ORGANIZATION_NOT_ACTIVE |
+      Scenario: AC-4 A repeat changes nothing
+        When the same request with the same `id` is sent twice
+        Then the second answer equals the first, with one contact
+    abuse: |
+      Scenario: AB-1 Someone else's number is published without proof (spoofing)
+        When the owner adds a number that is not theirs and never enters a code
+        Then `verified_at` stays null and the number does not find the business
+      Scenario: AB-2 A manager adds a contact (elevation)
+        When a MANAGER, a SELLER or a DRIVER of the business sends the request
+        Then the answer is 403 FORBIDDEN and nothing is stored or sent
+    implementation:
+      create: [src/modules/organization/organization-contact.repository.ts, src/modules/organization/organization-contact.service.ts, src/modules/organization/organization-contact.schemas.ts, tests/integration/organization/contact-add.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/middleware/idempotent.ts
+      signatures:
+        - "addContact(actor: Actor, input: AddContactInput): Promise<ContactView>"
+      types:
+        - "ContactView = { id; kind: 'PHONE' | 'EMAIL'; slot: number | null; value; verified_at: string | null; verification_method: 'CODE' | 'OWNER_PHONE' | null; created_at }"
+      errors: ["CONTACT_SLOT_TAKEN 409", "CONTACT_ALREADY_EXISTS 409", "UNSUPPORTED_NUMBER 400", "ORGANIZATION_NOT_ACTIVE 409", "FORBIDDEN 403", "VALIDATION_ERROR 400"]
+      dependencies: ["zod"]
+    security:
+      - "v5.0.0-8.2.1: only the OWNER, online, reaches the route."
+      - "v5.0.0-15.3.3: the server sets `verified_at`, `verification_method` and `created_by_id`; the body holds `id`, `kind`, `slot`, `value` only."
+    tests: |
+      own number | integration | AC-1, C-44 | 201, OWNER_PHONE, no job queued
+      other number | integration | AC-2, C-43 | pending, one SMS job tied to the contact
+      refusals | integration | AC-3, C-43 | each Examples row → status and code
+      repeat | integration | AC-4 | same id twice → same body, one row
+      not proven | security | AB-1, CWE-290 | stays pending: no lookup by that number finds the business
+      non-owner | security | AB-2, CWE-285 | MANAGER, SELLER, DRIVER → 403, no row
+    command: npx vitest run tests/integration/organization/contact-add.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "The email (ORG-042); confirming, resending and deleting (ORG-025 to ORG-027); the lookup by contact (ORG-029)."
+      - "Contacts in the creation body (the owner adds them afterwards) and keeping the old number when the owner changes theirs: open questions."
+  - id: ORG-042
+    title: The owner adds a public email to the business
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ORG-024]
+    read_first: [src/modules/organization/organization-contact.service.ts, tests/integration/organization/contact-add.test.ts]
+    design_refs: [identite-et-organisation/organizationcontact, acces-et-securite/otpchallenge]
+    constraints: [C-43, C-44]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]
+    story: As an owner, I want to add an email address as a public contact of my business so that customers can write to it.
+    context: |
+      - Exists: `addContact`, `ContactView` and the route of ORG-024; `issueCode` with a contact for the channel EMAIL (ORG-041).
+      - The body accepts `kind: 'EMAIL'` with no `slot` (refused with a slot) and `value`: trimmed, lower case, at most 254 characters, a valid address. The unique rules of ORG-021 give one email.
+      - An email is never verified at once, even if it is the owner's: it is stored pending and `issueCode` sends the code by email, to the address, with the business name and the contact id. The email is not used to find a business (ORG-029).
+      - The same answers apply: 201 with the closed list of ORG-024; 409 CONTACT_SLOT_TAKEN for a second email; 409 CONTACT_ALREADY_EXISTS; 400 VALIDATION_ERROR.
+    acceptance: |
+      Scenario: AC-1 An email waits for a code
+        When the owner adds `Shop@Example.cm`
+        Then the answer is 201 with value `shop@example.cm`, `slot` null and `verified_at` null
+        And one email code tied to this contact is sent to that address
+      Scenario: AC-2 The owner's own email is not trusted
+        Given the owner's verified email is `owner@example.cm`
+        When they add it
+        Then it is pending and a code is sent
+      Scenario Outline: AC-3 Refusals
+        When the owner adds <case>
+        Then the answer is <status> <code>
+        Examples:
+          | case                           | status | code                   |
+          | a second email                 | 409    | CONTACT_SLOT_TAKEN     |
+          | the same address, written in capitals  | 409    | CONTACT_ALREADY_EXISTS |
+          | not-an-address                 | 400    | VALIDATION_ERROR       |
+          | an email with a slot           | 400    | VALIDATION_ERROR       |
+    abuse: |
+      Scenario: AB-1 Someone else's address is published without proof (spoofing)
+        When the owner adds an address that is not theirs and never enters a code
+        Then `verified_at` stays null
+    implementation:
+      create: [tests/integration/organization/contact-add-email.test.ts]
+      modify: [src/modules/organization/organization-contact.service.ts, src/modules/organization/organization-contact.schemas.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/middleware/idempotent.ts
+      signatures: []
+      types: []
+      errors: ["CONTACT_SLOT_TAKEN 409", "CONTACT_ALREADY_EXISTS 409", "VALIDATION_ERROR 400"]
+      dependencies: ["zod"]
+    security:
+      - "v5.0.0-8.2.1: the owner-only rule of the route is unchanged."
+      - "v5.0.0-15.3.3: the body lists `id`, `kind`, `slot` and `value` only."
+    tests: |
+      email | integration | AC-1, C-43 | lower case stored, pending, one EMAIL job
+      own email | integration | AC-2, C-44 | pending, code sent
+      refusals | integration | AC-3, C-43 | each Examples row → status and code
+      not proven | security | AB-1, CWE-290 | pending forever
+    command: npx vitest run tests/integration/organization/contact-add-email.test.ts tests/integration/organization/contact-add.test.ts
+    out_of_scope:
+      - "Confirming, resending and deleting (ORG-025, ORG-026, ORG-027)."
+  - id: ORG-025
+    title: The owner confirms a contact with its code
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ORG-024]
+    read_first: [src/modules/organization/organization-contact.service.ts, tests/integration/organization/contact-add.test.ts]
+    design_refs: [identite-et-organisation/organizationcontact, acces-et-securite/otpchallenge]
+    constraints: [C-44, C-33]
+    asvs: [v5.0.0-6.6.3, v5.0.0-8.2.1]
+    story: As an owner, I want to enter the code sent to a contact so that it is published and customers can find my business with it.
+    context: |
+      - Exists: contacts and `addContact` (ORG-024); `verifyCode` with a contact id (ORG-041).
+      - Route `POST /api/v1/organizations/{organizationId}/contacts/{contactId}/confirm`, body (strict) `{ id: UUIDv7, code: 6 digits }`. OWNER, online.
+      - The contact must be live, of this business and pending; otherwise 404 NOT_FOUND, or 409 CONTACT_ALREADY_VERIFIED for a verified one (no code is consumed).
+      - `verifyCode({ target: contact.value, purpose: 'ORG_CONTACT_VERIFICATION', code, organizationContactId })`; its errors pass through (400 OTP_INVALID, 400 OTP_EXPIRED, 429 OTP_LOCKED).
+      - On success one guarded UPDATE sets `verified_at` (server time) and `verification_method` CODE where the contact is still pending and live; no row changed means 404. Response 200 with the contact view of ORG-024.
+      - Add the path to `organization.openapi.ts` and to the two route lists in the tests.
+    acceptance: |
+      Scenario: AC-1 The right code publishes the contact
+        Given a pending contact and its code
+        When the owner confirms
+        Then the answer is 200 with `verified_at` set and `verification_method` CODE
+      Scenario Outline: AC-2 Refusals
+        When the owner confirms with <case>
+        Then the answer is <status> <code>, and the contact stays pending
+        Examples:
+          | case                              | status | code                      |
+          | a wrong code                      | 400    | OTP_INVALID               |
+          | an expired code                   | 400    | OTP_EXPIRED               |
+          | a contact already verified        | 409    | CONTACT_ALREADY_VERIFIED  |
+          | a deleted contact                 | 404    | NOT_FOUND                 |
+          | a contact of another business     | 404    | NOT_FOUND                 |
+      Scenario: AC-3 A repeat changes nothing
+        When the same request with the same `id` is sent twice
+        Then the second answer equals the first
+      Scenario: AC-4 Only the owner
+        When a MANAGER sends the request
+        Then the answer is 403 FORBIDDEN
+    abuse: |
+      Scenario: AB-1 A guessed code publishes a number (spoofing)
+        When the owner sends six wrong codes for the same contact, then the right one
+        Then the sixth is 429 OTP_LOCKED and the contact stays pending
+      Scenario: AB-2 The code of another contact is used (spoofing)
+        Given the same number is pending for two businesses and a code was issued for the first
+        When the owner of the second sends that code for the second contact
+        Then the answer is 400 OTP_INVALID and the second contact stays pending
+    implementation:
+      create: [tests/integration/organization/contact-confirm.test.ts]
+      modify: [src/modules/organization/organization-contact.service.ts, src/modules/organization/organization-contact.repository.ts, src/modules/organization/organization-contact.schemas.ts, src/modules/organization/organization.routes.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/middleware/idempotent.ts
+      signatures:
+        - "confirmContact(actor: Actor, contactId: string, code: string): Promise<ContactView>"
+        - "markContactVerified(contactId: string, organizationId: string, now: Date): Promise<ContactRow | null>"
+      types: []
+      errors: ["OTP_INVALID 400", "OTP_EXPIRED 400", "OTP_LOCKED 429", "CONTACT_ALREADY_VERIFIED 409", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: []
+    security:
+      - "v5.0.0-6.6.3: five attempts at most, one use, and the code belongs to this contact."
+      - "v5.0.0-8.2.1: only the OWNER of the business confirms, and the contact must belong to it."
+    tests: |
+      right code | integration | AC-1, C-44 | 200, verified_at set, CODE
+      refusals | integration | AC-2 | each Examples row → status, code, still pending
+      repeat | integration | AC-3 | same id twice → same body
+      non-owner | integration | AC-4 | MANAGER → 403
+      lock | security | AB-1, CWE-307 | six wrong then right → 429 OTP_LOCKED, pending
+      other contact | security | AB-2, C-33 | code of A for B → 400, B pending
+    command: npx vitest run tests/integration/organization/contact-confirm.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Issuing and resending a code (ORG-024, ORG-026)."
+  - id: ORG-026
+    title: The owner asks for a contact code again
+    kind: feature
+    size: XS
+    risk: medium
+    depends_on: [ORG-025]
+    read_first: [src/modules/organization/organization-contact.service.ts, tests/integration/organization/contact-confirm.test.ts]
+    design_refs: [identite-et-organisation/organizationcontact]
+    constraints: [C-33]
+    asvs: [v5.0.0-6.6.3, v5.0.0-2.4.1]
+    story: As an owner, I want the code sent again to a pending contact so that I can confirm it when the first one did not arrive.
+    context: |
+      - Exists: `confirmContact` and the contact repository (ORG-025); `issueCode` with a contact (ORG-041), which keeps the sending limits of every code (60 seconds between two codes, 3 per hour per target).
+      - Route `POST /api/v1/organizations/{organizationId}/contacts/{contactId}/resend`, body (strict) `{ id: UUIDv7 }`. OWNER, online.
+      - The contact must be live, of this business and pending, else 404 NOT_FOUND; a verified one gives 409 CONTACT_ALREADY_VERIFIED. A new code is issued to the same value and channel; the former codes can no longer be used because the newest one counts.
+      - Response 200 `{ sent: true, expires_in: 600 }`. A limit hit gives 429 OTP_RATE_LIMITED.
+      - Add the path to `organization.openapi.ts` and to the two route lists in the tests.
+    acceptance: |
+      Scenario: AC-1 A new code is sent
+        Given a pending contact
+        When the owner asks again
+        Then the answer is 200 and one more job is queued to the same value
+      Scenario: AC-2 Limits
+        When the owner asks again within 60 seconds
+        Then the answer is 429 OTP_RATE_LIMITED and nothing is queued
+      Scenario Outline: AC-3 Refusals
+        When the owner asks for <case>
+        Then the answer is <status> <code>
+        Examples:
+          | case                           | status | code                     |
+          | a verified contact             | 409    | CONTACT_ALREADY_VERIFIED |
+          | a deleted contact              | 404    | NOT_FOUND                |
+          | a contact of another business  | 404    | NOT_FOUND                |
+      Scenario: AC-4 The old code is dead
+        Given a first code and a second code for the same contact
+        When the first is entered
+        Then the answer is 400 OTP_INVALID
+    abuse: |
+      Scenario: AB-1 A manager triggers messages to a stranger (abuse of sending)
+        When a MANAGER sends the request
+        Then the answer is 403 FORBIDDEN and nothing is queued
+    implementation:
+      create: [tests/integration/organization/contact-resend.test.ts]
+      modify: [src/modules/organization/organization-contact.service.ts, src/modules/organization/organization-contact.schemas.ts, src/modules/organization/organization.routes.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/middleware/idempotent.ts
+      signatures:
+        - "resendContactCode(actor: Actor, contactId: string): Promise<{ sent: true; expires_in: number }>"
+      types: []
+      errors: ["OTP_RATE_LIMITED 429", "CONTACT_ALREADY_VERIFIED 409", "NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: []
+    security:
+      - "v5.0.0-2.4.1: the sending limits of every code apply, so the route cannot flood a number."
+      - "v5.0.0-6.6.3: only the newest code of the contact counts."
+    tests: |
+      new code | integration | AC-1 | 200, one job to the same value
+      limit | integration | AC-2, C-33 | second call within 60 s → 429, no job
+      refusals | integration | AC-3 | each Examples row → status, code
+      old code | integration | AC-4 | first code after a second → 400 OTP_INVALID
+      non-owner | security | AB-1, CWE-285 | MANAGER → 403, no job
+    command: npx vitest run tests/integration/organization/contact-resend.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Changing the value of a contact: it is deleted and added again (ORG-027, ORG-024)."
+  - id: ORG-027
+    title: The owner deletes a public contact
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ORG-024]
+    read_first: [src/modules/organization/organization-contact.service.ts, tests/integration/organization/contact-add.test.ts]
+    design_refs: [identite-et-organisation/organizationcontact, synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone]
+    constraints: [C-35, C-44]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.3.1]
+    story: As an owner, I want to delete a public contact so that my business is no longer found by it and its place is free.
+    context: |
+      - Exists: contacts and `addContact` (ORG-024); the OWNER delete row (ORG-040).
+      - Route `DELETE /api/v1/organizations/{organizationId}/contacts/{contactId}`, no body, answer 204. OWNER, online. Like the other delete routes, it carries no `id`; a second delete answers 404.
+      - The contact must be live and of this business, else 404 NOT_FOUND. The row is not removed: `deleted_at` is set, so telephones learn the deletion; the database sets `server_updated_at` (C-35).
+      - A verified contact stops being published at once; its place (slot or email) is free for a new contact, which starts pending.
+      - A contact is never edited: no PATCH or PUT route exists for it.
+      - Add the path to `organization.openapi.ts` and to the two route lists in the tests.
+    acceptance: |
+      Scenario: AC-1 The contact is deleted
+        Given a verified contact
+        When the owner deletes it
+        Then the answer is 204, `deleted_at` is set and `findOrganizationsByPublicNumber` no longer returns the business for that number
+      Scenario: AC-2 The place is free
+        When the owner then adds a new contact in the same slot
+        Then the answer is 201 and the new contact is pending
+      Scenario Outline: AC-3 Refusals
+        When the owner deletes <case>
+        Then the answer is 404 NOT_FOUND
+        Examples:
+          | case                           |
+          | an unknown contact             |
+          | a contact already deleted      |
+          | a contact of another business  |
+      Scenario: AC-4 No edit route
+        When a PATCH or a PUT is sent to the contact path
+        Then the answer is 404 NOT_FOUND
+    abuse: |
+      Scenario: AB-1 A manager removes the contacts (elevation)
+        When a MANAGER, a SELLER or a DRIVER sends the request
+        Then the answer is 403 FORBIDDEN and the contact is untouched
+    implementation:
+      create: [tests/integration/organization/contact-delete.test.ts]
+      modify: [src/modules/organization/organization-contact.service.ts, src/modules/organization/organization-contact.repository.ts, src/modules/organization/organization-contact.schemas.ts, src/modules/organization/organization.routes.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/middleware/require-ability.ts
+      signatures:
+        - "deleteContact(actor: Actor, contactId: string): Promise<void>"
+        - "softDeleteContact(contactId: string, organizationId: string, now: Date): Promise<boolean>"
+      types: []
+      errors: ["NOT_FOUND 404", "FORBIDDEN 403"]
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: only the OWNER of the business, online, deletes a contact."
+      - "v5.0.0-8.3.1: the contact must belong to the business of the session, else 404."
+    tests: |
+      delete | integration | AC-1, C-35 | 204, deleted_at set, number no longer finds the business
+      place free | integration | AC-2, C-35 | same slot added again → 201 pending
+      refusals | integration | AC-3 | each Examples row → 404
+      no edit | integration | AC-4, C-44 | PATCH and PUT → 404
+      non-owner | security | AB-1, CWE-285 | MANAGER, SELLER, DRIVER → 403, contact untouched
+    command: npx vitest run tests/integration/organization/contact-delete.test.ts tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Listing contacts: they arrive by synchronization (SYNC)."
+  - id: ORG-028
+    title: A new business gets its payment code and the free plan
+    kind: change
+    size: S
+    risk: high
+    depends_on: [ORG-004, ORG-005, ORG-020, FND-014]
+    amends: [ORG-004, ORG-005]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/organization, synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone]
+    constraints: [C-41]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.1, v5.0.0-15.3.3]
+    story: As an owner, I want my new business to start on the free plan with its own payment code so that I can later pay for more room.
+    context: |
+      - Exists: `POST /api/v1/organizations` (`createOrganization`), body `{id, name, description?, email?}`; the plan columns (ORG-020); `PLANS`, `generatePaymentCode` (FND-014).
+      - At creation the server writes `payment_code` (`generatePaymentCode()`), `plan` FREE, and `max_collaborators`, `max_products` from `PLANS.FREE`. The body never carries them.
+      - A unique violation on `payment_code` only draws a new code, 5 tries in all, each in a new transaction; after 5 the error goes up (500). Any other unique violation is rethrown unchanged.
+      - The body loses `email` (strict schema); the column stays until ORG-032 and nothing writes it.
+      - The `POST` answer and `GET /organizations/{organizationId}` add `payment_code, plan, plan_ends_at, grace_ends_at, max_collaborators, max_products` and lose `email`. Only the team reads them (anyone else already gets 404). The list of my businesses and the lookup keep their fields.
+      - Contacts are not in the creation body: the owner adds them with ORG-024.
+    acceptance: |
+      Scenario: AC-1 A new business starts on the free plan
+        When a person creates a business
+        Then the answer is 201 with `plan` "FREE", `plan_ends_at` null, `grace_ends_at` null, `max_collaborators` 2, `max_products` 30 and no `email`
+      Scenario: AC-2 The payment code has the fixed shape
+        Then `payment_code` is 8 characters from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`
+      Scenario: AC-3 A taken code is drawn again
+        Given the first draw equals the code of an existing business
+        When a business is created
+        Then the answer is 201 and the stored code is the second draw
+      Scenario: AC-4 Five taken codes stop the creation
+        Given every draw equals an existing code
+        Then the answer is 500 INTERNAL_ERROR and no business, collaboration or counter is stored
+      Scenario: AC-5 The body cannot set the server fields
+        When the body carries `email`, `payment_code`, `plan`, `max_collaborators` or `max_products`
+        Then the answer is 400 VALIDATION_ERROR and nothing is stored
+      Scenario: AC-6 The team reads the plan fields
+        Then `GET /organizations/{organizationId}` for an ACTIVE member carries the six plan fields
+    abuse: |
+      Scenario: AB-1 The plan of a business is read by an outsider (information disclosure, T9)
+        When a person who is not an ACTIVE member (none, INVITED, REVOKED or PAUSED) reads the business
+        Then the answer is 404 NOT_FOUND
+        And a lookup item carries only `id`, `name` and `description`
+    implementation:
+      create: [tests/integration/organization/create-plan.test.ts]
+      modify: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/middleware/idempotent.ts
+      signatures:
+        - "insertOrganizationWithOwner(personId, input, plan: { paymentCode: string; maxCollaborators: number | null; maxProducts: number | null }, inSameTransaction?): Promise<CreatedOrganization>"
+        - "isPaymentCodeCollision(error: unknown): boolean"
+      types:
+        - "OrganizationView adds payment_code: string, plan: 'FREE' | 'ESSENTIAL' | 'PRO' | 'ENTERPRISE', plan_ends_at: string | null, grace_ends_at: string | null, max_collaborators: number | null, max_products: number | null; email removed"
+      errors: ["VALIDATION_ERROR 400"]
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: owner, plan and limits come from the session and `PLANS.FREE`, never from the body."
+      - "v5.0.0-15.3.1: the plan fields are in the detail view only."
+      - "v5.0.0-15.3.3: the strict body schema lists `id`, `name` and `description` only."
+    tests: |
+      free plan | integration | AC-1, C-41 | 201 → FREE, null dates, 2 and 30, no email
+      code shape | integration | AC-2 | 8 symbols of the alphabet
+      code collision | integration | AC-3 | first draw taken (generatePaymentCode mocked) → 201, second draw stored
+      code exhausted | integration | AC-4 | five taken draws → 500, nothing stored
+      server fields refused | integration | AC-5 | each extra field → 400, no row
+      team view | integration | AC-6 | ACTIVE member → six plan fields
+      outsider | security | AB-1, CWE-200 | non-member, INVITED, REVOKED, PAUSED → 404; lookup item keys unchanged
+    command: npx vitest run tests/integration/organization tests/integration/api-docs
+    out_of_scope:
+      - "Dropping `organizations.email`: ORG-032."
+    tests_to_update:
+      - "tests/integration/organization/create.test.ts | the key list, the `email` fields and the `email not-mail` case expect `email` | key list without `email` and with the six plan fields; the `email` case becomes a 400 for an unknown field"
+      - "tests/integration/organization/actor-and-read.test.ts | the detail test expects seven keys with `email` | the keys and the object without `email`, with the six plan fields"
+  - id: ORG-030
+    title: An invitation respects the collaborator limit of the plan
+    kind: change
+    size: S
+    risk: high
+    depends_on: [ORG-007, ORG-020, ORG-022]
+    amends: [ORG-007]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/collaboration, identite-et-organisation/organization]
+    constraints: [C-42]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3]
+    story: As an owner, I want the invitation to stop at the number of collaborators my plan pays for so that the team stays within what I subscribed to.
+    context: |
+      - Exists: `inviteCollaborator(actor, input)` (ORG-007) inserts an INVITED row or reuses a REVOKED one; the plan columns (ORG-020); the PAUSED status (ORG-022).
+      - New rule: invitations that are ACTIVE or INVITED, owner excluded, deleted rows excluded, may not exceed `max_collaborators` (null = no limit). The invitation that would exceed it answers 409 `COLLABORATOR_LIMIT_REACHED`, stores nothing and notifies nobody. REVOKED and PAUSED rows do not count.
+      - Inviting a REVOKED person again is a new invitation and counts. A PAUSED person is still in the team: inviting them answers 409 `ALREADY_MEMBER`, as for an ACTIVE or INVITED one.
+      - Count inside the gesture's transaction after locking the organization row (`SELECT … FOR UPDATE` through `$queryRaw`, parameterized), so two simultaneous invitations cannot both take the last place.
+      - Order of checks: rate limit, organization ACTIVE, `ALREADY_MEMBER`, then the limit.
+      - Add the 409 to the invitation route in `organization.openapi.ts`.
+    acceptance: |
+      Scenario Outline: AC-1 The limit counts ACTIVE and INVITED collaborators
+        Given a business with <active> ACTIVE and <invited> INVITED collaborators besides the owner and `max_collaborators` <max>
+        When the owner invites a new person
+        Then the answer is <status>
+        Examples:
+          | active | invited | max  | status                            |
+          | 1      | 0       | 2    | 201                               |
+          | 1      | 1       | 2    | 409 COLLABORATOR_LIMIT_REACHED    |
+          | 2      | 0       | 2    | 409 COLLABORATOR_LIMIT_REACHED    |
+          | 6      | 3       | null | 201                               |
+      Scenario: AC-2 Revoked and paused collaborators leave room
+        Given the business has 1 ACTIVE, 1 REVOKED and 1 PAUSED collaborator and `max_collaborators` 2
+        When the owner invites a new person
+        Then the answer is 201
+      Scenario: AC-3 Inviting a revoked person again counts
+        Given the business is at its limit
+        When the owner invites a REVOKED person
+        Then the answer is 409 COLLABORATOR_LIMIT_REACHED and the row stays REVOKED
+      Scenario: AC-4 A paused person is already a member
+        When the owner invites a PAUSED person, at the limit or below it
+        Then the answer is 409 ALREADY_MEMBER
+      Scenario: AC-5 A refusal leaves no trace
+        When the limit refuses an invitation
+        Then no person, collaboration or notification is created
+    abuse: |
+      Scenario: AB-1 Two simultaneous invitations take the last place (race, tampering)
+        Given one place is left
+        When two invitations arrive together
+        Then exactly one answers 201, the other 409 COLLABORATOR_LIMIT_REACHED, and the team never exceeds the limit
+    implementation:
+      create: [tests/integration/organization/invite-limit.test.ts]
+      modify: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.openapi.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "lockOrganizationSeats(tx: Prisma.TransactionClient, organizationId: string): Promise<{ maxCollaborators: number | null }>"
+        - "countTeamSeats(tx: Prisma.TransactionClient, organizationId: string): Promise<number>"
+      types: []
+      errors: ["COLLABORATOR_LIMIT_REACHED 409", "ALREADY_MEMBER 409"]
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: the limit comes from the stored plan fields, never from the request."
+      - "v5.0.0-2.3.3: the row lock and the count share one transaction, so a race cannot exceed the limit."
+    tests: |
+      limit table | integration | AC-1, C-42 | each Examples row → status
+      room left | integration | AC-2 | REVOKED and PAUSED not counted → 201
+      revoked again | integration | AC-3 | at limit → 409, row still REVOKED
+      paused person | integration | AC-4 | PAUSED invited → 409 ALREADY_MEMBER
+      no trace | integration | AC-5 | refusal → no new person, collaboration or notification
+      race | security | AB-1, CWE-362 | two parallel invitations, one place → one 201, one 409
+    command: npx vitest run tests/integration/organization/invite-limit.test.ts tests/integration/organization/invite.test.ts
+    out_of_scope:
+      - "Pausing collaborators after a plan drop and resuming them: billing (BIL)."
+      - "Showing the limit to the phone: the plan fields reach the team by synchronization (SYNC)."
+    tests_to_update:
+      - "tests/integration/organization/invite.test.ts | `seedOrg` leaves `max_collaborators` at its default 2 while ORG_A already holds three ACTIVE members | `seedOrg` sets `maxCollaborators: null` for ORG_A so the existing invitation cases run without a limit"
+  - id: ORG-037
+    title: A contact whose number changed holder goes back to pending
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ORG-024, PER-014, NTF-002]
+    read_first: [src/modules/organization/organization-contact.repository.ts, src/modules/person/phone-released.ts]
+    design_refs: [identite-et-organisation/organizationcontact, identite-et-organisation/person]
+    constraints: [CM-36, C-43]
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.2.5]
+    story: As an owner, I want a contact whose number now belongs to someone else to stop being shown so that nobody takes that person for my business.
+    context: |
+      - Exists: the contact table and repository (ORG-021, ORG-024); `registerPhoneReleasedHandler` (PER-014), fired by AUTH (recycled-number claim) and ADM (`RELEASE_PHONE`); `notify` and `recipientLanguage` (NTF).
+      - Adds `src/modules/organization/phone-released.handler.ts`: `handlePhoneReleased(event, tx)` and its registration when the file loads; `src/app.ts` imports the file next to the `.openapi.js` imports.
+      - The handler sets `verified_at` and `verification_method` to null on every live PHONE contact, of any business, whose `value` is the number and that is verified (C-43: both empty together). Value, slot and the rest stay. The owner's own change of number fires nothing: nothing changes by itself.
+      - For each business touched, the ACTIVE owner gets one notification `organization.contacts_review`, related `{type: 'organization', id}`, in their language. French: "Un de vos numeros de contact public a change de titulaire. Il n'est plus affiche. Verifiez vos contacts dans les reglages." English: "One of your public contact numbers has a new holder. It is no longer shown. Check your contacts in the settings." No number in the text. A business with no ACTIVE owner is still downgraded; nobody is notified.
+      - All writes run in the transaction of the release: a failure rolls the release back too (PER-014). Nothing is logged about the number.
+    acceptance: |
+      Scenario: AC-1 A verified contact goes back to pending
+        Given a verified PHONE contact holding +237677123456
+        When the number is released
+        Then `verified_at` and `verification_method` are empty and `value` and `slot` are unchanged
+      Scenario Outline: AC-2 Only matching contacts change
+        Given a contact <case>
+        When +237677123456 is released
+        Then the contact is left as it was
+        Examples:
+          | case                                  |
+          | holding another number                |
+          | of kind EMAIL                         |
+          | already pending                       |
+          | deleted                               |
+      Scenario: AC-3 Each owner is told once
+        Given two businesses hold the number as a verified contact
+        When the number is released
+        Then each ACTIVE owner has one unread `organization.contacts_review` notification in their language, and no one else has one
+      Scenario: AC-4 The handler is registered at startup
+        Given the application is loaded
+        When `firePhoneReleased` is called inside a transaction
+        Then the contacts of that number go back to pending
+      Scenario: AC-5 The release and the downgrade stand or fall together
+        Given the notification fails
+        When the release transaction is rolled back
+        Then the contact is still verified
+    abuse: |
+      Scenario: AB-1 A recycled number keeps speaking for a business (spoofing, T8)
+        Given a number released to a new holder was a verified contact of a business
+        When the release is done
+        Then the contact is pending, so the business is no longer published under that number
+    implementation:
+      create: [src/modules/organization/phone-released.handler.ts, tests/integration/organization/contact-phone-released.test.ts]
+      modify: [src/modules/organization/organization-contact.repository.ts, src/app.ts]
+      pattern: src/middleware/load-actor.ts
+      signatures:
+        - "handlePhoneReleased(event: { phoneNumber: string }, tx: Prisma.TransactionClient): Promise<void>"
+        - "clearVerificationByNumber(tx: Prisma.TransactionClient, phoneNumber: string): Promise<string[]>"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: the server decides the downgrade from the release, never a request."
+      - "v5.0.0-16.2.5: neither the log nor the notification carries the number."
+    tests: |
+      downgrade | integration | AC-1, CM-36, C-43 | verified contact → both fields empty, value and slot kept
+      untouched rows | integration | AC-2 | each Examples row → unchanged
+      notifications | integration | AC-3 | two owners, one notification each, FR or EN; nobody else
+      registered | integration | AC-4 | firePhoneReleased in a transaction → contacts pending
+      atomic | integration | AC-5 | notify throws → rollback → contact still verified
+      recycled number | security | AB-1, CWE-290 | released number → contact pending
+    command: npx vitest run tests/integration/organization/contact-phone-released.test.ts tests/integration/person/phone-released.test.ts
+    out_of_scope:
+      - "The owner changing their own number: the application asks whether to keep the old one as a contact (phone screen); the server does nothing by itself."
+  - id: ORG-029
+    title: A business is found by its verified public contacts
+    kind: change
+    size: XS
+    risk: high
+    depends_on: [ORG-018, ORG-021, ORG-037]
+    amends: [ORG-018]
+    read_first: [src/modules/organization/organization.repository.ts, tests/integration/organization/lookup.test.ts]
+    design_refs: [identite-et-organisation/organizationcontact, identite-et-organisation/organization]
+    constraints: [CM-26, C-44]
+    asvs: [v5.0.0-15.3.1, v5.0.0-2.4.1]
+    story: As a customer, I want a business to be found by the phone number it has proven so that I reach the right business and nobody else's.
+    context: |
+      - Exists: `findOrganizationsByPublicNumber(e164)` (contract PublicContacts, ORG-018) matches an ACTIVE collaborator flagged `is_public_contact` whose current number is `e164`. It serves `GET /api/v1/organizations/lookup` and the supplier invitation of REL (409 `NUMBER_IS_ORGANIZATION`).
+      - Now it matches the business's own contacts: an ACTIVE, non-deleted organization with a live (`deleted_at` empty) `OrganizationContact` of kind PHONE, `value = e164` and `verified_at` set. The person who holds the number no longer matters.
+      - Same signature, same three fields (`id`, `name`, `description`), same order and cap (`LOOKUP_RESULT_MAX`), same shared rate limit `lookup:<personId>`. Two businesses holding the same verified number are both listed.
+      - A pending contact, a deleted one, an EMAIL contact, a SUSPENDED or CLOSED business never match. The flag `is_public_contact` is no longer read here.
+      - Change only the query. ORG-031 and ORG-032 remove the flag later.
+    acceptance: |
+      Scenario: AC-1 A verified phone contact finds the business
+        When someone looks up the number of a verified PHONE contact of an ACTIVE business
+        Then the answer lists `id`, `name` and `description` of the business
+      Scenario Outline: AC-2 Anything else finds nothing
+        Given a contact of <case> holding the number
+        When someone looks up the number
+        Then the answer is 200 with an empty list
+        Examples:
+          | case                                 |
+          | a PHONE contact not yet verified     |
+          | a deleted PHONE contact              |
+          | a SUSPENDED business                 |
+          | a CLOSED business                    |
+          | an owner whose own number matches    |
+      Scenario: AC-3 Two businesses, one number
+        When two ACTIVE businesses hold the same verified number
+        Then both are listed, newest first
+      Scenario: AC-4 The supplier invitation still refuses a business number
+        When a supplier invitation targets a verified contact number
+        Then the answer is 409 NUMBER_IS_ORGANIZATION
+    abuse: |
+      Scenario: AB-1 A number that was never proven puts a business on someone else's number (spoofing, T4)
+        Given a business added a stranger's number as a contact and never confirmed it
+        When anyone looks up that number
+        Then the business is not listed and the stranger's lookups show nothing new
+    implementation:
+      create: [tests/integration/organization/lookup-contacts.test.ts]
+      modify: [src/modules/organization/organization.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "findOrganizationsByPublicNumber(e164: string): Promise<Array<{ id: string; name: string; description: string | null }>>"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-15.3.1: the query selects three fields and no contact or collaborator data."
+      - "v5.0.0-2.4.1: the shared lookup limit is unchanged."
+    tests: |
+      verified contact | integration | AC-1, CM-26 | verified PHONE contact → business listed with three fields
+      finds nothing | integration | AC-2, C-44 | each Examples row → empty list
+      two businesses | integration | AC-3 | both listed, newest first
+      supplier invitation | integration | AC-4 | verified contact number → 409 NUMBER_IS_ORGANIZATION
+      never proven | security | AB-1, CWE-290 | pending contact on a stranger's number → not listed
+    command: npx vitest run tests/integration/organization/lookup-contacts.test.ts tests/integration/organization/lookup.test.ts tests/integration/relationship/invite-supplier.test.ts
+    out_of_scope:
+      - "A released number going back to pending: ORG-037."
+      - "Removing `is_public_contact`: ORG-031 and ORG-032."
+    tests_to_update:
+      - "tests/integration/organization/lookup.test.ts | the cases seed a public contact as a collaborator with `isPublicContact` and one case expects the business to vanish when its owner releases the number | the cases seed verified PHONE contacts; the released-number case is dropped (the contact belongs to the business, ORG-037 covers a released number)"
+      - "tests/integration/relationship/invite-supplier.test.ts | the business number is seeded as a collaborator with `isPublicContact` | the number is seeded as a verified PHONE contact of the business"
+  - id: ORG-031
+    title: Stop using the public-contact flag of a collaborator
+    kind: removal
+    size: S
+    risk: medium
+    depends_on: [ORG-028, ORG-029, ORG-040]
+    amends: [ORG-004, ORG-011, ORG-019]
+    read_first: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts]
+    design_refs: [identite-et-organisation/collaboration, identite-et-organisation/organizationcontact]
+    constraints: []
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.1]
+    story: As an owner, I want the business contacts to be the only way my business is published so that a collaborator's own number is never shown for it.
+    context: |
+      - Exists: `PATCH /api/v1/organizations/{organizationId}/collaborators/me` with `setPublicContact`, `updatePublicContact` and `setPublicContactSchema` (ORG-011); the owner row is created with `is_public_contact` true (ORG-004); the team list item carries `is_public_contact` (ORG-019). Nothing reads the flag any more (ORG-029).
+      - Remove the `me` route, its service, repository function, schema and `organization.openapi.ts` path. Then `PATCH …/collaborators/me` falls to the role route: the OWNER gets 400 VALIDATION_ERROR (`me` is not a collaboration id), anyone else 403 FORBIDDEN; no row changes.
+      - The owner row is created with the flag false (its default). Remove `is_public_contact` from the team list item, its type and its openapi schema.
+      - Keep every `isPublicContact: false` written by revoke, re-invite and close: until the column is dropped (ORG-043) the database refuses a flag that is true on a row that is not ACTIVE.
+      - The column and its trigger stay in the database; ORG-043 removes them.
+    acceptance: |
+      Scenario: AC-1 The route is gone
+        When an OWNER sends PATCH `…/collaborators/me` with `{ "is_public_contact": true }`
+        Then the answer is 400 VALIDATION_ERROR
+        And a MANAGER gets 403 FORBIDDEN
+        And no collaboration row changes
+      Scenario: AC-2 A new business has no flagged owner
+        When a person creates a business
+        Then the OWNER collaboration has `is_public_contact` false
+      Scenario: AC-3 The team list has no flag
+        When the OWNER reads the team
+        Then no item has an `is_public_contact` key
+      Scenario: AC-4 Revoking still clears a flag left from before
+        Given an ACTIVE collaborator whose stored flag is true
+        When the OWNER revokes them
+        Then the row is REVOKED with the flag false and no database error occurs
+    abuse: |
+      Scenario: AB-1 A collaborator publishes their own number for the business (spoofing)
+        When a MANAGER, a SELLER or a DRIVER sends `{ "is_public_contact": true }` to `…/collaborators/me`
+        Then the answer is 403 FORBIDDEN and the stored flag stays false
+    implementation:
+      create: [tests/integration/organization/public-contact-removed.test.ts]
+      modify: [src/modules/organization/organization.routes.ts, src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.openapi.ts]
+      pattern: src/middleware/require-ability.ts
+      signatures: []
+      types:
+        - "CollaboratorItem loses is_public_contact"
+      errors: ["VALIDATION_ERROR 400", "FORBIDDEN 403"]
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: the only writer of the published numbers is the OWNER, through the contact routes."
+      - "v5.0.0-15.3.1: the team item is an explicit list without the flag."
+    tests: |
+      route gone | integration | AC-1 | OWNER → 400, MANAGER → 403, rows unchanged
+      new owner | integration | AC-2 | created owner row → flag false
+      team list | integration | AC-3 | no item has the key
+      revoke clears | integration | AC-4 | flag true seeded, revoke → REVOKED, flag false
+      self publication | security | AB-1, CWE-285 | MANAGER, SELLER, DRIVER → 403, flag false
+    command: npx vitest run tests/integration/organization tests/integration/api-docs tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Dropping the column, the trigger and the database rule: ORG-043."
+      - "Sending the flag to phones: ORG-039."
+    tests_to_update:
+      - "tests/integration/organization/public-contact.test.ts | every case calls the removed route | file deleted; public-contact-removed.test.ts covers the refused route"
+      - "tests/integration/organization/team-list.test.ts | the OWNER item expects `is_public_contact: true` | the item has no `is_public_contact` key"
+      - "tests/integration/organization/create.test.ts | expects the OWNER collaboration created with `isPublicContact: true` | `isPublicContact: false`"
+      - "tests/integration/api-docs/catalog.test.ts | lists the path `…/collaborators/me` | the path is removed from the list and checked absent"
+  - id: ORG-039
+    title: The identity pull stops sending the removed fields
+    kind: change
+    size: XS
+    risk: medium
+    depends_on: [ORG-029, SYNC-003]
+    amends: [SYNC-003]
+    read_first: [src/modules/sync/adapters/identity.adapter.ts, tests/integration/sync/pull-identity.test.ts]
+    design_refs: [synchronisation-hors-ligne/ce-que-recoit-et-garde-chaque-telephone, identite-et-organisation/organization]
+    constraints: []
+    asvs: [v5.0.0-15.3.1]
+    story: "Technical story: the organizations and collaborations adapters of the pull stop selecting and sending `email` and `is_public_contact`, so that dropping both columns later breaks nothing."
+    context: |
+      - Exists: `organizationsAdapter` selects and sends `email`; `collaborationsAdapter` selects and sends `is_public_contact` (SYNC-003). Both fields leave the design: contacts replace them.
+      - Remove both from the `select` and from the row builders in `src/modules/sync/adapters/identity.adapter.ts`. Every other key, the `amount_held` rule and the filters stay.
+      - This story touches a file of the sync module because the columns belong to the organization module and ORG-032 and ORG-043 drop them; the order is: stop sending (here), then drop.
+      - The contacts, the plan fields and the logo reach the phone through their own SYNC stories.
+    acceptance: |
+      Scenario: AC-1 The organization row has no email
+        Given an organization whose stored `email` is "a@b.cm"
+        When a member pulls
+        Then the `organizations` row has no `email` key
+      Scenario: AC-2 The collaboration row has no flag
+        Given a collaboration whose stored flag is true
+        When a member pulls
+        Then the `collaborations` row has no `is_public_contact` key
+      Scenario: AC-3 The rest of the rows is unchanged
+        When a member pulls
+        Then the rows still carry `id`, `name`, `description`, `status`, `created_at`, `server_updated_at` and the collaboration keys `person_id`, `organization_id`, `role`, `status`, `invited_at`, `accepted_at`, with `amount_held` only where it was sent
+    abuse: |
+      Scenario: AB-1 A forgotten flag is still sent to phones (information disclosure, T4)
+        Given a collaborator of another business whose stored flag is true
+        When any member of the viewer's business pulls
+        Then no pulled row of any table carries `is_public_contact`
+    implementation:
+      create: [tests/integration/sync/pull-identity-removed-fields.test.ts]
+      modify: [src/modules/sync/adapters/identity.adapter.ts]
+      pattern: src/middleware/load-actor.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-15.3.1: both adapters keep an explicit list of fields; the two removed ones are not on it."
+    tests: |
+      no email | integration | AC-1 | stored email → no key in the organizations row
+      no flag | integration | AC-2 | stored true → no key in the collaborations row
+      rest unchanged | integration | AC-3 | the listed keys are present
+      forgotten flag | security | AB-1, CWE-200 | no pulled row carries the key
+    command: npx vitest run tests/integration/sync/pull-identity-removed-fields.test.ts tests/integration/sync/pull-identity.test.ts
+    out_of_scope:
+      - "Sending contacts, plan fields or the logo key: SYNC."
+      - "Dropping the columns: ORG-032 and ORG-043."
+    tests_to_update:
+      - "tests/integration/sync/pull-identity.test.ts | seeds an `email` on organizations but never checks it among the pulled keys | unchanged"
+  - id: ORG-032
+    title: The business email column is dropped
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [ORG-028, ORG-039]
+    amends: [ORG-001]
+    read_first: [src/modules/organization/organization.repository.ts, tests/integration/organization/organization-table.test.ts]
+    design_refs: [identite-et-organisation/organization, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-35]
+    asvs: [v5.0.0-15.3.1]
+    story: "Technical story: drop `organizations.email`, now replaced by the business contacts, without losing a value nobody has decided about."
+    context: |
+      - Exists: `organizations.email` (ORG-001), no longer written (ORG-028) nor sent to phones (ORG-039).
+      - Migration `prisma/migrations/<timestamp>_org_032_drop_organization_email/migration.sql`. First statement, a preflight `DO` block: if any live organization has an `email`, raise an error whose message lists the ids of those organizations only (at most 20, comma separated; never an address) and ends with "decide before dropping: see OPEN_QUESTIONS". Nothing is converted into a contact here: whether a stored address becomes a pending EMAIL contact is for the owners to decide.
+      - Second statement: `ALTER TABLE organizations DROP COLUMN email`. Update `prisma/schema.prisma` (remove the field; the `//` comment above `Organization` must not mention it) and remove the leftover `email` from `CreatedOrganization` and every `select` in `organization.repository.ts`.
+      - Test of the preflight: in a transaction, create a scratch schema holding a table `organizations(id uuid, email text)`, put it first in `search_path` with `SET LOCAL`, run the first statement of the migration file, then roll back.
+    acceptance: |
+      Scenario: AC-1 The column is gone
+        When the columns of `organizations` are read
+        Then there is no `email` column and the other columns are unchanged
+      Scenario: AC-2 The preflight stops on a stored address
+        Given the scratch table holds two rows with an email and one without
+        When the preflight runs
+        Then it raises an error listing the two ids and no address
+      Scenario: AC-3 The preflight passes on a clean table
+        Given the scratch table holds only rows without email
+        When the preflight runs
+        Then it succeeds
+      Scenario: AC-4 The application still reads and writes organizations
+        When a business is created and read through the API
+        Then the answer is the one ORG-028 describes
+    abuse: |
+      Scenario: AB-1 A stored address vanishes without a decision (repudiation)
+        Given an organization with an email
+        When the migration is applied
+        Then it stops before dropping the column and names the organization by id only
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_032_drop_organization_email/migration.sql, tests/integration/organization/organization-email-dropped.test.ts]
+      modify: [prisma/schema.prisma, src/modules/organization/organization.repository.ts]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-15.3.1: the preflight message carries ids and no personal data."
+    tests: |
+      column gone | integration | AC-1, C-35 | information_schema has no email, the other columns stay
+      preflight stops | integration | AC-2 | two rows with email → error with two ids, no address
+      preflight passes | integration | AC-3 | clean table → success
+      create and read | integration | AC-4 | creation and reading still work
+      no silent loss | security | AB-1, CWE-778 | stored email → migration text stops before the DROP
+    command: npx vitest run tests/integration/organization/organization-email-dropped.test.ts tests/integration/organization/organization-table.test.ts tests/integration/organization/actor-and-read.test.ts
+    out_of_scope:
+      - "Turning a stored address into a contact: an owner's decision, open question."
+    tests_to_update:
+      - "tests/integration/organization/organization-table.test.ts | selects `email` and lists it among the nullable columns | no `email` in the select, the object and the loop"
+      - "tests/integration/organization/actor-and-read.test.ts | the seed writes `email: 'org@example.cm'` and the `Detail` type has it | seed and type without `email`"
+  - id: ORG-043
+    title: The public-contact flag column and its database rule are dropped
+    kind: migration
+    size: M
+    risk: high
+    depends_on: [ORG-031, ORG-039]
+    amends: [ORG-003, ORG-011]
+    read_first: [src/modules/organization/organization.repository.ts, src/modules/privacy/privacy.repository.ts]
+    design_refs: [identite-et-organisation/collaboration, contraintes-a-poser-au-niveau-base-de]
+    constraints: [C-05, C-35]
+    asvs: [v5.0.0-15.3.1]
+    story: "Technical story: drop `collaborations.is_public_contact` with the database rule and the trigger that served it, once nothing reads, writes or sends it."
+    context: |
+      - Exists: the column, the trigger `collaborations_check_row` (function `collaborations_check_row()` with two rules: an ACTIVE row needs a registered person; a flagged row needs ACTIVE status and a current number) and the trigger `people_clear_public_contact` on `people` (ORG-003). Code stopped using the flag in ORG-031, ORG-029 and ORG-039.
+      - Migration `<timestamp>_org_043_drop_collaboration_public_contact`, in this order: (1) preflight `DO` block: if any live row has the flag true, raise an error listing those collaboration ids only (at most 20); (2) replace `collaborations_check_row()` keeping only the registered-person rule; (3) drop the trigger and the function `people_clear_public_contact`; (4) drop the column.
+      - Remove the five `isPublicContact: false` writes of `organization.repository.ts` and the one in `privacy.repository.ts`; remove the field from `prisma/schema.prisma` and the bullet about the public contact from the `//` comment above `Collaboration`.
+      - Test the preflight as in ORG-032 (scratch table `collaborations(id uuid, is_public_contact boolean)` first in `search_path`).
+    acceptance: |
+      Scenario: AC-1 Column, trigger and function are gone
+        Then `collaborations` has no `is_public_contact` column and no function `people_clear_public_contact` exists
+      Scenario: AC-2 The preflight stops on a flagged row
+        Given the scratch table holds two flagged rows
+        When the preflight runs
+        Then it raises an error listing the two ids
+      Scenario: AC-3 The preflight passes when no row is flagged
+        Then it succeeds
+      Scenario: AC-4 The registered-person rule stays
+        When an ACTIVE collaboration is inserted for a person who is not registered
+        Then PostgreSQL rejects it with 23514
+      Scenario: AC-5 A person can lose their number
+        When a member's `phone_number` is set to null
+        Then the update succeeds and the collaboration is unchanged
+    abuse: |
+      Scenario: AB-1 A published number vanishes without notice (repudiation)
+        Given a collaboration with the flag true
+        When the migration is applied
+        Then it stops before any change and names the collaboration by id only
+    implementation:
+      create: [prisma/migrations/<timestamp>_org_043_drop_collaboration_public_contact/migration.sql, tests/integration/organization/collaboration-flag-dropped.test.ts]
+      modify: [prisma/schema.prisma, src/modules/organization/organization.repository.ts, src/modules/privacy/privacy.repository.ts]
+      pattern: tests/integration/organization/organization-table.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-15.3.1: the preflight message carries ids only."
+    tests: |
+      objects gone | integration | AC-1, C-35 | no column, no function
+      preflight stops | integration | AC-2 | two flagged rows → error with two ids
+      preflight passes | integration | AC-3 | no flagged row → success
+      registered person | integration | AC-4, C-05 | ACTIVE row of a guest → 23514
+      number released | integration | AC-5 | phone_number null → update succeeds
+      no silent loss | security | AB-1, CWE-778 | flagged row → migration stops first
+    command: npx vitest run tests/integration/organization tests/integration/privacy
+    out_of_scope:
+      - "Turning a flagged number into a contact: an owner's decision, open question."
+    tests_to_update:
+      - "tests/integration/organization/collaboration-table.test.ts | tests the flag rules, the trigger on people and lists the column | those cases removed; the registered-person cases stay; the column list without the flag"
+      - "tests/integration/organization/close.test.ts | the seed helper and three assertions use `isPublicContact` | helper and assertions without it"
+      - "tests/integration/organization/revoke.test.ts | seeds and asserts `isPublicContact` | seeds and assertions without it"
+      - "tests/integration/organization/transfer.test.ts | seeds it and has the case 'leaves is_public_contact unchanged' | seeds without it; that case removed"
+      - "tests/integration/organization/invite.test.ts | two assertions expect `isPublicContact: false` | assertions without it"
+      - "tests/integration/organization/create.test.ts | expects `isPublicContact: false` on the OWNER row | expectation without it"
+      - "tests/integration/organization/team-list.test.ts | the seed sets `isPublicContact` | seed without it"
+      - "tests/integration/privacy/anonymize.test.ts | seeds the flag and expects it false after anonymization | seed and expectations without it"
+  - id: ORG-033
+    title: A new owner is asked to review the public contacts
+    kind: change
+    size: S
+    risk: medium
+    depends_on: [ORG-015, ORG-024, NTF-002]
+    amends: [ORG-015]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization-contact.repository.ts]
+    design_refs: [identite-et-organisation/collaboration, identite-et-organisation/organizationcontact]
+    constraints: [CM-37]
+    asvs: [v5.0.0-8.2.1, v5.0.0-16.2.5]
+    story: As an owner, I want a business I just received to ask me to review its public contacts so that the business is not found under the number of someone who left.
+    context: |
+      - Exists: `transferOwnership` (ORG-015) with its single transaction and the `ownership.received` notice; the contact repository (ORG-024); `toPublicPerson` (PER-005); `notify` and `recipientLanguage` (NTF).
+      - Adds, after the existing notice and in the same transaction: when the business has at least one live contact (not deleted), the new owner gets one notification `organization.contacts_review`, related `{type: 'organization', id}`, in their language. Contacts are never changed by a transfer.
+      - French: "Les contacts publics de {name} restent en place. Revoyez-les dans les reglages." English: "The public contacts of {name} stay in place. Review them in the settings."
+      - Mention: when a live PHONE contact has `value` equal to the former owner's current number (`toPublicPerson(...).phone_number`), the text adds, in French, " Le contact {slot} est le numero de l'ancien proprietaire. Le garder ?" and in English " Contact {slot} is the former owner's number. Keep it?". The slot and the words "former owner" replace the number and the name of the design, so the stored notice holds no personal data (open question).
+      - The former owner's email is never read, compared or written: only PHONE contacts can be mentioned.
+      - Adds `listLiveContacts(tx, organizationId): Promise<{ kind; slot; value }[]>` to `organization-contact.repository.ts`. The former owner is read with the existing `findCollaborationWithPerson`.
+    acceptance: |
+      Scenario: AC-1 The new owner is asked to review
+        Given a business with two live contacts
+        When the owner transfers it to an ACTIVE manager
+        Then the new owner has one unread `organization.contacts_review` related to the organization, besides `ownership.received`
+        And the text is in their language and holds the business name
+      Scenario: AC-2 No contact, no notice
+        Given a business with no live contact, or only deleted ones
+        When the ownership is transferred
+        Then no `organization.contacts_review` exists
+      Scenario: AC-3 The former owner's number is mentioned
+        Given the live PHONE contact in slot 2 holds the former owner's number
+        When the ownership is transferred
+        Then the text ends with the mention naming contact 2
+        And it holds neither that number nor the former owner's name
+      Scenario Outline: AC-4 Other contacts get no mention
+        Given the business has <case>
+        When the ownership is transferred
+        Then the notice has no mention
+        Examples:
+          | case                                                          |
+          | a PHONE contact with another number                           |
+          | an EMAIL contact equal to the former owner's email            |
+          | a deleted contact with the former owner's number              |
+      Scenario: AC-5 Contacts and the transfer stay as they are
+        When the ownership is transferred
+        Then every contact keeps its value, slot and verification
+        And a failing notification rolls the transfer back
+    abuse: |
+      Scenario: AB-1 The private email leaks to the new owner (disclosure)
+        Given an EMAIL contact equals the former owner's email
+        When the ownership is transferred
+        Then the notice does not contain that address, nor "@"
+    implementation:
+      create: [tests/integration/organization/transfer-contacts-review.test.ts]
+      modify: [src/modules/organization/organization.service.ts, src/modules/organization/organization-contact.repository.ts]
+      pattern: src/middleware/load-actor.ts
+      signatures:
+        - "listLiveContacts(tx: Prisma.TransactionClient, organizationId: string): Promise<{ kind: 'PHONE' | 'EMAIL'; slot: number | null; value: string }[]>"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: the organization comes from the loaded actor; contacts of another business are never read."
+      - "v5.0.0-16.2.5: the notice carries no number, name or address."
+    tests: |
+      notice sent | integration | AC-1, CM-37 | two contacts → one notice, FR and EN, related organization
+      none | integration | AC-2 | no contact or deleted ones → none
+      mention | integration | AC-3 | slot 2 equals the former number → mention, no digits, no name
+      no mention | integration | AC-4 | each Examples row → no mention
+      unchanged and atomic | integration | AC-5 | contacts as before; notify fails → transfer rolled back
+      private email | security | AB-1, CWE-200 | EMAIL equals his email → no address, no "@"
+    command: npx vitest run tests/integration/organization/transfer-contacts-review.test.ts tests/integration/organization/transfer.test.ts
+    out_of_scope:
+      - "Keeping or removing a contact: ORG-025 to ORG-027."
+      - "The notice for a recycled number: ORG-037."
+    tests_to_update:
+      - "tests/integration/organization/transfer.test.ts | counts the notifications after a transfer on a business with no public contact | unchanged: the review notice is sent only when a live contact exists"
+  - id: ORG-034
+    title: Closing and reopening a business run the lifecycle hooks
+    kind: change
+    size: S
+    risk: high
+    depends_on: [ORG-016, ORG-017, ORG-022, ORG-043]
+    amends: [ORG-016, ORG-017]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/sync/sync.registry.ts]
+    design_refs: [identite-et-organisation/organization]
+    constraints: [CM-10]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3]
+    story: As an owner, I want closing and reopening my business to end its team and its plans in one step so that nothing stays paid or active on a closed business.
+    context: |
+      - Exists: `closeOrganization` (one transaction) and `reopenOrganization` (one conditional update, no transaction); `PAUSED` since ORG-022.
+      - Adds `src/modules/organization/lifecycle-hooks.ts`, patterned on the sync registry: `registerLifecycleHook({ onClose?, onReopen? })` stores a hook and returns a function that removes it; a hook with neither function throws. `runCloseHooks` and `runReopenHooks` call the hooks in registration order with `(tx, organizationId, now)`, in the caller's transaction; a failing hook aborts the operation.
+      - `closeOrganization` runs the close hooks last, after the old subscription is ended.
+      - `reopenOrganization` now runs in a transaction: `reopenClosedOrganization(tx, organizationId)`, then the reopen hooks, unless the update matched nothing.
+      - `revokeNonOwnerCollaborations` also turns `PAUSED` non-owner rows into `REVOKED` (CM-10). Like `INVITED` rows they have no access: no scope bump, no notice.
+    acceptance: |
+      Scenario: AC-1 Close runs the close hooks
+        Given two hooks registered in order
+        When the owner closes the business
+        Then both `onClose` run in that order with the transaction, the organization id and the time of the close
+      Scenario: AC-2 A failing hook undoes the close
+        Given an `onClose` that throws
+        When the owner closes the business
+        Then the answer is 500, the organization is still ACTIVE and nothing else changed
+      Scenario: AC-3 Paused members are revoked
+        Given a PAUSED seller and an ACTIVE manager
+        When the owner closes the business
+        Then both are REVOKED and the owner is unchanged
+        And only the manager gets a scope bump and an `organization.closed` notice
+      Scenario: AC-4 Reopen runs the reopen hooks in one transaction
+        Given a CLOSED business and an `onReopen` that throws
+        When the owner reopens it
+        Then the answer is 500 and the business is still CLOSED
+        And with a hook that does not throw, the business is ACTIVE and the hook ran once
+      Scenario: AC-5 Refused calls run no hook
+        When the owner closes a CLOSED or SUSPENDED business, or reopens an ACTIVE or SUSPENDED one
+        Then the answer is 409 and no hook ran
+      Scenario: AC-6 Registration
+        When a hook with neither function is registered
+        Then it throws
+        And a hook removed with the returned function no longer runs
+    abuse: |
+      Scenario: AB-1 The owner lifts a moderation suspension (elevation)
+        Given a SUSPENDED business with a reopen hook registered
+        When its owner calls reopen
+        Then the answer is 409, the status stays SUSPENDED and the hook did not run
+    implementation:
+      create: [src/modules/organization/lifecycle-hooks.ts, tests/integration/organization/lifecycle-hooks.test.ts]
+      modify: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts]
+      pattern: src/modules/sync/sync.registry.ts
+      signatures:
+        - "registerLifecycleHook(hook: LifecycleHook): () => void"
+        - "runCloseHooks(tx: Prisma.TransactionClient, organizationId: string, now: Date): Promise<void>"
+        - "runReopenHooks(tx: Prisma.TransactionClient, organizationId: string, now: Date): Promise<void>"
+        - "reopenClosedOrganization(tx: Prisma.TransactionClient, organizationId: string): Promise<boolean>"
+      types:
+        - "HookFn = (tx: Prisma.TransactionClient, organizationId: string, now: Date) => Promise<void>"
+        - "LifecycleHook = { onClose?: HookFn; onReopen?: HookFn }"
+      errors: ["ORGANIZATION_NOT_ACTIVE 409", "ORGANIZATION_NOT_CLOSED 409"]
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: the organization id given to a hook is the actor's, never one from the body."
+      - "v5.0.0-2.3.3: the hooks run inside the transaction, so a failure leaves no half-closed business."
+    tests: |
+      close hooks | integration | AC-1, CM-10 | two hooks → called in order with tx, id and date
+      failing close hook | integration | AC-2 | throw → 500 and every table as before
+      paused members | integration | AC-3, CM-10 | PAUSED and ACTIVE → REVOKED; bump and notice for the ACTIVE one only
+      reopen hooks | integration | AC-4 | throwing hook → CLOSED; normal hook → ACTIVE, one call
+      refusals | integration | AC-5 | four cases → 409, no call
+      registration | unit | AC-6 | empty hook throws; removed hook silent
+      suspension kept | security | AB-1, CWE-285 | SUSPENDED → 409, no call
+    command: npx vitest run tests/integration/organization/lifecycle-hooks.test.ts tests/integration/organization/close.test.ts tests/integration/organization/reopen.test.ts
+    out_of_scope:
+      - "Registering a hook: billing (BIL) ends the plans on close and keeps the free plan on reopen."
+      - "Removing the old `subscriptions` call from close: BIL-005."
+    tests_to_update:
+      - "tests/integration/organization/close.test.ts | no collaboration is PAUSED | unchanged"
+      - "tests/integration/organization/reopen.test.ts | reopens and refuses as before | unchanged"
+  - id: ORG-035
+    title: The organization lets billing write the plan and pause seats
+    kind: technical
+    size: S
+    risk: high
+    depends_on: [ORG-020, ORG-022, PER-005]
+    read_first: [src/modules/organization/organization.repository.ts, src/modules/person/person.repository.ts]
+    design_refs: [identite-et-organisation/organization, identite-et-organisation/collaboration]
+    constraints: [C-41, C-42, CM-03]
+    asvs: [v5.0.0-15.3.3, v5.0.0-8.2.1]
+    story: "Technical story: give billing the only server-side gates on the plan fields of a business and on the pause of its team seats."
+    context: |
+      - Exists: the plan columns with their database rule (ORG-020), `PAUSED` (ORG-022), `bumpScopeVersion` (PER-005). Billing calls these functions later; no route does.
+      - Adds to `organization.repository.ts`:
+        - `writePlanFields(tx, organizationId, fields)`: writes `plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators`, `max_products` and nothing else; after creation nothing else writes them. The database refuses an invalid combination; the error is thrown.
+        - `listTeamSeats(tx, organizationId)`: non-owner, non-deleted ACTIVE, INVITED or PAUSED collaborations, oldest `invited_at` first, then `id`.
+        - `setSeatPaused(tx, collaborationId, paused)`: `true` turns ACTIVE or INVITED into PAUSED; `false` turns PAUSED into ACTIVE, or INVITED when `accepted_at` is empty. Never the OWNER, a REVOKED or a deleted row. A change bumps the person's `scope_version` and returns true.
+      - Shipped before its caller; the tests call it directly.
+    acceptance: |
+      Scenario: AC-1 The plan fields are written alone
+        When `writePlanFields` receives ESSENTIAL with an end date, no grace, 5 collaborators and no product limit
+        Then those five columns hold the values and no other column changes
+      Scenario Outline: AC-2 The database refuses an impossible plan
+        When `writePlanFields` receives <fields>
+        Then it throws and the row is unchanged
+        Examples:
+          | fields                                          |
+          | FREE with an end date                           |
+          | PRO without an end date                         |
+          | a grace end not after the plan end              |
+      Scenario: AC-3 The seat list
+        Given an owner, ACTIVE, INVITED, PAUSED, REVOKED and deleted seats, and a seat of another business
+        When `listTeamSeats` runs
+        Then it returns the ACTIVE, INVITED and PAUSED ones, oldest invitation first
+      Scenario: AC-4 Pause
+        When `setSeatPaused(true)` runs on an ACTIVE and on an INVITED seat
+        Then both are PAUSED, each person's `scope_version` is +1 and the result is true
+      Scenario Outline: AC-5 Resume
+        When `setSeatPaused(false)` runs on a PAUSED seat with <accepted>
+        Then its status is <status> and `scope_version` is +1
+        Examples:
+          | accepted             | status  |
+          | `accepted_at` set    | ACTIVE  |
+          | `accepted_at` empty  | INVITED |
+      Scenario Outline: AC-6 Nothing to change
+        When `setSeatPaused` runs on <row>
+        Then the result is false and nothing changes
+        Examples:
+          | row                                   |
+          | the OWNER, paused: true               |
+          | a REVOKED or a deleted seat          |
+          | an ACTIVE seat, paused: false         |
+    abuse: |
+      Scenario: AB-1 An owner picks a bigger plan (elevation)
+        When the creation request carries `plan` or `max_collaborators`
+        Then the answer is 400 VALIDATION_ERROR and no business is created
+    implementation:
+      create: [tests/integration/organization/subscription-fields.test.ts]
+      modify: [src/modules/organization/organization.repository.ts]
+      pattern: src/modules/person/person.repository.ts
+      signatures:
+        - "writePlanFields(tx: Prisma.TransactionClient, organizationId: string, fields: PlanFields): Promise<void>"
+        - "listTeamSeats(tx: Prisma.TransactionClient, organizationId: string): Promise<TeamSeat[]>"
+        - "setSeatPaused(tx: Prisma.TransactionClient, collaborationId: string, paused: boolean): Promise<boolean>"
+      types:
+        - "PlanFields = { plan: 'FREE' | 'ESSENTIAL' | 'PRO' | 'ENTERPRISE'; planEndsAt: Date | null; graceEndsAt: Date | null; maxCollaborators: number | null; maxProducts: number | null }"
+        - "TeamSeat = { id; personId; role; status: 'ACTIVE' | 'INVITED' | 'PAUSED'; invitedAt: Date; acceptedAt: Date | null }"
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-15.3.3: after creation the five plan columns have this one writer; no request field reaches them."
+      - "v5.0.0-8.2.1: the seat query is bound to the organization given by server code."
+    tests: |
+      write alone | integration | AC-1, C-41 | five columns written, others unchanged
+      impossible plan | integration | AC-2, C-41 | each Examples row → throws
+      seat list | integration | AC-3 | rows and order
+      pause | integration | AC-4, C-42, CM-03 | PAUSED, bump, true
+      resume | integration | AC-5, C-42, CM-03 | each Examples row → status, bump
+      no change | integration | AC-6, C-42 | each Examples row → false
+      plan in the body | security | AB-1, CWE-915 | 400, no row
+    command: npx vitest run tests/integration/organization/subscription-fields.test.ts
+    out_of_scope:
+      - "Computing the plan, choosing who is paused, telling people: billing."
+  - id: ORG-036
+    title: A paused team member is listed, can be changed or revoked, and has no access
+    kind: change
+    size: S
+    risk: medium
+    depends_on: [ORG-022, ORG-034, PER-011]
+    amends: [ORG-007, ORG-009, ORG-010, ORG-019]
+    read_first: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/collaboration]
+    constraints: [CM-03]
+    asvs: [v5.0.0-8.2.1, v5.0.0-15.3.1]
+    story: As an owner, I want my paused team members to stay in the team list and be manageable so that I can change their role or remove them.
+    context: |
+      - Exists: `PAUSED` in the database (ORG-022). A PAUSED member keeps their row and their held money but has no access: `loadActor` accepts ACTIVE only.
+      - Team list: PAUSED rows already come back; the type `CollaboratorItem` and the OpenAPI enum must say `PAUSED`. `person` now carries `avatar_url` (PER-011): add it to the types and to the OpenAPI person objects of the team list, the invite answer and the role-change answer.
+      - `changeRole`: `updateRole` also matches PAUSED. A PAUSED target gets the new role and no scope bump, no notice (no right changes, as for INVITED); the answer shows `status` `PAUSED` (`CollaborationView.status` and its OpenAPI enum gain it).
+      - `revokeCollaboration` also matches PAUSED: REVOKED, amount kept, no bump, no notice. Answer 204 as before.
+      - `anonymizeRows` in `privacy.repository.ts` also revokes PAUSED rows, so a later resume never reactivates a deleted person.
+      - Not here: a PAUSED payer or remitter in finance (FIN stories); who becomes PAUSED (ORG-035, billing).
+    acceptance: |
+      Scenario: AC-1 The list shows paused members
+        Given an ACTIVE, a PAUSED and a REVOKED member
+        When the owner lists the team
+        Then the PAUSED item has `status` PAUSED and a `person` with `avatar_url`
+      Scenario: AC-2 The role of a paused member
+        When the owner changes the role of a PAUSED member
+        Then the answer is 200 with `status` PAUSED and the new role
+        And `scope_version` is unchanged and no notification exists
+      Scenario: AC-3 Revoking a paused member
+        When the owner revokes a PAUSED member
+        Then the answer is 204, the row is REVOKED and `amount_held` is kept
+        And `scope_version` is unchanged and no notification exists
+      Scenario: AC-4 Anonymization ends a paused seat
+        When the person of a PAUSED member is anonymized
+        Then the collaboration is REVOKED
+      Scenario: AC-5 The documentation says so
+        When the OpenAPI document is read
+        Then the team-list `status` enum and the role-change `status` enum contain PAUSED
+        And the `person` of the team list, the invite answer and the role-change answer has `avatar_url`
+    abuse: |
+      Scenario: AB-1 A paused member keeps working (elevation)
+        Given a PAUSED seller
+        When they list the team, open the business or read their organizations
+        Then the first two answer 404 NOT_FOUND and the business is absent from the third
+    implementation:
+      create: [tests/integration/organization/paused-seats.test.ts]
+      modify: [src/modules/organization/organization.service.ts, src/modules/organization/organization.repository.ts, src/modules/organization/organization.schemas.ts, src/modules/organization/organization.openapi.ts, src/modules/privacy/privacy.repository.ts]
+      pattern: src/middleware/load-actor.ts
+      signatures: []
+      types:
+        - "CollaborationView.status = 'INVITED' | 'ACTIVE' | 'PAUSED'"
+        - "person = { public_name: string | null; phone_number: string | null; registered: boolean; avatar_url: string | null }"
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: the member's access depends on the ACTIVE status read from the database on every request."
+      - "v5.0.0-15.3.1: the `person` object is still built by `toPublicPerson`; no other personal field leaves."
+    tests: |
+      list | integration | AC-1 | PAUSED item and its person keys
+      role | integration | AC-2, CM-03 | 200, PAUSED, no bump, no notice
+      revoke | integration | AC-3, CM-03 | 204, REVOKED, money kept, no bump
+      anonymize | integration | AC-4 | PAUSED seat → REVOKED
+      documentation | integration | AC-5 | enums and avatar_url in the OpenAPI document
+      no access | security | AB-1, CWE-285 | list 404, detail 404, absent from my organizations
+    command: npx vitest run tests/integration/organization tests/integration/privacy tests/integration/api-docs
+    out_of_scope:
+      - "Pausing and resuming: ORG-035 and billing."
+      - "A paused member in finance operations: the finance stories."
+    tests_to_update:
+      - "tests/integration/organization/team-list.test.ts | the person key list gains `avatar_url` | already changed by PER-011; nothing more here"
+      - "tests/integration/organization/change-role.test.ts | roles of ACTIVE, INVITED and REVOKED rows; no case uses PAUSED | unchanged"
+  - id: ORG-038
+    title: Server-side writer of the business logo key
+    kind: technical
+    size: XS
+    risk: medium
+    depends_on: [ORG-020, FND-013]
+    read_first: [src/modules/organization/organization.repository.ts, docs/stories/modules/foundation/contracts.md]
+    design_refs: [identite-et-organisation/organization, images/stockage]
+    constraints: [C-49]
+    asvs: [v5.0.0-15.3.3, v5.0.0-2.2.3]
+    fields: ["Organization.logo_key"]
+    story: "Technical story: provide the two functions that read and write a business logo key, the write handing back the previous key, so that the images module can delete the old file after the commit."
+    context: |
+      - Exists: the column `logo_key`, unique (ORG-020); `imageKeySchema` and the folder `logos` (FND-013).
+      - Adds to `organization.repository.ts`: `getLogoKey(organizationId)` (null when empty or the organization is absent or deleted) and `setLogoKey(tx, organizationId, key)`: in the caller's transaction it locks the organization row, reads the previous key, writes the new one (`null` clears it) and returns the previous key.
+      - Only the server calls them: the logo routes of the images module (IMG). No organization schema accepts a key.
+      - A key must match `imageKeySchema` and start with `logos/`; otherwise a RangeError is thrown and nothing is written. A key already held by another business is refused by the unique index and the error is not caught.
+      - First usage: IMG (logo upload and removal). It ships here because the images module may import `organization` only through its contract (ADR-004).
+    acceptance: |
+      Scenario Outline: AC-1 Set, replace and clear
+        Given a business whose logo key is <before>
+        When `setLogoKey` is called with <given>
+        Then it returns <returned> and `getLogoKey` returns <given>
+        Examples:
+          | before | given | returned |
+          | empty  | key A | null     |
+          | key A  | key B | key A    |
+          | key B  | null  | key B    |
+      Scenario: AC-2 Unknown or deleted business
+        When `setLogoKey` is called with such an id
+        Then it fails with 404 `NOT_FOUND` and `getLogoKey` returns null
+      Scenario: AC-3 One file, one business
+        Given business X holds key A
+        When `setLogoKey` gives key A to business Y
+        Then it fails with unique violation 23505 and Y's key is unchanged
+      Scenario: AC-4 Same transaction as the caller
+        Given the caller's transaction is rolled back after `setLogoKey`
+        Then the stored key is the one from before
+      Scenario: AC-5 Two replacements at once
+        Given a business holds key A
+        When two calls replace it with key B and key C at the same time
+        Then one returns key A and the other returns the key the first wrote
+    abuse: |
+      Scenario: AB-1 A key from another folder or a crafted key (tampering)
+        When `setLogoKey` receives `avatars/<uuid>.webp`, `logos/../x.webp` or an uppercase UUID
+        Then it throws a RangeError and the stored key is unchanged
+      Scenario: AB-2 An owner sends a key in a request (tampering)
+        When the creation request carries `logo_key`
+        Then the answer is 400 VALIDATION_ERROR and no business is created
+    implementation:
+      create: [tests/integration/organization/logo-key-writer.test.ts]
+      modify: [src/modules/organization/organization.repository.ts]
+      pattern: src/modules/person/person.repository.ts
+      signatures:
+        - "getLogoKey(organizationId: string): Promise<string | null>"
+        - "setLogoKey(tx: Prisma.TransactionClient, organizationId: string, key: string | null): Promise<string | null>"
+      types: []
+      errors: ["NOT_FOUND 404"]
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-15.3.3: the logo key has exactly one writer, and it validates the key."
+      - "v5.0.0-2.2.3: the row is locked before the previous key is read, so two writers never return the same previous key."
+    tests: |
+      set replace clear | integration | AC-1 | each Examples row → returned and stored values
+      unknown business | integration | AC-2 | random and deleted ids → 404, null
+      shared file | integration | AC-3, C-49 | key A on Y → 23505, key unchanged
+      same transaction | integration | AC-4 | rollback after the call → previous key stored
+      concurrent | integration | AC-5 | `Promise.all` of two replacements → A and the first writer's key
+      crafted key | security | AB-1, CWE-22 | the three values → RangeError and key unchanged
+      key in the body | security | AB-2, CWE-915 | 400, no row
+    command: npx vitest run tests/integration/organization/logo-key-writer.test.ts
+    out_of_scope:
+      - "Receiving, re-encoding and storing the file, and deleting the previous file: IMG."
+      - "Checking that the key is not cited by another card: IMG."
+  - id: ORG-044
+    title: Billing finds a business by its payment code and its owner
+    kind: technical
+    size: XS
+    risk: low
+    depends_on: [ORG-020, ORG-035]
+    read_first: [src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/organization]
+    constraints: [C-41]
+    asvs: [v5.0.0-8.2.1]
+    story: "Technical story: let billing find a business from the code typed on the payment site, and find its owner, through functions of the organization contract."
+    context: |
+      - Exists: `payment_code`, unique (ORG-020); `findActiveOwnerId(tx, organizationId)` in `organization.repository.ts`, not yet in the contract.
+      - Adds `findOrganizationByPaymentCode(code, tx?)`: the id, name and status of the non-deleted organization whose `payment_code` equals `code` exactly, else null. It does not trim or change case: the caller does (BIL-007).
+      - Adds `findOrganizationSummary(organizationId, tx?)`: the same three fields by id, null when absent or deleted.
+      - The contract lists these three functions for billing. Shipped before their callers; the tests call them directly.
+    acceptance: |
+      Scenario: AC-1 A code finds its business
+        When `findOrganizationByPaymentCode` receives the exact code of a business
+        Then it returns that business's id, name and status
+      Scenario Outline: AC-2 No business
+        When `findOrganizationByPaymentCode` receives <code>
+        Then it returns null
+        Examples:
+          | code                                  |
+          | a code that no business holds         |
+          | the code of a deleted business        |
+          | the right code in lower case          |
+      Scenario: AC-3 Summary and owner
+        When `findOrganizationSummary` and `findActiveOwnerId` run for a business, and the first runs for a deleted one
+        Then they return its id, name and status and its OWNER's person id, and null for the deleted one
+    implementation:
+      create: [tests/integration/organization/payment-code-lookup.test.ts]
+      modify: [src/modules/organization/organization.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "findOrganizationByPaymentCode(code: string, tx?: Prisma.TransactionClient): Promise<OrganizationSummary | null>"
+        - "findOrganizationSummary(organizationId: string, tx?: Prisma.TransactionClient): Promise<OrganizationSummary | null>"
+      types:
+        - "OrganizationSummary = { id: string; name: string; status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED' }"
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: the functions return three fields and nothing of the plan or the team; no route exposes it before BIL-007."
+    tests: |
+      found | integration | AC-1, C-41 | exact code → id, name, status
+      absent | integration | AC-2 | each Examples row → null
+      summary and owner | integration | AC-3 | summary, OWNER id, null for a deleted business
+    command: npx vitest run tests/integration/organization/payment-code-lookup.test.ts
+    out_of_scope:
+      - "Reading the code typed by a person and the route: BIL-007."
+
+  - id: ORG-045
+    title: Billing reads the plan fields and lists businesses by plan date
+    kind: technical
+    size: XS
+    risk: low
+    depends_on: [ORG-044]
+    read_first: [src/modules/organization/organization.repository.ts]
+    design_refs: [identite-et-organisation/organization]
+    constraints: [C-41, C-42]
+    asvs: [v5.0.0-8.2.1]
+    story: "Technical story: let billing read the plan fields of a business and list, page by page, the businesses whose plan dates are past or near, or whose team is larger than their limit, so that its daily jobs touch only those."
+    context: |
+      - Exists: the plan columns and `listTeamSeats` (ORG-035), in `organization.repository.ts`.
+      - Adds `readPlanFields(tx, organizationId)`: the five plan fields (`PlanFields`, ORG-035) of a non-deleted business, else null. Billing compares them with the new rights to journal a change (BIL-028).
+      - Adds `listOrganizationsToRefresh(now, limit, afterId?)`: the ids of non-deleted businesses, ascending by id, after `afterId`, at most `limit` (1 to 500), that match one of:
+        - the plan is not FREE and `COALESCE(grace_ends_at, plan_ends_at)` is not after `now`;
+        - `max_collaborators` is set and the non-owner collaborations ACTIVE or INVITED number more than it.
+      - Adds `listOrganizationsEnding(from, to, limit, afterId?)`: the same kind of page for non-deleted businesses whose plan is not FREE and `plan_ends_at` is at or after `from` and before `to`.
+      - All three read only; the callers act on each business in its own transaction (BIL-039, BIL-026). The contract lists them for billing, shipped before their callers.
+    acceptance: |
+      Scenario Outline: AC-1 Who is listed
+        Given a business with <state>
+        When `listOrganizationsToRefresh` runs
+        Then the business is <listed>
+        Examples:
+          | state                                                  | listed     |
+          | ESSENTIAL and `plan_ends_at` in the past, no grace     | listed     |
+          | ESSENTIAL in grace until a future date                 | not listed |
+          | ESSENTIAL and `grace_ends_at` in the past              | listed     |
+          | PRO until a future date, 3 seats, limit 10             | not listed |
+          | limit 2 and 3 seats ACTIVE or INVITED                  | listed     |
+          | limit 2, 1 ACTIVE seat and 2 PAUSED ones              | not listed |
+          | FREE, limit 2, 2 seats                                 | not listed |
+          | a deleted business that would be listed                | not listed |
+      Scenario: AC-2 Pages
+        Given 5 businesses to refresh
+        When the function runs with `limit` 2, then with the last id it returned
+        Then it returns 2 ids, then the next 2 ids, ascending, and the third call returns the last one
+      Scenario: AC-3 Ending between two dates
+        Given businesses ending before, at, inside and at the end of the range, a FREE one, and a deleted one
+        When `listOrganizationsEnding(from, to, 10)` runs
+        Then it returns the ones ending at `from` or inside, ascending by id, and no other
+      Scenario: AC-4 The plan fields
+        When `readPlanFields` runs for a business, a deleted one and an unknown id
+        Then it returns the five fields of the first and null for the other two
+    implementation:
+      create: [tests/integration/organization/refresh-list.test.ts]
+      modify: [src/modules/organization/organization.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures:
+        - "readPlanFields(tx: Prisma.TransactionClient, organizationId: string): Promise<PlanFields | null>"
+        - "listOrganizationsToRefresh(now: Date, limit: number, afterId?: string): Promise<string[]>"
+        - "listOrganizationsEnding(from: Date, to: Date, limit: number, afterId?: string): Promise<string[]>"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-8.2.1: the lists return ids only and no route exposes any of the three functions."
+    tests: |
+      who | integration | AC-1, C-41, C-42 | each Examples row → listed or not
+      pages | integration | AC-2 | limit 2 → ids ascending, no repeat
+      ending | integration | AC-3 | range [from, to) → ids, FREE and deleted left out
+      plan fields | integration | AC-4 | five fields, null for deleted and unknown
+    command: npx vitest run tests/integration/organization/refresh-list.test.ts
+    out_of_scope:
+      - "Refreshing the rights and the daily job: BIL-028, BIL-039."

@@ -1,0 +1,3430 @@
+{
+  "after": {
+    "ACC-001": {
+      "rev": 1,
+      "sha256": "b39a7653545c9676245c016c40af7015679f2b3640fc9c158d6d815902e7f942",
+      "status": "done"
+    },
+    "ACC-002": {
+      "rev": 1,
+      "sha256": "0a302c323c0cc70fd80011e22423b86b4100ea2c305cd10e8847f7a87df08bac",
+      "status": "done"
+    },
+    "ACC-003": {
+      "rev": 1,
+      "sha256": "a1da4b5cd57d050c70dafd8cb6b2d9ff2a4a7efc97988ff6e3f94369130b313d",
+      "status": "done"
+    },
+    "ACC-004": {
+      "rev": 1,
+      "sha256": "da4f2b9cfd806f7851d66ea02f769cf1c96c8b9dd1d415dfc3198700e94d665d",
+      "status": "done"
+    },
+    "ACC-005": {
+      "rev": 1,
+      "sha256": "bc39fa12c448f1c1d0ac328e011f2be02cb28629a6ad0e4309a9ed237da35fc0",
+      "status": "done"
+    },
+    "ACC-006": {
+      "rev": 1,
+      "sha256": "7e76bce44e0410a8dc629dc4698c2ce851f76be94ea404785f5915dc4fbed93f",
+      "status": "done"
+    },
+    "ACC-007": {
+      "rev": 1,
+      "sha256": "ee94ed2f8c3a88d4589a79313312e921189a21a3d67d1f70608b0555f74343ff",
+      "status": "done"
+    },
+    "ACC-008": {
+      "rev": 1,
+      "sha256": "86e11eeb5507ca5708568ea7b93e53b324d4456adaeb37ab1011c99849bee16c",
+      "status": "todo"
+    },
+    "ADM-001": {
+      "rev": 1,
+      "sha256": "dd2763239c497739ea4958ee8d04e98ecccc2ac319aa0577571846cf787473e5",
+      "status": "done"
+    },
+    "ADM-002": {
+      "rev": 1,
+      "sha256": "2cda0b54b93e3acb8fa7ffad753f66f06be162ecd0a69ede0ef05d33e2a25120",
+      "status": "done"
+    },
+    "ADM-003": {
+      "rev": 1,
+      "sha256": "fc6c57ab134256a261964aa70d87f8cec090810c08ae0f9d9e9d8f49035eed99",
+      "status": "done"
+    },
+    "ADM-004": {
+      "rev": 1,
+      "sha256": "9d2e37ad01b23c07e689c4314d56448783977b616fed519708c02936e1f5d943",
+      "status": "done"
+    },
+    "ADM-005": {
+      "rev": 1,
+      "sha256": "f8a010e959a33a68a998e7314e47f74c186dba64ccadd72c57f98b17aabc894c",
+      "status": "done"
+    },
+    "ADM-006": {
+      "rev": 1,
+      "sha256": "296082bc13afcceb236762b3177bd60bdd761061a8debaffb8ae1d0a32bafe3d",
+      "status": "done"
+    },
+    "ADM-007": {
+      "rev": 1,
+      "sha256": "d2106fb3e36a812dba473d193a219243b8a55bff6d7dd9d39144ae38ce35a57e",
+      "status": "done"
+    },
+    "ADM-008": {
+      "rev": 2,
+      "sha256": "bebe3c7007ef4189e6fdf7e29ac502802eb40bd214bd5596e9d4142e721cd932",
+      "status": "done"
+    },
+    "ADM-009": {
+      "rev": 1,
+      "sha256": "8643b6919df7f5b29f0788dd80b4d5c8931683fa6faff234bdf14241673d4151",
+      "status": "done"
+    },
+    "ADM-010": {
+      "rev": 1,
+      "sha256": "4487d3da1a36ebbfe84cab756488be204861aa6f65f6cf0f94cf7ff12cf0b83d",
+      "status": "done"
+    },
+    "ADM-011": {
+      "rev": 1,
+      "sha256": "d5b9dd112fa85df8c5eba5819413f72988b738576ec72bf320637e8a9c8162bb",
+      "status": "done"
+    },
+    "ADM-012": {
+      "rev": 1,
+      "sha256": "4e146ba2e680cf2e1dc588a65f1454ebdf56b218a969f1f4bbfc226856be490c",
+      "status": "done"
+    },
+    "ADM-013": {
+      "rev": 1,
+      "sha256": "5bad0da0fb14ac20a539d1a1e58ca66eaa3fe4f8411f86817f462da2d6c731bd",
+      "status": "done"
+    },
+    "ADM-014": {
+      "rev": 1,
+      "sha256": "fc6b17ec01b51ebdbc9c870ea4e9b7027cca0a8f78cdd61d18a6f22743b1866e",
+      "status": "done"
+    },
+    "ADM-015": {
+      "rev": 1,
+      "sha256": "1600bd28ea4bb5272f68c1a0723a2c500fc5079f89ddbd6e9acc19c52498908e",
+      "status": "done"
+    },
+    "ADM-016": {
+      "rev": 1,
+      "sha256": "e1a3efb6c11cf62793a89888fb2ea13e719c11341b0fe8410b695f7dd3dd5f01",
+      "status": "todo"
+    },
+    "ADM-017": {
+      "rev": 1,
+      "sha256": "69f94658c6091e383f58bc622b66eb3c2bc2c9d1fcb1e18d235c664f071131f3",
+      "status": "todo"
+    },
+    "ADM-018": {
+      "rev": 1,
+      "sha256": "eadd4b95edff4bfbe23b1008a12b1d7da25bbab250f215aaa80b3f9594fcbb77",
+      "status": "todo"
+    },
+    "ADM-019": {
+      "rev": 1,
+      "sha256": "f98d151cde7ee6feab316ca1aa36bf513bb35f45b136deb1570d4f4a5f2a29a9",
+      "status": "todo"
+    },
+    "ADM-020": {
+      "rev": 1,
+      "sha256": "3a3754945f86514cb9bf6f3110b8b037d95867c32c92f831da215c04daed4c7e",
+      "status": "todo"
+    },
+    "AUTH-001": {
+      "rev": 1,
+      "sha256": "14cd7ffe386a30120e8787e509e8cd746a1a348c7f227eeee598579de5ac2d26",
+      "status": "done"
+    },
+    "AUTH-002": {
+      "rev": 1,
+      "sha256": "13966f3e44a4f061147f569d151e24ef11a9b425a2a2e0343a803564613c2199",
+      "status": "done"
+    },
+    "AUTH-003": {
+      "rev": 1,
+      "sha256": "50eba5b3a6ba44411667b04d79c0056712fe5bf402beef350233b8f71ffa0563",
+      "status": "done"
+    },
+    "AUTH-004": {
+      "rev": 1,
+      "sha256": "1e99f9fefd178733709b1e1bbcd3b25112f9b42a80e150c8caf364f575dfe2a4",
+      "status": "done"
+    },
+    "AUTH-005": {
+      "rev": 1,
+      "sha256": "809e19584275f67f955c0920d46446a535de0ce24eebc5212250468e0bdd2a72",
+      "status": "done"
+    },
+    "AUTH-006": {
+      "rev": 1,
+      "sha256": "c6aa1e0a08587f95e2fef16d089caeeab468bc53e1052c81d9e62e74377572a2",
+      "status": "done"
+    },
+    "AUTH-007": {
+      "rev": 1,
+      "sha256": "5612fc09c1205b2eeedaca7e6c539b10a6b5c75bc825c6bdf96d3f0d8e7edcb4",
+      "status": "done"
+    },
+    "AUTH-008": {
+      "rev": 1,
+      "sha256": "c0ce892eec059d8c23955da7892f11432aa78f162b08c4e36941e73db8abddd0",
+      "status": "done"
+    },
+    "AUTH-009": {
+      "rev": 1,
+      "sha256": "1b71b528e1c2760908df157058b72f5c6c7576f860addae3932e075490ce2f04",
+      "status": "done"
+    },
+    "AUTH-010": {
+      "rev": 1,
+      "sha256": "0ae05a189df5c1492082b3175f000163588bc532584d2be26670c95ffc60d68e",
+      "status": "done"
+    },
+    "AUTH-011": {
+      "rev": 1,
+      "sha256": "4193f5956617f1d8b77fb5d32248d00be4fda2d23427f7d8ef9abec31c53ab0f",
+      "status": "done"
+    },
+    "AUTH-012": {
+      "rev": 1,
+      "sha256": "ec238c87ad4bd7f1a0a6900b720fa5c4f3bebc80a7cc20b304ac21f87e69af78",
+      "status": "done"
+    },
+    "AUTH-013": {
+      "rev": 1,
+      "sha256": "f2de607b33efeae68c31c87b0e4a375ec1b0e2b8ca747ded528ba3158d6dd955",
+      "status": "done"
+    },
+    "AUTH-014": {
+      "rev": 1,
+      "sha256": "089126a8d9f98be50ba18dc6f5d1cdcd490ea623ccaccd0d3b82595c2fc8327f",
+      "status": "done"
+    },
+    "AUTH-015": {
+      "rev": 1,
+      "sha256": "caca75363139802511cef7556bb8b75010f4193eb7436cca2d6fcf28d6b8ce7e",
+      "status": "done"
+    },
+    "AUTH-016": {
+      "rev": 1,
+      "sha256": "dcee2711286f2c014fd9c163570253fff7eb8c2f5499c5f4fc9fc34ad62e1254",
+      "status": "done"
+    },
+    "AUTH-017": {
+      "rev": 1,
+      "sha256": "6a2bae542b5db3f931bf4c8a3b185070e19b08b8c722e22d63e446c7bd237ef0",
+      "status": "done"
+    },
+    "AUTH-018": {
+      "rev": 1,
+      "sha256": "06d31234b049b0b5984cd8ae0c9d6f1e0b6a50e17aa5dbdc0c3219585d4d9ea5",
+      "status": "done"
+    },
+    "AUTH-019": {
+      "rev": 1,
+      "sha256": "4c27a4eeba7e417cde843d25820c4cbae4436a886cdbe5c1cbbe51e408789da4",
+      "status": "done"
+    },
+    "AUTH-020": {
+      "rev": 1,
+      "sha256": "4439908f3e5245cb1698f91ff03c6476d2a6bd391ecc306a6aa6ba4ae0bf0ffe",
+      "status": "done"
+    },
+    "AUTH-021": {
+      "rev": 1,
+      "sha256": "90851668251836232e30e897f7a6877ae988007088c8825e3c6c6cdaf594ee92",
+      "status": "done"
+    },
+    "AUTH-022": {
+      "rev": 1,
+      "sha256": "f1c6fbd972d3776e59b7addcffb499ddcb6dd1c1db2061b94e490d1963270b9d",
+      "status": "done"
+    },
+    "AUTH-023": {
+      "rev": 1,
+      "sha256": "ac8ce41213179ff507bd230c5dd1afa25bdf20cf8ab6dae596a347819111f5f4",
+      "status": "done"
+    },
+    "AUTH-024": {
+      "rev": 1,
+      "sha256": "b15d670868ef2f22098f842bf45beccfbba7c4101f18db533d50c48b119e725c",
+      "status": "done"
+    },
+    "AUTH-025": {
+      "rev": 1,
+      "sha256": "60c037a8697e9d2cf90ed4b0d754615235f942d51a10e9fbdc596207d25d9ccc",
+      "status": "done"
+    },
+    "AUTH-026": {
+      "rev": 1,
+      "sha256": "b6c40853dd39a051206dc4abc43fbde7805e26491fe19be8377e58ea23057ed1",
+      "status": "done"
+    },
+    "AUTH-027": {
+      "rev": 1,
+      "sha256": "2623a04027a867d1310bd9db5be2273814a9b04dbb7f0c9f7e8f2ac37113ee68",
+      "status": "todo"
+    },
+    "AUTH-028": {
+      "rev": 1,
+      "sha256": "e8aadf2c71eba2ead1b5e7fc28e7b93de2b98d8844a64025886545e92342d611",
+      "status": "todo"
+    },
+    "AUTH-029": {
+      "rev": 1,
+      "sha256": "bc8015c446c3625dbded1f3cf8965fcac8ee4e854a250962a27c3821106ed543",
+      "status": "todo"
+    },
+    "AUTH-030": {
+      "rev": 1,
+      "sha256": "59cdabb59b85ed61aeacda0647eb14f9532fd44d05650e23f479c85c69be0f17",
+      "status": "todo"
+    },
+    "AUTH-031": {
+      "rev": 1,
+      "sha256": "086eee15bfd6236ee929ebbcf08494c1acb0e76dc4bb1ca95c634a13feca0cc6",
+      "status": "todo"
+    },
+    "AUTH-032": {
+      "rev": 1,
+      "sha256": "a24bb6ad307c20944fcbb976806bbc0ee5958b4c479e1a95ced07ac522d7586c",
+      "status": "todo"
+    },
+    "AUTH-033": {
+      "rev": 1,
+      "sha256": "4b4c3096a31aafa5f715164d12d437beaa29ddc21b73cc5637ef5b84fb2a6658",
+      "status": "todo"
+    },
+    "AUTH-034": {
+      "rev": 1,
+      "sha256": "78fd325e27a27e0518a8009b1e2803050e1e50290007bc5a64b8a8a4585f1a36",
+      "status": "todo"
+    },
+    "AUTH-035": {
+      "rev": 1,
+      "sha256": "13444ae0d2468b623380b5ff621591ab572e5eac8d793b11721e7e4d7278d78e",
+      "status": "todo"
+    },
+    "AUTH-036": {
+      "rev": 1,
+      "sha256": "3ba42e67b60d73af49482dff69edbb8a2d1c49184670e849316e37e340c64934",
+      "status": "todo"
+    },
+    "AUTH-037": {
+      "rev": 1,
+      "sha256": "81c5d5425373de4688ad89419ee2353c5f8db9a4e48a2e68c538fd929999a190",
+      "status": "todo"
+    },
+    "AUTH-038": {
+      "rev": 1,
+      "sha256": "b7b87fbdb31062c769f4b42b0948394e0d3d875824e2f47d26652999ed9abe28",
+      "status": "todo"
+    },
+    "BIL-001": {
+      "rev": 1,
+      "sha256": "a34c6ced428e99fb0e76827fd55adc8de6c3fb7287f2559a97d024749b493932",
+      "status": "todo"
+    },
+    "BIL-002": {
+      "rev": 1,
+      "sha256": "37bd0d73851b3d1bbb41c1393fce1b2db0db51c1a7e99d4bf9aeb3820418e336",
+      "status": "todo"
+    },
+    "BIL-003": {
+      "rev": 1,
+      "sha256": "d08610a91cec1237d780d1bf34378809a626db27e08905fc8331f71e6347d85e",
+      "status": "todo"
+    },
+    "BIL-004": {
+      "rev": 1,
+      "sha256": "27d8ada5d73e6f677e0b199cea6168ff7932f9a747af604329d4e7837e90ae52",
+      "status": "todo"
+    },
+    "BIL-005": {
+      "rev": 1,
+      "sha256": "fda9a77559976a961179d2567b0c819bcf4efc35dacdec14f146c37b58ac3f0f",
+      "status": "todo"
+    },
+    "BIL-006": {
+      "rev": 1,
+      "sha256": "4442866c3dcec87b0054479d298630892defb19111e4799662215503ba57ab76",
+      "status": "todo"
+    },
+    "BIL-007": {
+      "rev": 1,
+      "sha256": "6b5e66f4f45cd79800f0bb94ceb3ecdc3241f807acddfbd5499125e48952f29c",
+      "status": "todo"
+    },
+    "BIL-008": {
+      "rev": 1,
+      "sha256": "db84e15169bbefb55d49bf352e0e2b5cc6ce9e7bcb76ae7bf6940d556c6dce43",
+      "status": "todo"
+    },
+    "BIL-009": {
+      "rev": 1,
+      "sha256": "32915d8e883fa77b93bc24d00de0c06a61efe50de51c937f67a8ffe692730c70",
+      "status": "todo"
+    },
+    "BIL-010": {
+      "rev": 1,
+      "sha256": "1b647e05484d9b4ca99f1b67cf93dd3c152fd182ab7ff09795f51f1481493037",
+      "status": "todo"
+    },
+    "BIL-011": {
+      "rev": 1,
+      "sha256": "ab6d983e3880aa252cfcfe1ffcf3b95c2e830902cf2a9b51cfc7af483597a283",
+      "status": "todo"
+    },
+    "BIL-012": {
+      "rev": 1,
+      "sha256": "e9400ebf226dd0d912589b0129cb1d9f8169fba78d3d612690d60912c649fd9f",
+      "status": "todo"
+    },
+    "BIL-013": {
+      "rev": 1,
+      "sha256": "5d8bf7505fd1d4fa7fb36e0bf10ff1cf074bffeaf40899959c94f6c975e4c10e",
+      "status": "todo"
+    },
+    "BIL-014": {
+      "rev": 1,
+      "sha256": "934ce4e0cbc5a50607053d15ccf5b29ea87cfb9dd056fb4caf88844ea9fe3216",
+      "status": "todo"
+    },
+    "BIL-015": {
+      "rev": 1,
+      "sha256": "b3d7940b9c8e79c319f931177e42d1d9a23d35428ccfeca3968eab906811020d",
+      "status": "todo"
+    },
+    "BIL-016": {
+      "rev": 1,
+      "sha256": "29d7d61fe6c5d09110ceaacfd4421325d45fb08eb73bb82b3582c32be81feb1a",
+      "status": "todo"
+    },
+    "BIL-017": {
+      "rev": 1,
+      "sha256": "8718c9e27b9098c6f1537c54435ffe9a8676033b18bdafee5d2a66091bc7340f",
+      "status": "todo"
+    },
+    "BIL-018": {
+      "rev": 1,
+      "sha256": "18f4899fbe737a2c2930afadfb70fc7651e5c123bba87c37c355cc6f641f79e2",
+      "status": "todo"
+    },
+    "BIL-019": {
+      "rev": 1,
+      "sha256": "c7de6df5e28a394897f05ddd8f8b434c9fe631b551d48b37873cd2c890424c38",
+      "status": "todo"
+    },
+    "BIL-020": {
+      "rev": 1,
+      "sha256": "cc64369c6eff517a42aa657db5a21a82151c8fa524ffab6ddba43afd7dd6079a",
+      "status": "todo"
+    },
+    "BIL-021": {
+      "rev": 1,
+      "sha256": "3e4116b50be4f4b9ed03cb9eae0bff8c9b2a6e066a9e25020478e40cda1be401",
+      "status": "todo"
+    },
+    "BIL-022": {
+      "rev": 1,
+      "sha256": "6b27849499a36be8b04c9548e0464a6790efd33d15f1d0759c2de2e5f57d592f",
+      "status": "todo"
+    },
+    "BIL-023": {
+      "rev": 1,
+      "sha256": "c86990f37baf6725caca559c569fc004a28883b0ca4990de859defeb49ec9edf",
+      "status": "todo"
+    },
+    "BIL-024": {
+      "rev": 1,
+      "sha256": "bf168e1cb9095a3a72dd8b1f2d498aa7d863733c07cc80bf892638640baf7dc5",
+      "status": "todo"
+    },
+    "BIL-025": {
+      "rev": 1,
+      "sha256": "d61ee5ed230ed88211ae352a5b269324517477267f96f5630fb31ca27002fc22",
+      "status": "todo"
+    },
+    "BIL-026": {
+      "rev": 1,
+      "sha256": "b79be2f8b8a42063e819a900a909b78e53998c9b25803e827a1fab90b32a65f3",
+      "status": "todo"
+    },
+    "BIL-027": {
+      "rev": 1,
+      "sha256": "fe994c769b80b6a45d0a98369bd4b9e2e0c26ff6c55b30bacb37d6d14ad006a1",
+      "status": "todo"
+    },
+    "BIL-028": {
+      "rev": 1,
+      "sha256": "b7a6e43881a5c1caa8ed321f1699c16e181f44c95b2792dd9f5489e42aa31e72",
+      "status": "todo"
+    },
+    "BIL-029": {
+      "rev": 1,
+      "sha256": "ac8e2f567166f36aa696053db27eb6af2690ef7c562c819ddb8e1a13691e2cce",
+      "status": "todo"
+    },
+    "BIL-030": {
+      "rev": 1,
+      "sha256": "fd01d0cff69ac25285fb657151fceaf67d886a0d304f6a0dcbf0f7dbbb75244c",
+      "status": "todo"
+    },
+    "BIL-031": {
+      "rev": 1,
+      "sha256": "81d72ab0f34475011cc416acfb8aed3763e6296e2804e0689ab286867771ff7f",
+      "status": "todo"
+    },
+    "BIL-032": {
+      "rev": 1,
+      "sha256": "301ed90f385bb22935cc312f1535953afe9594c0de36a14fddc4d4d8e3568068",
+      "status": "todo"
+    },
+    "BIL-033": {
+      "rev": 1,
+      "sha256": "7fd3a1668b24077a4b6ec755d014451752db5ae8deb06403876a9a1a029a561e",
+      "status": "todo"
+    },
+    "BIL-034": {
+      "rev": 1,
+      "sha256": "5de02af7156d7efbee2c3bed843e641e3bb57258e4f128ceaaccffc749c467da",
+      "status": "todo"
+    },
+    "BIL-035": {
+      "rev": 1,
+      "sha256": "f9f1e1e449c4db6dea394d6b96f0d7397d0f73604e07db979f93b8afd35e49a8",
+      "status": "todo"
+    },
+    "BIL-036": {
+      "rev": 1,
+      "sha256": "05eacfea35ef0f86fe3a37eaa712baa53c087f03647d7393c5057ec54ddbe492",
+      "status": "todo"
+    },
+    "BIL-037": {
+      "rev": 1,
+      "sha256": "e45b6e91e18c4f51f63dffd39204a07b209b103b16a340747ef711818a2a9563",
+      "status": "todo"
+    },
+    "BIL-038": {
+      "rev": 1,
+      "sha256": "40221d8c8b3abd2e49f9555a081a1838eff3fef9fa2a03a8b47fd8a9b92b7f09",
+      "status": "todo"
+    },
+    "BIL-039": {
+      "rev": 1,
+      "sha256": "c1459a2ce0c093f26bccd682c9fb0646335b0a784d22c053f3aeb402af495b5c",
+      "status": "todo"
+    },
+    "CAT-001": {
+      "rev": 1,
+      "sha256": "52e6812233b3403d1a49d698a5d1100eb74bd9fa82291d9e4b35dc7185042020",
+      "status": "done"
+    },
+    "CAT-002": {
+      "rev": 1,
+      "sha256": "2316d4bdde57fcd7a10e2d99387fbc9482f6b4f86f5dcb3438303939d8be3320",
+      "status": "done"
+    },
+    "CAT-003": {
+      "rev": 1,
+      "sha256": "1ae7ce23eb92bc1a0a623d73fcde2abe4399ebdbe83102fc240669773d6cc73b",
+      "status": "done"
+    },
+    "CAT-004": {
+      "rev": 1,
+      "sha256": "4368cd0d3224ef7d6b2e8405db130bd5d398da9b362d5805bd66ff79ebb26eb5",
+      "status": "done"
+    },
+    "CAT-005": {
+      "rev": 1,
+      "sha256": "8c807860dd052922472c3ef75b3c8d3f340ebeae2497c249f141df1dcc171114",
+      "status": "done"
+    },
+    "CAT-006": {
+      "rev": 1,
+      "sha256": "2f33b7dfa75933a0512a24cafc1c748c92e43fc6e632c736e202396a17d01e8d",
+      "status": "done"
+    },
+    "CAT-007": {
+      "rev": 1,
+      "sha256": "8379b205cd415aea4cad6e4ecd206edc86a2ef243237cd8fd001dd94592e39de",
+      "status": "done"
+    },
+    "CAT-008": {
+      "rev": 1,
+      "sha256": "f627b1209fe725a5b4860c46c6981b205376f9c1152a323deab420cd4fa6f10d",
+      "status": "done"
+    },
+    "CAT-009": {
+      "rev": 1,
+      "sha256": "c9d3c3137c691f7ce0e891cf0e39e1e332e67c1c8dac19477d7a04629b44ea21",
+      "status": "done"
+    },
+    "CAT-010": {
+      "rev": 1,
+      "sha256": "3526fef8da81124607a5aba38f3410ff4a0ec4afb24e7698e42135c60653eab8",
+      "status": "done"
+    },
+    "CAT-011": {
+      "rev": 1,
+      "sha256": "5f8ed9fdc4e7f791e6822e2341b014243ceb69c414aeaed26e48e3a5d712ad38",
+      "status": "done"
+    },
+    "CAT-012": {
+      "rev": 1,
+      "sha256": "8f92d0b45d2a96b12cf1995b05d9ce8e37d0e9e04f73de50e2f6d2a49f303ab1",
+      "status": "todo"
+    },
+    "CAT-013": {
+      "rev": 1,
+      "sha256": "9721ec18e24fc17e2c98b5e1042a24ee8fd13bbedb5d5d6ad7263b807f25b859",
+      "status": "todo"
+    },
+    "CAT-014": {
+      "rev": 1,
+      "sha256": "dc63b81c05b5f2a6df5dd47406cdc216070473d91c4163c99bde9d0072a91412",
+      "status": "todo"
+    },
+    "CAT-015": {
+      "rev": 1,
+      "sha256": "ca90e564bdc17c1497937bc694bc36d1babd4a91962f5b6799d8c36bcb56c2c8",
+      "status": "todo"
+    },
+    "CAT-016": {
+      "rev": 1,
+      "sha256": "9677772bda358d1adb586566aabf06bab36ce3aa4d9583bc7ea68980425c353a",
+      "status": "todo"
+    },
+    "CAT-017": {
+      "rev": 1,
+      "sha256": "411648b8aa97d84f877a02fd04c12cb6f8d8652fafd7469e4549ee503ef48cbe",
+      "status": "todo"
+    },
+    "CAT-018": {
+      "rev": 1,
+      "sha256": "de8ce358190f774187204d82b3a50a3647f3c2ae5ed4e3d8ed663b6c9713ea8b",
+      "status": "todo"
+    },
+    "CAT-019": {
+      "rev": 1,
+      "sha256": "b900c9917f9840f0b4e6f0e7182aea271cb59c16abf529ea8148086cd9782c55",
+      "status": "todo"
+    },
+    "CAT-020": {
+      "rev": 1,
+      "sha256": "67839f5c574750f5f214d5d7d4981eaaf783ab96eb772616b530c9654e70927d",
+      "status": "todo"
+    },
+    "CAT-021": {
+      "rev": 1,
+      "sha256": "55052fd3e6b6ebdb988a03f76871777147af7f50c76fddbf2c9d91de6315a3e9",
+      "status": "todo"
+    },
+    "CAT-022": {
+      "rev": 1,
+      "sha256": "02e1e2fc4cc2ab79bc86b3da3307aa8e5f64d8f103874f2311e3be166929dc24",
+      "status": "todo"
+    },
+    "CAT-023": {
+      "rev": 1,
+      "sha256": "40a209a4687f3667b4c8587b710c797b415ff81c4872bf3330c63fd968c78b04",
+      "status": "todo"
+    },
+    "CAT-024": {
+      "rev": 1,
+      "sha256": "6888e903a830af8f74e0e16a32254701fac41243bcd15a52f1c5c06c57df7674",
+      "status": "todo"
+    },
+    "CAT-025": {
+      "rev": 1,
+      "sha256": "f6ff90711eba042063f6085841ce9723ff5d3b89e4110a769081f994b3caa93d",
+      "status": "todo"
+    },
+    "CAT-026": {
+      "rev": 1,
+      "sha256": "fedf303b055356754cb95c746b5b37c90db18fc3415fbec8c24f49b739287762",
+      "status": "todo"
+    },
+    "CAT-027": {
+      "rev": 1,
+      "sha256": "5977e5ad18aaabf2f0ddabdf2f2baa49978fab4e568f47a01afb7341c38ec256",
+      "status": "todo"
+    },
+    "CAT-028": {
+      "rev": 1,
+      "sha256": "45991c1c18b6988d6b03b65e72dc626f81d9a8cf677f9dd6747dd83ecea8bb46",
+      "status": "todo"
+    },
+    "CAT-029": {
+      "rev": 1,
+      "sha256": "919fa707ce6b70902ec95ebf0b140c05098016f49382782d37b5ccdd358e40c5",
+      "status": "todo"
+    },
+    "CAT-030": {
+      "rev": 1,
+      "sha256": "89cd216ef86c49fbc61b2de772cf88a63b5a94b1540a5452a1719fe1e85c04d0",
+      "status": "todo"
+    },
+    "CAT-031": {
+      "rev": 1,
+      "sha256": "cacd1317121f2abc1cbb91739b887a9188da038bbb464172cdb85dcfe3579e1f",
+      "status": "todo"
+    },
+    "CAT-032": {
+      "rev": 1,
+      "sha256": "088e507cfc718e3da16e46757ecef0269dc24c9ef859bff817ede29b94987533",
+      "status": "todo"
+    },
+    "CAT-033": {
+      "rev": 1,
+      "sha256": "2f4a4e4069a3ee2112e0ff02314a1473c97de87079afac53f8632b8c5bbeae42",
+      "status": "todo"
+    },
+    "CAT-034": {
+      "rev": 1,
+      "sha256": "575838f3f617583609eb95db49c0e11b99c74c7d31233f31fe10e3cfc5755586",
+      "status": "todo"
+    },
+    "CAT-035": {
+      "rev": 1,
+      "sha256": "391a3b4a4f9f0fb131d77f2674a419858e4545cd8ccfa05f9c4889ec51d838bc",
+      "status": "todo"
+    },
+    "CAT-036": {
+      "rev": 1,
+      "sha256": "eddb14d35f19b1d5b40d4e8640cfdfc6d4001979aaf697533768ae985139b411",
+      "status": "todo"
+    },
+    "CAT-037": {
+      "rev": 1,
+      "sha256": "18afac40ae953dcbb9e401318d5a86a8354a31f0b15627cecf4b77d3e6b7f941",
+      "status": "todo"
+    },
+    "CAT-038": {
+      "rev": 1,
+      "sha256": "b172738237234e0a79457a2f64c2f4b5c495b852c38f759a3dd8a08c54475d72",
+      "status": "todo"
+    },
+    "CAT-039": {
+      "rev": 1,
+      "sha256": "9486a0e73792f823c94613d8fbad932e785d7f37a178f78eab9b99c69e5a7368",
+      "status": "todo"
+    },
+    "CAT-040": {
+      "rev": 1,
+      "sha256": "7ab65181033b0fdd2163c0194a1958c2c57a1dc8008a42f84de69f25b8b45175",
+      "status": "todo"
+    },
+    "CAT-041": {
+      "rev": 1,
+      "sha256": "25b6dcab2e95ba33263e2b5f8718cf186cf3e243a2e5d8dfcbd104166597fac2",
+      "status": "todo"
+    },
+    "CAT-042": {
+      "rev": 1,
+      "sha256": "54e9d93571dc18f68bef2ff69b9808a6deb943dd656c6f080771d13f0675f9d2",
+      "status": "todo"
+    },
+    "CAT-043": {
+      "rev": 1,
+      "sha256": "6fc8baff46806c3f70416aab987111b80e89e76f840c4f9fcba35caed787018d",
+      "status": "todo"
+    },
+    "CAT-044": {
+      "rev": 1,
+      "sha256": "fa0bebe481e77943ad05bc32227140ca1033443654dcd543ed850804011482e1",
+      "status": "todo"
+    },
+    "CAT-045": {
+      "rev": 1,
+      "sha256": "9b641d2ae819b598ed1b1c7616a51c6ed5e2a4237ec4454f56b8250ff464c893",
+      "status": "todo"
+    },
+    "CAT-046": {
+      "rev": 1,
+      "sha256": "a449e84399c3e93d2afa8c844e0dc80df6f8167a1878d1b7ca2c4f69cf65ad52",
+      "status": "todo"
+    },
+    "DLV-001": {
+      "rev": 1,
+      "sha256": "56198dbc652387ce9c80764d695c4bd617107b096ca19b5b0f11a53386cf297d",
+      "status": "done"
+    },
+    "DLV-002": {
+      "rev": 1,
+      "sha256": "28e5b41719a81a6f0d417411cb947aa8e095e61d75b6cafb3568052ce7cc6668",
+      "status": "done"
+    },
+    "DLV-003": {
+      "rev": 1,
+      "sha256": "930343bba14c1bcaba2fd46209875e4d62242cc9e70f04770c054813d9495bdc",
+      "status": "done"
+    },
+    "DLV-004": {
+      "rev": 1,
+      "sha256": "d4e4cfe18a185422423ea3630237ac26c6feb968b557d4048e496bb1211939e5",
+      "status": "done"
+    },
+    "DLV-005": {
+      "rev": 1,
+      "sha256": "8183261a9502531ebfa4385155475aaaf0645299ddbf9139e85ccece255474eb",
+      "status": "done"
+    },
+    "DLV-006": {
+      "rev": 1,
+      "sha256": "c788339cb0bc751f55cb5396261ae8ab697f648a311704d7ebb7a5690faf3724",
+      "status": "done"
+    },
+    "DLV-007": {
+      "rev": 1,
+      "sha256": "8dc06f77c2f3c52b9237f0997b316222fcc268ea0ff6c1b53242db8e38e971f8",
+      "status": "done"
+    },
+    "DLV-008": {
+      "rev": 1,
+      "sha256": "3e846afe16432a05388a2bc8dad97443493b27f17267190c9acc80e09e6a9d92",
+      "status": "done"
+    },
+    "DLV-009": {
+      "rev": 1,
+      "sha256": "0a45a565032ebc86ec4408a3f8825bfed8a6c5745a966336ad4cfc0a33651f89",
+      "status": "done"
+    },
+    "DLV-010": {
+      "rev": 1,
+      "sha256": "944cfed9dd5474fc7beabd5163fb43b84b90319d45c9a1266adef43e6fa6e249",
+      "status": "done"
+    },
+    "DLV-011": {
+      "rev": 1,
+      "sha256": "392ae5639e3cc5e652e4db7e9246c8cc7bb53debb1a39013e86495a89f295753",
+      "status": "done"
+    },
+    "DLV-012": {
+      "rev": 2,
+      "sha256": "8a95505e1269bfb77b8efa499c77482f967dd97eea3c8f854cc1fc63474383fa",
+      "status": "done"
+    },
+    "DLV-013": {
+      "rev": 1,
+      "sha256": "c89d0b6266e1c1edb9d1eef6c49c16872c9c93503ccd1b6df33dd51006f3507a",
+      "status": "todo"
+    },
+    "DLV-014": {
+      "rev": 1,
+      "sha256": "ab1d98fec252c7506fdff07d017063aa178873fb2c1442afc5be0792b2b2fdd8",
+      "status": "todo"
+    },
+    "DLV-015": {
+      "rev": 1,
+      "sha256": "182f88a0f99592dcd33c3b1b4e55b698ee8d34bb8ec08e02e565036b6ff5dc6a",
+      "status": "todo"
+    },
+    "DLV-016": {
+      "rev": 1,
+      "sha256": "46db4873298db089c699511da7afbaead17455c869cab33b37a7a30199c36614",
+      "status": "todo"
+    },
+    "FIN-001": {
+      "rev": 1,
+      "sha256": "df7329d2fd7481ca3289320a8b473cff00ebd86521a9adf042297a11bf881a38",
+      "status": "done"
+    },
+    "FIN-002": {
+      "rev": 1,
+      "sha256": "0e440515cb4f305d73b12cbcada6a946299537b92d3d95975113f90be0479c8e",
+      "status": "done"
+    },
+    "FIN-003": {
+      "rev": 1,
+      "sha256": "c656a1dc6fae1bba97786ac318e0e37f7cfbac4615e357170a0036a183f49fbd",
+      "status": "done"
+    },
+    "FIN-004": {
+      "rev": 1,
+      "sha256": "a19b8c33505fbd2e65b8f3aeff3c1f294234311e9a34e6fba7b5dbc849ea8eb3",
+      "status": "done"
+    },
+    "FIN-005": {
+      "rev": 1,
+      "sha256": "d98ffcf198c3718d4ff78d0211939183c31ac61c2317c0ff5db97e4b6b31f2d9",
+      "status": "done"
+    },
+    "FIN-006": {
+      "rev": 1,
+      "sha256": "397297b8e1a163383c33ec17e6a71a4477f49e54e76d6f716870feb9c4514fc5",
+      "status": "done"
+    },
+    "FIN-007": {
+      "rev": 1,
+      "sha256": "73cc7be6ae2a23dc9af80fd178a54dcf7553f8e6ef104dfd1c19e096e88b7bc4",
+      "status": "done"
+    },
+    "FIN-008": {
+      "rev": 1,
+      "sha256": "c7df1b670e0220a42ab4c89be3dacf7ea50c8d0c745c04c472ffd0c5a0722a74",
+      "status": "done"
+    },
+    "FIN-009": {
+      "rev": 1,
+      "sha256": "654b407af5a67e40a3984c90addd2456a9704363b2f3cc562d0b71ac278fbf6c",
+      "status": "done"
+    },
+    "FIN-010": {
+      "rev": 1,
+      "sha256": "66d60a8b43d07a948797bf4dacbd97b2c727a4b2573c6eb0a2ae967a07175917",
+      "status": "done"
+    },
+    "FIN-011": {
+      "rev": 1,
+      "sha256": "dd18db5fa9389d73ff49a7d6bdb772bd58a7d9cc6f780dc7d06cd861fb0d0e3b",
+      "status": "done"
+    },
+    "FIN-012": {
+      "rev": 1,
+      "sha256": "7b9db1fadf11a686eff5bb48bac26f3a269edb5f82899295960ca94105b77907",
+      "status": "done"
+    },
+    "FIN-013": {
+      "rev": 1,
+      "sha256": "4954824d5b7aef98a27a1fb1953ac02c56b608df660d4e756bc16bb43bcc2cb4",
+      "status": "done"
+    },
+    "FIN-014": {
+      "rev": 1,
+      "sha256": "a8ae64f844c18b1e2744eb28cddfa60e7152b02051fe218e9570a2d05f6603ec",
+      "status": "done"
+    },
+    "FIN-015": {
+      "rev": 1,
+      "sha256": "ea47350834270c498c27392f899350fce048656268eb950e6c2c56fa5792caa0",
+      "status": "done"
+    },
+    "FIN-016": {
+      "rev": 1,
+      "sha256": "7984902895f74f86c16dbf89e0c601279b4c513bffc95a2c3fc705a5942c72eb",
+      "status": "done"
+    },
+    "FIN-017": {
+      "rev": 1,
+      "sha256": "5eccf6923f700c48fb6bc4eb4357c1930ead1778817940f60f8eab145d015caf",
+      "status": "done"
+    },
+    "FIN-018": {
+      "rev": 1,
+      "sha256": "55415d5cf13b5dd33010cd627c9819e52a2f347d70f59de191049ddec24d3aa4",
+      "status": "done"
+    },
+    "FIN-019": {
+      "rev": 1,
+      "sha256": "ba983d0ed7e296e542625165f55085697a2c3002a8e3c72c33cdd2e80067e3de",
+      "status": "done"
+    },
+    "FIN-020": {
+      "rev": 1,
+      "sha256": "0b9786f188d96f3a718aeca64b3f3fb99d9f07181314c0a7de6f617b5feb602b",
+      "status": "done"
+    },
+    "FIN-021": {
+      "rev": 1,
+      "sha256": "e58c66412243937c80b4fb964e8e1f2c48e997e4d7c26c5948ff6d21fd0af92b",
+      "status": "todo"
+    },
+    "FIN-022": {
+      "rev": 1,
+      "sha256": "846babeada851bbd3f9544931102801813efe9739c4da29101e340beff3b19e7",
+      "status": "todo"
+    },
+    "FND-000": {
+      "rev": 1,
+      "sha256": "66fdb0142d4d580ff105e12e0559c8ea12bbd636aa64392652e9d153ac6919e3",
+      "status": "done"
+    },
+    "FND-001": {
+      "rev": 1,
+      "sha256": "fe16af45c26a48ff98029f9e865f0e48d9d844f7fe424da71a75460f5e61ffdc",
+      "status": "done"
+    },
+    "FND-002": {
+      "rev": 1,
+      "sha256": "838268bd88f9602ef08c62d5d8c9a2021dba3974945a2a111a9ea2ceacca6301",
+      "status": "done"
+    },
+    "FND-003": {
+      "rev": 1,
+      "sha256": "8900009851b558bfa9662d6cf62d44d4fff52ae25d760f801fdbd65e07668a44",
+      "status": "done"
+    },
+    "FND-004": {
+      "rev": 1,
+      "sha256": "454eeb1f68390755291d37562c1cf4bd121c3c84fdd051449636953b242425d2",
+      "status": "done"
+    },
+    "FND-005": {
+      "rev": 1,
+      "sha256": "db661fab520d782ba070b3b39d2a2ee83653aca475109bbba562445fc4daa4f1",
+      "status": "done"
+    },
+    "FND-006": {
+      "rev": 1,
+      "sha256": "dd913ade0056737a37079b0e2730f089bcb22d5771c008e3169057d4d682877e",
+      "status": "done"
+    },
+    "FND-007": {
+      "rev": 1,
+      "sha256": "5170ea9625e64b91a08201b407206bfb2e136d9a57772126241e0e60e609b828",
+      "status": "done"
+    },
+    "FND-008": {
+      "rev": 1,
+      "sha256": "896c24d26eb0e4cb02f168369b2b53e14a8fb2fcc179b6e22b78f2e8b32dfc72",
+      "status": "done"
+    },
+    "FND-009": {
+      "rev": 1,
+      "sha256": "62d5f4ce9bb65358f80e10e8bb8f8a4ef7ad065dc35b630ccd0c57685927fdd6",
+      "status": "done"
+    },
+    "FND-010": {
+      "rev": 1,
+      "sha256": "d3dbfbe2a16b7e9c2651c734b9f4fbf463cf451aee7e5968cc8ce74bf74d5d6b",
+      "status": "done"
+    },
+    "FND-011": {
+      "rev": 1,
+      "sha256": "ac35091794bf6d8c436fc7c01d1ba862f59eba8b2670badd331b4f3a0b7f4c22",
+      "status": "done"
+    },
+    "FND-012": {
+      "rev": 1,
+      "sha256": "ea331ae7973f94897058ec774b65d42c1151f615e50071b07873c1c315cad49e",
+      "status": "done"
+    },
+    "FND-013": {
+      "rev": 1,
+      "sha256": "4c28634261d3f0a33a4a5328931e3d3cb1fd62013d930b207df8efc961c37c1f",
+      "status": "todo"
+    },
+    "FND-014": {
+      "rev": 1,
+      "sha256": "3e6a2fa9b3374a5b92b58893f92ef5a2965b698e3358b2407f8d1d2b11d768c9",
+      "status": "todo"
+    },
+    "IMG-001": {
+      "rev": 1,
+      "sha256": "bbe67213ad54ea087e75a748337b649e0cd79f87d8252c7a313f3765a6e74aff",
+      "status": "todo"
+    },
+    "IMG-002": {
+      "rev": 1,
+      "sha256": "8b52e335d976e7f95d6bd737035c0ffb746b58d3806e66b284c8a5edd475ab8c",
+      "status": "todo"
+    },
+    "IMG-003": {
+      "rev": 1,
+      "sha256": "8bf2c6439c4119ad531ed55f17651372fb47f1c75e5a7bbef76a76fa277fc934",
+      "status": "todo"
+    },
+    "IMG-004": {
+      "rev": 1,
+      "sha256": "6dbd9b4028b20c0fe1815c90b7b164e00a1cc5aeb2e730514eb710b1a0ac8075",
+      "status": "todo"
+    },
+    "IMG-005": {
+      "rev": 1,
+      "sha256": "059364a90a348b3e3d684c1775f16cd47c2867374f73851128999f743be3dace",
+      "status": "todo"
+    },
+    "IMG-006": {
+      "rev": 1,
+      "sha256": "0d6e4d9dbe92381b4a46228229274cccfa7415c501b6b2daea87b2b01a9ceb37",
+      "status": "todo"
+    },
+    "IMG-007": {
+      "rev": 1,
+      "sha256": "ca724795be3320791003c8338877cbe369f744a00d5ea4ec201c885308739c4a",
+      "status": "todo"
+    },
+    "IMG-008": {
+      "rev": 1,
+      "sha256": "1149b81a02eb0854361e4cc87ff98855ba794d564762b1746c3861ff1b8beddb",
+      "status": "todo"
+    },
+    "IMG-009": {
+      "rev": 1,
+      "sha256": "0032ccfc143cd6b0784c354cd0a59d4fd2279a40c84ad17311e139928c4208f4",
+      "status": "todo"
+    },
+    "IMG-010": {
+      "rev": 1,
+      "sha256": "8285547558abde6e9a922209fd3459a4be2e6c78f12a41959764dc0f23dc75da",
+      "status": "todo"
+    },
+    "IMG-011": {
+      "rev": 1,
+      "sha256": "ccd320ff39639c87794f05625d9a3bc9bf9f8cde11dd71256e50d9695d5b4ea7",
+      "status": "todo"
+    },
+    "IMG-012": {
+      "rev": 1,
+      "sha256": "44e5e0b57cd8ed619a463cf89a1c5074fe96daa7416354fda89b08e51c091331",
+      "status": "todo"
+    },
+    "NTF-001": {
+      "rev": 1,
+      "sha256": "053732d20cfc6c66205da895c928379cee46df7717e41966b657ee5a6c83e6ff",
+      "status": "done"
+    },
+    "NTF-002": {
+      "rev": 2,
+      "sha256": "04710af908f94fa25fcf117f640ac1839a418ff1ee51585152f25ad50b6b417d",
+      "status": "done"
+    },
+    "NTF-003": {
+      "rev": 1,
+      "sha256": "b6cdcf46b606a6e6196dfbae27ea5d789a7fab52bd4dc24d9ba245bf298ea0be",
+      "status": "done"
+    },
+    "NTF-004": {
+      "rev": 1,
+      "sha256": "eade03e17969c85fc39a7bf4cb41fd763cee378285fb639610a710572fb33a11",
+      "status": "done"
+    },
+    "ORD-001": {
+      "rev": 1,
+      "sha256": "61cbb6b5113e269f097fc85d43067665121fe5b4c2e77b9fb81e12ae9bebc97b",
+      "status": "done"
+    },
+    "ORD-002": {
+      "rev": 2,
+      "sha256": "adf85e18089675bf329fa7e48fe0bfbc9964e9b1ac8bfcd922e677f52bc6bdb1",
+      "status": "done"
+    },
+    "ORD-003": {
+      "rev": 1,
+      "sha256": "37b6c8b89a8e78b5a0749c9cc3c0e44ccd5f91f683d5f2b3204da61b66ab6a96",
+      "status": "done"
+    },
+    "ORD-004": {
+      "rev": 1,
+      "sha256": "b62ed6ff26c795c9d5f5f2416bb17619df37e53a55f9d079061410a57ad2731b",
+      "status": "done"
+    },
+    "ORD-005": {
+      "rev": 1,
+      "sha256": "6ce27a609833a9cc21b004acb697546a240b5e369c1a95b2423f13ec40f9ab75",
+      "status": "done"
+    },
+    "ORD-006": {
+      "rev": 1,
+      "sha256": "2972efc3ddc55e5d18afd0765c2be52138e3479c79ab24e67f53cf8fa84df547",
+      "status": "done"
+    },
+    "ORD-007": {
+      "rev": 1,
+      "sha256": "6eb958e9bf6de2151d8319c4f7cd65420fe74b7b6acdfa2ef6e79dcbbe7070dc",
+      "status": "done"
+    },
+    "ORD-008": {
+      "rev": 1,
+      "sha256": "7db60f52c5bfb71691999002b0f8ac74ac8a0398697caef3b74e1a77370f7ef7",
+      "status": "done"
+    },
+    "ORD-009": {
+      "rev": 1,
+      "sha256": "10c007de66d56eb401565cc9223b822c83bf59d0ed167d3deac317797af4268b",
+      "status": "done"
+    },
+    "ORD-010": {
+      "rev": 1,
+      "sha256": "68430697fbad0a2c3151feea238e2b6b9546190d770730ea97e22d5a51c43809",
+      "status": "done"
+    },
+    "ORD-011": {
+      "rev": 1,
+      "sha256": "24677590260892544cf66759f0332488b43eb51b36a9e3e9d9c69f5d7f848e4b",
+      "status": "done"
+    },
+    "ORD-012": {
+      "rev": 1,
+      "sha256": "018a5583ae6acd898443c61eceab44d60d24ceebd729b5c681251e69cf4ae46c",
+      "status": "done"
+    },
+    "ORD-013": {
+      "rev": 1,
+      "sha256": "bf5623f921471f4ad76d34c168177da70cf2867ef584e54bc635aa65ea0dff17",
+      "status": "done"
+    },
+    "ORD-014": {
+      "rev": 1,
+      "sha256": "706d4ae055dcc270a7ba09da92d54b3f65602d05fbc7583ed971c362228c6976",
+      "status": "done"
+    },
+    "ORD-015": {
+      "rev": 1,
+      "sha256": "c2253e6c77869b18f5519fa6ab96dacb7a335ca945708aa895edf55fea99645d",
+      "status": "done"
+    },
+    "ORD-016": {
+      "rev": 1,
+      "sha256": "29c17948dc7de03b358ec2df2cccb4bc5671c8ad0199035cefdb669e0440788f",
+      "status": "done"
+    },
+    "ORD-017": {
+      "rev": 1,
+      "sha256": "a06cced03a4b68da1a789562b8ec535e3628521a6c56cf64f65cbb056e6a64c9",
+      "status": "done"
+    },
+    "ORD-018": {
+      "rev": 1,
+      "sha256": "8ef29bb2116f42bf352a23be09b155d125f0a7a79091544dc7d1f9aa2a1278f0",
+      "status": "done"
+    },
+    "ORD-019": {
+      "rev": 1,
+      "sha256": "3cd5d5a3b0eab4a5b73b9a3076507c25cb7cfb4b3965f47f4dba98b783702677",
+      "status": "done"
+    },
+    "ORD-020": {
+      "rev": 1,
+      "sha256": "face53ed069e9c33e6a149b0049088146edd91cdcb2daa1b29c9df2e13d852fd",
+      "status": "done"
+    },
+    "ORD-021": {
+      "rev": 1,
+      "sha256": "ff4d189d69bf96854a9c628a8c8238beadd140bb110e9908f65fa033f33aa41d",
+      "status": "done"
+    },
+    "ORD-022": {
+      "rev": 1,
+      "sha256": "355779b656310d5f8734cf27a662937d53df3e90c59ba066d042c436c2997368",
+      "status": "todo"
+    },
+    "ORD-023": {
+      "rev": 1,
+      "sha256": "1b5fcbba0faef8cae2719cd6914c6fafa5c4b289924d45a93e92472f6396c3fd",
+      "status": "todo"
+    },
+    "ORD-024": {
+      "rev": 1,
+      "sha256": "161d0741fb5cce2b9cf98a91bf3469ccd37cb97cf987a4b5cd4597a0cc116754",
+      "status": "todo"
+    },
+    "ORD-025": {
+      "rev": 1,
+      "sha256": "175faaa535acc7467723f93c4af26afb978d65e94f0cd24e592d3e034f3a2d38",
+      "status": "todo"
+    },
+    "ORD-026": {
+      "rev": 1,
+      "sha256": "9042f5ec937c91846868f5e7accffd99c6c2b19beb021b3e8715701fe3c353ba",
+      "status": "todo"
+    },
+    "ORD-027": {
+      "rev": 1,
+      "sha256": "813b98d65f02ab1b86fe64f66325efaccb857cc9363e81fec504b017c22e4623",
+      "status": "todo"
+    },
+    "ORD-028": {
+      "rev": 1,
+      "sha256": "554b29fbf9dc1b2bb1753ae2e6d39094e7aa32116a8218429da9bbf028bfeacb",
+      "status": "todo"
+    },
+    "ORD-029": {
+      "rev": 1,
+      "sha256": "da893dd24eee3315cfbe01b4d34b9eecb82041231d2ebe408e84ac3e1e95e5e5",
+      "status": "todo"
+    },
+    "ORD-030": {
+      "rev": 1,
+      "sha256": "e446d342d7101a8c7afb0fe2620f2e4cafdf868bd11cdbe9af95bb5a711b724c",
+      "status": "todo"
+    },
+    "ORD-031": {
+      "rev": 1,
+      "sha256": "3d4e1cc0e0fabda85f6d465d9d8a5ebdfcf15e3b0f1d7794b22793b2e3876ca4",
+      "status": "todo"
+    },
+    "ORD-032": {
+      "rev": 1,
+      "sha256": "009eb0442ca8f66b013dcbb0aabd89c0c5b85ac26c5faf1816e5b1c70d7387d0",
+      "status": "todo"
+    },
+    "ORD-033": {
+      "rev": 1,
+      "sha256": "00dbe0abe220c65a2625f83dbf6b19d95cc8db6aa31aa08a6ba89f3bbfc48309",
+      "status": "todo"
+    },
+    "ORD-034": {
+      "rev": 1,
+      "sha256": "3c25855c66d7d24c2f7eabb284ccbcc6285c8157805f6e8552d26418cee03871",
+      "status": "todo"
+    },
+    "ORG-001": {
+      "rev": 1,
+      "sha256": "a430fc82c79b64926554a4839ede3c80cfb9f71966d9067da4d0942c4e900f6f",
+      "status": "done"
+    },
+    "ORG-002": {
+      "rev": 1,
+      "sha256": "e3c6a1ae58131e14e7cb25203eab4bd4db435e83968dd72a2b8691eb20c7c242",
+      "status": "done"
+    },
+    "ORG-003": {
+      "rev": 1,
+      "sha256": "66aae8673d1f03e8b8c396eadbda325904e016bf83f6f5b533080aabc93b5fcf",
+      "status": "done"
+    },
+    "ORG-004": {
+      "rev": 1,
+      "sha256": "a76842f7a0b33a879d81013f32a86861e2c1f36a1b82ae7e076521eab66462f9",
+      "status": "done"
+    },
+    "ORG-005": {
+      "rev": 1,
+      "sha256": "e4b1fcdfccb50ee64ebe9ca7a439b54bf7af1b57e288ede33acdcff934473d8f",
+      "status": "done"
+    },
+    "ORG-006": {
+      "rev": 1,
+      "sha256": "ae073faffc1c7b6036c57936d07762f617f7c2631383ab64d26dbf6e60b93e01",
+      "status": "done"
+    },
+    "ORG-007": {
+      "rev": 1,
+      "sha256": "77dbb7bf1b83cedc6fca384dfd441ece8ccfa9f27ddd16f4cf4e895b9782be4a",
+      "status": "done"
+    },
+    "ORG-008": {
+      "rev": 1,
+      "sha256": "5efb72ee0d49c67fbb851c9a91facd4759035fbf1f3961ea2b087e4fc1fb8021",
+      "status": "done"
+    },
+    "ORG-009": {
+      "rev": 1,
+      "sha256": "f604db11c1f7695178e62c754b6e8cb0f699198a7e4a6f1c2ead0382ff89f331",
+      "status": "done"
+    },
+    "ORG-010": {
+      "rev": 1,
+      "sha256": "69e94edf67b9d04e9823c2b1440a6465c117ffe3e4301866643215f5d333dba8",
+      "status": "done"
+    },
+    "ORG-011": {
+      "rev": 1,
+      "sha256": "cd5464d8c6a2fd3ae2e1209c9384cee7f9712c88a49653a188f9c87789f7ebf3",
+      "status": "done"
+    },
+    "ORG-012": {
+      "rev": 1,
+      "sha256": "c9b63c5820ac5ccae380c4c9736292358e5bddc308bd1a085dd9738a1ed0ff55",
+      "status": "done"
+    },
+    "ORG-013": {
+      "rev": 1,
+      "sha256": "62bfa9cb15e7be9ca2e29f8bd2a845b957917eddca833952c8affd08e9da0c40",
+      "status": "done"
+    },
+    "ORG-014": {
+      "rev": 1,
+      "sha256": "d3c8494209fdc3010bab39fc118b86e23f988ef7205776cf3056a38eedcc3ad8",
+      "status": "done"
+    },
+    "ORG-015": {
+      "rev": 1,
+      "sha256": "bdedba970114c05d9caae5b41b25b04e8b830388990bab9c7b9593074f2f6418",
+      "status": "done"
+    },
+    "ORG-016": {
+      "rev": 1,
+      "sha256": "797fe34e1dd7ef94de14bd459341068a1aa7ae1c0d37374e03d11063390a9f7a",
+      "status": "done"
+    },
+    "ORG-017": {
+      "rev": 1,
+      "sha256": "bd9da8a1a28fac27151ff506477882016cfa4891792c6432793b742860e56923",
+      "status": "done"
+    },
+    "ORG-018": {
+      "rev": 1,
+      "sha256": "529aea0d73cab4c69d0b29f630c588021aec1cb8fec3ffd38893ccb5264c3ac5",
+      "status": "done"
+    },
+    "ORG-019": {
+      "rev": 1,
+      "sha256": "f34b7a7639998cec2645d51ed9338026cc152f636b2176958a0d1b8e636ea215",
+      "status": "done"
+    },
+    "ORG-020": {
+      "rev": 1,
+      "sha256": "94cf62ee22216d2e2aed890a4f5535c3a9ebf697309676b40ad512515f575e37",
+      "status": "todo"
+    },
+    "ORG-021": {
+      "rev": 1,
+      "sha256": "f82ee1997bafa5971340f6182d12bc560ca05df9cff64ac6ef6878e2a9ef0a13",
+      "status": "todo"
+    },
+    "ORG-022": {
+      "rev": 1,
+      "sha256": "6d53a68dd2769d0833493312da3c147972f9af863ccf269d8ff04a3de7a6c8fa",
+      "status": "todo"
+    },
+    "ORG-023": {
+      "rev": 1,
+      "sha256": "bbd403c9d71a1faddb3ba4929dc29b12c61364b04185914c8b4fc39474c981dc",
+      "status": "todo"
+    },
+    "ORG-024": {
+      "rev": 1,
+      "sha256": "99172e65497f9a99d66037ad1e3fb28b65534f6eb67a99eb954071133e763213",
+      "status": "todo"
+    },
+    "ORG-025": {
+      "rev": 1,
+      "sha256": "6ca85f36fb772ffee3c79b6e19759c6fc83ec3141d13e367ada6c900f4121d32",
+      "status": "todo"
+    },
+    "ORG-026": {
+      "rev": 1,
+      "sha256": "956b53637f1e12e08ebc1736ce5aec240f9597a7b872ad19e9b182bdc5972ef4",
+      "status": "todo"
+    },
+    "ORG-027": {
+      "rev": 1,
+      "sha256": "2cb42b658241e5947b743a8b2ba2cd6e3e1fc86c85c5bd64fbcbc8a40ef2049b",
+      "status": "todo"
+    },
+    "ORG-028": {
+      "rev": 1,
+      "sha256": "afc6e5ad26a9c9585fe6838902e4772c04096b750c2de5c7d06c99c9f1408c20",
+      "status": "todo"
+    },
+    "ORG-029": {
+      "rev": 1,
+      "sha256": "85444ac9749f45ff78a07837f9361440dfef162d50f420a467630e3a6cb2c816",
+      "status": "todo"
+    },
+    "ORG-030": {
+      "rev": 1,
+      "sha256": "32004fcd98fa6702b47125b18a76a4fbeefb245b225a4f698ddcab7419eeecef",
+      "status": "todo"
+    },
+    "ORG-031": {
+      "rev": 1,
+      "sha256": "96604508a9a8d6b3e9aab7bbee2c6429e2c99bbd0a30801444f4912f5fd2ff37",
+      "status": "todo"
+    },
+    "ORG-032": {
+      "rev": 1,
+      "sha256": "be45cbd13483629c3c4dfb70de8307ca29fc0f718ce3583ccb4af592c7aafc87",
+      "status": "todo"
+    },
+    "ORG-033": {
+      "rev": 1,
+      "sha256": "872fdc3ccbeb627c4f3e15ff726db494c1a4b996bca1165411359bd8e84f3ce7",
+      "status": "todo"
+    },
+    "ORG-034": {
+      "rev": 1,
+      "sha256": "430337b30995fbda35f28fc990304bc58150da297f37ab13efe879cb3f9d390a",
+      "status": "todo"
+    },
+    "ORG-035": {
+      "rev": 1,
+      "sha256": "46e067c6eae6cf69b61f7ff0d97b84eb0df0f80e8d44d47dc66cbb4e5616e140",
+      "status": "todo"
+    },
+    "ORG-036": {
+      "rev": 1,
+      "sha256": "9278cf7b6fc26603c58cbc74ca1ba2980d4c0610acf723895362a86e3386c068",
+      "status": "todo"
+    },
+    "ORG-037": {
+      "rev": 1,
+      "sha256": "62f62cf53dcd1324b8b25d29e6030632d89e9229622003290cd142113f807941",
+      "status": "todo"
+    },
+    "ORG-038": {
+      "rev": 1,
+      "sha256": "5355a39fd4c1af7a76c84939b5db9216e145c7695d5ab64a9fa507ef8bbccd1a",
+      "status": "todo"
+    },
+    "ORG-039": {
+      "rev": 1,
+      "sha256": "4c7541cd42db505bc6143824dc2de7e913d1329259480dcc9a5ae6334548d8d0",
+      "status": "todo"
+    },
+    "ORG-040": {
+      "rev": 1,
+      "sha256": "3b7d5e22b4502fadd03d3b95c3e61b1ef15fe23265f0dac8c525a0c2904f3270",
+      "status": "todo"
+    },
+    "ORG-041": {
+      "rev": 1,
+      "sha256": "ea7522e8d25747319f162896b6377fa6363b906c40cd6b76b9c062ea4112aa74",
+      "status": "todo"
+    },
+    "ORG-042": {
+      "rev": 1,
+      "sha256": "259a0066501b503fae770ee314b416fc488846db3d59a74d4756651ab99a7561",
+      "status": "todo"
+    },
+    "ORG-043": {
+      "rev": 1,
+      "sha256": "bcff3b5739ddfbf54e8fa7b5999155762b520bc086150f400c391beda4177f1d",
+      "status": "todo"
+    },
+    "ORG-044": {
+      "rev": 1,
+      "sha256": "874f373be0857ded555be87bc16f89324332a6b740f4f772023cd581866ed885",
+      "status": "todo"
+    },
+    "ORG-045": {
+      "rev": 1,
+      "sha256": "c61bf483105c1d116f6b82702d5399b2d30384278b92b7ee3156035e23ece596",
+      "status": "todo"
+    },
+    "PER-001": {
+      "rev": 1,
+      "sha256": "07d0aeb905488cec25f25155120b4eefb2c2889289628d9ee33770732c4faa8f",
+      "status": "done"
+    },
+    "PER-002": {
+      "rev": 1,
+      "sha256": "c532c23eca71d0c3954e7f55019a80f592f8a58d2232ef7e81cc4b73bcd53b13",
+      "status": "done"
+    },
+    "PER-003": {
+      "rev": 1,
+      "sha256": "1fceeaa66ea319585542e11d9d95b19aad803a29d9641287d23048c3339fa1bb",
+      "status": "done"
+    },
+    "PER-004": {
+      "rev": 1,
+      "sha256": "51b0c9e8dd7cb75f4d53315a61aeb9b6f9674ccf11884cabed419714e75d8364",
+      "status": "done"
+    },
+    "PER-005": {
+      "rev": 1,
+      "sha256": "18beaf80d0bdcb30e4fa4c621d9301b5afb74bd6fc68c04b0dc7d26996ba0e5d",
+      "status": "done"
+    },
+    "PER-006": {
+      "rev": 1,
+      "sha256": "9bfa9d087b4d676d6cc6fe0fe83e4242914624089a38690e9950d8a6149ce9f9",
+      "status": "done"
+    },
+    "PER-007": {
+      "rev": 1,
+      "sha256": "b7deaa62ae4fa3fce5b2dce1274ceb1a1a3cd9e363a1738bddad4c2655478351",
+      "status": "done"
+    },
+    "PER-008": {
+      "rev": 1,
+      "sha256": "f0126e8b230140c47a1a090dc8878dd10b2d6832b7d6aaacd9e3cfcb25b3e622",
+      "status": "done"
+    },
+    "PER-009": {
+      "rev": 1,
+      "sha256": "4f4cebae210022d52356aac4b2a62dd789bdd36bf90916115fa6c8b71fd67299",
+      "status": "done"
+    },
+    "PER-010": {
+      "rev": 1,
+      "sha256": "4c878dcc2f8b828f711604ced203a101684c9086a2f75459752df998cda54fb1",
+      "status": "todo"
+    },
+    "PER-011": {
+      "rev": 1,
+      "sha256": "fd9bc873fe744888c9272273e4c36cd2d0b84fd19efc22dbc5fbdc0cf3d3a87f",
+      "status": "todo"
+    },
+    "PER-012": {
+      "rev": 1,
+      "sha256": "96b1ae7ca0aeb9f261a04422ce5200fd1c0cf22485fed49dad74b08d95abec45",
+      "status": "todo"
+    },
+    "PER-013": {
+      "rev": 1,
+      "sha256": "4b515cf6814a6767a0f13246f8552f0bff48a8f6d409466bc434c3cb6f905add",
+      "status": "todo"
+    },
+    "PER-014": {
+      "rev": 1,
+      "sha256": "3724fa3faeb3212e7a220b808e401a354c7fa97526898dc0a9c127e35ecc1df3",
+      "status": "todo"
+    },
+    "PRIV-001": {
+      "rev": 1,
+      "sha256": "4254bd2939f155ef1de16d3fc43a225901c9e3d36d16db592fcc0dfaafcd4d60",
+      "status": "done"
+    },
+    "PRIV-002": {
+      "rev": 1,
+      "sha256": "7d3a5f08e1e92a346b200fb2476711e1dc5b29a317dfd43870aa61f5a887198f",
+      "status": "done"
+    },
+    "PRIV-003": {
+      "rev": 1,
+      "sha256": "fc6569e6610944eaf27b55d4dc5893ab932c271630acbd4231115c473453f12c",
+      "status": "done"
+    },
+    "PRIV-004": {
+      "rev": 1,
+      "sha256": "f72810ac3339889da4a9c8d685a6b9a927f8c08344edb1329f7859d65dbfe991",
+      "status": "todo"
+    },
+    "PRIV-005": {
+      "rev": 1,
+      "sha256": "a76922e429937f8eb9b091a7b9eaa54a9145668f0af343d7e4c56acd2c347d8c",
+      "status": "todo"
+    },
+    "REL-001": {
+      "rev": 1,
+      "sha256": "20d1d5876ad242572af4ed92e5771b7a5aef2c55344d9748aed529de5c30216a",
+      "status": "done"
+    },
+    "REL-002": {
+      "rev": 2,
+      "sha256": "5124de2264acf3c254254c379d1b17ef61341db0f29ee21479ddb3ef1ac9bb5e",
+      "status": "done"
+    },
+    "REL-003": {
+      "rev": 1,
+      "sha256": "2a52e9f1f2d993433527478d860241b4dd89d6e7908f254239f33f9a9b127b2a",
+      "status": "done"
+    },
+    "REL-004": {
+      "rev": 2,
+      "sha256": "104821447867e739ba0ea723e1fc7533afb059456d0ffb46fe8f55e24328f634",
+      "status": "done"
+    },
+    "REL-005": {
+      "rev": 1,
+      "sha256": "7f364d7109129affe15fab30d4d7c6fb2a3d89fe83763fc991fab40df82da969",
+      "status": "done"
+    },
+    "REL-006": {
+      "rev": 1,
+      "sha256": "087da5b7ce48df9a77d50d9c8edeac694ff852aaca13effb323439ba84135538",
+      "status": "done"
+    },
+    "REL-007": {
+      "rev": 1,
+      "sha256": "c96c197b5d412783cc79fdfdd07da681c55622f73abdedf5f0a14b4f2d0935f2",
+      "status": "done"
+    },
+    "REL-008": {
+      "rev": 1,
+      "sha256": "a96fd6730a89046fcc31c6a4ffa653c1a55a9dfc36dd8d4fa3603ee66e2dd9de",
+      "status": "done"
+    },
+    "REL-009": {
+      "rev": 1,
+      "sha256": "7df326943eeaca15f4bea2ce132fd1bdd519d98bd768a62f642bc08430bad36c",
+      "status": "done"
+    },
+    "REL-010": {
+      "rev": 1,
+      "sha256": "f1ac229aec95b6e59d443a229924d70dcad907cf07c1c7fa7abf931ae8a90772",
+      "status": "done"
+    },
+    "REL-011": {
+      "rev": 1,
+      "sha256": "fdde88f745a70973060b43b2e171ae6eb3b5ca19a75aeacfa61536287d1f48af",
+      "status": "done"
+    },
+    "REL-012": {
+      "rev": 1,
+      "sha256": "117bd9625e5ae742809191ccb075ac03b1dcf66fbe8564b59adf232f81689f24",
+      "status": "done"
+    },
+    "REL-013": {
+      "rev": 1,
+      "sha256": "5410e5ee482d1c35c737502f5c02130b55fff6174de0bd4526264e7c27486ae8",
+      "status": "done"
+    },
+    "REL-014": {
+      "rev": 1,
+      "sha256": "76fd2459e9c66ed10cef277d9fe6b2909814bca2793f539a65f90f28db4c951c",
+      "status": "done"
+    },
+    "REL-015": {
+      "rev": 1,
+      "sha256": "361d69de878cd85ebe5416b2198d1ede8391852bb53558838e7aac8aad32e8c0",
+      "status": "done"
+    },
+    "REL-016": {
+      "rev": 1,
+      "sha256": "0db2dfbe30a63b9e1a222bfdba5a32a43e848eb19ee09257dc119ec6665c20f5",
+      "status": "done"
+    },
+    "REL-017": {
+      "rev": 1,
+      "sha256": "bdce9b26c2d34f20c4c3be96cf15386e8c55ff4e382baf33b3a511440b209b84",
+      "status": "done"
+    },
+    "REL-018": {
+      "rev": 1,
+      "sha256": "15a4b2ebf7b69062c3f90c5b917499dbd75885a9103c934f6f3ae630dde71ece",
+      "status": "done"
+    },
+    "REL-019": {
+      "rev": 1,
+      "sha256": "196f9d4cfd4eb31236e3ffcabd87cb95920df62494e2d4269198d059743969ca",
+      "status": "done"
+    },
+    "REL-020": {
+      "rev": 1,
+      "sha256": "a7dfb59557056b5ea483635f058e5294193a0e968be159b54ef4841d43be2573",
+      "status": "done"
+    },
+    "REL-021": {
+      "rev": 1,
+      "sha256": "dbb1d095d7b6385bb69e4beb44c2170fcd8fff04f63c28e30fe5fca4a43209e3",
+      "status": "done"
+    },
+    "REL-022": {
+      "rev": 1,
+      "sha256": "f5e022cf8bf9271e223aaac7c66fde15d78f11a3fd5e79cf29cb0abcb0d2c36b",
+      "status": "done"
+    },
+    "REL-023": {
+      "rev": 1,
+      "sha256": "598554fa4a48c305c221ead36ebe537f2c898d51f54d817a1782bc8c4df0a22d",
+      "status": "done"
+    },
+    "REL-024": {
+      "rev": 1,
+      "sha256": "334930e1f0af2fc4d51b526af7501c8f4d89ed6e2f2a2cfdfa13657680f49408",
+      "status": "done"
+    },
+    "REL-025": {
+      "rev": 1,
+      "sha256": "7d8e182a791a4fe739711801849fdef5bed2edf31b658f8bee10994d05bc92a1",
+      "status": "done"
+    },
+    "REL-026": {
+      "rev": 1,
+      "sha256": "fe539d0419bb025b1d224cf5f194c3713616f6ccb26dea8b7b98d3e4d6573b41",
+      "status": "todo"
+    },
+    "SYNC-001": {
+      "rev": 1,
+      "sha256": "0cba6cf26063da52d24fd06696ff49f235b90a613899922c40af8a93ed0572e3",
+      "status": "done"
+    },
+    "SYNC-002": {
+      "rev": 1,
+      "sha256": "e6f0fccc17f6a81255c0ff3575f8e0176cdac794d0e497a73656e0e67bd7a67b",
+      "status": "done"
+    },
+    "SYNC-003": {
+      "rev": 1,
+      "sha256": "ffd41dba201c62e9e87f13d5fddcf2a7f9d3854acffda264e92aef7b90ea636d",
+      "status": "done"
+    },
+    "SYNC-004": {
+      "rev": 1,
+      "sha256": "16d6bec7794087df8d563172ef4b6bae906207f3da554a92791e3ba66ba2b728",
+      "status": "done"
+    },
+    "SYNC-005": {
+      "rev": 1,
+      "sha256": "c6c96f80870e50f4ced3491a389b7d87c957139af8a4ca01b8b1dc31a2e5f97e",
+      "status": "done"
+    },
+    "SYNC-006": {
+      "rev": 1,
+      "sha256": "eec5b6cc275e9fcd7e7a2276d15067b5c6e75776232fea846360be14e41f8a42",
+      "status": "done"
+    },
+    "SYNC-007": {
+      "rev": 1,
+      "sha256": "1fa11f2ea76f422ddebe30a01f182949f9fc522ac228b5124d569b3cfb55048a",
+      "status": "done"
+    },
+    "SYNC-008": {
+      "rev": 1,
+      "sha256": "4aa8ef2221fbaea8776c8d4c5798830495e7d8c9a6b0c387b0a63cb15b062a22",
+      "status": "done"
+    },
+    "SYNC-009": {
+      "rev": 1,
+      "sha256": "a47b589086be6aca140d899eaa97c1f724d6dd75e4de689aff74c5f6d7961436",
+      "status": "done"
+    },
+    "SYNC-010": {
+      "rev": 1,
+      "sha256": "60571deb7ac6aeed4ad344f36065c69092029fa3190f6dade14ecf051b13c59c",
+      "status": "done"
+    },
+    "SYNC-011": {
+      "rev": 1,
+      "sha256": "b12facc6bd8865208bbe8516a26da362fb98b51f22b38805718aabfeaf4af326",
+      "status": "done"
+    },
+    "SYNC-012": {
+      "rev": 1,
+      "sha256": "b960635f9d9ea28e3b8432c7df12eac3d8ed79035daa94675633fe7906739b4b",
+      "status": "done"
+    },
+    "SYNC-013": {
+      "rev": 1,
+      "sha256": "b81441399103efb61a51b43db095125387e19f3718d6087287076b9cf29d8122",
+      "status": "done"
+    },
+    "SYNC-014": {
+      "rev": 1,
+      "sha256": "feaf6886e5985c82cae3848567f7da7113b2349867d6e827251721a28853913a",
+      "status": "done"
+    },
+    "SYNC-015": {
+      "rev": 1,
+      "sha256": "aa1eaec9dc0c81a3fafac97fc64fdc7c8491112b1bdd026269a2319a0dd6a0d0",
+      "status": "done"
+    },
+    "SYNC-016": {
+      "rev": 1,
+      "sha256": "1679074e49ff40fb9f00e0da61be5a71d6f8abb56c9237c684223c45f2e6f76a",
+      "status": "done"
+    },
+    "SYNC-017": {
+      "rev": 1,
+      "sha256": "d801e5ee8efa70c936ae1bd1aefaaa4f6e10c0c00a931673058b88843f541405",
+      "status": "done"
+    },
+    "SYNC-018": {
+      "rev": 1,
+      "sha256": "aa37ee2d9e9d3f4548b37284192be8736a7079847b8345fbb59132c2f7c8772d",
+      "status": "done"
+    },
+    "SYNC-019": {
+      "rev": 1,
+      "sha256": "13c079ad71ed8d7ac562ed5672ec43adcec5025c8459d5f5ba6a94c128b393e0",
+      "status": "done"
+    },
+    "SYNC-020": {
+      "rev": 1,
+      "sha256": "fa57319a73a19d852024ce785959d8d305297c04f9ce7c217226805d1c6db433",
+      "status": "done"
+    },
+    "SYNC-021": {
+      "rev": 1,
+      "sha256": "88369cd23d3240aa6c385a188bebede65a697630afa80a7b9a032a09ae6c2acb",
+      "status": "done"
+    },
+    "SYNC-022": {
+      "rev": 1,
+      "sha256": "abfe021d312af62ca18bbcb27de2ae174d1d57863186303d63339e5af5d51e1b",
+      "status": "done"
+    },
+    "SYNC-023": {
+      "rev": 1,
+      "sha256": "d763150362a926b6c90de723ece6a04c65e77df4554b9b73e347fa07c031b6bb",
+      "status": "done"
+    },
+    "SYNC-024": {
+      "rev": 1,
+      "sha256": "8c36c57ebae86ada35eb28916e11b8b01e859912e4dcdb74653b150b3e1360a4",
+      "status": "todo"
+    },
+    "SYNC-025": {
+      "rev": 1,
+      "sha256": "12dbd2c3c69e01314df3387eb57a4e3c7dbb54dd9262edc2ec99b287e9f22630",
+      "status": "todo"
+    },
+    "SYNC-026": {
+      "rev": 1,
+      "sha256": "684b99eabebbab0292cff93fcb216265ef3f6155ef59f3863f26773b82995965",
+      "status": "todo"
+    },
+    "SYNC-027": {
+      "rev": 1,
+      "sha256": "e219fb03050c38c2e07138719ce70285c4bde8bc129ed96abcddf7e90f60908f",
+      "status": "todo"
+    },
+    "SYNC-028": {
+      "rev": 1,
+      "sha256": "8756b4728f93eac2be1799c96d7b6e7805d151824f2c3d5cf72cffa7bd5df90e",
+      "status": "todo"
+    },
+    "SYNC-029": {
+      "rev": 1,
+      "sha256": "bea9d0524f8f625e781b42b873410141d8673b2a27be18d0cde5fd1e189b8c36",
+      "status": "todo"
+    },
+    "SYNC-030": {
+      "rev": 1,
+      "sha256": "16a86c5b99b1aba4780343b3b389615007a0c92bacd249ad24e6ece1daaf187f",
+      "status": "todo"
+    },
+    "SYNC-031": {
+      "rev": 1,
+      "sha256": "04d8b679e3368a85bdacd5d0a52c54eb2bd610fa1d7b5a071629d07900d81d80",
+      "status": "todo"
+    },
+    "SYNC-032": {
+      "rev": 1,
+      "sha256": "85ffeb687723263e7a888d27665411c6a6a6e2f561fd86c3f9789c14675cf3c2",
+      "status": "todo"
+    },
+    "SYNC-033": {
+      "rev": 1,
+      "sha256": "3eaf2d3d77864625796cc3d1d05e93a23afe7e66305111dbb10927da8c723018",
+      "status": "todo"
+    },
+    "SYNC-034": {
+      "rev": 1,
+      "sha256": "c0a7f4734e6d1f7ae22fbf93fac924f4f6250b9c795e736fa0f572df4acf42a5",
+      "status": "todo"
+    },
+    "SYNC-035": {
+      "rev": 1,
+      "sha256": "c57c9bc395c3277ed41acc48a431baa2a9c5526139b4239b040fc797bcd8f007",
+      "status": "todo"
+    },
+    "SYNC-036": {
+      "rev": 1,
+      "sha256": "b7e9513ce6e19e0763e5eb09862781e7003c7a350c53939ba837f2613f900b09",
+      "status": "todo"
+    },
+    "SYNC-037": {
+      "rev": 1,
+      "sha256": "88a1a80da9236ac9a61e1c27fd7675bb3d10d9dd8d658886556d2e881abc7ab5",
+      "status": "todo"
+    },
+    "SYNC-038": {
+      "rev": 1,
+      "sha256": "ca5954876956807a39c762ae28fe77cb0484db491cb3c99f22388e8d0aa44b50",
+      "status": "todo"
+    },
+    "SYNC-039": {
+      "rev": 1,
+      "sha256": "d7c46f76902196d2c96a29c31645a0e7243aa1b5a8fb2dde4dabb7d37879d063",
+      "status": "todo"
+    },
+    "SYNC-040": {
+      "rev": 1,
+      "sha256": "8d143430dc01da2264066835467a864c0e32830d8b17465fee70485bf71e668f",
+      "status": "todo"
+    },
+    "SYNC-041": {
+      "rev": 1,
+      "sha256": "b9f4b85326aff4c3e60c1fd148dd4d01f5c9f2b5fcf5baff090e6ca77d65496b",
+      "status": "todo"
+    },
+    "SYNC-042": {
+      "rev": 1,
+      "sha256": "6a83c831b47396fc0e334b3c9ee2dfd5a7c14a4d43bcbeac7765bb9cd2838d82",
+      "status": "todo"
+    },
+    "SYNC-043": {
+      "rev": 1,
+      "sha256": "6dd52c14c4d624b68f46266552e047227e3de094371ad89feb1fd4528477e993",
+      "status": "todo"
+    }
+  },
+  "before": {
+    "ACC-001": {
+      "path": "modules/access/ACC-001-role-order-and-ability-builder.md",
+      "rev": 1,
+      "sha256": "b39a7653545c9676245c016c40af7015679f2b3640fc9c158d6d815902e7f942",
+      "status": "done"
+    },
+    "ACC-002": {
+      "path": "modules/access/ACC-002-rules-for-relationships-catalog-and-prices.md",
+      "rev": 1,
+      "sha256": "0a302c323c0cc70fd80011e22423b86b4100ea2c305cd10e8847f7a87df08bac",
+      "status": "done"
+    },
+    "ACC-003": {
+      "path": "modules/access/ACC-003-rules-for-orders-and-deliveries.md",
+      "rev": 1,
+      "sha256": "a1da4b5cd57d050c70dafd8cb6b2d9ff2a4a7efc97988ff6e3f94369130b313d",
+      "status": "done"
+    },
+    "ACC-004": {
+      "path": "modules/access/ACC-004-rules-for-money.md",
+      "rev": 1,
+      "sha256": "da4f2b9cfd806f7851d66ea02f769cf1c96c8b9dd1d415dfc3198700e94d665d",
+      "status": "done"
+    },
+    "ACC-005": {
+      "path": "modules/access/ACC-005-rules-for-team-subscription-and-organization.md",
+      "rev": 1,
+      "sha256": "bc39fa12c448f1c1d0ac328e011f2be02cb28629a6ad0e4309a9ed237da35fc0",
+      "status": "done"
+    },
+    "ACC-006": {
+      "path": "modules/access/ACC-006-ability-middleware.md",
+      "rev": 1,
+      "sha256": "7e76bce44e0410a8dc629dc4698c2ce851f76be94ea404785f5915dc4fbed93f",
+      "status": "done"
+    },
+    "ACC-007": {
+      "path": "modules/access/ACC-007-idempotency-of-online-gestures.md",
+      "rev": 1,
+      "sha256": "ee94ed2f8c3a88d4589a79313312e921189a21a3d67d1f70608b0555f74343ff",
+      "status": "done"
+    },
+    "ADM-001": {
+      "path": "modules/admin/ADM-001-administrators-table.md",
+      "rev": 1,
+      "sha256": "dd2763239c497739ea4958ee8d04e98ecccc2ac319aa0577571846cf787473e5",
+      "status": "done"
+    },
+    "ADM-002": {
+      "path": "modules/admin/ADM-002-administration-journal-table.md",
+      "rev": 1,
+      "sha256": "2cda0b54b93e3acb8fa7ffad753f66f06be162ecd0a69ede0ef05d33e2a25120",
+      "status": "done"
+    },
+    "ADM-003": {
+      "path": "modules/admin/ADM-003-reports-table.md",
+      "rev": 1,
+      "sha256": "fc6c57ab134256a261964aa70d87f8cec090810c08ae0f9d9e9d8f49035eed99",
+      "status": "done"
+    },
+    "ADM-004": {
+      "path": "modules/admin/ADM-004-two-factor-codes-for-administrators.md",
+      "rev": 1,
+      "sha256": "9d2e37ad01b23c07e689c4314d56448783977b616fed519708c02936e1f5d943",
+      "status": "done"
+    },
+    "ADM-005": {
+      "path": "modules/admin/ADM-005-create-the-first-super-administrator-from-the.md",
+      "rev": 1,
+      "sha256": "f8a010e959a33a68a998e7314e47f74c186dba64ccadd72c57f98b17aabc894c",
+      "status": "done"
+    },
+    "ADM-006": {
+      "path": "modules/admin/ADM-006-administrator-signs-in-with-password-and.md",
+      "rev": 1,
+      "sha256": "296082bc13afcceb236762b3177bd60bdd761061a8debaffb8ae1d0a32bafe3d",
+      "status": "done"
+    },
+    "ADM-007": {
+      "path": "modules/admin/ADM-007-administrator-registers-a-recovery-email.md",
+      "rev": 1,
+      "sha256": "d2106fb3e36a812dba473d193a219243b8a55bff6d7dd9d39144ae38ce35a57e",
+      "status": "done"
+    },
+    "ADM-008": {
+      "path": "modules/admin/ADM-008-administrator-reinstalls-the-authenticator.md",
+      "rev": 2,
+      "sha256": "bebe3c7007ef4189e6fdf7e29ac502802eb40bd214bd5596e9d4142e721cd932",
+      "status": "done"
+    },
+    "ADM-009": {
+      "path": "modules/admin/ADM-009-super-administrator-appoints-an-administrator.md",
+      "rev": 1,
+      "sha256": "8643b6919df7f5b29f0788dd80b4d5c8931683fa6faff234bdf14241673d4151",
+      "status": "done"
+    },
+    "ADM-010": {
+      "path": "modules/admin/ADM-010-super-administrator-removes-an-administrator.md",
+      "rev": 1,
+      "sha256": "4487d3da1a36ebbfe84cab756488be204861aa6f65f6cf0f94cf7ff12cf0b83d",
+      "status": "done"
+    },
+    "ADM-011": {
+      "path": "modules/admin/ADM-011-person-reports-another-person-or-a-business.md",
+      "rev": 1,
+      "sha256": "d5b9dd112fa85df8c5eba5819413f72988b738576ec72bf320637e8a9c8162bb",
+      "status": "done"
+    },
+    "ADM-012": {
+      "path": "modules/admin/ADM-012-administrator-lists-and-opens-reports.md",
+      "rev": 1,
+      "sha256": "4e146ba2e680cf2e1dc588a65f1454ebdf56b218a969f1f4bbfc226856be490c",
+      "status": "done"
+    },
+    "ADM-013": {
+      "path": "modules/admin/ADM-013-administrator-resolves-a-report.md",
+      "rev": 1,
+      "sha256": "5bad0da0fb14ac20a539d1a1e58ca66eaa3fe4f8411f86817f462da2d6c731bd",
+      "status": "done"
+    },
+    "ADM-014": {
+      "path": "modules/admin/ADM-014-administrator-suspends-or-reactivates-without-a.md",
+      "rev": 1,
+      "sha256": "fc6b17ec01b51ebdbc9c870ea4e9b7027cca0a8f78cdd61d18a6f22743b1866e",
+      "status": "done"
+    },
+    "ADM-015": {
+      "path": "modules/admin/ADM-015-administrators-read-the-action-journal.md",
+      "rev": 1,
+      "sha256": "1600bd28ea4bb5272f68c1a0723a2c500fc5079f89ddbd6e9acc19c52498908e",
+      "status": "done"
+    },
+    "AUTH-001": {
+      "path": "modules/auth/AUTH-001-one-time-code-table.md",
+      "rev": 1,
+      "sha256": "14cd7ffe386a30120e8787e509e8cd746a1a348c7f227eeee598579de5ac2d26",
+      "status": "done"
+    },
+    "AUTH-002": {
+      "path": "modules/auth/AUTH-002-issue-a-one-time-code.md",
+      "rev": 1,
+      "sha256": "13966f3e44a4f061147f569d151e24ef11a9b425a2a2e0343a803564613c2199",
+      "status": "done"
+    },
+    "AUTH-003": {
+      "path": "modules/auth/AUTH-003-verify-a-one-time-code.md",
+      "rev": 1,
+      "sha256": "50eba5b3a6ba44411667b04d79c0056712fe5bf402beef350233b8f71ffa0563",
+      "status": "done"
+    },
+    "AUTH-004": {
+      "path": "modules/auth/AUTH-004-device-ip-and-daily-caps-on-code-sending.md",
+      "rev": 1,
+      "sha256": "1e99f9fefd178733709b1e1bbcd3b25112f9b42a80e150c8caf364f575dfe2a4",
+      "status": "done"
+    },
+    "AUTH-005": {
+      "path": "modules/auth/AUTH-005-password-rules-and-argon2id-hashing.md",
+      "rev": 1,
+      "sha256": "809e19584275f67f955c0920d46446a535de0ce24eebc5212250468e0bdd2a72",
+      "status": "done"
+    },
+    "AUTH-006": {
+      "path": "modules/auth/AUTH-006-access-token-carries-the-person-and-the-device.md",
+      "rev": 1,
+      "sha256": "c6aa1e0a08587f95e2fef16d089caeeab468bc53e1052c81d9e62e74377572a2",
+      "status": "done"
+    },
+    "AUTH-007": {
+      "path": "modules/auth/AUTH-007-device-and-refresh-token-tables.md",
+      "rev": 1,
+      "sha256": "5612fc09c1205b2eeedaca7e6c539b10a6b5c75bc825c6bdf96d3f0d8e7edcb4",
+      "status": "done"
+    },
+    "AUTH-008": {
+      "path": "modules/auth/AUTH-008-issue-and-revoke-sessions.md",
+      "rev": 1,
+      "sha256": "c0ce892eec059d8c23955da7892f11432aa78f162b08c4e36941e73db8abddd0",
+      "status": "done"
+    },
+    "AUTH-009": {
+      "path": "modules/auth/AUTH-009-visitor-asks-for-a-registration-code.md",
+      "rev": 1,
+      "sha256": "1b71b528e1c2760908df157058b72f5c6c7576f860addae3932e075490ce2f04",
+      "status": "done"
+    },
+    "AUTH-010": {
+      "path": "modules/auth/AUTH-010-visitor-registers-with-the-code.md",
+      "rev": 1,
+      "sha256": "0ae05a189df5c1492082b3175f000163588bc532584d2be26670c95ffc60d68e",
+      "status": "done"
+    },
+    "AUTH-011": {
+      "path": "modules/auth/AUTH-011-new-holder-of-a-recycled-number-registers.md",
+      "rev": 1,
+      "sha256": "4193f5956617f1d8b77fb5d32248d00be4fda2d23427f7d8ef9abec31c53ab0f",
+      "status": "done"
+    },
+    "AUTH-012": {
+      "path": "modules/auth/AUTH-012-failed-attempt-counter-and-lock-duration.md",
+      "rev": 1,
+      "sha256": "ec238c87ad4bd7f1a0a6900b720fa5c4f3bebc80a7cc20b304ac21f87e69af78",
+      "status": "done"
+    },
+    "AUTH-013": {
+      "path": "modules/auth/AUTH-013-person-signs-in-with-number-and-password.md",
+      "rev": 1,
+      "sha256": "f2de607b33efeae68c31c87b0e4a375ec1b0e2b8ca747ded528ba3158d6dd955",
+      "status": "done"
+    },
+    "AUTH-014": {
+      "path": "modules/auth/AUTH-014-person-completes-sign-in-with-the-code.md",
+      "rev": 1,
+      "sha256": "089126a8d9f98be50ba18dc6f5d1cdcd490ea623ccaccd0d3b82595c2fc8327f",
+      "status": "done"
+    },
+    "AUTH-015": {
+      "path": "modules/auth/AUTH-015-person-whose-number-was-taken-signs-in-with-the.md",
+      "rev": 1,
+      "sha256": "caca75363139802511cef7556bb8b75010f4193eb7436cca2d6fcf28d6b8ce7e",
+      "status": "done"
+    },
+    "AUTH-016": {
+      "path": "modules/auth/AUTH-016-refresh-a-session-with-rotation.md",
+      "rev": 1,
+      "sha256": "dcee2711286f2c014fd9c163570253fff7eb8c2f5499c5f4fc9fc34ad62e1254",
+      "status": "done"
+    },
+    "AUTH-017": {
+      "path": "modules/auth/AUTH-017-person-signs-out-of-this-phone.md",
+      "rev": 1,
+      "sha256": "6a2bae542b5db3f931bf4c8a3b185070e19b08b8c722e22d63e446c7bd237ef0",
+      "status": "done"
+    },
+    "AUTH-018": {
+      "path": "modules/auth/AUTH-018-person-manages-their-phones.md",
+      "rev": 1,
+      "sha256": "06d31234b049b0b5984cd8ae0c9d6f1e0b6a50e17aa5dbdc0c3219585d4d9ea5",
+      "status": "done"
+    },
+    "AUTH-019": {
+      "path": "modules/auth/AUTH-019-person-asks-for-a-password-reset-code.md",
+      "rev": 1,
+      "sha256": "4c27a4eeba7e417cde843d25820c4cbae4436a886cdbe5c1cbbe51e408789da4",
+      "status": "done"
+    },
+    "AUTH-020": {
+      "path": "modules/auth/AUTH-020-person-chooses-a-new-password-with-the-code.md",
+      "rev": 1,
+      "sha256": "4439908f3e5245cb1698f91ff03c6476d2a6bd391ecc306a6aa6ba4ae0bf0ffe",
+      "status": "done"
+    },
+    "AUTH-021": {
+      "path": "modules/auth/AUTH-021-person-changes-their-password.md",
+      "rev": 1,
+      "sha256": "90851668251836232e30e897f7a6877ae988007088c8825e3c6c6cdaf594ee92",
+      "status": "done"
+    },
+    "AUTH-022": {
+      "path": "modules/auth/AUTH-022-person-asks-for-an-email-verification-code.md",
+      "rev": 1,
+      "sha256": "f1c6fbd972d3776e59b7addcffb499ddcb6dd1c1db2061b94e490d1963270b9d",
+      "status": "done"
+    },
+    "AUTH-023": {
+      "path": "modules/auth/AUTH-023-person-confirms-their-email.md",
+      "rev": 1,
+      "sha256": "ac8ce41213179ff507bd230c5dd1afa25bdf20cf8ab6dae596a347819111f5f4",
+      "status": "done"
+    },
+    "AUTH-024": {
+      "path": "modules/auth/AUTH-024-person-asks-to-change-their-phone-number.md",
+      "rev": 1,
+      "sha256": "b15d670868ef2f22098f842bf45beccfbba7c4101f18db533d50c48b119e725c",
+      "status": "done"
+    },
+    "AUTH-025": {
+      "path": "modules/auth/AUTH-025-person-moves-their-account-to-the-new-number.md",
+      "rev": 1,
+      "sha256": "60c037a8697e9d2cf90ed4b0d754615235f942d51a10e9fbdc596207d25d9ccc",
+      "status": "done"
+    },
+    "AUTH-026": {
+      "path": "modules/auth/AUTH-026-drop-the-bcrypt-dependency.md",
+      "rev": 1,
+      "sha256": "b6c40853dd39a051206dc4abc43fbde7805e26491fe19be8377e58ea23057ed1",
+      "status": "done"
+    },
+    "CAT-001": {
+      "path": "modules/catalog/CAT-001-products-table.md",
+      "rev": 1,
+      "sha256": "52e6812233b3403d1a49d698a5d1100eb74bd9fa82291d9e4b35dc7185042020",
+      "status": "done"
+    },
+    "CAT-002": {
+      "path": "modules/catalog/CAT-002-negotiated-prices-table.md",
+      "rev": 1,
+      "sha256": "2316d4bdde57fcd7a10e2d99387fbc9482f6b4f86f5dcb3438303939d8be3320",
+      "status": "done"
+    },
+    "CAT-003": {
+      "path": "modules/catalog/CAT-003-reference-price-and-active-product-lookup.md",
+      "rev": 1,
+      "sha256": "1ae7ce23eb92bc1a0a623d73fcde2abe4399ebdbe83102fc240669773d6cc73b",
+      "status": "done"
+    },
+    "CAT-004": {
+      "path": "modules/catalog/CAT-004-manager-creates-a-product.md",
+      "rev": 1,
+      "sha256": "4368cd0d3224ef7d6b2e8405db130bd5d398da9b362d5805bd66ff79ebb26eb5",
+      "status": "done"
+    },
+    "CAT-005": {
+      "path": "modules/catalog/CAT-005-manager-edits-and-retires-a-product.md",
+      "rev": 1,
+      "sha256": "8c807860dd052922472c3ef75b3c8d3f340ebeae2497c249f141df1dcc171114",
+      "status": "done"
+    },
+    "CAT-006": {
+      "path": "modules/catalog/CAT-006-seller-lists-the-catalog.md",
+      "rev": 1,
+      "sha256": "2f33b7dfa75933a0512a24cafc1c748c92e43fc6e632c736e202396a17d01e8d",
+      "status": "done"
+    },
+    "CAT-007": {
+      "path": "modules/catalog/CAT-007-customer-browses-a-supplier-s-catalog.md",
+      "rev": 1,
+      "sha256": "8379b205cd415aea4cad6e4ecd206edc86a2ef243237cd8fd001dd94592e39de",
+      "status": "done"
+    },
+    "CAT-008": {
+      "path": "modules/catalog/CAT-008-owner-or-manager-sets-a-negotiated-price.md",
+      "rev": 1,
+      "sha256": "f627b1209fe725a5b4860c46c6981b205376f9c1152a323deab420cd4fa6f10d",
+      "status": "done"
+    },
+    "CAT-009": {
+      "path": "modules/catalog/CAT-009-owner-or-manager-removes-a-negotiated-price-and.md",
+      "rev": 1,
+      "sha256": "c9d3c3137c691f7ce0e891cf0e39e1e332e67c1c8dac19477d7a04629b44ea21",
+      "status": "done"
+    },
+    "CAT-010": {
+      "path": "modules/catalog/CAT-010-manager-copies-negotiated-prices-between.md",
+      "rev": 1,
+      "sha256": "3526fef8da81124607a5aba38f3410ff4a0ec4afb24e7698e42135c60653eab8",
+      "status": "done"
+    },
+    "CAT-011": {
+      "path": "modules/catalog/CAT-011-reseller-copies-a-purchased-article-into-their.md",
+      "rev": 1,
+      "sha256": "5f8ed9fdc4e7f791e6822e2341b014243ceb69c414aeaed26e48e3a5d712ad38",
+      "status": "done"
+    },
+    "DLV-001": {
+      "path": "modules/delivery/DLV-001-deliveries-table.md",
+      "rev": 1,
+      "sha256": "56198dbc652387ce9c80764d695c4bd617107b096ca19b5b0f11a53386cf297d",
+      "status": "done"
+    },
+    "DLV-002": {
+      "path": "modules/delivery/DLV-002-delivery-state-rules-in-the-database.md",
+      "rev": 1,
+      "sha256": "28e5b41719a81a6f0d417411cb947aa8e095e61d75b6cafb3568052ce7cc6668",
+      "status": "done"
+    },
+    "DLV-003": {
+      "path": "modules/delivery/DLV-003-driver-sees-the-orders-to-deliver.md",
+      "rev": 1,
+      "sha256": "930343bba14c1bcaba2fd46209875e4d62242cc9e70f04770c054813d9495bdc",
+      "status": "done"
+    },
+    "DLV-004": {
+      "path": "modules/delivery/DLV-004-manager-assigns-an-order-to-a-driver.md",
+      "rev": 1,
+      "sha256": "d4e4cfe18a185422423ea3630237ac26c6feb968b557d4048e496bb1211939e5",
+      "status": "done"
+    },
+    "DLV-005": {
+      "path": "modules/delivery/DLV-005-driver-departs-with-an-order.md",
+      "rev": 1,
+      "sha256": "8183261a9502531ebfa4385155475aaaf0645299ddbf9139e85ccece255474eb",
+      "status": "done"
+    },
+    "DLV-006": {
+      "path": "modules/delivery/DLV-006-driver-reports-a-failed-delivery.md",
+      "rev": 1,
+      "sha256": "c788339cb0bc751f55cb5396261ae8ab697f648a311704d7ebb7a5690faf3724",
+      "status": "done"
+    },
+    "DLV-007": {
+      "path": "modules/delivery/DLV-007-commande-livree-deliver-a-whole-order-and.md",
+      "rev": 1,
+      "sha256": "8dc06f77c2f3c52b9237f0997b316222fcc268ea0ff6c1b53242db8e38e971f8",
+      "status": "done"
+    },
+    "DLV-008": {
+      "path": "modules/delivery/DLV-008-deliver-only-part-of-an-order-and-settle-the.md",
+      "rev": 1,
+      "sha256": "3e846afe16432a05388a2bc8dad97443493b27f17267190c9acc80e09e6a9d92",
+      "status": "done"
+    },
+    "DLV-009": {
+      "path": "modules/delivery/DLV-009-seller-validates-a-counter-sale.md",
+      "rev": 1,
+      "sha256": "0a45a565032ebc86ec4408a3f8825bfed8a6c5745a966336ad4cfc0a33651f89",
+      "status": "done"
+    },
+    "DLV-010": {
+      "path": "modules/delivery/DLV-010-cancelled-or-shop-delivered-orders-drop-their.md",
+      "rev": 1,
+      "sha256": "944cfed9dd5474fc7beabd5163fb43b84b90319d45c9a1266adef43e6fa6e249",
+      "status": "done"
+    },
+    "DLV-011": {
+      "path": "modules/delivery/DLV-011-owner-reviews-unsettled-deliveries-of-the-day.md",
+      "rev": 1,
+      "sha256": "392ae5639e3cc5e652e4db7e9246c8cc7bb53debb1a39013e86495a89f295753",
+      "status": "done"
+    },
+    "DLV-012": {
+      "path": "modules/delivery/DLV-012-abandoned-rests-join-the-owner-s-money.md",
+      "rev": 2,
+      "sha256": "8a95505e1269bfb77b8efa499c77482f967dd97eea3c8f854cc1fc63474383fa",
+      "status": "done"
+    },
+    "FIN-001": {
+      "path": "modules/finance/FIN-001-ledger-entries-table.md",
+      "rev": 1,
+      "sha256": "df7329d2fd7481ca3289320a8b473cff00ebd86521a9adf042297a11bf881a38",
+      "status": "done"
+    },
+    "FIN-002": {
+      "path": "modules/finance/FIN-002-ledger-sale-and-reversal-rules-in-the-database.md",
+      "rev": 1,
+      "sha256": "0e440515cb4f305d73b12cbcada6a946299537b92d3d95975113f90be0479c8e",
+      "status": "done"
+    },
+    "FIN-003": {
+      "path": "modules/finance/FIN-003-append-a-ledger-entry-and-update-the-caches.md",
+      "rev": 1,
+      "sha256": "c656a1dc6fae1bba97786ac318e0e37f7cfbac4615e357170a0036a183f49fbd",
+      "status": "done"
+    },
+    "FIN-004": {
+      "path": "modules/finance/FIN-004-seller-records-a-payment.md",
+      "rev": 1,
+      "sha256": "a19b8c33505fbd2e65b8f3aeff3c1f294234311e9a34e6fba7b5dbc849ea8eb3",
+      "status": "done"
+    },
+    "FIN-005": {
+      "path": "modules/finance/FIN-005-manager-returns-money-to-a-customer.md",
+      "rev": 1,
+      "sha256": "d98ffcf198c3718d4ff78d0211939183c31ac61c2317c0ff5db97e4b6b31f2d9",
+      "status": "done"
+    },
+    "FIN-006": {
+      "path": "modules/finance/FIN-006-manager-grants-a-credit-note.md",
+      "rev": 1,
+      "sha256": "397297b8e1a163383c33ec17e6a71a4477f49e54e76d6f716870feb9c4514fc5",
+      "status": "done"
+    },
+    "FIN-007": {
+      "path": "modules/finance/FIN-007-manager-records-an-opening-balance-from-a-paper.md",
+      "rev": 1,
+      "sha256": "73cc7be6ae2a23dc9af80fd178a54dcf7553f8e6ef104dfd1c19e096e88b7bc4",
+      "status": "done"
+    },
+    "FIN-008": {
+      "path": "modules/finance/FIN-008-manager-records-a-refunded-return.md",
+      "rev": 1,
+      "sha256": "c7df1b670e0220a42ab4c89be3dacf7ea50c8d0c745c04c472ffd0c5a0722a74",
+      "status": "done"
+    },
+    "FIN-009": {
+      "path": "modules/finance/FIN-009-manager-reverses-a-ledger-entry.md",
+      "rev": 1,
+      "sha256": "654b407af5a67e40a3984c90addd2456a9704363b2f3cc562d0b71ac278fbf6c",
+      "status": "done"
+    },
+    "FIN-010": {
+      "path": "modules/finance/FIN-010-parties-read-the-ledger-of-a-relationship.md",
+      "rev": 1,
+      "sha256": "66d60a8b43d07a948797bf4dacbd97b2c727a4b2573c6eb0a2ae967a07175917",
+      "status": "done"
+    },
+    "FIN-011": {
+      "path": "modules/finance/FIN-011-expenses-table.md",
+      "rev": 1,
+      "sha256": "dd18db5fa9389d73ff49a7d6bdb772bd58a7d9cc6f780dc7d06cd861fb0d0e3b",
+      "status": "done"
+    },
+    "FIN-012": {
+      "path": "modules/finance/FIN-012-manager-records-an-expense.md",
+      "rev": 1,
+      "sha256": "7b9db1fadf11a686eff5bb48bac26f3a269edb5f82899295960ca94105b77907",
+      "status": "done"
+    },
+    "FIN-013": {
+      "path": "modules/finance/FIN-013-manager-cancels-an-expense.md",
+      "rev": 1,
+      "sha256": "4954824d5b7aef98a27a1fb1953ac02c56b608df660d4e756bc16bb43bcc2cb4",
+      "status": "done"
+    },
+    "FIN-014": {
+      "path": "modules/finance/FIN-014-handovers-table.md",
+      "rev": 1,
+      "sha256": "a8ae64f844c18b1e2744eb28cddfa60e7152b02051fe218e9570a2d05f6603ec",
+      "status": "done"
+    },
+    "FIN-015": {
+      "path": "modules/finance/FIN-015-owner-or-manager-records-a-handover-received.md",
+      "rev": 1,
+      "sha256": "ea47350834270c498c27392f899350fce048656268eb950e6c2c56fa5792caa0",
+      "status": "done"
+    },
+    "FIN-016": {
+      "path": "modules/finance/FIN-016-cancel-a-handover-and-dispute-the-noted-amount.md",
+      "rev": 1,
+      "sha256": "7984902895f74f86c16dbf89e0c601279b4c513bffc95a2c3fc705a5942c72eb",
+      "status": "done"
+    },
+    "FIN-017": {
+      "path": "modules/finance/FIN-017-ownership-transfer-hands-over-the-former-owner.md",
+      "rev": 1,
+      "sha256": "5eccf6923f700c48fb6bc4eb4357c1930ead1778817940f60f8eab145d015caf",
+      "status": "done"
+    },
+    "FIN-018": {
+      "path": "modules/finance/FIN-018-nightly-check-of-balances-and-held-money.md",
+      "rev": 1,
+      "sha256": "55415d5cf13b5dd33010cd627c9819e52a2f347d70f59de191049ddec24d3aa4",
+      "status": "done"
+    },
+    "FIN-019": {
+      "path": "modules/finance/FIN-019-owner-reads-the-money-exceptions.md",
+      "rev": 1,
+      "sha256": "ba983d0ed7e296e542625165f55085697a2c3002a8e3c72c33cdd2e80067e3de",
+      "status": "done"
+    },
+    "FIN-020": {
+      "path": "modules/finance/FIN-020-owner-reads-the-treasury-and-expenses.md",
+      "rev": 1,
+      "sha256": "0b9786f188d96f3a718aeca64b3f3fb99d9f07181314c0a7de6f617b5feb602b",
+      "status": "done"
+    },
+    "FND-000": {
+      "path": "modules/foundation/FND-000-add-the-missing-quality-gates-and-load-the.md",
+      "rev": 1,
+      "sha256": "66fdb0142d4d580ff105e12e0559c8ea12bbd636aa64392652e9d153ac6919e3",
+      "status": "done"
+    },
+    "FND-001": {
+      "path": "modules/foundation/FND-001-reset-the-database-schema-and-the-migration.md",
+      "rev": 1,
+      "sha256": "fe16af45c26a48ff98029f9e865f0e48d9d844f7fe424da71a75460f5e61ffdc",
+      "status": "done"
+    },
+    "FND-002": {
+      "path": "modules/foundation/FND-002-create-the-application-database-role-and-the.md",
+      "rev": 1,
+      "sha256": "838268bd88f9602ef08c62d5d8c9a2021dba3974945a2a111a9ea2ceacca6301",
+      "status": "done"
+    },
+    "FND-003": {
+      "path": "modules/foundation/FND-003-shared-money-and-quantity-arithmetic.md",
+      "rev": 1,
+      "sha256": "8900009851b558bfa9662d6cf62d44d4fff52ae25d760f801fdbd65e07668a44",
+      "status": "done"
+    },
+    "FND-004": {
+      "path": "modules/foundation/FND-004-shared-phone-number-normalization.md",
+      "rev": 1,
+      "sha256": "454eeb1f68390755291d37562c1cf4bd121c3c84fdd051449636953b242425d2",
+      "status": "done"
+    },
+    "FND-005": {
+      "path": "modules/foundation/FND-005-shared-identifiers-and-column-type-helper.md",
+      "rev": 1,
+      "sha256": "db661fab520d782ba070b3b39d2a2ee83653aca475109bbba562445fc4daa4f1",
+      "status": "done"
+    },
+    "FND-006": {
+      "path": "modules/foundation/FND-006-shared-http-error-helper.md",
+      "rev": 1,
+      "sha256": "dd913ade0056737a37079b0e2730f089bcb22d5771c008e3169057d4d682877e",
+      "status": "done"
+    },
+    "FND-007": {
+      "path": "modules/foundation/FND-007-stop-prisma-from-logging-queries.md",
+      "rev": 1,
+      "sha256": "5170ea9625e64b91a08201b407206bfb2e136d9a57772126241e0e60e609b828",
+      "status": "done"
+    },
+    "FND-008": {
+      "path": "modules/foundation/FND-008-default-json-body-limit-of-100-kb.md",
+      "rev": 1,
+      "sha256": "896c24d26eb0e4cb02f168369b2b53e14a8fb2fcc179b6e22b78f2e8b32dfc72",
+      "status": "done"
+    },
+    "FND-009": {
+      "path": "modules/foundation/FND-009-shared-limits-and-pagination-helpers.md",
+      "rev": 1,
+      "sha256": "62d5f4ce9bb65358f80e10e8bb8f8a4ef7ad065dc35b630ccd0c57685927fdd6",
+      "status": "done"
+    },
+    "FND-010": {
+      "path": "modules/foundation/FND-010-restore-the-typescript-formatting-baseline.md",
+      "rev": 1,
+      "sha256": "d3dbfbe2a16b7e9c2651c734b9f4fbf463cf451aee7e5968cc8ce74bf74d5d6b",
+      "status": "done"
+    },
+    "FND-011": {
+      "path": "modules/foundation/FND-011-remediate-the-per-003-review-findings.md",
+      "rev": 1,
+      "sha256": "ac35091794bf6d8c436fc7c01d1ba862f59eba8b2670badd331b4f3a0b7f4c22",
+      "status": "done"
+    },
+    "FND-012": {
+      "path": "modules/foundation/FND-012-validation-errors-without-input-values.md",
+      "rev": 1,
+      "sha256": "ea331ae7973f94897058ec774b65d42c1151f615e50071b07873c1c315cad49e",
+      "status": "done"
+    },
+    "NTF-001": {
+      "path": "modules/notification/NTF-001-notifications-table.md",
+      "rev": 1,
+      "sha256": "053732d20cfc6c66205da895c928379cee46df7717e41966b657ee5a6c83e6ff",
+      "status": "done"
+    },
+    "NTF-002": {
+      "path": "modules/notification/NTF-002-notify-service.md",
+      "rev": 2,
+      "sha256": "04710af908f94fa25fcf117f640ac1839a418ff1ee51585152f25ad50b6b417d",
+      "status": "done"
+    },
+    "NTF-003": {
+      "path": "modules/notification/NTF-003-person-lists-their-notifications.md",
+      "rev": 1,
+      "sha256": "b6cdcf46b606a6e6196dfbae27ea5d789a7fab52bd4dc24d9ba245bf298ea0be",
+      "status": "done"
+    },
+    "NTF-004": {
+      "path": "modules/notification/NTF-004-person-marks-notifications-as-read.md",
+      "rev": 1,
+      "sha256": "eade03e17969c85fc39a7bf4cb41fd763cee378285fb639610a710572fb33a11",
+      "status": "done"
+    },
+    "ORD-001": {
+      "path": "modules/order/ORD-001-orders-table.md",
+      "rev": 1,
+      "sha256": "61cbb6b5113e269f097fc85d43067665121fe5b4c2e77b9fb81e12ae9bebc97b",
+      "status": "done"
+    },
+    "ORD-002": {
+      "path": "modules/order/ORD-002-order-status-cancellation-and-delivery-rules-in.md",
+      "rev": 2,
+      "sha256": "adf85e18089675bf329fa7e48fe0bfbc9964e9b1ac8bfcd922e677f52bc6bdb1",
+      "status": "done"
+    },
+    "ORD-003": {
+      "path": "modules/order/ORD-003-orders-only-on-live-relationships-of-active.md",
+      "rev": 1,
+      "sha256": "37b6c8b89a8e78b5a0749c9cc3c0e44ccd5f91f683d5f2b3204da61b66ab6a96",
+      "status": "done"
+    },
+    "ORD-004": {
+      "path": "modules/order/ORD-004-order-lines-table.md",
+      "rev": 1,
+      "sha256": "b62ed6ff26c795c9d5f5f2416bb17619df37e53a55f9d079061410a57ad2731b",
+      "status": "done"
+    },
+    "ORD-005": {
+      "path": "modules/order/ORD-005-order-line-product-and-minimum-quantity-rules.md",
+      "rev": 1,
+      "sha256": "6ce27a609833a9cc21b004acb697546a240b5e369c1a95b2423f13ec40f9ab75",
+      "status": "done"
+    },
+    "ORD-006": {
+      "path": "modules/order/ORD-006-order-total-equals-the-sum-of-its-lines.md",
+      "rev": 1,
+      "sha256": "2972efc3ddc55e5d18afd0765c2be52138e3479c79ab24e67f53cf8fa84df547",
+      "status": "done"
+    },
+    "ORD-007": {
+      "path": "modules/order/ORD-007-order-calculations-and-party-views.md",
+      "rev": 1,
+      "sha256": "6eb958e9bf6de2151d8319c4f7cd65420fe74b7b6acdfa2ef6e79dcbbe7070dc",
+      "status": "done"
+    },
+    "ORD-008": {
+      "path": "modules/order/ORD-008-order-state-machine.md",
+      "rev": 1,
+      "sha256": "7db60f52c5bfb71691999002b0f8ac74ac8a0398697caef3b74e1a77370f7ef7",
+      "status": "done"
+    },
+    "ORD-009": {
+      "path": "modules/order/ORD-009-customer-places-an-order.md",
+      "rev": 1,
+      "sha256": "10c007de66d56eb401565cc9223b822c83bf59d0ed167d3deac317797af4268b",
+      "status": "done"
+    },
+    "ORD-010": {
+      "path": "modules/order/ORD-010-organization-manager-orders-from-a-supplier.md",
+      "rev": 1,
+      "sha256": "68430697fbad0a2c3151feea238e2b6b9546190d770730ea97e22d5a51c43809",
+      "status": "done"
+    },
+    "ORD-011": {
+      "path": "modules/order/ORD-011-supplier-accepts-an-order-lowering-prices-if.md",
+      "rev": 1,
+      "sha256": "24677590260892544cf66759f0332488b43eb51b36a9e3e9d9c69f5d7f848e4b",
+      "status": "done"
+    },
+    "ORD-012": {
+      "path": "modules/order/ORD-012-supplier-refuses-an-order.md",
+      "rev": 1,
+      "sha256": "018a5583ae6acd898443c61eceab44d60d24ceebd729b5c681251e69cf4ae46c",
+      "status": "done"
+    },
+    "ORD-013": {
+      "path": "modules/order/ORD-013-seller-enters-an-order-for-a-customer.md",
+      "rev": 1,
+      "sha256": "bf5623f921471f4ad76d34c168177da70cf2867ef584e54bc635aa65ea0dff17",
+      "status": "done"
+    },
+    "ORD-014": {
+      "path": "modules/order/ORD-014-seller-edits-an-order-they-entered-before.md",
+      "rev": 1,
+      "sha256": "706d4ae055dcc270a7ba09da92d54b3f65602d05fbc7583ed971c362228c6976",
+      "status": "done"
+    },
+    "ORD-015": {
+      "path": "modules/order/ORD-015-seller-writes-a-note-on-an-order-at-any-time.md",
+      "rev": 1,
+      "sha256": "c2253e6c77869b18f5519fa6ab96dacb7a335ca945708aa895edf55fea99645d",
+      "status": "done"
+    },
+    "ORD-016": {
+      "path": "modules/order/ORD-016-supplier-cancels-an-order-before-departure.md",
+      "rev": 1,
+      "sha256": "29c17948dc7de03b358ec2df2cccb4bc5671c8ad0199035cefdb669e0440788f",
+      "status": "done"
+    },
+    "ORD-017": {
+      "path": "modules/order/ORD-017-customer-cancels-an-order-before-departure.md",
+      "rev": 1,
+      "sha256": "a06cced03a4b68da1a789562b8ec535e3628521a6c56cf64f65cbb056e6a64c9",
+      "status": "done"
+    },
+    "ORD-018": {
+      "path": "modules/order/ORD-018-closing-a-business-refuses-its-pending-orders.md",
+      "rev": 1,
+      "sha256": "8ef29bb2116f42bf352a23be09b155d125f0a7a79091544dc7d1f9aa2a1278f0",
+      "status": "done"
+    },
+    "ORD-019": {
+      "path": "modules/order/ORD-019-seller-lists-the-orders.md",
+      "rev": 1,
+      "sha256": "3cd5d5a3b0eab4a5b73b9a3076507c25cb7cfb4b3965f47f4dba98b783702677",
+      "status": "done"
+    },
+    "ORD-020": {
+      "path": "modules/order/ORD-020-seller-opens-one-order.md",
+      "rev": 1,
+      "sha256": "face53ed069e9c33e6a149b0049088146edd91cdcb2daa1b29c9df2e13d852fd",
+      "status": "done"
+    },
+    "ORD-021": {
+      "path": "modules/order/ORD-021-customer-lists-and-opens-their-orders.md",
+      "rev": 1,
+      "sha256": "ff4d189d69bf96854a9c628a8c8238beadd140bb110e9908f65fa033f33aa41d",
+      "status": "done"
+    },
+    "ORG-001": {
+      "path": "modules/organization/ORG-001-organizations-table.md",
+      "rev": 1,
+      "sha256": "a430fc82c79b64926554a4839ede3c80cfb9f71966d9067da4d0942c4e900f6f",
+      "status": "done"
+    },
+    "ORG-002": {
+      "path": "modules/organization/ORG-002-notifications-point-to-organizations.md",
+      "rev": 1,
+      "sha256": "e3c6a1ae58131e14e7cb25203eab4bd4db435e83968dd72a2b8691eb20c7c242",
+      "status": "done"
+    },
+    "ORG-003": {
+      "path": "modules/organization/ORG-003-collaborations-table.md",
+      "rev": 1,
+      "sha256": "66aae8673d1f03e8b8c396eadbda325904e016bf83f6f5b533080aabc93b5fcf",
+      "status": "done"
+    },
+    "ORG-004": {
+      "path": "modules/organization/ORG-004-registered-person-creates-an-organization.md",
+      "rev": 1,
+      "sha256": "a76842f7a0b33a879d81013f32a86861e2c1f36a1b82ae7e076521eab66462f9",
+      "status": "done"
+    },
+    "ORG-005": {
+      "path": "modules/organization/ORG-005-actor-loading-and-reading-my-organizations.md",
+      "rev": 1,
+      "sha256": "e4b1fcdfccb50ee64ebe9ca7a439b54bf7af1b57e288ede33acdcff934473d8f",
+      "status": "done"
+    },
+    "ORG-006": {
+      "path": "modules/organization/ORG-006-amount-held-helper.md",
+      "rev": 1,
+      "sha256": "ae073faffc1c7b6036c57936d07762f617f7c2631383ab64d26dbf6e60b93e01",
+      "status": "done"
+    },
+    "ORG-007": {
+      "path": "modules/organization/ORG-007-owner-invites-a-collaborator-by-phone-number.md",
+      "rev": 1,
+      "sha256": "77dbb7bf1b83cedc6fca384dfd441ece8ccfa9f27ddd16f4cf4e895b9782be4a",
+      "status": "done"
+    },
+    "ORG-008": {
+      "path": "modules/organization/ORG-008-invited-person-answers-an-invitation.md",
+      "rev": 1,
+      "sha256": "5efb72ee0d49c67fbb851c9a91facd4759035fbf1f3961ea2b087e4fc1fb8021",
+      "status": "done"
+    },
+    "ORG-009": {
+      "path": "modules/organization/ORG-009-owner-changes-a-collaborator-s-role.md",
+      "rev": 1,
+      "sha256": "f604db11c1f7695178e62c754b6e8cb0f699198a7e4a6f1c2ead0382ff89f331",
+      "status": "done"
+    },
+    "ORG-010": {
+      "path": "modules/organization/ORG-010-owner-revokes-a-collaborator.md",
+      "rev": 1,
+      "sha256": "69e94edf67b9d04e9823c2b1440a6465c117ffe3e4301866643215f5d333dba8",
+      "status": "done"
+    },
+    "ORG-011": {
+      "path": "modules/organization/ORG-011-collaborator-agrees-to-be-a-public-contact.md",
+      "rev": 1,
+      "sha256": "cd5464d8c6a2fd3ae2e1209c9384cee7f9712c88a49653a188f9c87789f7ebf3",
+      "status": "done"
+    },
+    "ORG-012": {
+      "path": "modules/organization/ORG-012-subscription-table.md",
+      "rev": 1,
+      "sha256": "c9b63c5820ac5ccae380c4c9736292358e5bddc308bd1a085dd9738a1ed0ff55",
+      "status": "done"
+    },
+    "ORG-013": {
+      "path": "modules/organization/ORG-013-owner-starts-a-subscription.md",
+      "rev": 1,
+      "sha256": "62bfa9cb15e7be9ca2e29f8bd2a845b957917eddca833952c8affd08e9da0c40",
+      "status": "done"
+    },
+    "ORG-014": {
+      "path": "modules/organization/ORG-014-owner-ends-the-subscription.md",
+      "rev": 1,
+      "sha256": "d3c8494209fdc3010bab39fc118b86e23f988ef7205776cf3056a38eedcc3ad8",
+      "status": "done"
+    },
+    "ORG-015": {
+      "path": "modules/organization/ORG-015-owner-transfers-the-ownership.md",
+      "rev": 1,
+      "sha256": "bdedba970114c05d9caae5b41b25b04e8b830388990bab9c7b9593074f2f6418",
+      "status": "done"
+    },
+    "ORG-016": {
+      "path": "modules/organization/ORG-016-owner-closes-the-business.md",
+      "rev": 1,
+      "sha256": "797fe34e1dd7ef94de14bd459341068a1aa7ae1c0d37374e03d11063390a9f7a",
+      "status": "done"
+    },
+    "ORG-017": {
+      "path": "modules/organization/ORG-017-owner-reopens-the-business.md",
+      "rev": 1,
+      "sha256": "bd9da8a1a28fac27151ff506477882016cfa4891792c6432793b742860e56923",
+      "status": "done"
+    },
+    "ORG-018": {
+      "path": "modules/organization/ORG-018-find-a-business-by-a-public-phone-number.md",
+      "rev": 1,
+      "sha256": "529aea0d73cab4c69d0b29f630c588021aec1cb8fec3ffd38893ccb5264c3ac5",
+      "status": "done"
+    },
+    "ORG-019": {
+      "path": "modules/organization/ORG-019-team-list.md",
+      "rev": 1,
+      "sha256": "f34b7a7639998cec2645d51ed9338026cc152f636b2176958a0d1b8e636ea215",
+      "status": "done"
+    },
+    "PER-001": {
+      "path": "modules/person/PER-001-retire-the-old-sign-in-module.md",
+      "rev": 1,
+      "sha256": "07d0aeb905488cec25f25155120b4eefb2c2889289628d9ee33770732c4faa8f",
+      "status": "done"
+    },
+    "PER-002": {
+      "path": "modules/person/PER-002-replace-the-legacy-person-and-account-with-the.md",
+      "rev": 1,
+      "sha256": "c532c23eca71d0c3954e7f55019a80f592f8a58d2232ef7e81cc4b73bcd53b13",
+      "status": "done"
+    },
+    "PER-003": {
+      "path": "modules/person/PER-003-person-integrity-checks-in-the-database.md",
+      "rev": 1,
+      "sha256": "1fceeaa66ea319585542e11d9d95b19aad803a29d9641287d23048c3339fa1bb",
+      "status": "done"
+    },
+    "PER-004": {
+      "path": "modules/person/PER-004-phone-number-change-journal.md",
+      "rev": 1,
+      "sha256": "51b0c9e8dd7cb75f4d53315a61aeb9b6f9674ccf11884cabed419714e75d8364",
+      "status": "done"
+    },
+    "PER-005": {
+      "path": "modules/person/PER-005-person-repository-contract-and-public-view.md",
+      "rev": 1,
+      "sha256": "18beaf80d0bdcb30e4fa4c621d9301b5afb74bd6fc68c04b0dc7d26996ba0e5d",
+      "status": "done"
+    },
+    "PER-006": {
+      "path": "modules/person/PER-006-look-up-a-person-by-phone-number.md",
+      "rev": 1,
+      "sha256": "9bfa9d087b4d676d6cc6fe0fe83e4242914624089a38690e9950d8a6149ce9f9",
+      "status": "done"
+    },
+    "PER-007": {
+      "path": "modules/person/PER-007-person-reads-and-edits-their-own-profile.md",
+      "rev": 1,
+      "sha256": "b7deaa62ae4fa3fce5b2dce1274ceb1a1a3cd9e363a1738bddad4c2655478351",
+      "status": "done"
+    },
+    "PER-008": {
+      "path": "modules/person/PER-008-registered-person-guard-for-author-columns.md",
+      "rev": 1,
+      "sha256": "f0126e8b230140c47a1a090dc8878dd10b2d6832b7d6aaacd9e3cfcb25b3e622",
+      "status": "done"
+    },
+    "PER-009": {
+      "path": "modules/person/PER-009-restore-the-test-baseline-after-the-unified.md",
+      "rev": 1,
+      "sha256": "4f4cebae210022d52356aac4b2a62dd789bdd36bf90916115fa6c8b71fd67299",
+      "status": "done"
+    },
+    "PRIV-001": {
+      "path": "modules/privacy/PRIV-001-person-checks-whether-they-can-delete-their.md",
+      "rev": 1,
+      "sha256": "4254bd2939f155ef1de16d3fc43a225901c9e3d36d16db592fcc0dfaafcd4d60",
+      "status": "done"
+    },
+    "PRIV-002": {
+      "path": "modules/privacy/PRIV-002-person-deletes-their-account-by-anonymization.md",
+      "rev": 1,
+      "sha256": "7d3a5f08e1e92a346b200fb2476711e1dc5b29a317dfd43870aa61f5a887198f",
+      "status": "done"
+    },
+    "PRIV-003": {
+      "path": "modules/privacy/PRIV-003-daily-purge-of-expired-data.md",
+      "rev": 1,
+      "sha256": "fc6569e6610944eaf27b55d4dc5893ab932c271630acbd4231115c473453f12c",
+      "status": "done"
+    },
+    "REL-001": {
+      "path": "modules/relationship/REL-001-relationships-table.md",
+      "rev": 1,
+      "sha256": "20d1d5876ad242572af4ed92e5771b7a5aef2c55344d9748aed529de5c30216a",
+      "status": "done"
+    },
+    "REL-002": {
+      "path": "modules/relationship/REL-002-party-and-pair-rules-in-the-database.md",
+      "rev": 2,
+      "sha256": "5124de2264acf3c254254c379d1b17ef61341db0f29ee21479ddb3ef1ac9bb5e",
+      "status": "done"
+    },
+    "REL-003": {
+      "path": "modules/relationship/REL-003-credit-limit-journal-table.md",
+      "rev": 1,
+      "sha256": "2a52e9f1f2d993433527478d860241b4dd89d6e7908f254239f33f9a9b127b2a",
+      "status": "done"
+    },
+    "REL-004": {
+      "path": "modules/relationship/REL-004-credit-limit-rules-and-journal-trigger.md",
+      "rev": 2,
+      "sha256": "104821447867e739ba0ea723e1fc7533afb059456d0ffb46fe8f55e24328f634",
+      "status": "done"
+    },
+    "REL-005": {
+      "path": "modules/relationship/REL-005-visibility-predicate-and-party-projections.md",
+      "rev": 1,
+      "sha256": "7f364d7109129affe15fab30d4d7c6fb2a3d89fe83763fc991fab40df82da969",
+      "status": "done"
+    },
+    "REL-006": {
+      "path": "modules/relationship/REL-006-every-new-organization-gets-its-first-counter.md",
+      "rev": 1,
+      "sha256": "087da5b7ce48df9a77d50d9c8edeac694ff852aaca13effb323439ba84135538",
+      "status": "done"
+    },
+    "REL-007": {
+      "path": "modules/relationship/REL-007-seller-adds-a-customer-by-phone-number.md",
+      "rev": 1,
+      "sha256": "c96c197b5d412783cc79fdfdd07da681c55622f73abdedf5f0a14b4f2d0935f2",
+      "status": "done"
+    },
+    "REL-008": {
+      "path": "modules/relationship/REL-008-seller-lists-the-customers.md",
+      "rev": 1,
+      "sha256": "a96fd6730a89046fcc31c6a4ffa653c1a55a9dfc36dd8d4fa3603ee66e2dd9de",
+      "status": "done"
+    },
+    "REL-009": {
+      "path": "modules/relationship/REL-009-seller-opens-one-customer.md",
+      "rev": 1,
+      "sha256": "7df326943eeaca15f4bea2ce132fd1bdd519d98bd768a62f642bc08430bad36c",
+      "status": "done"
+    },
+    "REL-010": {
+      "path": "modules/relationship/REL-010-seller-edits-the-supplier-side-fields.md",
+      "rev": 1,
+      "sha256": "f1ac229aec95b6e59d443a229924d70dcad907cf07c1c7fa7abf931ae8a90772",
+      "status": "done"
+    },
+    "REL-011": {
+      "path": "modules/relationship/REL-011-manager-adds-a-counter.md",
+      "rev": 1,
+      "sha256": "fdde88f745a70973060b43b2e171ae6eb3b5ca19a75aeacfa61536287d1f48af",
+      "status": "done"
+    },
+    "REL-012": {
+      "path": "modules/relationship/REL-012-owner-or-manager-sets-a-credit-limit.md",
+      "rev": 1,
+      "sha256": "117bd9625e5ae742809191ccb075ac03b1dcf66fbe8564b59adf232f81689f24",
+      "status": "done"
+    },
+    "REL-013": {
+      "path": "modules/relationship/REL-013-owner-reads-the-credit-limit-history.md",
+      "rev": 1,
+      "sha256": "5410e5ee482d1c35c737502f5c02130b55fff6174de0bd4526264e7c27486ae8",
+      "status": "done"
+    },
+    "REL-014": {
+      "path": "modules/relationship/REL-014-reassignment-journal-table.md",
+      "rev": 1,
+      "sha256": "76fd2459e9c66ed10cef277d9fe6b2909814bca2793f539a65f90f28db4c951c",
+      "status": "done"
+    },
+    "REL-015": {
+      "path": "modules/relationship/REL-015-manager-ends-and-reopens-a-relationship-as.md",
+      "rev": 1,
+      "sha256": "361d69de878cd85ebe5416b2198d1ede8391852bb53558838e7aac8aad32e8c0",
+      "status": "done"
+    },
+    "REL-016": {
+      "path": "modules/relationship/REL-016-customer-lists-their-suppliers.md",
+      "rev": 1,
+      "sha256": "0db2dfbe30a63b9e1a222bfdba5a32a43e848eb19ee09257dc119ec6665c20f5",
+      "status": "done"
+    },
+    "REL-017": {
+      "path": "modules/relationship/REL-017-customer-names-ends-and-reopens-a-supplier.md",
+      "rev": 1,
+      "sha256": "bdce9b26c2d34f20c4c3be96cf15386e8c55ff4e382baf33b3a511440b209b84",
+      "status": "done"
+    },
+    "REL-018": {
+      "path": "modules/relationship/REL-018-organization-lists-and-names-its-suppliers.md",
+      "rev": 1,
+      "sha256": "15a4b2ebf7b69062c3f90c5b917499dbd75885a9103c934f6f3ae630dde71ece",
+      "status": "done"
+    },
+    "REL-019": {
+      "path": "modules/relationship/REL-019-organization-ends-and-reopens-a-supplier.md",
+      "rev": 1,
+      "sha256": "196f9d4cfd4eb31236e3ffcabd87cb95920df62494e2d4269198d059743969ca",
+      "status": "done"
+    },
+    "REL-020": {
+      "path": "modules/relationship/REL-020-customer-invites-a-supplier-by-phone-number.md",
+      "rev": 1,
+      "sha256": "a7dfb59557056b5ea483635f058e5294193a0e968be159b54ef4841d43be2573",
+      "status": "done"
+    },
+    "REL-021": {
+      "path": "modules/relationship/REL-021-invited-supplier-accepts-or-declines.md",
+      "rev": 1,
+      "sha256": "dbb1d095d7b6385bb69e4beb44c2170fcd8fff04f63c28e30fe5fca4a43209e3",
+      "status": "done"
+    },
+    "REL-022": {
+      "path": "modules/relationship/REL-022-newly-registered-person-sees-what-is-attached.md",
+      "rev": 1,
+      "sha256": "f5e022cf8bf9271e223aaac7c66fde15d78f11a3fd5e79cf29cb0abcb0d2c36b",
+      "status": "done"
+    },
+    "REL-023": {
+      "path": "modules/relationship/REL-023-customer-contests-a-relationship-this-is-not-me.md",
+      "rev": 1,
+      "sha256": "598554fa4a48c305c221ead36ebe537f2c898d51f54d817a1782bc8c4df0a22d",
+      "status": "done"
+    },
+    "REL-024": {
+      "path": "modules/relationship/REL-024-owner-or-manager-corrects-a-customer-s-number.md",
+      "rev": 1,
+      "sha256": "334930e1f0af2fc4d51b526af7501c8f4d89ed6e2f2a2cfdfa13657680f49408",
+      "status": "done"
+    },
+    "REL-025": {
+      "path": "modules/relationship/REL-025-merge-a-duplicate-customer-record.md",
+      "rev": 1,
+      "sha256": "7d8e182a791a4fe739711801849fdef5bed2edf31b658f8bee10994d05bc92a1",
+      "status": "done"
+    },
+    "SYNC-001": {
+      "path": "modules/sync/SYNC-001-sync-types-adapter-registry-and-viewer.md",
+      "rev": 1,
+      "sha256": "0cba6cf26063da52d24fd06696ff49f235b90a613899922c40af8a93ed0572e3",
+      "status": "done"
+    },
+    "SYNC-002": {
+      "path": "modules/sync/SYNC-002-sync-archive-table.md",
+      "rev": 1,
+      "sha256": "e6f0fccc17f6a81255c0ff3575f8e0176cdac794d0e497a73656e0e67bd7a67b",
+      "status": "done"
+    },
+    "SYNC-003": {
+      "path": "modules/sync/SYNC-003-pull-endpoint-and-identity-tables.md",
+      "rev": 1,
+      "sha256": "ffd41dba201c62e9e87f13d5fddcf2a7f9d3854acffda264e92aef7b90ea636d",
+      "status": "done"
+    },
+    "SYNC-004": {
+      "path": "modules/sync/SYNC-004-pull-relationships-and-negotiated-prices.md",
+      "rev": 1,
+      "sha256": "16d6bec7794087df8d563172ef4b6bae906207f3da554a92791e3ba66ba2b728",
+      "status": "done"
+    },
+    "SYNC-005": {
+      "path": "modules/sync/SYNC-005-pull-the-catalog.md",
+      "rev": 1,
+      "sha256": "c6c96f80870e50f4ced3491a389b7d87c957139af8a4ca01b8b1dc31a2e5f97e",
+      "status": "done"
+    },
+    "SYNC-006": {
+      "path": "modules/sync/SYNC-006-pull-orders-lines-and-deliveries.md",
+      "rev": 1,
+      "sha256": "eec5b6cc275e9fcd7e7a2276d15067b5c6e75776232fea846360be14e41f8a42",
+      "status": "done"
+    },
+    "SYNC-007": {
+      "path": "modules/sync/SYNC-007-pull-the-ledger-money-records-and-notifications.md",
+      "rev": 1,
+      "sha256": "1fa11f2ea76f422ddebe30a01f182949f9fc522ac228b5124d569b3cfb55048a",
+      "status": "done"
+    },
+    "SYNC-008": {
+      "path": "modules/sync/SYNC-008-device-tracking-and-full-resynchronization.md",
+      "rev": 1,
+      "sha256": "4aa8ef2221fbaea8776c8d4c5798830495e7d8c9a6b0c387b0a63cb15b062a22",
+      "status": "done"
+    },
+    "SYNC-009": {
+      "path": "modules/sync/SYNC-009-push-endpoint-archive-and-envelope.md",
+      "rev": 1,
+      "sha256": "a47b589086be6aca140d899eaa97c1f724d6dd75e4de689aff74c5f6d7961436",
+      "status": "done"
+    },
+    "SYNC-010": {
+      "path": "modules/sync/SYNC-010-judge-pipeline-scope-field-rights-computed.md",
+      "rev": 1,
+      "sha256": "60571deb7ac6aeed4ad344f36065c69092029fa3190f6dade14ecf051b13c59c",
+      "status": "done"
+    },
+    "SYNC-011": {
+      "path": "modules/sync/SYNC-011-push-new-and-edited-customers-and-merge.md",
+      "rev": 1,
+      "sha256": "b12facc6bd8865208bbe8516a26da362fb98b51f22b38805718aabfeaf4af326",
+      "status": "done"
+    },
+    "SYNC-012": {
+      "path": "modules/sync/SYNC-012-push-orders-entered-offline.md",
+      "rev": 1,
+      "sha256": "b960635f9d9ea28e3b8432c7df12eac3d8ed79035daa94675633fe7906739b4b",
+      "status": "done"
+    },
+    "SYNC-013": {
+      "path": "modules/sync/SYNC-013-push-order-status-changes-and-deliveries.md",
+      "rev": 1,
+      "sha256": "b81441399103efb61a51b43db095125387e19f3718d6087287076b9cf29d8122",
+      "status": "done"
+    },
+    "SYNC-014": {
+      "path": "modules/sync/SYNC-014-push-the-closing-of-an-order-with-its-sale-and.md",
+      "rev": 1,
+      "sha256": "feaf6886e5985c82cae3848567f7da7113b2349867d6e827251721a28853913a",
+      "status": "done"
+    },
+    "SYNC-015": {
+      "path": "modules/sync/SYNC-015-push-payments-and-notification-reads.md",
+      "rev": 1,
+      "sha256": "aa1eaec9dc0c81a3fafac97fc64fdc7c8491112b1bdd026269a2319a0dd6a0d0",
+      "status": "done"
+    },
+    "SYNC-016": {
+      "path": "modules/sync/SYNC-016-controls-on-arrival-prices-articles-and-dates.md",
+      "rev": 1,
+      "sha256": "1679074e49ff40fb9f00e0da61be5a71d6f8abb56c9237c684223c45f2e6f76a",
+      "status": "done"
+    },
+    "SYNC-017": {
+      "path": "modules/sync/SYNC-017-controls-on-arrival-credit-restricted-mode-and.md",
+      "rev": 1,
+      "sha256": "d801e5ee8efa70c936ae1bd1aefaaa4f6e10c0c00a931673058b88843f541405",
+      "status": "done"
+    },
+    "SYNC-018": {
+      "path": "modules/sync/SYNC-018-forbidden-sends-are-refused-recorded-and.md",
+      "rev": 1,
+      "sha256": "aa37ee2d9e9d3f4548b37284192be8736a7079847b8345fbb59132c2f7c8772d",
+      "status": "done"
+    },
+    "SYNC-019": {
+      "path": "modules/sync/SYNC-019-first-push-after-a-rights-change.md",
+      "rev": 1,
+      "sha256": "13c079ad71ed8d7ac562ed5672ec43adcec5025c8459d5f5ba6a94c128b393e0",
+      "status": "done"
+    },
+    "SYNC-020": {
+      "path": "modules/sync/SYNC-020-the-list-of-things-to-resolve.md",
+      "rev": 1,
+      "sha256": "fa57319a73a19d852024ce785959d8d305297c04f9ce7c217226805d1c6db433",
+      "status": "done"
+    },
+    "SYNC-021": {
+      "path": "modules/sync/SYNC-021-owner-reads-the-synchronization-exceptions.md",
+      "rev": 1,
+      "sha256": "88369cd23d3240aa6c385a188bebede65a697630afa80a7b9a032a09ae6c2acb",
+      "status": "done"
+    },
+    "SYNC-022": {
+      "path": "modules/sync/SYNC-022-super-administrator-replays-an-archived-batch.md",
+      "rev": 1,
+      "sha256": "abfe021d312af62ca18bbcb27de2ae174d1d57863186303d63339e5af5d51e1b",
+      "status": "done"
+    },
+    "SYNC-023": {
+      "path": "modules/sync/SYNC-023-administrators-list-and-open-archived-batches.md",
+      "rev": 1,
+      "sha256": "d763150362a926b6c90de723ece6a04c65e77df4554b9b73e347fa07c031b6bb",
+      "status": "done"
+    }
+  },
+  "edited": [],
+  "from_sha256": "2dcaae02b638d95d5c9ad80329d53e10d098fec20f5cf5b12182af8f4d03dfd2",
+  "hand_edited": [
+    "ADM-008",
+    "DLV-002",
+    "DLV-012",
+    "FIN-002",
+    "ORD-002",
+    "ORD-006",
+    "REL-002",
+    "REL-004",
+    "SYNC-002",
+    "SYNC-015",
+    "SYNC-018"
+  ],
+  "impacted": {
+    "ACC-001": "done",
+    "ACC-002": "done",
+    "ACC-003": "done",
+    "ACC-004": "done",
+    "ACC-005": "done",
+    "ACC-006": "done",
+    "ACC-007": "done",
+    "ADM-001": "done",
+    "ADM-002": "done",
+    "ADM-003": "done",
+    "ADM-004": "done",
+    "ADM-005": "done",
+    "ADM-006": "done",
+    "ADM-007": "done",
+    "ADM-008": "done",
+    "ADM-009": "done",
+    "ADM-010": "done",
+    "ADM-011": "done",
+    "ADM-012": "done",
+    "ADM-013": "done",
+    "ADM-014": "done",
+    "ADM-015": "done",
+    "AUTH-001": "done",
+    "AUTH-002": "done",
+    "AUTH-003": "done",
+    "AUTH-004": "done",
+    "AUTH-005": "done",
+    "AUTH-006": "done",
+    "AUTH-009": "done",
+    "AUTH-010": "done",
+    "AUTH-011": "done",
+    "AUTH-012": "done",
+    "AUTH-013": "done",
+    "AUTH-014": "done",
+    "AUTH-015": "done",
+    "AUTH-017": "done",
+    "AUTH-018": "done",
+    "AUTH-019": "done",
+    "AUTH-020": "done",
+    "AUTH-021": "done",
+    "AUTH-022": "done",
+    "AUTH-023": "done",
+    "AUTH-024": "done",
+    "AUTH-025": "done",
+    "AUTH-026": "done",
+    "CAT-001": "done",
+    "CAT-002": "done",
+    "CAT-003": "done",
+    "CAT-004": "done",
+    "CAT-005": "done",
+    "CAT-006": "done",
+    "CAT-007": "done",
+    "CAT-008": "done",
+    "CAT-009": "done",
+    "CAT-010": "done",
+    "CAT-011": "done",
+    "DLV-001": "done",
+    "DLV-002": "done",
+    "DLV-003": "done",
+    "DLV-004": "done",
+    "DLV-005": "done",
+    "DLV-006": "done",
+    "DLV-007": "done",
+    "DLV-008": "done",
+    "DLV-009": "done",
+    "DLV-010": "done",
+    "DLV-011": "done",
+    "DLV-012": "done",
+    "FIN-001": "done",
+    "FIN-003": "done",
+    "FIN-008": "done",
+    "FIN-011": "done",
+    "FIN-012": "done",
+    "FIN-013": "done",
+    "FIN-014": "done",
+    "FIN-015": "done",
+    "FIN-016": "done",
+    "FIN-017": "done",
+    "FIN-018": "done",
+    "FIN-019": "done",
+    "FIN-020": "done",
+    "FND-000": "done",
+    "FND-002": "done",
+    "FND-003": "done",
+    "FND-004": "done",
+    "FND-005": "done",
+    "FND-006": "done",
+    "FND-007": "done",
+    "FND-008": "done",
+    "FND-009": "done",
+    "FND-010": "done",
+    "FND-011": "done",
+    "NTF-001": "done",
+    "NTF-002": "done",
+    "ORD-001": "done",
+    "ORD-002": "done",
+    "ORD-003": "done",
+    "ORD-004": "done",
+    "ORD-005": "done",
+    "ORD-006": "done",
+    "ORD-007": "done",
+    "ORD-008": "done",
+    "ORD-009": "done",
+    "ORD-010": "done",
+    "ORD-011": "done",
+    "ORD-012": "done",
+    "ORD-013": "done",
+    "ORD-014": "done",
+    "ORD-015": "done",
+    "ORD-016": "done",
+    "ORD-017": "done",
+    "ORD-018": "done",
+    "ORD-019": "done",
+    "ORD-020": "done",
+    "ORD-021": "done",
+    "ORG-001": "done",
+    "ORG-003": "done",
+    "ORG-004": "done",
+    "ORG-005": "done",
+    "ORG-006": "done",
+    "ORG-007": "done",
+    "ORG-008": "done",
+    "ORG-009": "done",
+    "ORG-010": "done",
+    "ORG-011": "done",
+    "ORG-012": "done",
+    "ORG-013": "done",
+    "ORG-014": "done",
+    "ORG-015": "done",
+    "ORG-016": "done",
+    "ORG-017": "done",
+    "ORG-018": "done",
+    "ORG-019": "done",
+    "PER-001": "done",
+    "PER-002": "done",
+    "PER-003": "done",
+    "PER-004": "done",
+    "PER-005": "done",
+    "PER-006": "done",
+    "PER-007": "done",
+    "PER-008": "done",
+    "PER-009": "done",
+    "PRIV-001": "done",
+    "PRIV-002": "done",
+    "PRIV-003": "done",
+    "REL-003": "done",
+    "REL-005": "done",
+    "REL-006": "done",
+    "REL-007": "done",
+    "REL-012": "done",
+    "REL-014": "done",
+    "REL-018": "done",
+    "REL-022": "done",
+    "REL-023": "done",
+    "REL-025": "done",
+    "SYNC-001": "done",
+    "SYNC-002": "done",
+    "SYNC-003": "done",
+    "SYNC-004": "done",
+    "SYNC-005": "done",
+    "SYNC-006": "done",
+    "SYNC-007": "done",
+    "SYNC-008": "done",
+    "SYNC-009": "done",
+    "SYNC-010": "done",
+    "SYNC-011": "done",
+    "SYNC-012": "done",
+    "SYNC-013": "done",
+    "SYNC-014": "done",
+    "SYNC-015": "done",
+    "SYNC-016": "done",
+    "SYNC-017": "done",
+    "SYNC-018": "done",
+    "SYNC-019": "done",
+    "SYNC-020": "done",
+    "SYNC-021": "done",
+    "SYNC-022": "done"
+  },
+  "manual": {},
+  "mechanical": {},
+  "modules": [
+    "access",
+    "admin",
+    "auth",
+    "catalog",
+    "delivery",
+    "finance",
+    "foundation",
+    "notification",
+    "order",
+    "organization",
+    "person",
+    "privacy",
+    "relationship",
+    "sync"
+  ],
+  "obsoleted": [],
+  "owners": {
+    "AdminAction": "admin",
+    "Administrator": "admin",
+    "Collaboration": "organization",
+    "CreditLimitChange": "relationship",
+    "CustomerPrice": "catalog",
+    "CustomerRelationship": "relationship",
+    "CustomerRelationshipReassignment": "relationship",
+    "Delivery": "delivery",
+    "Device": "auth",
+    "Expense": "finance",
+    "Handover": "finance",
+    "LedgerEntry": "finance",
+    "Notification": "notification",
+    "Order": "order",
+    "OrderLine": "order",
+    "Organization": "organization",
+    "OtpChallenge": "auth",
+    "Person": "person",
+    "PhoneNumberChangeLog": "person",
+    "Product": "catalog",
+    "RefreshToken": "auth",
+    "Report": "admin",
+    "Subscription": "organization",
+    "SyncArchive": "sync"
+  },
+  "status": "closed",
+  "to_sha256": "035497ce5c79ed3b17c5b0bf41b90fddbedc0250ef16a70d20a72d7ba7d626c2"
+}
