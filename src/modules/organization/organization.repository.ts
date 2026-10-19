@@ -845,3 +845,119 @@ export async function listTeam(
         : null,
   };
 }
+
+export type PlanFields = {
+  plan: 'FREE' | 'ESSENTIAL' | 'PRO' | 'ENTERPRISE';
+  planEndsAt: Date | null;
+  graceEndsAt: Date | null;
+  maxCollaborators: number | null;
+  maxProducts: number | null;
+};
+
+export type TeamSeat = {
+  id: string;
+  personId: string;
+  role: 'OWNER' | 'MANAGER' | 'SELLER' | 'DRIVER';
+  status: 'ACTIVE' | 'INVITED' | 'PAUSED';
+  invitedAt: Date;
+  acceptedAt: Date | null;
+};
+
+/**
+ * The one writer of the five plan columns after creation (C-41, ASVS v5.0.0-15.3.3): `plan`,
+ * `plan_ends_at`, `grace_ends_at`, `max_collaborators` and `max_products`, nothing else. Billing
+ * calls it with values it computed; no request field reaches it. The database refuses an invalid
+ * combination (FREE with an end date, a paid plan without one, a grace end not after the plan
+ * end) and the error is not caught, so the caller's transaction aborts.
+ *
+ * @param tx - The caller's transaction.
+ * @param organizationId - Organization chosen by server code.
+ * @param fields - The five plan values.
+ */
+export async function writePlanFields(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  fields: PlanFields
+): Promise<void> {
+  await tx.organization.updateMany({
+    where: { id: organizationId, deletedAt: null },
+    data: {
+      plan: fields.plan,
+      planEndsAt: fields.planEndsAt,
+      graceEndsAt: fields.graceEndsAt,
+      maxCollaborators: fields.maxCollaborators,
+      maxProducts: fields.maxProducts,
+    },
+  });
+}
+
+/**
+ * Lists the team seats of an organization: non-OWNER, non-deleted collaborations that are ACTIVE,
+ * INVITED or PAUSED, oldest invitation first then id. The organization comes from server code
+ * (ASVS v5.0.0-8.2.1).
+ */
+export async function listTeamSeats(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<TeamSeat[]> {
+  const rows = await tx.collaboration.findMany({
+    where: {
+      organizationId,
+      deletedAt: null,
+      role: { not: 'OWNER' },
+      status: { in: ['ACTIVE', 'INVITED', 'PAUSED'] },
+    },
+    select: {
+      id: true,
+      personId: true,
+      role: true,
+      status: true,
+      invitedAt: true,
+      acceptedAt: true,
+    },
+    orderBy: [{ invitedAt: 'asc' }, { id: 'asc' }],
+  });
+  return rows.map((row) => ({
+    ...row,
+    status: row.status as TeamSeat['status'],
+  }));
+}
+
+/**
+ * Pauses or resumes one team seat and bumps the person's `scope_version` (C-42, CM-03).
+ * `paused: true` turns ACTIVE or INVITED into PAUSED; `paused: false` turns PAUSED into ACTIVE, or
+ * INVITED when `accepted_at` is empty. The conditional update never touches the OWNER (the database
+ * also refuses it), a REVOKED row or a deleted row, so a concurrent change is never overwritten.
+ *
+ * @param tx - The caller's transaction.
+ * @param collaborationId - Seat chosen by server code.
+ * @param paused - Target state.
+ * @returns True when the seat changed, false when there was nothing to change.
+ */
+export async function setSeatPaused(
+  tx: Prisma.TransactionClient,
+  collaborationId: string,
+  paused: boolean
+): Promise<boolean> {
+  const base = { id: collaborationId, deletedAt: null, role: { not: 'OWNER' as const } };
+  const changed: { personId: string }[] = paused
+    ? await tx.collaboration.updateManyAndReturn({
+        where: { ...base, status: { in: ['ACTIVE', 'INVITED'] } },
+        data: { status: 'PAUSED' },
+        select: { personId: true },
+      })
+    : [
+        ...(await tx.collaboration.updateManyAndReturn({
+          where: { ...base, status: 'PAUSED', acceptedAt: { not: null } },
+          data: { status: 'ACTIVE' },
+          select: { personId: true },
+        })),
+        ...(await tx.collaboration.updateManyAndReturn({
+          where: { ...base, status: 'PAUSED', acceptedAt: null },
+          data: { status: 'INVITED' },
+          select: { personId: true },
+        })),
+      ];
+  for (const { personId } of changed) await bumpScopeVersion(personId, tx);
+  return changed.length > 0;
+}

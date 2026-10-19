@@ -156,3 +156,29 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 38/38 (limit + invite); full suite 3717/3717, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings
 <!-- end ORG-030 -->
+
+<!-- begin ORG-035 -->
+## ORG-035 — The organization lets billing write the plan and pause seats
+
+- Filed: 2026-10-19 16:44 UTC
+- Status: **done**: plan writer, team seats and seat pause added in organization.repository
+- Risk: high · story: [ORG-035-the-organization-lets-billing-write-the-plan.md](../modules/organization/ORG-035-the-organization-lets-billing-write-the-plan.md)
+- Agent: 52,557 tokens, 16 tool uses, 2 min 49 s
+
+### Agent report
+
+**Summary:** Added writePlanFields, listTeamSeats and setSeatPaused to organization.repository.ts, with the story's tests.
+
+**Decisions:**
+- Resume (paused: false): two conditional updates (accepted_at set -> ACTIVE, empty -> INVITED), each filtered on PAUSED, non-OWNER, non-deleted; avoids raw SQL.
+- writePlanFields uses updateMany on a non-deleted organization: an absent id writes nothing, no error.
+- AC-1 "no other column changes" ignores server_updated_at, which the database stamps on every change.
+
+**Tests added beyond the story:**
+- `subscription-fields.test.ts` › does not touch another business: writePlanFields scope (ASVS 8.2.1); passed at once
+- `subscription-fields.test.ts` › orders equal invitation dates by id: tie-break of the seat list (story Context); passed after implementation
+- `subscription-fields.test.ts` › PAUSED paused again / unknown collaboration return false: setSeatPaused "nothing to change" (AC-6 spirit); passed at once
+- `subscription-fields.test.ts` › AB-1 body fields plan_ends_at, grace_ends_at, max_products also refused (AB-1)
+
+**Evidence:** story tests 20/20; full suite 3737/3737, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings
+<!-- end ORG-035 -->

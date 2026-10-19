@@ -258,7 +258,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-023 | done | | CHECK ties organization_contact_id to ORG_CONTACT_VERIFICATION; otp-purposes test adapted |
 | ORG-028 | done | | payment code with 5-draw retry, free plan fields, email removed from body and view |
 | ORG-030 | done | | Collaborator limit enforced under row lock; 409 COLLABORATOR_LIMIT_REACHED |
-| ORG-035 | todo | | |
+| ORG-035 | done | | plan writer, team seats and seat pause added in organization.repository |
 | ORG-038 | todo | | |
 | IMG-002 | todo | | |
 | IMG-003 | todo | | |
