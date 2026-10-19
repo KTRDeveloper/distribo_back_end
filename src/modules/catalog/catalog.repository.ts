@@ -700,6 +700,8 @@ export type VariantAnyState = {
   minOrderQuantity: string | null;
   status: 'ACTIVE' | 'INACTIVE';
   deletedAt: Date | null;
+  /** The live variant this one was folded into (CAT-035), or null. */
+  mergedIntoId: string | null;
 };
 
 /**
@@ -724,11 +726,12 @@ export async function findVariantAnyState(
       min_order_quantity: string | null;
       status: 'ACTIVE' | 'INACTIVE';
       deleted_at: Date | null;
+      merged_into_id: string | null;
     }>
   >`
     SELECT "id", "product_id", "organization_id", "name", "unit", "price",
            "min_order_quantity"::text AS "min_order_quantity", "status"::text AS "status",
-           "deleted_at"
+           "deleted_at", "merged_into_id"
     FROM "product_variants" WHERE "id" = ${variantId}::uuid FOR UPDATE`;
   const row = rows[0];
   if (!row) return null;
@@ -742,6 +745,7 @@ export async function findVariantAnyState(
     minOrderQuantity: row.min_order_quantity,
     status: row.status,
     deletedAt: row.deleted_at,
+    mergedIntoId: row.merged_into_id,
   };
 }
 
@@ -800,6 +804,50 @@ export async function insertVariant(
     skipDuplicates: true,
   });
   return created.count === 1;
+}
+
+/**
+ * Stores a duplicate variant already folded into its live twin: a deleted row (`deleted_at` set)
+ * whose `merged_into_id` is the twin, so it never meets the unique index of live variants
+ * (C-47, C-36). The link is the server's own search result, never a value of the phone
+ * (v5.0.0-15.3.3); the other fields are the phone's five, and the twin is left untouched. A row
+ * with the same id already there is left alone, and the caller judges what is stored.
+ *
+ * @param twinId - The live twin found inside the organization's product (v5.0.0-8.2.2).
+ * @param now - Deletion date of the folded row.
+ */
+export async function insertMergedVariant(
+  tx: Prisma.TransactionClient,
+  input: {
+    id: string;
+    productId: string;
+    name: string | null;
+    unit: string;
+    price: number;
+    minOrderQuantity: string | null;
+    status: 'ACTIVE' | 'INACTIVE';
+  },
+  organizationId: string,
+  twinId: string,
+  now: Date
+): Promise<void> {
+  await tx.productVariant.createMany({
+    data: [
+      {
+        id: input.id,
+        productId: input.productId,
+        organizationId,
+        name: input.name,
+        unit: input.unit,
+        price: BigInt(input.price),
+        minOrderQuantity: input.minOrderQuantity,
+        status: input.status,
+        deletedAt: now,
+        mergedIntoId: twinId,
+      },
+    ],
+    skipDuplicates: true,
+  });
 }
 
 /**

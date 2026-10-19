@@ -379,6 +379,37 @@ Also in this run: relationship, admin, order, finance, delivery.
 - Ids are not checked as UUIDs here (like the product writer); the caller's schema must.
 <!-- end CAT-034 -->
 
+<!-- begin CAT-035 -->
+## CAT-035 — A variant created twice is folded into the first
+
+- Filed: 2026-10-19 16:13 UTC
+- Status: **done**: Duplicate variant folded: deleted row with merged_into_id, MERGED result; 2 CAT-034 tests adapted
+- Risk: high · story: [CAT-035-a-variant-created-twice-is-folded-into-the-first.md](../modules/catalog/CAT-035-a-variant-created-twice-is-folded-into-the-first.md)
+- Agent: 27,987 tokens, 10 tool uses, 1 min 35 s
+
+### Agent report
+
+**Summary:** A duplicate variant sent for an unknown id is now stored as a deleted row linked to its live twin and answers MERGED; a repeat answers MERGED again.
+
+**Decisions:**
+- Race path (insert loses to another writer): re-reads the id, else re-searches the twin and folds into it, else COLLISION; an edit that makes a twin stays COLLISION (AC-5).
+- MERGED label: `variantLabel(product name, twin name, twin unit)` from the twin row, read in the same transaction.
+- `insertMergedVariant` takes the story's signature; uses createMany with skipDuplicates, link only from the server's own twin search (AB-2).
+
+**Tests changed (authorised by the user), in `tests/integration/catalog/sync-apply-variant.test.ts`:**
+- "answers COLLISION and creates nothing when a new id is a twin" renamed "answers MERGED and stores a deleted folded row..."; now expects MERGED into PIECE, merged_into_id set, row count +1.
+- "lets one of two simultaneous twin creations through and reports the other": renamed "...folds the other"; expects ['CREATED','MERGED'] instead of ['COLLISION','CREATED'].
+- No other existing test needed a change.
+
+**Other additions:**
+- `mergedIntoId` in `VariantAnyState` and `findVariantAnyState` (needed to answer MERGED on a repeat).
+
+**Evidence:** story tests 50/50 (both files); full suite 3580/3580, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings (existing)
+
+**Follow-ups:**
+- CAT-037 still has to repoint order lines and negotiated prices at the first variant.
+<!-- end CAT-035 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 

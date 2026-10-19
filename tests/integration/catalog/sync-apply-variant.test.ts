@@ -251,15 +251,15 @@ describe('applyVariantFromSync', () => {
       expect(await readRow(CARTON)).toEqual(before);
     });
 
-    it('answers COLLISION and creates nothing when a new id is a twin', async () => {
+    it('answers MERGED and stores a deleted folded row when a new id is a twin', async () => {
       const count = await countRows();
       const result = await apply({ ...base, id: NEW_VARIANT, name: ' ROUGE / L ', unit: 'Pièce ' });
-      expect(result).toEqual({ result: 'COLLISION' });
-      expect(await readRow(NEW_VARIANT)).toBeUndefined();
-      expect(await countRows()).toBe(count);
+      expect(result).toMatchObject({ result: 'MERGED', mergedInto: PIECE });
+      expect(await readRow(NEW_VARIANT)).toMatchObject({ merged_into_id: PIECE });
+      expect(await countRows()).toBe(count + 1);
     });
 
-    it('lets one of two simultaneous twin creations through and reports the other', async () => {
+    it('lets one of two simultaneous twin creations through and folds the other', async () => {
       const results = await Promise.all([
         apply({ ...base, id: NEW_VARIANT, name: 'Vert', unit: 'lot' }),
         apply({
@@ -269,7 +269,7 @@ describe('applyVariantFromSync', () => {
           unit: 'Lot',
         }),
       ]);
-      expect(results.map((r) => r.result).sort()).toEqual(['COLLISION', 'CREATED']);
+      expect(results.map((r) => r.result).sort()).toEqual(['CREATED', 'MERGED']);
     });
 
     it('does not take a variant for its own twin', async () => {

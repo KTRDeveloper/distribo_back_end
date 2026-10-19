@@ -1,11 +1,12 @@
 import type { Prisma } from '@prisma/client';
 import { NAME_MAX, TEXT_MAX } from '../../shared/limits.js';
 import { parseQuantity } from '../../shared/money.js';
-import { simplifyText } from '../../shared/variant.js';
+import { simplifyText, variantLabel } from '../../shared/variant.js';
 import {
   findLiveTwin,
   findProductAnyState,
   findVariantAnyState,
+  insertMergedVariant,
   insertSyncedProduct,
   insertVariant,
   updateProductText,
@@ -166,6 +167,23 @@ function invalidVariantFieldsOf(input: VariantSyncInput): string[] {
   return invalid;
 }
 
+/** The `MERGED` answer for a folded row: the variant it points to and that variant's label. */
+async function mergedResult(
+  tx: Prisma.TransactionClient,
+  twinId: string,
+  productId: string
+): Promise<VariantSyncResult> {
+  const twin = await findVariantAnyState(tx, twinId);
+  const product = await findProductAnyState(tx, productId);
+  // The foreign key keeps both rows; their absence is an unexpected state: fail closed.
+  if (!twin || !product) throw new Error('Merged variant points to a missing row');
+  return {
+    result: 'MERGED',
+    mergedInto: twin.id,
+    label: variantLabel(product.name, twin.name, twin.unit),
+  };
+}
+
 /**
  * Creates or edits a variant sent by the owner's phone, for the product push of the
  * synchronization (ADR-004). It never throws for a business reason: every refusal is a result
@@ -177,17 +195,21 @@ function invalidVariantFieldsOf(input: VariantSyncInput): string[] {
  * existing variant are judged through the organization of the session (v5.0.0-8.2.2): a product
  * of another organization or a deleted one gives `NO_PRODUCT`, a variant of another organization
  * `FOREIGN`, a deleted variant `GONE`. A live twin (same simplified name and unit in the product,
- * C-47) gives `COLLISION`; CAT-035 turns a creation into a merge. Nothing is written when the
+ * C-47) of an edit gives `COLLISION`; for an unknown id it gives `MERGED` (CAT-035): the duplicate
+ * is stored at once as a deleted row whose `merged_into_id` is the twin, found by the server in
+ * the organization's product and never read from the input (v5.0.0-15.3.3, v5.0.0-8.2.2). The
+ * twin keeps its price, photos, minimum and status. The same id sent again finds that row and
+ * answers `MERGED` again, writing nothing (C-36). Nothing is written when the
  * five fields are unchanged, so no date moves on a repeat (C-35). A variant put back on sale is
  * never refused here: the caller pauses the excess.
  *
  * The product row is locked before a creation so two pushes for one product apply one after the
  * other; a twin created by another writer in between is caught by the unique index and reported
- * as `COLLISION` as well.
+ * as a merge into that twin.
  *
  * @param tx - Transaction of the synchronization.
  * @param organizationId - Organization of the session, never taken from the input.
- * @param now - Part of the synchronization writers' signature; the dates come from the database.
+ * @param now - Deletion date of a folded duplicate; the other dates come from the database.
  */
 export async function applyVariantFromSync(
   tx: Prisma.TransactionClient,
@@ -195,7 +217,6 @@ export async function applyVariantFromSync(
   input: VariantSyncInput,
   now: Date
 ): Promise<VariantSyncResult> {
-  void now;
   const invalidFields = invalidVariantFieldsOf(input);
   if (invalidFields.length > 0) return { result: 'INVALID', invalidFields };
 
@@ -213,22 +234,32 @@ export async function applyVariantFromSync(
     if (!product || product.organizationId !== organizationId || product.deletedAt) {
       return { result: 'NO_PRODUCT' };
     }
-    if (await findLiveTwin(tx, input.productId, fields.name, fields.unit)) {
-      return { result: 'COLLISION' };
+    let twinId = await findLiveTwin(tx, input.productId, fields.name, fields.unit);
+    if (!twinId) {
+      const created = await insertVariant(tx, {
+        id: input.id,
+        organizationId,
+        productId: product.id,
+        ...fields,
+      });
+      if (created) return { result: 'CREATED' };
+      // Another writer took the id or the twin's place since the reads: judge what is there now.
+      existing = await findVariantAnyState(tx, input.id);
+      if (!existing) {
+        twinId = await findLiveTwin(tx, input.productId, fields.name, fields.unit);
+        if (!twinId) return { result: 'COLLISION' };
+      }
     }
-    const created = await insertVariant(tx, {
-      id: input.id,
-      organizationId,
-      productId: product.id,
-      ...fields,
-    });
-    if (created) return { result: 'CREATED' };
-    // Another writer took the id or the twin's place since the reads: judge what is there now.
-    existing = await findVariantAnyState(tx, input.id);
-    if (!existing) return { result: 'COLLISION' };
+    if (twinId) {
+      await insertMergedVariant(tx, input, organizationId, twinId, now);
+      existing = await findVariantAnyState(tx, input.id);
+      if (!existing) return { result: 'COLLISION' };
+    }
   }
 
+  if (!existing) return { result: 'COLLISION' };
   if (existing.organizationId !== organizationId) return { result: 'FOREIGN' };
+  if (existing.mergedIntoId) return mergedResult(tx, existing.mergedIntoId, existing.productId);
   if (existing.deletedAt) return { result: 'GONE' };
 
   const sameMinimum =
