@@ -132,3 +132,27 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 - The story's "Tests to update" omits `tests/integration/relationship/default-counter.test.ts`; I edited it minimally (same expectation as create.test.ts). Add it to the story.
 - Full suite not rerun after the last test-only edits; only module code changed in `src/modules/organization`.
 <!-- end ORG-028 -->
+
+<!-- begin ORG-030 -->
+## ORG-030 — An invitation respects the collaborator limit of the plan
+
+- Filed: 2026-10-19 16:41 UTC
+- Status: **done**: Collaborator limit enforced under row lock; 409 COLLABORATOR_LIMIT_REACHED
+- Risk: high · story: [ORG-030-an-invitation-respects-the-collaborator-limit.md](../modules/organization/ORG-030-an-invitation-respects-the-collaborator-limit.md)
+- Agent: 43,162 tokens, 13 tool uses, 2 min 22 s
+
+### Agent report
+
+**Summary:** Invitation now locks the organization row, counts ACTIVE/INVITED non-owner rows and refuses with 409 COLLABORATOR_LIMIT_REACHED; OpenAPI updated.
+
+**Decisions:**
+- Lock placement: taken after ALREADY_MEMBER and before the count, per the story's check order; person creation rolls back on refusal (AC-5).
+- Missing organization in the lock: 404 NOT_FOUND (fail closed).
+
+**Tests added beyond the story:**
+- `invite-limit.test.ts` › does not count a deleted collaboration: deleted rows excluded (story Context); passed at once for the deleted case only after implementation
+- `invite-limit.test.ts` › inviting a REVOKED person below the limit: new invitation (Context); passed at once
+- `invite-limit.test.ts` › refusal for a registered person leaves no notification (AC-5)
+
+**Evidence:** story tests 38/38 (limit + invite); full suite 3717/3717, failing: none, 0 known; typecheck clean; lint 0 errors, 151 warnings
+<!-- end ORG-030 -->

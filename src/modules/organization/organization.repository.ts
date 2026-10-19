@@ -265,6 +265,46 @@ export async function lockAmountHeld(
 }
 
 /**
+ * Locks the organization row until the transaction ends and reads its collaborator limit from
+ * the stored plan, so two simultaneous invitations count the team one after the other (C-42,
+ * CWE-362).
+ *
+ * @returns The plan's `max_collaborators` (null = no limit).
+ * @throws 404 `NOT_FOUND` when the organization is absent or deleted.
+ */
+export async function lockOrganizationSeats(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<{ maxCollaborators: number | null }> {
+  const rows = await tx.$queryRaw<{ max_collaborators: number | null }[]>`
+    SELECT max_collaborators FROM organizations
+    WHERE id = ${organizationId}::uuid AND deleted_at IS NULL
+    FOR UPDATE
+  `;
+  const row = rows[0];
+  if (!row) throw httpError(404, 'NOT_FOUND', 'Not found');
+  return { maxCollaborators: row.max_collaborators };
+}
+
+/**
+ * Counts the places taken in the team: ACTIVE or INVITED collaborations, owner and deleted rows
+ * excluded. REVOKED and PAUSED rows do not count (C-42).
+ */
+export function countTeamSeats(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<number> {
+  return tx.collaboration.count({
+    where: {
+      organizationId,
+      deletedAt: null,
+      role: { not: 'OWNER' },
+      status: { in: ['ACTIVE', 'INVITED'] },
+    },
+  });
+}
+
+/**
  * Runs `work` in one database transaction so the person, the collaboration and the
  * notification of one gesture commit or fail together.
  *

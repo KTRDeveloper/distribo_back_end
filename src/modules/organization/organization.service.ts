@@ -32,7 +32,9 @@ import {
   insertInvitation,
   insertOrganizationWithOwner,
   insertSubscription,
+  countTeamSeats,
   isPaymentCodeCollision,
+  lockOrganizationSeats,
   listActiveOrganizations,
   listInvitations,
   listTeam,
@@ -175,13 +177,14 @@ const INVITED_CONTENT = {
  *
  * The organization and the inviter come from the loaded actor, never from the body (ASVS
  * v5.0.0-8.2.1). A REVOKED row of the same person is reused; an ACTIVE or INVITED one is a
- * conflict (C-05). A registered invitee is notified in the same transaction, so a rolled-back
+ * conflict (C-05), a PAUSED one too. The invitation that would exceed the plan's collaborator
+ * limit is refused after locking the organization row (C-42). A registered invitee is notified in the same transaction, so a rolled-back
  * invitation never leaves a notification. Sending the WhatsApp or SMS message is the client's job.
  *
  * @param actor - Owner loaded from the path and checked for `manage Collaboration`.
  * @param input - Validated body: gesture id, E.164 number and role.
  * @returns The closed collaboration view.
- * @throws 409 `ORGANIZATION_NOT_ACTIVE`, 409 `ALREADY_MEMBER`, 429 `RATE_LIMITED`.
+ * @throws 409 `ORGANIZATION_NOT_ACTIVE`, 409 `ALREADY_MEMBER`, 409 `COLLABORATOR_LIMIT_REACHED`, 429 `RATE_LIMITED`.
  */
 export async function inviteCollaborator(
   actor: Actor,
@@ -204,6 +207,16 @@ export async function inviteCollaborator(
     const existing = await findCollaboration(tx, person.id, actor.organizationId);
     if (existing && existing.status !== 'REVOKED') {
       throw httpError(409, 'ALREADY_MEMBER', 'Already a member');
+    }
+
+    // The lock and the count share this transaction, so two invitations cannot both take the
+    // last place; the limit comes from the stored plan, never from the request (C-42).
+    const { maxCollaborators } = await lockOrganizationSeats(tx, actor.organizationId);
+    if (
+      maxCollaborators !== null &&
+      (await countTeamSeats(tx, actor.organizationId)) >= maxCollaborators
+    ) {
+      throw httpError(409, 'COLLABORATOR_LIMIT_REACHED', 'Collaborator limit reached');
     }
 
     const collaboration = existing

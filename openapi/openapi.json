@@ -5642,7 +5642,7 @@
             }
           },
           "409": {
-            "description": "ALREADY_MEMBER, ORGANIZATION_NOT_ACTIVE or conflicting gesture id",
+            "description": "ALREADY_MEMBER, COLLABORATOR_LIMIT_REACHED, ORGANIZATION_NOT_ACTIVE or conflicting gesture id",
             "content": {
               "application/json": {
                 "schema": {

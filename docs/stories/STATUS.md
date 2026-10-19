@@ -257,7 +257,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-022 | done | | PAUSED enum value + owner-not-paused CHECK (status compared as text) |
 | ORG-023 | done | | CHECK ties organization_contact_id to ORG_CONTACT_VERIFICATION; otp-purposes test adapted |
 | ORG-028 | done | | payment code with 5-draw retry, free plan fields, email removed from body and view |
-| ORG-030 | todo | | |
+| ORG-030 | done | | Collaborator limit enforced under row lock; 409 COLLABORATOR_LIMIT_REACHED |
 | ORG-035 | todo | | |
 | ORG-038 | todo | | |
 | IMG-002 | todo | | |

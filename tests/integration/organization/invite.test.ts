@@ -49,7 +49,9 @@ async function seedOrg(
   status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED' = 'ACTIVE'
 ) {
   await prisma.$transaction(async (tx) => {
-    await tx.organization.create({ data: { id, name: 'Org ' + id.slice(-2), status } });
+    await tx.organization.create({
+      data: { id, name: 'Org ' + id.slice(-2), status, maxCollaborators: null },
+    });
     await tx.collaboration.create({
       data: {
         id: id.replace(/.$/, '9'),

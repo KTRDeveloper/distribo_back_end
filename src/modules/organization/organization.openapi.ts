@@ -220,7 +220,8 @@ openApiRegistry.registerPath({
     403: { description: 'Caller is not the owner', content: errorContent },
     404: { description: 'Not found or not a member', content: errorContent },
     409: {
-      description: 'ALREADY_MEMBER, ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
+      description:
+        'ALREADY_MEMBER, COLLABORATOR_LIMIT_REACHED, ORGANIZATION_NOT_ACTIVE or conflicting gesture id',
       content: errorContent,
     },
     429: { description: 'Too many person lookups', content: errorContent },
