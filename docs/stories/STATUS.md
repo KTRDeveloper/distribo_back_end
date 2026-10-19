@@ -219,7 +219,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | PER-011 | done | | toPublicPerson gains avatar_url; 7 unrelated suite failures pre-exist |
 | PER-012 | done | | own profile carries avatar_url; 8 pre-existing failures in anonymize, person-table, appoint (also fail without this change) |
 | PER-013 | done | | setAvatarKey added; 6 tests, suite green |
-| PER-014 | todo | | |
+| PER-014 | done | | registry in phone-released.ts, 12 tests green |
 | ACC-008 | todo | | |
 | AUTH-027 | todo | | |
 | AUTH-028 | todo | | |

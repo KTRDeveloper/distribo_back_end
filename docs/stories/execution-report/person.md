@@ -98,3 +98,30 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 6/6; full suite 3180/3180, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings (existing)
 <!-- end PER-013 -->
+
+<!-- begin PER-014 -->
+## PER-014 — Handlers called when a phone number is released
+
+- Filed: 2026-10-19 11:07 UTC
+- Status: **done**: registry in phone-released.ts, 12 tests green
+- Risk: medium · story: [PER-014-handlers-called-when-a-phone-number-is-released.md](../modules/person/PER-014-handlers-called-when-a-phone-number-is-released.md)
+- Agent: 24,936 tokens, 12 tool uses, 3 min 22 s
+
+### Agent report
+
+**Summary:** Added the phone-released handler registry and its tests; all green.
+
+**Decisions:**
+- Registry reset between tests: `vi.resetModules()` plus dynamic import, so no test-only reset function is exported.
+- Invalid number: `firePhoneReleased` is async, so the RangeError arrives as a rejection (before any handler runs).
+- Handlers iterate over a copy of the list, so a handler registering another one mid-run does not change the current chain.
+
+**Tests added beyond the story:**
+- `tests/integration/person/phone-released.test.ts` › rejects malformed numbers (empty, +0..., too short, leading space, trailing newline): E.164 boundary of C-02 (AC-5); passed at once
+- `tests/integration/person/phone-released.test.ts` › does not write the number to the logs: nothing reaches stdout (v5.0.0-16.2.5); passed at once
+
+**Evidence:** story tests 12/12; full suite 3191/3192, failing: quality-gates (lint) caused by my test file's require-await errors, fixed and rerun green (17/17 with the story's file), 0 known; typecheck clean; lint 0 errors, 137 warnings (existing)
+
+**Follow-ups:**
+- None.
+<!-- end PER-014 -->
