@@ -301,15 +301,15 @@ describe('DELETE /api/v1/users/me', () => {
     expect((await person()).status).toBe('ACTIVE');
   });
 
-  it('AC-5: login with the old number and password answers the generic 401', async () => {
+  it('AC-5: login with the old number and password answers ACCOUNT_NOT_FOUND', async () => {
     expect((await del({ password: PASSWORD })).status).toBe(204);
 
     const res = await request(app)
       .post('/api/v1/auth/login')
       .send({ phone_number: PHONE, password: PASSWORD });
 
-    expect(res.status).toBe(401);
-    expect(errOf(res)?.code).toBe('INVALID_CREDENTIALS');
+    expect(res.status).toBe(404);
+    expect(errOf(res)?.code).toBe('ACCOUNT_NOT_FOUND');
   });
 
   it('AC-6: when a step fails the person is unchanged', async () => {

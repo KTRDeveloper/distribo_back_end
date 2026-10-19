@@ -79,15 +79,19 @@ openApiRegistry.registerPath({
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     401: {
-      description: 'INVALID_CREDENTIALS',
+      description: 'INVALID_CREDENTIALS (wrong password)',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     403: {
-      description: 'ACCOUNT_SUSPENDED',
+      description: 'ACCOUNT_SUSPENDED (right password on a suspended account)',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'ACCOUNT_NOT_FOUND (unknown, guest or released number)',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     429: {
-      description: 'LOGIN_LOCKED or code limits reached',
+      description: 'LOGIN_LOCKED, RATE_LIMITED (number checks) or code limits reached',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

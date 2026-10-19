@@ -21,6 +21,7 @@ import {
   findPasswordHash,
 } from './auth.repository.js';
 import { issueCode, verifyCode, type ClientKeys } from './otp.service.js';
+import { checkNumberQuota } from './number-check-limit.js';
 import { newId } from '../../shared/ids.js';
 import { issueSession, revokeSessions, type DeviceInfo } from './session.service.js';
 import { sessionRepository } from './session.repository.js';
@@ -241,11 +242,14 @@ async function takeAttempt(key: string, event: string, personId?: string): Promi
 /**
  * First login step (CM-05, C-33): check number and password, then send a LOGIN code;
  * the password alone never opens a session (v5.0.0-6.3.3). Five failures per number
- * lock it for `loginLockMinutes` (v5.0.0-6.3.1). Every failing credential case does the
- * same work and gives the same answer (v5.0.0-6.3.8). Logs ids only.
+ * lock it for `loginLockMinutes` (v5.0.0-6.3.1). AUTH-028: the answer says what to do:
+ * 404 when no registered holder has a password (unknown, guest, released number), 401
+ * for a wrong password, 403 only after the right password on a suspended account (a wrong
+ * one stays the plain 401, so suspension is never shown to a guesser). Because existence
+ * is disclosed, each number check is counted per IP first (v5.0.0-2.4.1). Logs ids only.
  *
  * @throws 400 VALIDATION_ERROR, EMAIL_NOT_VERIFIED; 401 INVALID_CREDENTIALS;
- *   403 ACCOUNT_SUSPENDED; 429 LOGIN_LOCKED, OTP_RATE_LIMITED
+ *   403 ACCOUNT_SUSPENDED; 404 ACCOUNT_NOT_FOUND; 429 LOGIN_LOCKED, RATE_LIMITED, OTP_RATE_LIMITED
  */
 export async function requestLogin(
   input: LoginInput,
@@ -255,17 +259,18 @@ export async function requestLogin(
     return requestLoginByEmail(input.email, input.password, clientKeys);
   const phone = normalizeE164(input.phone_number ?? '');
   if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  await checkNumberQuota(clientKeys.ip);
   const key = `login:fail:${phone}`;
   await takeAttempt(key, 'login_locked');
 
   const holder = await findByActivePhone(phone);
   const hash = holder?.registeredAt && holder.passwordHash ? holder.passwordHash : null;
-  const ok = await verifyPassword(hash ?? (await getDummyHash()), input.password);
-  if (!ok || hash === null || !holder) {
-    logger.warn(
-      { event: 'login_failed', ...(holder ? { personId: holder.id } : {}) },
-      'Login failed'
-    );
+  if (!holder || hash === null) {
+    logger.warn({ event: 'login_no_account' }, 'Login for a number without account');
+    throw httpError(404, 'ACCOUNT_NOT_FOUND', 'No account for this number');
+  }
+  if (!(await verifyPassword(hash, input.password))) {
+    logger.warn({ event: 'login_failed', personId: holder.id }, 'Login failed');
     throw httpError(401, 'INVALID_CREDENTIALS', 'Invalid credentials');
   }
   await resetKey(key);

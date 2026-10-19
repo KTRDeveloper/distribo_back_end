@@ -127,11 +127,12 @@ describe('login request', () => {
       },
     });
     results.push(await login(PASSWORD, '+237677123777'));
-    for (const r of results) {
-      expect(r.status).toBe(401);
-      expect(r.body.error?.code).toBe(results[0]?.body.error?.code);
-      expect(r.body.error?.code).toBe('INVALID_CREDENTIALS');
-    }
+    expect(results.map((r) => [r.status, r.body.error?.code])).toEqual([
+      [404, 'ACCOUNT_NOT_FOUND'],
+      [404, 'ACCOUNT_NOT_FOUND'],
+      [401, 'INVALID_CREDENTIALS'],
+      [404, 'ACCOUNT_NOT_FOUND'],
+    ]);
     expect(jobs).toHaveLength(0);
   });
 
@@ -169,10 +170,11 @@ describe('login security', () => {
   it('enumeration', async () => {
     await person();
     const known = await login('wrong password!');
+    expect(known.status).toBe(401);
     verifyCalls.n = 0;
     const unknown = await login('wrong password!', '+237677123999');
-    expect(unknown.status).toBe(known.status);
-    expect(unknown.body.error?.code).toBe(known.body.error?.code);
-    expect(verifyCalls.n).toBe(1);
+    expect(unknown.status).toBe(404);
+    expect(unknown.body.error?.code).toBe('ACCOUNT_NOT_FOUND');
+    expect(verifyCalls.n).toBe(0);
   });
 });
