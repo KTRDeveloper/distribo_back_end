@@ -790,6 +790,34 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - Cancelling does not check that the customer organization is ACTIVE (story silent).
 <!-- end ORD-017 -->
 
+<!-- begin ORD-023 -->
+## ORD-023 — Accepting an order records its date
+
+- Filed: 2026-10-19 21:16 UTC
+- Status: **done**: accepted_at written by the conditional PENDING-only update; views and OpenAPI list it
+- Risk: high · story: [ORD-023-accepting-an-order-records-its-date.md](../modules/order/ORD-023-accepting-an-order-records-its-date.md)
+- Agent: 54,104 tokens, 24 tool uses, 2 min 42 s
+
+### Agent report
+
+**Summary:** Accepting an order now writes accepted_at (server clock) in the same PENDING-only conditional update; both views and OpenAPI expose it.
+
+**Decisions:**
+- Acceptance detected by `fields.acceptedAt !== undefined` with `to === 'CONFIRMED'`: allowed-from narrows to PENDING only; without it the old PENDING/IN_DELIVERY rule stays.
+- OpenAPI: `accepted_at` added once in `customerOrderViewSchema`, which the supplier schema extends, so both views get it.
+
+**Tests added beyond the story:**
+- `tests/integration/order/accepted-at.test.ts` › lets only one of two parallel acceptances win: race on the conditional update (Security v5.0.0-2.3.1); passed at once
+
+**Other additions:**
+- Not-pending rows CONFIRMED/DELIVERED/CANCELLED, second acceptance and AC-2 cases passed before the change (existing rules already gave 409 / no date write); kept as regression guards.
+
+**Evidence:** story tests 13/13 (+ unit/order and accept-order: 49/49); full suite 4430/4430, failing: none, 0 known; typecheck clean; lint 0 errors, 192 warnings (pre-existing kind)
+
+**Follow-ups:**
+- None.
+<!-- end ORD-023 -->
+
 <!-- begin ORD-013 -->
 ## ORD-013 — Seller enters an order for a customer
 

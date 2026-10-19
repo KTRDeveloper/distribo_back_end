@@ -36,6 +36,7 @@ const customerOrderViewSchema = z.object({
   total_amount: z.number().int(),
   delivery_cost: z.number().int(),
   status: z.string(),
+  accepted_at: z.string().datetime().nullable(),
   delivered_at: z.string().datetime().nullable(),
   created_at: z.string().datetime(),
   desired_delivery_date: z.string().nullable(),

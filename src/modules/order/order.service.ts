@@ -284,10 +284,13 @@ export function acceptOrder(
     if (!(await lockSupplierOrder(tx, orderId, actor.organizationId))) {
       throw httpError(404, 'NOT_FOUND', 'Order not found.');
     }
-    await transitionOrder(tx, orderId, 'CONFIRMED', {
-      personId: actor.personId,
-      party: 'SUPPLIER',
-    });
+    await transitionOrder(
+      tx,
+      orderId,
+      'CONFIRMED',
+      { personId: actor.personId, party: 'SUPPLIER' },
+      { acceptedAt: new Date() }
+    );
 
     const order = await findOrderToAccept(tx, orderId);
     if (!order) throw httpError(404, 'NOT_FOUND', 'Order not found.');

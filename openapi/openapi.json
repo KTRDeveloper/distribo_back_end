@@ -15845,6 +15845,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -15956,6 +15963,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -16135,6 +16143,13 @@
                           "status": {
                             "type": "string"
                           },
+                          "accepted_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
                           "delivered_at": {
                             "type": [
                               "string",
@@ -16246,6 +16261,7 @@
                           "total_amount",
                           "delivery_cost",
                           "status",
+                          "accepted_at",
                           "delivered_at",
                           "created_at",
                           "desired_delivery_date",
@@ -16401,6 +16417,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -16512,6 +16535,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -16673,6 +16697,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -16784,6 +16815,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -16963,6 +16995,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -17112,6 +17151,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -17278,6 +17318,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -17427,6 +17474,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -17593,6 +17641,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -17742,6 +17797,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -17957,6 +18013,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -18106,6 +18169,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -18289,6 +18353,13 @@
                           "status": {
                             "type": "string"
                           },
+                          "accepted_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
                           "delivered_at": {
                             "type": [
                               "string",
@@ -18438,6 +18509,7 @@
                           "total_amount",
                           "delivery_cost",
                           "status",
+                          "accepted_at",
                           "delivered_at",
                           "created_at",
                           "desired_delivery_date",
@@ -18671,6 +18743,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -18820,6 +18899,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -18959,6 +19039,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -19108,6 +19195,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -19261,6 +19349,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -19410,6 +19505,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -19576,6 +19672,13 @@
                           "status": {
                             "type": "string"
                           },
+                          "accepted_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
                           "delivered_at": {
                             "type": [
                               "string",
@@ -19687,6 +19790,7 @@
                           "total_amount",
                           "delivery_cost",
                           "status",
+                          "accepted_at",
                           "delivered_at",
                           "created_at",
                           "desired_delivery_date",
@@ -19797,6 +19901,13 @@
                     },
                     "status": {
                       "type": "string"
+                    },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
                     },
                     "delivered_at": {
                       "type": [
@@ -19909,6 +20020,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -20026,6 +20138,13 @@
                     "status": {
                       "type": "string"
                     },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "delivered_at": {
                       "type": [
                         "string",
@@ -20137,6 +20256,7 @@
                     "total_amount",
                     "delivery_cost",
                     "status",
+                    "accepted_at",
                     "delivered_at",
                     "created_at",
                     "desired_delivery_date",
@@ -21581,6 +21701,13 @@
                         "status": {
                           "type": "string"
                         },
+                        "accepted_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
                         "delivered_at": {
                           "type": [
                             "string",
@@ -21730,6 +21857,7 @@
                         "total_amount",
                         "delivery_cost",
                         "status",
+                        "accepted_at",
                         "delivered_at",
                         "created_at",
                         "desired_delivery_date",

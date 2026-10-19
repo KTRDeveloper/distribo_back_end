@@ -159,6 +159,7 @@ describe('customer view', () => {
         'total_amount',
         'delivery_cost',
         'status',
+        'accepted_at',
         'delivered_at',
         'created_at',
         'desired_delivery_date',

@@ -11,6 +11,7 @@ type PartyView = {
   total_amount: number;
   delivery_cost: number;
   status: string;
+  accepted_at: string | null;
   delivered_at: string | null;
   created_at: string;
   desired_delivery_date: string | null;
@@ -57,6 +58,7 @@ function commonFields(order: Order): PartyView {
     total_amount: Number(order.totalAmount),
     delivery_cost: Number(order.deliveryCost),
     status: order.status,
+    accepted_at: iso(order.acceptedAt),
     delivered_at: iso(order.deliveredAt),
     created_at: order.createdAt.toISOString(),
     desired_delivery_date: order.desiredDeliveryDate
