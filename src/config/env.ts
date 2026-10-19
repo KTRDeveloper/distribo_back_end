@@ -70,6 +70,9 @@ const envSchema = z.object({
 
   // Payment aggregator (ADR-006): only the fake adapter exists until a human accepts the ADR
   PAYMENT_DRIVER: z.enum(['fake']).default('fake'),
+
+  // VAT rate of subscription receipts in basis points: 0 or 1925 (19.25 %)
+  VAT_RATE_BP: z.enum(['0', '1925']).default('1925').transform(Number),
 });
 
 // Validate and export environment variables

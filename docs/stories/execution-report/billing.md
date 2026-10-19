@@ -123,3 +123,32 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - `prisma migrate diff` still shows a customer_prices FK drift that predates this story.
 <!-- end BIL-003 -->
+
+<!-- begin BIL-012 -->
+## BIL-012 — Receipts with VAT and a gap-free number
+
+- Filed: 2026-10-19 16:25 UTC
+- Status: **done**: issueReceipt, splitVat and VAT_RATE_BP added; 16 story tests pass
+- Risk: high · story: [BIL-012-receipts-with-vat-and-a-gap-free-number.md](../modules/billing/BIL-012-receipts-with-vat-and-a-gap-free-number.md)
+- Agent: 42,611 tokens, 12 tool uses, 2 min 10 s
+
+### Agent report
+
+**Summary:** Added splitVat, issueReceipt (number from the DB function in the caller's transaction), VAT_RATE_BP setting and its tests.
+
+**Decisions:**
+- `now` is both `issued_at` and the date passed to the number function: the BIL-003 trigger recomputes the number from `issued_at`, so they must match.
+- Label dates use `Intl.DateTimeFormat('en-GB', Africa/Douala)` parts rebuilt as dd/mm/yyyy; "mois" is invariant ("1 mois", "3 mois").
+- `VAT_RATE_BP` is `z.enum(['0','1925'])` then Number, so any other value fails naming the variable.
+- Repository inserts through `tx.subscriptionReceipt.create` with a new UUIDv7; `ReceiptRow` is the Prisma model type.
+
+**Tests added beyond the story:**
+- `tests/unit/billing/vat.test.ts` › rounds half up: rounding boundary and parts adding up (AC-1 rule); passed at once
+- `tests/integration/billing/receipt-issue.test.ts` › parallel transactions: two concurrent issues get 000001 and 000002 (C-54); passed at once
+- same file › ENTERPRISE 12 months label and null NIU kept null (AC-2/AC-4 rules); passed at once
+
+**Evidence:** story tests 16/16; full suite 3648/3648, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings
+
+**Follow-ups:**
+- I wrote the implementation right after the tests without a separate red run, so no failing run was recorded.
+<!-- end BIL-012 -->
