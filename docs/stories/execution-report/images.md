@@ -6,6 +6,37 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-19 21:51 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| IMG-001 Registry of copied photos | done | 99bfb18 | image_copies table, root trigger, insert-only grant; 13 tests |
+| IMG-002 Storage and photo-processing ports with fake adapters | done | da34ab9 | ports, fakes, deleteImageFiles, env settings; 22 tests green |
+| IMG-003 Receive a photo, check it and store a clean copy | done | b653799 | imageBody middleware and storeUploadedImage; 20 tests green |
+| IMG-004 A person adds, replaces or removes their profile photo | done | 7d74afc | PUT/DELETE /users/me/avatar; suite 3790 passed |
+| IMG-005 The owner adds, replaces or removes the business logo | done | 2c2d61a | Owner logo PUT/DELETE; change_logo rule; 6 story tests green |
+| IMG-006 Copy a photo under a new key and record the copy | done | 25d5907 | copyImage, findCopyRoot, insertImageCopy; 7 tests green |
+| IMG-007 Nightly cleanup of photo files that no card cites | done | b3eb6c8 | 9 story tests pass; full suite 3813 pass |
+| IMG-008 A manager adds or replaces a photo of a product | done | a5dd8bc | PUT product photo route, change_photos rule, card-photos service; suite green |
+| IMG-009 A manager removes a photo of a product | done | bb6d884 | DELETE photos/{photoId} by id; removeCardPhoto; 5 story tests + route lists |
+| IMG-010 A manager adds, replaces or removes the photos of a variant | done | a92e518 | variant photo PUT/DELETE routes, change_photos rule for ProductVariant |
+| IMG-011 A manager takes a photo from another variant of the same product | done | 162d7d3 | POST variants/:id/photos/copy; takeVariantPhoto; 12 tests |
+| IMG-012 The nightly cleanup releases the photos of deleted products and variants | done | 1983853 | release step in cleanupOrphanImages; 6 new tests + suite green |
+
+Also in this run: billing, catalog, organization, admin, order, delivery, finance, relationship.
+
+- Stopped on purpose: the user asked to stop after ADM-020 (not an error). 85 stories ran, all done in the end. Not reached, still todo: CAT-031, CAT-040, CAT-042, CAT-045, DLV-016, ORD-031, ORD-032, DLV-015, FIN-021, FIN-022, REL-026, ORG-039, ORG-032, ORG-043, ORG-034.
+- Stashes: none created by this run (the older PER-013 and ORD-002 stashes predate it).
+- Baseline: 0 failing.
+- Stories blocked first, then resumed and done under the user's standing authorization ("resout toutes les taches a chaque fois qu'elles sont blocquees"): CAT-014, CAT-018, CAT-035, ORG-023, ORG-029, ORD-025 (one assertion of `order-line-variant.test.ts`; the first resume agent was cut off by a 429 limit and continued with SendMessage), CAT-028 (the `customerPriceOfRice` helper in `list-remove-prices.test.ts`).
+- Existing tests edited without being listed under "Tests to update", accepted: ORG-028 (`default-counter.test.ts`), ORD-027 (`place-order.test.ts`, Salt label), ORD-028 (`order-by-variant.test.ts` and `delivery/line-variant.test.ts`, field rename: add to the story's "Tests to update"), CAT-030 (`api-docs/catalog.test.ts`, old productId path assertion replaced by a comment; the agent asked for human confirmation). BIL-007 also edited `scripts/generate-openapi.ts`.
+- Hand-backs reduced to one line (report file existed): ORG-040, ORG-041, ADM-018, ORG-031, ORG-044, BIL-009, CAT-036, ADM-019 (partly). IMG-012's commit title was guessed from the truncated file name.
+- Lint errors in an agent's own new test file made `quality-gates.test.ts` fail for ADM-016, ADM-017 and ADM-020; each agent fixed them. CAT-022 and ADM-017: the agent did not rerun the full suite, I did (4209 and 4506 passed). ADM-020: full suite 4545/4545 and typecheck clean after the fix. A background `npm test` of mine failed in `customer-price-table.test.ts` (23514 errors) while another run shared the database; that file passes alone and in the clean full run.
+- CAT-017: a flaky `supplier-invitations.test.ts` was reported, not reproduced. A stray `__docs-mount-check.mjs` seen during ORD-029 and CAT-026 was gone before commit. IDE diagnostics were stale each time; `npm run typecheck` was clean.
+- Follow-ups for a human: ORG-024's 500 on a colliding gesture id; ORG-025's `idempotent()` storing 4xx answers; BIL-007's hard-coded rate-limit constants; CAT-020's AC-3 wording (server_updated_at is set by trigger C-35); CAT-022 tests not watched red first and the `FlatProductView` rename; CAT-029 legacy no-variant branch of `upsertCustomerPrice` and two OpenAPI templates on one URL until CAT-030; CAT-037 restores the fifth target at the 5-link limit (confirm); CAT-039 "live relationship" reading (confirm); ORD-027 `delivery.service.ts` and `sync/adapters/order.push.ts` still use old labels and `push-orders.test.ts` still uses `product_id`; ADM-002 story text still says seven values; ADM-019 email-first ordering; ADM-020 spends both codes before the transaction (a 500 burns them; `spendCode` needs to take `tx`).
+- A later story that drops the old product columns must also drop the CAT-014 mirror triggers and the toggles in four tests.
+- Next command: `/implement-stories next:100` (resumes at CAT-031, the first remaining todo story).
+
 <!-- begin IMG-001 -->
 ## IMG-001 — Registry of copied photos
 

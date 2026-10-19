@@ -6,6 +6,55 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-19 21:51 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| CAT-012 Product variants table | done | 88d7448 | product_variants table, composite FK, checks, triggers; 19 tests + full suite green |
+| CAT-013 Every existing product gets its variant | done | 30d057b | migration copies each product into a variant of the same id; 6 tests |
+| CAT-014 Products carry photos and a pause date, and old-style writes reach the variants | done | c0309ce | Photos, pause date and mirror triggers; seeds of CAT-012/013/015 tests disable user triggers |
+| CAT-015 Negotiated prices point at a variant | done | 71a99c2 | Variant column, fill and supplier triggers, per-variant unique index; upsert handles products without variant |
+| CAT-018 Two variants of a product never share a name and a unit | done | 38e4a7f | variant name/unit unique index and merged-is-deleted CHECK; 3474 tests pass |
+| CAT-016 Variant label and comparison text shared by the app and the server | done | 27dde36 | variantLabel and simplifyText in src/shared/variant.ts, agree with CAT-018 index |
+| CAT-021 A variant change also moves its product's server date | done | 40b0166 | trigger product_variants_touch_product; 3498 tests pass |
+| CAT-032 The server writes the photo keys of a product or a variant | done | c3f6b4c | setProductImageKeys and setVariantImageKeys in catalog.repository; 17 tests green |
+| CAT-033 A product sent by a phone is applied without failing the batch | done | b903d63 | applyProductFromSync + repo functions; 15 tests green |
+| CAT-034 A variant sent by a phone is created or edited without failing the batch | done | 4fed2f0 | applyVariantFromSync with 4 repository functions; 39 tests green |
+| CAT-035 A variant created twice is folded into the first | done | 6d3b65b | Duplicate variant folded: deleted row with merged_into_id, MERGED result; 2 CAT-034 tests adapted |
+| CAT-044 The server reads the photo keys of a product or a variant under a lock | done | 4dc0bec | Four image-key readers (lock and plain) in catalog.repository; 14 tests, suite green |
+| CAT-046 The server empties the photo keys of deleted products and variants | done | bdd87e1 | releaseDeletedImageKeys added; 6 tests pass, suite 3600 green |
+| CAT-038 The plan's product limit is checked in one place | done | 5b33ad4 | countProductsOnSale and assertRoomForProduct added; 9 tests green |
+| CAT-017 Reference price is read by variant | done | c5b193c | getReferencePrice reads the variant and its negotiated price; 11 new tests + legacy 13 pass |
+| CAT-019 An active variant is read with its product name | done | 382caf2 | getActiveVariant added to catalog.repository; 9 tests pass |
+| CAT-020 The server can count, list and pause the products on sale | done | 3fc72ae | listProductsOnSale, listPausedProducts, setProductsPaused in catalog.repository; 14 tests pass |
+| CAT-022 Manager creates a product with its variants | done | a62d6ed | POST products takes variants; 201 ProductView; VARIANT_EXISTS, plan limit |
+| CAT-023 Manager edits a product's name, description and category | done | 7a95b6a | PATCH edits name/description/category only, answers ProductView; tests green |
+| CAT-024 Manager adds a variant to a product | done | 995a095 | POST variants route, addVariant, findLiveVariantByText; 33 story tests + suite green |
+| CAT-025 Manager changes a variant's price, unit or availability | done | 9c51d67 | PATCH variant: 34 tests + suite 4298 green |
+| CAT-026 Manager deletes a variant or a whole product | done | 941b776 | DELETE variant and product: soft delete, VARIANT_IN_USE and LAST_VARIANT, locks |
+| CAT-027 Seller lists the catalog with its variants | done | 4c615c8 | list returns ProductView with live variants; 4347 tests pass |
+| CAT-028 Customer browses a supplier's catalog by product and variant | done | 8fe14bf | Variants shape for customer catalog; list-remove-prices helper updated with user's authorization |
+| CAT-036 A deletion sent by a phone retires what was sold instead | done | 1b9f419 | deleteVariantFromSync and deleteProductFromSync; 18 tests, suite green |
+| CAT-037 A sale sent for a deleted or merged variant finds its variant again | done | b40f9fd | resolveVariantForLine added; 10 story tests, suite 4386 green |
+| CAT-029 Negotiated prices are set and copied by variant | done | 7d4790a | PUT prices/{variantId} and copy by variant; upsertCustomerPrice keeps a legacy no-variant call for CAT-015 tests |
+| CAT-030 Negotiated prices are listed and removed by variant | done | fdc8fa4 | List and remove negotiated prices by variant; suite 4459 passed |
+| CAT-039 A negotiated price sent or removed by a phone is applied without failing the batch | done | f697b8c | applyPriceFromSync and deletePriceFromSync written; 22 tests pass |
+
+Not run: CAT-031, CAT-040, CAT-042, CAT-045.
+Also in this run: billing, images, organization, admin, order, delivery, finance, relationship.
+
+- Stopped on purpose: the user asked to stop after ADM-020 (not an error). 85 stories ran, all done in the end. Not reached, still todo: CAT-031, CAT-040, CAT-042, CAT-045, DLV-016, ORD-031, ORD-032, DLV-015, FIN-021, FIN-022, REL-026, ORG-039, ORG-032, ORG-043, ORG-034.
+- Stashes: none created by this run (the older PER-013 and ORD-002 stashes predate it).
+- Baseline: 0 failing.
+- Stories blocked first, then resumed and done under the user's standing authorization ("resout toutes les taches a chaque fois qu'elles sont blocquees"): CAT-014, CAT-018, CAT-035, ORG-023, ORG-029, ORD-025 (one assertion of `order-line-variant.test.ts`; the first resume agent was cut off by a 429 limit and continued with SendMessage), CAT-028 (the `customerPriceOfRice` helper in `list-remove-prices.test.ts`).
+- Existing tests edited without being listed under "Tests to update", accepted: ORG-028 (`default-counter.test.ts`), ORD-027 (`place-order.test.ts`, Salt label), ORD-028 (`order-by-variant.test.ts` and `delivery/line-variant.test.ts`, field rename: add to the story's "Tests to update"), CAT-030 (`api-docs/catalog.test.ts`, old productId path assertion replaced by a comment; the agent asked for human confirmation). BIL-007 also edited `scripts/generate-openapi.ts`.
+- Hand-backs reduced to one line (report file existed): ORG-040, ORG-041, ADM-018, ORG-031, ORG-044, BIL-009, CAT-036, ADM-019 (partly). IMG-012's commit title was guessed from the truncated file name.
+- Lint errors in an agent's own new test file made `quality-gates.test.ts` fail for ADM-016, ADM-017 and ADM-020; each agent fixed them. CAT-022 and ADM-017: the agent did not rerun the full suite, I did (4209 and 4506 passed). ADM-020: full suite 4545/4545 and typecheck clean after the fix. A background `npm test` of mine failed in `customer-price-table.test.ts` (23514 errors) while another run shared the database; that file passes alone and in the clean full run.
+- CAT-017: a flaky `supplier-invitations.test.ts` was reported, not reproduced. A stray `__docs-mount-check.mjs` seen during ORD-029 and CAT-026 was gone before commit. IDE diagnostics were stale each time; `npm run typecheck` was clean.
+- Follow-ups for a human: ORG-024's 500 on a colliding gesture id; ORG-025's `idempotent()` storing 4xx answers; BIL-007's hard-coded rate-limit constants; CAT-020's AC-3 wording (server_updated_at is set by trigger C-35); CAT-022 tests not watched red first and the `FlatProductView` rename; CAT-029 legacy no-variant branch of `upsertCustomerPrice` and two OpenAPI templates on one URL until CAT-030; CAT-037 restores the fifth target at the 5-link limit (confirm); CAT-039 "live relationship" reading (confirm); ORD-027 `delivery.service.ts` and `sync/adapters/order.push.ts` still use old labels and `push-orders.test.ts` still uses `product_id`; ADM-002 story text still says seven values; ADM-019 email-first ordering; ADM-020 spends both codes before the transaction (a 500 burns them; `spendCode` needs to take `tx`).
+- A later story that drops the old product columns must also drop the CAT-014 mirror triggers and the toggles in four tests.
+- Next command: `/implement-stories next:100` (resumes at CAT-031, the first remaining todo story).
+
 ### Run 2026-10-04 18:01 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |

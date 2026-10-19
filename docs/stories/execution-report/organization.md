@@ -6,6 +6,47 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-19 21:51 UTC: `/implement-stories next:100`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORG-020 Plan fields and logo key on the organization | done | 5c08bf5 | plan fields, logo key and payment code migration; 16 tests + full suite green |
+| ORG-021 Organization contacts table | done | a57f7b2 | migration, schema and 30 tests green |
+| ORG-022 A collaboration can be paused | done | ca2988f | PAUSED enum value + owner-not-paused CHECK (status compared as text) |
+| ORG-023 A one-time code can be tied to a business contact | done | 45adbb2 | CHECK ties organization_contact_id to ORG_CONTACT_VERIFICATION; otp-purposes test adapted |
+| ORG-028 A new business gets its payment code and the free plan | done | ea870bd | payment code with 5-draw retry, free plan fields, email removed from body and view |
+| ORG-030 An invitation respects the collaborator limit of the plan | done | e2d8862 | Collaborator limit enforced under row lock; 409 COLLABORATOR_LIMIT_REACHED |
+| ORG-035 The organization lets billing write the plan and pause seats | done | f317708 | plan writer, team seats and seat pause added in organization.repository |
+| ORG-038 Server-side writer of the business logo key | done | ed385a2 | getLogoKey and setLogoKey added to organization.repository.ts; 8 tests pass |
+| ORG-040 The owner rules for the team and the contacts are written out | done | 0ec3522 | owner rows create/update Collaboration and create/delete OrganizationContact with named fields; routes updated |
+| ORG-041 A contact code names the business and serves one contact | done | 2780a93 | issueCode/verifyCode tied to one contact; fixed business text |
+| ORG-024 The owner adds a public phone number to the business | done | 1684757 | POST /organizations/:id/contacts: owner phone verified at once, others pending with SMS code |
+| ORG-025 The owner confirms a contact with its code | done | 4fbd388 | POST contacts/{contactId}/confirm; verifyCode tied to the contact, guarded UPDATE; 3931 tests green |
+| ORG-026 The owner asks for a contact code again | done | aef12be | resend route, tests green |
+| ORG-027 The owner deletes a public contact | done | b71f063 | DELETE contacts/{contactId}: guarded soft delete, owner only; 3956 tests green |
+| ORG-033 A new owner is asked to review the public contacts | done | 2e91614 | Review notice with slot mention, 13 tests; suite 3969 green |
+| ORG-037 A contact whose number changed holder goes back to pending | done | d45b065 | Handler downgrades verified PHONE contacts on release and notifies ACTIVE owners; 3980 tests pass |
+| ORG-029 A business is found by its verified public contacts | done | 5b3bd1b | verified PHONE contacts drive the lookup; 4 tests updated |
+| ORG-031 Stop using the public-contact flag of a collaborator | done | d511589 | collaborators/me route and is_public_contact removed from team item; owner created with flag false |
+| ORG-042 The owner adds a public email to the business | done | 3ed1dc5 | Email contacts added: pending, EMAIL code, one per business |
+| ORG-044 Billing finds a business by its payment code and its owner | done | d2b7250 | Three PaymentTargets functions added to organization.repository.ts; 7 tests pass |
+| ORG-045 Billing reads the plan fields and lists businesses by plan date | done | c5b79e8 | readPlanFields, listOrganizationsToRefresh, listOrganizationsEnding added; 20 tests pass |
+
+Not run: ORG-039, ORG-032, ORG-043, ORG-034.
+Also in this run: billing, images, catalog, admin, order, delivery, finance, relationship.
+
+- Stopped on purpose: the user asked to stop after ADM-020 (not an error). 85 stories ran, all done in the end. Not reached, still todo: CAT-031, CAT-040, CAT-042, CAT-045, DLV-016, ORD-031, ORD-032, DLV-015, FIN-021, FIN-022, REL-026, ORG-039, ORG-032, ORG-043, ORG-034.
+- Stashes: none created by this run (the older PER-013 and ORD-002 stashes predate it).
+- Baseline: 0 failing.
+- Stories blocked first, then resumed and done under the user's standing authorization ("resout toutes les taches a chaque fois qu'elles sont blocquees"): CAT-014, CAT-018, CAT-035, ORG-023, ORG-029, ORD-025 (one assertion of `order-line-variant.test.ts`; the first resume agent was cut off by a 429 limit and continued with SendMessage), CAT-028 (the `customerPriceOfRice` helper in `list-remove-prices.test.ts`).
+- Existing tests edited without being listed under "Tests to update", accepted: ORG-028 (`default-counter.test.ts`), ORD-027 (`place-order.test.ts`, Salt label), ORD-028 (`order-by-variant.test.ts` and `delivery/line-variant.test.ts`, field rename: add to the story's "Tests to update"), CAT-030 (`api-docs/catalog.test.ts`, old productId path assertion replaced by a comment; the agent asked for human confirmation). BIL-007 also edited `scripts/generate-openapi.ts`.
+- Hand-backs reduced to one line (report file existed): ORG-040, ORG-041, ADM-018, ORG-031, ORG-044, BIL-009, CAT-036, ADM-019 (partly). IMG-012's commit title was guessed from the truncated file name.
+- Lint errors in an agent's own new test file made `quality-gates.test.ts` fail for ADM-016, ADM-017 and ADM-020; each agent fixed them. CAT-022 and ADM-017: the agent did not rerun the full suite, I did (4209 and 4506 passed). ADM-020: full suite 4545/4545 and typecheck clean after the fix. A background `npm test` of mine failed in `customer-price-table.test.ts` (23514 errors) while another run shared the database; that file passes alone and in the clean full run.
+- CAT-017: a flaky `supplier-invitations.test.ts` was reported, not reproduced. A stray `__docs-mount-check.mjs` seen during ORD-029 and CAT-026 was gone before commit. IDE diagnostics were stale each time; `npm run typecheck` was clean.
+- Follow-ups for a human: ORG-024's 500 on a colliding gesture id; ORG-025's `idempotent()` storing 4xx answers; BIL-007's hard-coded rate-limit constants; CAT-020's AC-3 wording (server_updated_at is set by trigger C-35); CAT-022 tests not watched red first and the `FlatProductView` rename; CAT-029 legacy no-variant branch of `upsertCustomerPrice` and two OpenAPI templates on one URL until CAT-030; CAT-037 restores the fifth target at the 5-link limit (confirm); CAT-039 "live relationship" reading (confirm); ORD-027 `delivery.service.ts` and `sync/adapters/order.push.ts` still use old labels and `push-orders.test.ts` still uses `product_id`; ADM-002 story text still says seven values; ADM-019 email-first ordering; ADM-020 spends both codes before the transaction (a 500 burns them; `spendCode` needs to take `tx`).
+- A later story that drops the old product columns must also drop the CAT-014 mirror triggers and the toggles in four tests.
+- Next command: `/implement-stories next:100` (resumes at CAT-031, the first remaining todo story).
+
 <!-- begin ORG-020 -->
 ## ORG-020 — Plan fields and logo key on the organization
 
