@@ -68,6 +68,43 @@ export async function listLiveContacts(
   });
 }
 
+/**
+ * Sends every verified live PHONE contact holding this number, of any business, back to pending
+ * (CM-36, C-43: both verification fields are emptied together). Value, slot and the other columns
+ * stay. One guarded UPDATE finds and changes the rows, so a contact verified or deleted by a
+ * parallel gesture is judged on its committed state.
+ *
+ * @param tx - The transaction that frees the number.
+ * @returns The distinct ids of the businesses touched.
+ */
+export async function clearVerificationByNumber(
+  tx: Prisma.TransactionClient,
+  phoneNumber: string
+): Promise<string[]> {
+  const rows = await tx.$queryRaw<{ organization_id: string }[]>`
+    UPDATE organization_contacts
+    SET verified_at = NULL, verification_method = NULL
+    WHERE kind = 'PHONE' AND value = ${phoneNumber}
+      AND deleted_at IS NULL AND verified_at IS NOT NULL
+    RETURNING organization_id`;
+  return [...new Set(rows.map((row) => row.organization_id))];
+}
+
+/**
+ * Finds the ACTIVE owner of each given business; a business without one is simply absent.
+ *
+ * @returns One entry per business that has an ACTIVE owner.
+ */
+export async function findActiveOwners(
+  tx: Prisma.TransactionClient,
+  organizationIds: string[]
+): Promise<{ organizationId: string; personId: string }[]> {
+  return tx.collaboration.findMany({
+    where: { organizationId: { in: organizationIds }, role: 'OWNER', status: 'ACTIVE' },
+    select: { organizationId: true, personId: true },
+  });
+}
+
 /** The stored shape of a contact. */
 export type ContactRow = OrganizationContact;
 

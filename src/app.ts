@@ -126,6 +126,8 @@ import './modules/notification/notification.openapi.js';
 import './modules/remote-config/remote-config.openapi.js';
 import './modules/privacy/privacy.openapi.js';
 import './modules/images/images.openapi.js';
+// Attaches the organization's handler to the phone-released registry (PER-014).
+import './modules/organization/phone-released.handler.js';
 
 const v1Router = express.Router();
 

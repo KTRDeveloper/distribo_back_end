@@ -409,3 +409,30 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 
 **Evidence:** story tests 32/32 (13 new + transfer.test.ts); full suite 3969/3969, failing: none, 0 known; typecheck clean; lint 0 errors, 182 warnings
 <!-- end ORG-033 -->
+
+<!-- begin ORG-037 -->
+## ORG-037 — A contact whose number changed holder goes back to pending
+
+- Filed: 2026-10-19 17:53 UTC
+- Status: **done**: Handler downgrades verified PHONE contacts on release and notifies ACTIVE owners; 3980 tests pass
+- Risk: high · story: [ORG-037-a-contact-whose-number-changed-holder-goes-back.md](../modules/organization/ORG-037-a-contact-whose-number-changed-holder-goes-back.md)
+- Agent: 44,093 tokens, 19 tool uses, 2 min 27 s
+
+### Agent report
+
+**Summary:** Added phone-released.handler.ts (registered via src/app.ts) that clears verification on matching live PHONE contacts and notifies each ACTIVE owner once.
+
+**Decisions:**
+- `clearVerificationByNumber` uses one parameterized `UPDATE ... RETURNING organization_id` via `$queryRaw`: updateMany returns no ids, and one statement avoids a find/update race.
+- Added `findActiveOwners` to the contact repository (the only file calling prisma) to find owners.
+- Test fixtures: the DB forbids an org with collaborations but no ACTIVE OWNER, so "no ACTIVE owner" is an org with no collaboration; "not ACTIVE" is a REVOKED former owner.
+
+**Tests added beyond the story:**
+- `tests/integration/organization/contact-phone-released.test.ts` › a second release of the same number notifies nobody again: idempotent repeat (story: only verified contacts change); failed first, then passed after implementation.
+- same file › AC-3 related points at the organization: `related` type and id (story Context).
+
+**Evidence:** story tests 23/23 (both files); full suite 3980/3980, failing: none, 0 known; typecheck clean; lint 0 errors, 183 warnings (existing)
+
+**Follow-ups:**
+- None.
+<!-- end ORG-037 -->
