@@ -296,6 +296,9 @@ describe('GET /docs/openapi.json', () => {
     // ADM-017: a super administrator releases the number of a person
     expect(paths).toContain('/api/v1/admin/people/{personId}/release-phone');
 
+    // ADM-019: a super administrator starts the restoration of an access
+    expect(paths).toContain('/api/v1/admin/people/{personId}/restore-access/start');
+
     // ADM-015: administrators read the action journal
     expect(paths).toContain('/api/v1/admin/actions');
 

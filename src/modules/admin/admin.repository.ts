@@ -470,6 +470,40 @@ export async function findPersonStatus(
   return row?.status ?? null;
 }
 
+/** What the restoration of an access needs to know about its target (CM-40). */
+export interface RestoreTarget {
+  status: Person['status'];
+  registered: boolean;
+  email: string | null;
+  emailVerified: boolean;
+  phoneNumber: string | null;
+}
+
+/**
+ * Reads the status, the email and its verification state, and the active number of the person
+ * in the path (ADM-019). Null for an unknown id. Never reads a request value for the email.
+ */
+export async function findPersonForRestore(personId: string): Promise<RestoreTarget | null> {
+  const row = await prisma.person.findUnique({
+    where: { id: personId },
+    select: {
+      status: true,
+      registeredAt: true,
+      email: true,
+      emailVerifiedAt: true,
+      phoneNumber: true,
+    },
+  });
+  if (!row) return null;
+  return {
+    status: row.status,
+    registered: row.registeredAt !== null,
+    email: row.email,
+    emailVerified: row.emailVerifiedAt !== null,
+    phoneNumber: row.phoneNumber,
+  };
+}
+
 /** An organization's name and status, read inside a transaction, or null when absent. */
 export function findOrganizationForModeration(
   tx: Prisma.TransactionClient,

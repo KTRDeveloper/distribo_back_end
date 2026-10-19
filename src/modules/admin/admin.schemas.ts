@@ -149,6 +149,17 @@ export const moderationReasonSchema = z
 export type ModerationReasonInput = z.infer<typeof moderationReasonSchema>;
 
 /**
+ * Body of POST /admin/people/{personId}/restore-access/start: the new number only (CM-40). The
+ * +237 mobile rule is checked by the service after the state checks, so it answers in the
+ * order the story fixes; unknown fields are refused (v5.0.0-15.3.3).
+ */
+export const restoreStartSchema = z
+  .object({ new_phone_number: z.string().min(1).max(32) })
+  .strict();
+
+export type RestoreStartInput = z.infer<typeof restoreStartSchema>;
+
+/**
  * Query of GET /admin/actions: the shared page parameters and four optional filters; unknown
  * parameters are refused. `action` lists the journal's action kinds.
  */

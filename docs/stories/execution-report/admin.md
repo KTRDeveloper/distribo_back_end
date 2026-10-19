@@ -666,3 +666,36 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - I wrote the implementation before watching the new tests fail, so the red phase of TDD was skipped.
 <!-- end ADM-017 -->
+
+<!-- begin ADM-019 -->
+## ADM-019 — Support sends the two codes to restore an access
+
+- Filed: 2026-10-19 21:41 UTC
+- Status: **done**: Start route sends EMAIL and SMS ACCESS_RESTORE codes; 11 story tests + extras green, suite 4523/4523
+- Risk: high · story: [ADM-019-support-sends-the-two-codes-to-restore-an-access.md](../modules/admin/ADM-019-support-sends-the-two-codes-to-restore-an-access.md)
+- Agent: 57,348 tokens, 23 tool uses, 3 min 28 s
+
+### Agent report
+
+**Summary:** Added POST /admin/people/{personId}/restore-access/start (SUPER_ADMIN, 204): fixed-order checks, then EMAIL and SMS ACCESS_RESTORE codes, no journal row.
+
+**Decisions:**
+- The +237 mobile rule lives in the service (normalizeE164), not the Zod schema: the story puts it after the state checks, so a bad number on an anonymized person answers 409.
+- SAME_NUMBER = the active holder of the new number is the target itself; another holder gives PHONE_TAKEN.
+- EMAIL code is issued first, then SMS: a limit hit on the email stops the SMS. If the SMS is refused after the email, one code has already left (no rollback possible).
+- Log carries administratorId and targetPersonId (ids only).
+
+**Tests added beyond the story:**
+- `restore-access-start.test.ts` › local number format: normalizeE164 sends to the +237 form (AC-1); passed at once
+- `restore-access-start.test.ts` › invalid numbers (+33, landline, text): 400 VALIDATION_ERROR, nothing sent (AC-2); passed at once
+- `restore-access-start.test.ts` › unknown field, missing number, bad id: 400 and nothing sent (CONVENTIONS strict validation); passed at once
+- `restore-access-start.test.ts` › no token: 401, nothing sent (v5.0.0-8.2.1); passed at once
+
+**Other additions:**
+- `restoreStartSchema` and the `openapi/openapi.json` regeneration (route is registered in OpenAPI).
+
+**Evidence:** story tests 55/55 (story file 16, with api-docs and per-001); full suite 4523/4523, failing: none, 0 known; typecheck clean; lint 0 errors, 195 warnings
+
+**Follow-ups:**
+- ADM-020 must re-check the target and the number at confirmation time: nothing here is stored besides the two challenges.
+<!-- end ADM-019 -->

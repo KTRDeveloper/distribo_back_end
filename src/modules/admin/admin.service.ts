@@ -30,6 +30,7 @@ import {
   findLiveAdministratorById,
   findLiveAdministratorByPerson,
   findPersonEmail,
+  findPersonForRestore,
   findRecoveryEmail,
   listOtherLiveSuperAdminPersonIds,
   replaceTotpSecret,
@@ -59,6 +60,7 @@ import type {
   ModerationReasonInput,
   RemoveInput,
   ResolveReportInput,
+  RestoreStartInput,
   TotpRecoveryConfirmInput,
   TotpRecoveryRequestInput,
 } from './admin.schemas.js';
@@ -956,6 +958,62 @@ export async function releasePhone(
       targetPersonId: personId,
     },
     'Phone number released by support'
+  );
+}
+
+/**
+ * Starts the restoration of an access after a lost SIM (CM-40): sends a code to the person's
+ * verified email and a code to the new number, both for ACCESS_RESTORE. The administrator
+ * never sees a code (v5.0.0-6.4.6). The person comes from the path and the email from the
+ * database, never from the request (v5.0.0-8.2.1); access moves only on the two proofs
+ * (v5.0.0-6.4.4, ADM-020). Checks run in a fixed order and every one passes before the first
+ * code is sent; nothing is journaled here. The email code goes first, so a cooldown or limit
+ * hit stops the SMS. Logs ids only.
+ *
+ * @throws 404 NOT_FOUND (unknown or unregistered); 409 TARGET_ANONYMIZED; 409 INVALID_STATE
+ *   (suspended); 409 NO_VERIFIED_EMAIL; 400 VALIDATION_ERROR (not a +237 mobile); 409
+ *   PHONE_TAKEN; 400 SAME_NUMBER; 429 OTP_RATE_LIMITED
+ */
+export async function startAccessRestore(
+  admin: AdminContext,
+  personId: string,
+  input: RestoreStartInput
+): Promise<void> {
+  const target = await findPersonForRestore(personId);
+  if (target === null || !target.registered) throw httpError(404, 'NOT_FOUND', 'Person not found');
+  if (target.status === 'ANONYMIZED') {
+    throw httpError(409, 'TARGET_ANONYMIZED', 'The target is anonymized');
+  }
+  if (target.status === 'SUSPENDED') {
+    throw httpError(409, 'INVALID_STATE', 'The person is suspended');
+  }
+  if (target.email === null || !target.emailVerified) {
+    throw httpError(409, 'NO_VERIFIED_EMAIL', 'The person has no verified email');
+  }
+  const phone = normalizeE164(input.new_phone_number);
+  if (phone === null) throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
+  const holder = await findByActivePhone(phone);
+  if (holder !== null && holder.id !== personId) {
+    throw httpError(409, 'PHONE_TAKEN', 'This number is held by another person');
+  }
+  if (holder !== null) {
+    throw httpError(400, 'SAME_NUMBER', 'This is already the number of the person');
+  }
+
+  await issueCode({
+    personId,
+    target: target.email,
+    purpose: 'ACCESS_RESTORE',
+    channel: 'EMAIL',
+  });
+  await issueCode({ personId, target: phone, purpose: 'ACCESS_RESTORE', channel: 'SMS' });
+  logger.warn(
+    {
+      event: 'access_restore_started',
+      administratorId: admin.administratorId,
+      targetPersonId: personId,
+    },
+    'Access restoration started by support'
   );
 }
 

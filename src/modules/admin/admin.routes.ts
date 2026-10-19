@@ -10,6 +10,7 @@ import {
   personIdParamsSchema,
   recoveryEmailConfirmSchema,
   recoveryEmailRequestSchema,
+  restoreStartSchema,
   removeAdministratorSchema,
   totpRecoveryConfirmSchema,
   totpRecoveryRequestSchema,
@@ -26,6 +27,7 @@ import {
   removeAdministrator,
   requestRecoveryEmail,
   requestTotpRecovery,
+  startAccessRestore,
   suspendOrganization,
   suspendPerson,
 } from './admin.service.js';
@@ -184,6 +186,21 @@ adminRoutes.post(
     const { personId } = personIdParamsSchema.parse(req.params);
     const body = moderationReasonSchema.parse(req.body);
     releasePhone(req.admin!, personId, body)
+      .then(() => res.status(204).end())
+      .catch(next);
+  }
+);
+
+// POST /api/v1/admin/people/{personId}/restore-access/start - SUPER_ADMIN only: sends the
+// code to the verified email and the code to the new number (CM-40)
+adminRoutes.post(
+  '/people/:personId/restore-access/start',
+  adminAuthMiddleware,
+  requireAdminRole('SUPER_ADMIN'),
+  (req, res, next) => {
+    const { personId } = personIdParamsSchema.parse(req.params);
+    const body = restoreStartSchema.parse(req.body);
+    startAccessRestore(req.admin!, personId, body)
       .then(() => res.status(204).end())
       .catch(next);
   }

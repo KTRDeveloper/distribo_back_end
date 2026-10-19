@@ -7,6 +7,7 @@ import {
   listActionsQuerySchema,
   listReportsQuerySchema,
   moderationReasonSchema,
+  restoreStartSchema,
   organizationIdParamsSchema,
   personIdParamsSchema,
   recoveryEmailConfirmSchema,
@@ -316,6 +317,28 @@ openApiRegistry.registerPath({
     403: err('FORBIDDEN'),
     404: err('NOT_FOUND'),
     409: err('TARGET_ANONYMIZED or NO_ACTIVE_NUMBER'),
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/people/{personId}/restore-access/start',
+  tags: ['admin'],
+  summary:
+    'Send a code to the verified email of a person and a code to their new number (super administrator token only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: personIdParamsSchema,
+    body: { content: { 'application/json': { schema: restoreStartSchema } } },
+  },
+  responses: {
+    204: { description: 'Both codes sent; no code in the answer' },
+    400: err('VALIDATION_ERROR or SAME_NUMBER'),
+    401: err('UNAUTHORIZED'),
+    403: err('FORBIDDEN'),
+    404: err('NOT_FOUND'),
+    409: err('TARGET_ANONYMIZED, INVALID_STATE, NO_VERIFIED_EMAIL or PHONE_TAKEN'),
+    429: err('OTP_RATE_LIMITED'),
   },
 });
 
