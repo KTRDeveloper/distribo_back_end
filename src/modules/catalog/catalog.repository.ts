@@ -603,3 +603,87 @@ export async function setVariantImageKeys(
   });
   return rows[0].image_keys;
 }
+
+/** A product row as the synchronization sees it, whoever owns it and whatever its state. */
+export type ProductAnyState = {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  deletedAt: Date | null;
+};
+
+/**
+ * Reads a product by id alone, deleted or not, and locks the row for the transaction so two
+ * pushes of the same product apply one after the other. The caller decides what to do with an
+ * organization or a state that is not its own (the id is never trusted, v5.0.0-8.2.2).
+ *
+ * @returns The row, or null when no product has this id.
+ */
+export async function findProductAnyState(
+  tx: Prisma.TransactionClient,
+  productId: string
+): Promise<ProductAnyState | null> {
+  const rows = await tx.$queryRaw<
+    Array<{
+      id: string;
+      organization_id: string;
+      name: string;
+      description: string | null;
+      category: string | null;
+      deleted_at: Date | null;
+    }>
+  >`
+    SELECT "id", "organization_id", "name", "description", "category", "deleted_at"
+    FROM "products" WHERE "id" = ${productId}::uuid FOR UPDATE`;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    name: row.name,
+    description: row.description,
+    category: row.category,
+    deletedAt: row.deleted_at,
+  };
+}
+
+/**
+ * Inserts a new-style product (empty unit, default price, no photo, not paused) written from a
+ * synchronization push. Only the three text fields come from the phone (C-46). A row that
+ * appeared since the read (a race on the same id) is left alone: no uniqueness error ever
+ * reaches the synchronization (C-36).
+ *
+ * Named apart from {@link insertProduct}, which writes an old-style product with its unit and price.
+ *
+ * @returns True when this call created the row.
+ */
+export async function insertSyncedProduct(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    organizationId: string;
+    name: string;
+    description: string | null;
+    category: string | null;
+  }
+): Promise<boolean> {
+  const created = await tx.product.createMany({ data: [data], skipDuplicates: true });
+  return created.count === 1;
+}
+
+/**
+ * Rewrites the three text fields of a product. Nothing else is touched; the database moves
+ * `server_updated_at` (C-35).
+ */
+export async function updateProductText(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  data: { name: string; description: string | null; category: string | null }
+): Promise<void> {
+  await tx.product.update({
+    where: { id: productId },
+    data: { name: data.name, description: data.description, category: data.category },
+  });
+}

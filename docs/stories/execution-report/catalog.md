@@ -322,6 +322,32 @@ Also in this run: relationship, admin, order, finance, delivery.
 - `npx prisma generate` was needed locally: the generated client was stale (no `imageKeys`), which made the first run fail.
 <!-- end CAT-032 -->
 
+<!-- begin CAT-033 -->
+## CAT-033 — A product sent by a phone is applied without failing the batch
+
+- Filed: 2026-10-19 16:03 UTC
+- Status: **done**: applyProductFromSync + repo functions; 15 tests green
+- Risk: high · story: [CAT-033-a-product-sent-by-a-phone-is-applied-without.md](../modules/catalog/CAT-033-a-product-sent-by-a-phone-is-applied-without.md)
+- Agent: 43,821 tokens, 13 tool uses, 2 min 30 s
+
+### Agent report
+
+**Summary:** Added applyProductFromSync (CREATED/UPDATED/UNCHANGED/GONE/FOREIGN/INVALID) with three repository functions; all green.
+
+**Decisions:**
+- Story names a repository `insertProduct`, but one already exists (old-style, used by the service): the new one is `insertSyncedProduct`, existing code untouched.
+- Lengths checked on raw values with NAME_MAX/TEXT_MAX, no trimming (story says "empty name" only); `now` is accepted but unused (dates come from the database).
+- Row read with FOR UPDATE; a concurrent insert of the same id uses createMany skipDuplicates then re-reads, so no unique error reaches the batch (C-36).
+
+**Tests added beyond the story:**
+- `sync-apply-product.test.ts` › category of 101 characters, limits accepted, all invalid names listed, invalid new product not created, server fields not set on creation: limits and no-write paths (AC-4, CAT-004 limits); passed at once
+
+**Evidence:** story tests 15/15; full suite 3530/3530, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings
+
+**Follow-ups:**
+- I wrote the tests before the code but did not run them red (the module was missing).
+<!-- end CAT-033 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 
