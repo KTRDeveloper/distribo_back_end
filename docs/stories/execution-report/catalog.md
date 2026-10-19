@@ -728,6 +728,41 @@ Also in this run: relationship, admin, order, finance, delivery.
 - AC-3 wording "server_updated_at is that instant" cannot hold given the trigger; story text could be amended.
 <!-- end CAT-020 -->
 
+<!-- begin CAT-022 -->
+## CAT-022 — Manager creates a product with its variants
+
+- Filed: 2026-10-19 20:29 UTC
+- Status: **done**: POST products takes variants; 201 ProductView; VARIANT_EXISTS, plan limit
+- Risk: medium · story: [CAT-022-manager-creates-a-product-with-its-variants.md](../modules/catalog/CAT-022-manager-creates-a-product-with-its-variants.md)
+- Agent: 85,932 tokens, 27 tool uses, 4 min 44 s
+
+### Agent report
+
+**Summary:** POST products now takes `variants` (1 to 50), writes the product with an empty unit then each ACTIVE variant in one transaction, answers the new ProductView.
+
+**Decisions:**
+- Old flat `ProductView` renamed `FlatProductView` (edit, copy, list still answer it); the new `ProductView` is the story's type.
+- Twin check: in-memory `simplifyText` pre-check (409 `VARIANT_EXISTS`), plus a P2002 from the unique index mapped to the same 409 as fallback.
+- Variant ids must be distinct in the body (400); variant name and unit are trimmed.
+- Check order: org active, twins, `assertRoomForProduct`, inserts.
+
+**Tests added beyond the story:**
+- `create-product-with-variants.test.ts` › 50 variants and price 1 accepted: limit boundary (CAT-004 limits); passed at once
+- same file › same unit under different names is not a twin (C-47); passed at once
+- same file › rolls back the product when a later variant insert fails (reused variant id): one transaction (CONVENTIONS); passed at once
+- same file › same variant id twice in the body: 400 (strict body)
+
+**Other additions:**
+- `insertProductForVariants`, `insertActiveVariant` in catalog.repository.ts (the existing insert functions do not fit).
+- `ProductVariant` create row with `CATALOG_FIELDS` in ability.ts.
+
+**Evidence:** story tests 143/143 (create-product, with-variants, ability); full suite 4207/4209 on the first run (the 2 failures were my typecheck errors, fixed; catalog + tooling files rerun green: 498/498); typecheck clean; lint 0 errors, 186 warnings (existing)
+
+**Follow-ups:**
+- Tests were written before the implementation but I did not run them red first.
+- A reused variant id of another business answers 409 `VARIANT_EXISTS` (P2002), not a dedicated code.
+<!-- end CAT-022 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 

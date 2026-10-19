@@ -25,6 +25,20 @@ export type AccessContext = {
   onServer: boolean;
 };
 
+/**
+ * Fields a manager writes when creating a product or one of its variants (CAT-022). The server
+ * alone sets the organization, the photos, the pause date and the price date (ASVS v5.0.0-15.3.3).
+ */
+export const CATALOG_FIELDS = [
+  'name',
+  'description',
+  'category',
+  'unit',
+  'price',
+  'min_order_quantity',
+  'status',
+];
+
 export const RULES: AccessRule[] = [
   {
     who: 'SELLER',
@@ -76,6 +90,14 @@ export const RULES: AccessRule[] = [
     where: 'ONLINE_EXCEPT_OWNER',
     action: 'create',
     subject: 'Product',
+    fields: CATALOG_FIELDS,
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE_EXCEPT_OWNER',
+    action: 'create',
+    subject: 'ProductVariant',
+    fields: CATALOG_FIELDS,
   },
   {
     who: 'MANAGER',

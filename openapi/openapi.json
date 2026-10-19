@@ -13686,7 +13686,7 @@
         "tags": [
           "catalog"
         ],
-        "summary": "The owner or an online manager adds an article",
+        "summary": "The owner or an online manager adds an article with its variants",
         "security": [
           {
             "bearerAuth": []
@@ -13718,27 +13718,6 @@
                     "minLength": 1,
                     "maxLength": 100
                   },
-                  "unit": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
-                  },
-                  "price": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 9007199254740991
-                  },
-                  "min_order_quantity": {
-                    "anyOf": [
-                      {
-                        "type": "number"
-                      },
-                      {
-                        "type": "string",
-                        "maxLength": 32
-                      }
-                    ]
-                  },
                   "description": {
                     "type": "string",
                     "maxLength": 2000
@@ -13746,13 +13725,58 @@
                   "category": {
                     "type": "string",
                     "maxLength": 100
+                  },
+                  "variants": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "unit": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "price": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "min_order_quantity": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "maxLength": 32
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "unit",
+                        "price"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 50
                   }
                 },
                 "required": [
                   "id",
                   "name",
-                  "unit",
-                  "price"
+                  "variants"
                 ],
                 "additionalProperties": false
               }
@@ -13761,7 +13785,7 @@
         },
         "responses": {
           "201": {
-            "description": "The created product",
+            "description": "The created product with its variants, in the order sent",
             "content": {
               "application/json": {
                 "schema": {
@@ -13773,22 +13797,6 @@
                     },
                     "name": {
                       "type": "string"
-                    },
-                    "unit": {
-                      "type": "string"
-                    },
-                    "price": {
-                      "type": "integer"
-                    },
-                    "price_updated_at": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "min_order_quantity": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
                     },
                     "description": {
                       "type": [
@@ -13802,29 +13810,85 @@
                         "null"
                       ]
                     },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "ACTIVE",
-                        "INACTIVE"
-                      ]
+                    "image_urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     },
-                    "created_at": {
-                      "type": "string",
-                      "format": "date-time"
+                    "paused": {
+                      "type": "boolean"
+                    },
+                    "variants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "unit": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "price": {
+                            "type": "integer"
+                          },
+                          "price_updated_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "min_order_quantity": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "image_urls": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "ACTIVE",
+                              "INACTIVE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "unit",
+                          "label",
+                          "price",
+                          "price_updated_at",
+                          "min_order_quantity",
+                          "image_urls",
+                          "status"
+                        ]
+                      }
                     }
                   },
                   "required": [
                     "id",
                     "name",
-                    "unit",
-                    "price",
-                    "price_updated_at",
-                    "min_order_quantity",
                     "description",
                     "category",
-                    "status",
-                    "created_at"
+                    "image_urls",
+                    "paused",
+                    "variants"
                   ]
                 }
               }
@@ -13871,7 +13935,7 @@
             }
           },
           "409": {
-            "description": "Organization not active or conflicting repeat",
+            "description": "Organization not active (ORGANIZATION_NOT_ACTIVE), plan limit reached (PRODUCT_LIMIT_REACHED) or two variants alike (VARIANT_EXISTS)",
             "content": {
               "application/json": {
                 "schema": {

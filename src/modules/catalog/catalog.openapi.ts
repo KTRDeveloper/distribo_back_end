@@ -30,6 +30,28 @@ const productViewSchema = z.object({
   created_at: z.string().datetime(),
 });
 
+const createdVariantViewSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().nullable(),
+  unit: z.string(),
+  label: z.string(),
+  price: z.number().int(),
+  price_updated_at: z.string().datetime(),
+  min_order_quantity: z.string().nullable(),
+  image_urls: z.array(z.string()),
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+});
+
+const createdProductViewSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  category: z.string().nullable(),
+  image_urls: z.array(z.string()),
+  paused: z.boolean(),
+  variants: z.array(createdVariantViewSchema),
+});
+
 const errorContent = { 'application/json': { schema: errorResponseSchema } };
 
 openApiRegistry.registerPath({
@@ -62,7 +84,7 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/api/v1/organizations/{organizationId}/products',
   tags: ['catalog'],
-  summary: 'The owner or an online manager adds an article',
+  summary: 'The owner or an online manager adds an article with its variants',
   security: [{ bearerAuth: [] }],
   request: {
     params: organizationParamsSchema,
@@ -70,14 +92,18 @@ openApiRegistry.registerPath({
   },
   responses: {
     201: {
-      description: 'The created product',
-      content: { 'application/json': { schema: productViewSchema } },
+      description: 'The created product with its variants, in the order sent',
+      content: { 'application/json': { schema: createdProductViewSchema } },
     },
     400: { description: 'Invalid body', content: errorContent },
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'Role not allowed', content: errorContent },
     404: { description: 'Not a member of the organization', content: errorContent },
-    409: { description: 'Organization not active or conflicting repeat', content: errorContent },
+    409: {
+      description:
+        'Organization not active (ORGANIZATION_NOT_ACTIVE), plan limit reached (PRODUCT_LIMIT_REACHED) or two variants alike (VARIANT_EXISTS)',
+      content: errorContent,
+    },
   },
 });
 

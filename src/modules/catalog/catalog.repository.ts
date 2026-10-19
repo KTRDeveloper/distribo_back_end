@@ -1,4 +1,4 @@
-import type { Prisma, Product } from '@prisma/client';
+import type { Prisma, Product, ProductVariant } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { httpError } from '../../lib/http-error.js';
 import { imageKeySchema } from '../../lib/image-keys.js';
@@ -150,6 +150,46 @@ export async function insertProduct(
   }
 ): Promise<Product> {
   return tx.product.create({ data });
+}
+
+/**
+ * Inserts a product that the code gives variants to: the unit stays empty, so the old-style mirror
+ * of CAT-014 adds no variant of its own, and the price keeps its database default. `created_at`
+ * comes from the database; the photos and the pause date stay empty (server-owned).
+ *
+ * Named apart from {@link insertProduct}, which writes an old-style product with its unit and price.
+ */
+export async function insertProductForVariants(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    organizationId: string;
+    name: string;
+    description: string | null;
+    category: string | null;
+  }
+): Promise<Product> {
+  return tx.product.create({ data: { ...data, unit: '' } });
+}
+
+/**
+ * Inserts one ACTIVE variant under a product of the organization. The database sets
+ * `price_updated_at`, so a value from the caller can never land (C-13); a live twin or a reused id
+ * is refused by the database (23505), which the caller maps.
+ */
+export async function insertActiveVariant(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string;
+    productId: string;
+    organizationId: string;
+    name: string | null;
+    unit: string;
+    price: bigint;
+    minOrderQuantity: string | null;
+  }
+): Promise<ProductVariant> {
+  return tx.productVariant.create({ data: { ...data, status: 'ACTIVE' } });
 }
 
 /**

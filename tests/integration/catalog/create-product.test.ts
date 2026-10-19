@@ -19,18 +19,29 @@ const REG = new Date('2026-01-01T00:00:00.000Z');
 
 const GESTURE_1 = '0199c0b4-0000-7000-8000-0000000000c1';
 const GESTURE_2 = '0199c0b4-0000-7000-8000-0000000000c2';
+const VARIANT_1 = '0199c0b4-0000-7000-8000-0000000000d1';
+const VARIANT_2 = '0199c0b4-0000-7000-8000-0000000000d2';
+
+type VariantBody = {
+  id: string;
+  name: string | null;
+  unit: string;
+  label: string;
+  price: number;
+  price_updated_at: string;
+  min_order_quantity: string | null;
+  image_urls: string[];
+  status: string;
+};
 
 type ProductBody = {
   id: string;
   name: string;
-  unit: string;
-  price: number;
-  price_updated_at: string;
-  min_order_quantity: string | null;
   description: string | null;
   category: string | null;
-  status: string;
-  created_at: string;
+  image_urls: string[];
+  paused: boolean;
+  variants: VariantBody[];
 };
 
 async function seedPerson(id: string, phone: string) {
@@ -79,11 +90,20 @@ function post(orgId: string, body: unknown, personId = MANAGER) {
     .send(body as object);
 }
 
-const goodBody = (over: Record<string, unknown> = {}) => ({
-  id: GESTURE_1,
-  name: 'Riz parfumé — sac 25 kg',
+const goodVariant = (over: Record<string, unknown> = {}) => ({
+  id: VARIANT_1,
   unit: 'sac 25 kg',
   price: 15000,
+  ...over,
+});
+
+const goodBody = (
+  over: Record<string, unknown> = {},
+  variantOver: Record<string, unknown> = {}
+) => ({
+  id: GESTURE_1,
+  name: 'Riz parfumé',
+  variants: [goodVariant(variantOver)],
   ...over,
 });
 
@@ -107,29 +127,40 @@ beforeEach(async () => {
 });
 
 describe('POST /api/v1/organizations/:organizationId/products', () => {
-  it('AC-1 create: 201, ACTIVE, price_updated_at set, closed view, row stored', async () => {
+  it('AC-1 create: 201, ACTIVE variant, price_updated_at set, closed view, rows stored', async () => {
     const response = await post(ORG_A, goodBody());
 
     expect(response.status).toBe(201);
     const body = bodyOf<ProductBody>(response);
     expect(body).toMatchObject({
       id: GESTURE_1,
-      name: 'Riz parfumé — sac 25 kg',
-      unit: 'sac 25 kg',
-      price: 15000,
-      min_order_quantity: null,
+      name: 'Riz parfumé',
       description: null,
       category: null,
+      image_urls: [],
+      paused: false,
+    });
+    expect(Object.keys(body).sort()).toEqual(
+      ['category', 'description', 'id', 'image_urls', 'name', 'paused', 'variants'].sort()
+    );
+    expect(body.variants).toHaveLength(1);
+    const [variant] = body.variants;
+    expect(variant).toMatchObject({
+      id: VARIANT_1,
+      name: null,
+      unit: 'sac 25 kg',
+      label: 'Riz parfumé — sac 25 kg',
+      price: 15000,
+      min_order_quantity: null,
+      image_urls: [],
       status: 'ACTIVE',
     });
-    expect(Number.isNaN(Date.parse(body.price_updated_at))).toBe(false);
-    expect(Number.isNaN(Date.parse(body.created_at))).toBe(false);
-    expect(Object.keys(body).sort()).toEqual(
+    expect(Number.isNaN(Date.parse(variant.price_updated_at))).toBe(false);
+    expect(Object.keys(variant).sort()).toEqual(
       [
-        'category',
-        'created_at',
-        'description',
         'id',
+        'image_urls',
+        'label',
         'min_order_quantity',
         'name',
         'price',
@@ -140,49 +171,62 @@ describe('POST /api/v1/organizations/:organizationId/products', () => {
     );
 
     const row = await prisma.product.findUniqueOrThrow({ where: { id: GESTURE_1 } });
-    expect(row).toMatchObject({ organizationId: ORG_A, price: 15000n, status: 'ACTIVE' });
+    expect(row).toMatchObject({ organizationId: ORG_A, unit: '', status: 'ACTIVE' });
+    const variantRow = await prisma.productVariant.findUniqueOrThrow({ where: { id: VARIANT_1 } });
+    expect(variantRow).toMatchObject({
+      organizationId: ORG_A,
+      productId: GESTURE_1,
+      price: 15000n,
+      status: 'ACTIVE',
+    });
+    expect(await prisma.productVariant.count()).toBe(1);
   });
 
   it('stores the optional fields', async () => {
     const response = await post(
       ORG_A,
-      goodBody({ min_order_quantity: '2.5', description: 'Sac', category: 'Céréales' })
+      goodBody(
+        { description: 'Sac', category: 'Céréales' },
+        { min_order_quantity: '2.5', name: 'Parfumé' }
+      )
     );
 
     expect(response.status).toBe(201);
-    expect(bodyOf<ProductBody>(response)).toMatchObject({
+    const body = bodyOf<ProductBody>(response);
+    expect(body).toMatchObject({ description: 'Sac', category: 'Céréales' });
+    expect(body.variants[0]).toMatchObject({
       min_order_quantity: '2.5',
-      description: 'Sac',
-      category: 'Céréales',
+      name: 'Parfumé',
+      label: 'Riz parfumé — Parfumé (sac 25 kg)',
     });
   });
 
   describe('AC-2 limits', () => {
-    const rows: [string, Record<string, unknown>, number][] = [
-      ['name empty', { name: '' }, 400],
-      ['name 101 chars', { name: 'a'.repeat(101) }, 400],
-      ['name 100 chars', { name: 'a'.repeat(100) }, 201],
-      ['unit empty', { unit: '' }, 400],
-      ['unit 101 chars', { unit: 'a'.repeat(101) }, 400],
-      ['category 101 chars', { category: 'a'.repeat(101) }, 400],
-      ['description 2001 chars', { description: 'a'.repeat(2001) }, 400],
-      ['price 0', { price: 0 }, 400],
-      ['price 1', { price: 1 }, 201],
-      ['price negative', { price: -5 }, 400],
-      ['price 1.5', { price: 1.5 }, 400],
-      ['price string', { price: '1500' }, 400],
-      ['min_order_quantity 0', { min_order_quantity: 0 }, 400],
-      ['min_order_quantity "0"', { min_order_quantity: '0' }, 400],
-      ['min_order_quantity 0.0001', { min_order_quantity: 0.0001 }, 400],
-      ['min_order_quantity "0.0001"', { min_order_quantity: '0.0001' }, 400],
-      ['min_order_quantity negative', { min_order_quantity: -1 }, 400],
-      ['min_order_quantity too large', { min_order_quantity: '1000000000' }, 400],
-      ['min_order_quantity 2.5', { min_order_quantity: 2.5 }, 201],
-      ['min_order_quantity "2.5"', { min_order_quantity: '2.5' }, 201],
+    const rows: [string, Record<string, unknown>, number, 'product' | 'variant'][] = [
+      ['name empty', { name: '' }, 400, 'product'],
+      ['name 101 chars', { name: 'a'.repeat(101) }, 400, 'product'],
+      ['name 100 chars', { name: 'a'.repeat(100) }, 201, 'product'],
+      ['unit empty', { unit: '' }, 400, 'variant'],
+      ['unit 101 chars', { unit: 'a'.repeat(101) }, 400, 'variant'],
+      ['category 101 chars', { category: 'a'.repeat(101) }, 400, 'product'],
+      ['description 2001 chars', { description: 'a'.repeat(2001) }, 400, 'product'],
+      ['price 0', { price: 0 }, 400, 'variant'],
+      ['price 1', { price: 1 }, 201, 'variant'],
+      ['price negative', { price: -5 }, 400, 'variant'],
+      ['price 1.5', { price: 1.5 }, 400, 'variant'],
+      ['price string', { price: '1500' }, 400, 'variant'],
+      ['min_order_quantity 0', { min_order_quantity: 0 }, 400, 'variant'],
+      ['min_order_quantity "0"', { min_order_quantity: '0' }, 400, 'variant'],
+      ['min_order_quantity 0.0001', { min_order_quantity: 0.0001 }, 400, 'variant'],
+      ['min_order_quantity "0.0001"', { min_order_quantity: '0.0001' }, 400, 'variant'],
+      ['min_order_quantity negative', { min_order_quantity: -1 }, 400, 'variant'],
+      ['min_order_quantity too large', { min_order_quantity: '1000000000' }, 400, 'variant'],
+      ['min_order_quantity 2.5', { min_order_quantity: 2.5 }, 201, 'variant'],
+      ['min_order_quantity "2.5"', { min_order_quantity: '2.5' }, 201, 'variant'],
     ];
 
-    it.each(rows)('%s -> %i', async (_label, over, status) => {
-      const response = await post(ORG_A, goodBody(over));
+    it.each(rows)('%s -> %i', async (_label, over, status, level) => {
+      const response = await post(ORG_A, level === 'product' ? goodBody(over) : goodBody({}, over));
       expect(response.status).toBe(status);
       if (status === 400) {
         expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
@@ -193,7 +237,9 @@ describe('POST /api/v1/organizations/:organizationId/products', () => {
 
   it('AC-3 roles: OWNER and MANAGER get 201, SELLER and DRIVER get 403', async () => {
     expect((await post(ORG_A, goodBody(), OWNER)).status).toBe(201);
-    expect((await post(ORG_A, goodBody({ id: GESTURE_2 }), MANAGER)).status).toBe(201);
+    expect(
+      (await post(ORG_A, goodBody({ id: GESTURE_2 }, { id: VARIANT_2 }), MANAGER)).status
+    ).toBe(201);
     expect(await productCount()).toBe(2);
   });
 

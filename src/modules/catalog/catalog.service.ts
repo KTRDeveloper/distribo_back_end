@@ -1,4 +1,6 @@
-import type { Prisma, Product } from '@prisma/client';
+import type { Prisma, Product, ProductVariant } from '@prisma/client';
+import { imageUrl } from '../../lib/image-keys.js';
+import { simplifyText, variantLabel } from '../../shared/variant.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { assertOrganizationActive, getActiveCollaboration } from '../../middleware/load-actor.js';
@@ -18,7 +20,9 @@ import {
   findSupplierRelationshipForPrice,
   getProductCopyableBy,
   getProductOfOrganization,
+  insertActiveVariant,
   insertProduct,
+  insertProductForVariants,
   listCatalogForCustomer,
   listCustomerPricesOfRelationship,
   listLiveCustomerPricesForCopy,
@@ -38,15 +42,17 @@ import type {
   CustomerPricePage,
   CustomerPriceView,
   EditProductInput,
+  FlatProductView,
   ListCustomerPricesQuery,
   ListProductsQuery,
   ProductPage,
   ProductView,
   SetCustomerPriceInput,
+  VariantView,
 } from './catalog.schemas.js';
 
-/** Builds the closed product view from an explicit field list. */
-function toProductView(product: Product): ProductView {
+/** Builds the closed flat product view from an explicit field list. */
+function toFlatProductView(product: Product): FlatProductView {
   return {
     id: product.id,
     name: product.name,
@@ -61,32 +67,88 @@ function toProductView(product: Product): ProductView {
   };
 }
 
+/** Tells whether the database refused a row as a duplicate (PostgreSQL 23505, Prisma P2002). */
+function isUniqueViolation(error: unknown): boolean {
+  return (error as { code?: string } | null)?.code === 'P2002';
+}
+
+/** Composes the closed variant view; `label` and the photo addresses are built here. */
+function toVariantView(productName: string, variant: ProductVariant): VariantView {
+  return {
+    id: variant.id,
+    name: variant.name,
+    unit: variant.unit,
+    label: variantLabel(productName, variant.name, variant.unit),
+    price: Number(variant.price),
+    price_updated_at: variant.priceUpdatedAt.toISOString(),
+    min_order_quantity: variant.minOrderQuantity?.toString() ?? null,
+    image_urls: variant.imageKeys.map((key) => imageUrl(key)!),
+    status: variant.status,
+  };
+}
+
 /**
- * Creates an ACTIVE product in the actor's organization.
+ * Creates an ACTIVE product with its variants in the actor's organization.
  *
  * The role is decided by the route (`create Product` in the rules table, ASVS v5.0.0-8.2.1);
- * the organization comes from the loaded actor, never from the body. The organization must be
- * ACTIVE, checked in the same transaction as the insert (fail closed). Status and
- * `price_updated_at` are set by the server (C-13).
+ * the organization comes from the loaded actor, never from the body. One transaction checks that
+ * the organization is ACTIVE, refuses two variants of the body that share a simplified name and
+ * unit (C-47), checks the plan's room for one more product (C-46), writes the product with an
+ * empty unit (CAT-014: the code writes the variants) and then each variant, ACTIVE, in the order
+ * sent. Status, photos, pause date and `price_updated_at` are set by the server (C-13). A twin
+ * the database still refuses (a race, a different case folding) is mapped to the same 409.
  *
  * @param actor - Actor loaded from the path.
  * @param input - Validated body.
- * @throws 409 `ORGANIZATION_NOT_ACTIVE`; 404 `NOT_FOUND` when the organization vanished.
+ * @throws 409 `ORGANIZATION_NOT_ACTIVE`, `VARIANT_EXISTS` or `PRODUCT_LIMIT_REACHED`; 404
+ * `NOT_FOUND` when the organization vanished.
  */
 export async function createProduct(actor: Actor, input: CreateProductInput): Promise<ProductView> {
   return runInTransaction(async (tx) => {
     await assertOrganizationActive(actor.organizationId, tx);
-    const product = await insertProduct(tx, {
+    const seen = new Set<string>();
+    for (const variant of input.variants) {
+      const key = JSON.stringify([simplifyText(variant.name ?? null), simplifyText(variant.unit)]);
+      if (seen.has(key)) throw httpError(409, 'VARIANT_EXISTS', 'Two variants are the same');
+      seen.add(key);
+    }
+    await assertRoomForProduct(tx, actor.organizationId);
+    const product = await insertProductForVariants(tx, {
       id: input.id,
       organizationId: actor.organizationId,
       name: input.name,
-      unit: input.unit,
-      price: BigInt(input.price),
-      minOrderQuantity: input.min_order_quantity ?? null,
       description: input.description ?? null,
       category: input.category ?? null,
     });
-    return toProductView(product);
+    const variants: VariantView[] = [];
+    for (const variant of input.variants) {
+      try {
+        const row = await insertActiveVariant(tx, {
+          id: variant.id,
+          productId: product.id,
+          organizationId: actor.organizationId,
+          name: variant.name ?? null,
+          unit: variant.unit,
+          price: BigInt(variant.price),
+          minOrderQuantity: variant.min_order_quantity ?? null,
+        });
+        variants.push(toVariantView(product.name, row));
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          throw httpError(409, 'VARIANT_EXISTS', 'Two variants are the same');
+        }
+        throw error;
+      }
+    }
+    return {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      category: product.category,
+      image_urls: product.imageKeys.map((key) => imageUrl(key)!),
+      paused: product.pausedAt !== null,
+      variants,
+    };
   });
 }
 
@@ -104,7 +166,7 @@ export async function createProduct(actor: Actor, input: CreateProductInput): Pr
  * @param input - Validated body: gesture id, source article, caller's price in XAF.
  * @throws 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE`.
  */
-export async function copyProduct(actor: Actor, input: CopyProductInput): Promise<ProductView> {
+export async function copyProduct(actor: Actor, input: CopyProductInput): Promise<FlatProductView> {
   return runInTransaction(async (tx) => {
     await assertOrganizationActive(actor.organizationId, tx);
     const source = await getProductCopyableBy(tx, actor.organizationId, input.source_product_id);
@@ -118,7 +180,7 @@ export async function copyProduct(actor: Actor, input: CopyProductInput): Promis
       description: source.description,
       category: source.category,
     });
-    return toProductView(product);
+    return toFlatProductView(product);
   });
 }
 
@@ -140,7 +202,7 @@ export async function editProduct(
   actor: Actor,
   productId: string,
   input: EditProductInput
-): Promise<ProductView & { negotiated_prices_to_review: number }> {
+): Promise<FlatProductView & { negotiated_prices_to_review: number }> {
   return runInTransaction(async (tx) => {
     const before = await getProductOfOrganization(tx, actor.organizationId, productId);
     const updated = await updateProduct(tx, before.id, {
@@ -156,7 +218,7 @@ export async function editProduct(
     const toReview = priceChanged
       ? await countNegotiatedPricesBefore(tx, updated.id, updated.priceUpdatedAt)
       : 0;
-    return { ...toProductView(updated), negotiated_prices_to_review: toReview };
+    return { ...toFlatProductView(updated), negotiated_prices_to_review: toReview };
   });
 }
 
@@ -185,7 +247,7 @@ export async function listProducts(actor: Actor, query: ListProductsQuery): Prom
     throw httpError(403, 'FORBIDDEN', 'Permission denied');
   }
   const { rows, nextCursor } = await listProductsOfOrganization(actor.organizationId, query);
-  return { items: rows.map(toProductView), next_cursor: nextCursor };
+  return { items: rows.map(toFlatProductView), next_cursor: nextCursor };
 }
 
 /**

@@ -298,7 +298,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-017 | done | | getReferencePrice reads the variant and its negotiated price; 11 new tests + legacy 13 pass |
 | CAT-019 | done | | getActiveVariant added to catalog.repository; 9 tests pass |
 | CAT-020 | done | | listProductsOnSale, listPausedProducts, setProductsPaused in catalog.repository; 14 tests pass |
-| CAT-022 | todo | | |
+| CAT-022 | done | | POST products takes variants; 201 ProductView; VARIANT_EXISTS, plan limit |
 | CAT-023 | todo | | |
 | CAT-024 | todo | | |
 | CAT-025 | todo | | |

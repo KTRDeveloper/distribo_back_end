@@ -25,22 +25,70 @@ const minOrderQuantitySchema = z.union([z.number(), z.string().max(32)]).transfo
 });
 
 /**
- * Strict body of the create gesture (ASVS v5.0.0-15.3.3): status, organization and
- * `price_updated_at` are never accepted, the server sets them (CWE-915). Limits from Q-027.
+ * One variant of the create gesture (ASVS v5.0.0-15.3.3): its own id, an optional name of 1 to 100
+ * characters, a unit, a whole XAF price of at least 1 and an optional minimum order quantity.
+ * Status, organization, photos and `price_updated_at` are never accepted (CWE-915).
+ */
+const variantInputSchema = z
+  .object({
+    id: uuidV7Schema,
+    name: z.string().trim().min(1).max(NAME_MAX).optional(),
+    unit: z.string().trim().min(1).max(NAME_MAX),
+    price: z.number().int().safe().min(1),
+    min_order_quantity: minOrderQuantitySchema.optional(),
+  })
+  .strict();
+
+/** Most variants one product holds when it is created (CAT-004 limits). */
+const VARIANTS_MAX = 50;
+
+/**
+ * Strict body of the create gesture (ASVS v5.0.0-15.3.3): the product texts and 1 to 50 variants
+ * with distinct ids. A unit, a price, a status, the organization, the photos and the pause date
+ * are never accepted at the top level, the server sets them (CWE-915). Limits from Q-027.
  */
 export const createProductSchema = z
   .object({
     id: uuidV7Schema,
     name: z.string().trim().min(1).max(NAME_MAX),
-    unit: z.string().trim().min(1).max(NAME_MAX),
-    price: z.number().int().safe().min(1),
-    min_order_quantity: minOrderQuantitySchema.optional(),
     description: z.string().max(TEXT_MAX).optional(),
     category: z.string().trim().max(NAME_MAX).optional(),
+    variants: z
+      .array(variantInputSchema)
+      .min(1)
+      .max(VARIANTS_MAX)
+      .refine((list) => new Set(list.map((variant) => variant.id)).size === list.length, {
+        message: 'duplicate_variant_id',
+      }),
   })
   .strict();
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type VariantInput = CreateProductInput['variants'][number];
+
+/** One variant as the manager sees it after creation; the label is composed by `variantLabel`. */
+export type VariantView = {
+  id: string;
+  name: string | null;
+  unit: string;
+  label: string;
+  price: number;
+  price_updated_at: string;
+  min_order_quantity: string | null;
+  image_urls: string[];
+  status: 'ACTIVE' | 'INACTIVE';
+};
+
+/** Closed response of the create gesture: the product with its variants in request order. */
+export type ProductView = {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  image_urls: string[];
+  paused: boolean;
+  variants: VariantView[];
+};
 
 /**
  * Strict body of the edit gesture (ASVS v5.0.0-15.3.3): only the listed fields, at least one.
@@ -63,8 +111,8 @@ export const editProductSchema = z
 
 export type EditProductInput = z.infer<typeof editProductSchema>;
 
-/** Closed response of the create gesture. */
-export type ProductView = {
+/** Flat product as the edit, copy and list gestures still answer it (before their own stories). */
+export type FlatProductView = {
   id: string;
   name: string;
   unit: string;
@@ -93,7 +141,7 @@ export const listProductsQuerySchema = paginationQuerySchema
 export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;
 
 /** Response of the product list. */
-export type ProductPage = { items: ProductView[]; next_cursor: string | null };
+export type ProductPage = { items: FlatProductView[]; next_cursor: string | null };
 
 /**
  * Strict query of the customer's catalog (ASVS v5.0.0-2.2.1): page size, cursor and the
