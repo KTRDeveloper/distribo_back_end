@@ -30,3 +30,38 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 13/13; full suite 3349/3349, failing: none, 0 known; typecheck clean; lint 0 errors, 142 warnings
 <!-- end IMG-001 -->
+
+<!-- begin IMG-002 -->
+## IMG-002 — Storage and photo-processing ports with fake adapters
+
+- Filed: 2026-10-19 16:51 UTC
+- Status: **done**: ports, fakes, deleteImageFiles, env settings; 22 tests green
+- Risk: high · story: [IMG-002-storage-and-photo-processing-ports-with-fake.md](../modules/images/IMG-002-storage-and-photo-processing-ports-with-fake.md)
+- Agent: 50,879 tokens, 21 tool uses, 4 min 10 s
+
+### Agent report
+
+**Summary:** Image storage and processor ports with fakes, findCitedKeys, deleteImageFiles and the three IMAGE_* settings are in place.
+
+**Decisions:**
+- Fake output layout: WebP-shaped header (bytes 16-23 copy the size), then SHA-256 of input bytes after offset 24, then 8 random bytes with `vary`; inspect works on the output too.
+- Fake size read from bytes 16-23 for every format (the story names only the PNG layout).
+- Cards count as citing while the column holds the key, even if soft-deleted (story says "held by").
+- `FakeImageStorage` takes an optional clock so later cleanup tests can age files.
+- One `image_delete_failed` warn per key that fails to delete (key id only, plus err).
+
+**Tests added beyond the story:**
+- `tests/integration/images/image-files.test.ts` › avatar/logo kept, malformed key untouched: avatar and logo citations, no malformed key reaching storage (C-49, ASVS 5.3.2); passed once implemented
+- `tests/integration/images/image-files.test.ts` › findCitedKeys and empty list: only held keys returned (C-49)
+- `tests/unit/images/fake-processor.test.ts` › jpeg/webp detection, vary, unreadable bytes, storage order and listing (AC-5 support)
+- `tests/unit/images/image-settings.test.ts` › IMAGE_MAX_PIXELS=0 names the variable (AC-4)
+
+**Other additions:**
+- `deleteImageFiles` skips keys failing `imageKeySchema` with warn `image_delete_skipped` (fail closed against path-like keys; not in the story).
+- AB-1 test: the product lets go of the key, the variant (created by the DB trigger) still holds it, so the file stays.
+
+**Evidence:** story tests 22/22 (unit images + image-files); full suite 3762/3763, failing: quality-gates lint check (5 lint errors of mine, fixed afterwards; file rerun green: 36/36 with images tests), 0 known; typecheck clean; lint 0 errors, 158 warnings
+
+**Follow-ups:**
+- ADR-005 still proposed: no real S3 or image-library adapter.
+<!-- end IMG-002 -->

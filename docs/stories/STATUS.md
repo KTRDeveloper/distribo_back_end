@@ -260,7 +260,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-030 | done | | Collaborator limit enforced under row lock; 409 COLLABORATOR_LIMIT_REACHED |
 | ORG-035 | done | | plan writer, team seats and seat pause added in organization.repository |
 | ORG-038 | done | | getLogoKey and setLogoKey added to organization.repository.ts; 8 tests pass |
-| IMG-002 | todo | | |
+| IMG-002 | done | | ports, fakes, deleteImageFiles, env settings; 22 tests green |
 | IMG-003 | todo | | |
 | IMG-004 | todo | | |
 | IMG-005 | todo | | |

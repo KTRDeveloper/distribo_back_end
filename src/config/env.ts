@@ -68,6 +68,20 @@ const envSchema = z.object({
     .refine((value) => !value.endsWith('/'), 'must not end with /')
     .refine((value) => !/[?#]/.test(value), 'must not contain a query or a fragment'),
 
+  // Photo storage and processing (ADR-005): only the fake adapters exist until a human accepts
+  // the ADR. Limits are positive integers: bytes of an uploaded file, pixels of its decoded image.
+  IMAGE_DRIVER: z.enum(['fake']).default('fake'),
+  IMAGE_MAX_BYTES: z
+    .string()
+    .regex(/^[1-9]\d*$/)
+    .transform(Number)
+    .default('3145728'),
+  IMAGE_MAX_PIXELS: z
+    .string()
+    .regex(/^[1-9]\d*$/)
+    .transform(Number)
+    .default('12000000'),
+
   // Payment aggregator (ADR-006): only the fake adapter exists until a human accepts the ADR
   PAYMENT_DRIVER: z.enum(['fake']).default('fake'),
 
