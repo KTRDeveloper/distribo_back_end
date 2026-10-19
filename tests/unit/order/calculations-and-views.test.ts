@@ -40,6 +40,7 @@ function order(overrides: Partial<Order> = {}): Order & { lines: OrderLine[] } {
     status: 'CANCELLED',
     deliveredAt: new Date('2026-10-05T10:00:00Z'),
     deliveredById: ID(32),
+    acceptedAt: null,
     createdAt: new Date('2026-10-04T09:00:00Z'),
     desiredDeliveryDate: null,
     cancelledByParty: 'SUPPLIER',

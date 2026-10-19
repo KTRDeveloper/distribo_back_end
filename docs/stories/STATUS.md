@@ -288,7 +288,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-009 | done | | POST /billing/payments; 4051 tests pass |
 | ORG-045 | done | | readPlanFields, listOrganizationsToRefresh, listOrganizationsEnding added; 20 tests pass |
 | CAT-038 | done | | countProductsOnSale and assertRoomForProduct added; 9 tests green |
-| ORD-022 | todo | | |
+| ORD-022 | done | | accepted_at column and C-51 checks in migration 20261019130000 |
 | ORD-024 | todo | | |
 | ORD-025 | todo | | |
 | ORD-026 | todo | | |

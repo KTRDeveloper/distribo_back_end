@@ -1241,6 +1241,11 @@ model CustomerPrice {
 //   Code must change a line and the total in the same transaction.
 //   (Migration 20261004320000_ord_006_total_check, a deferred constraint trigger
 //   on orders and order_lines.)
+// - A PENDING order has no acceptance date (accepted_at), and only an order the
+//   customer placed can have one: an order the supplier entered never has it.
+//   Anything else fails with a check error (SQLSTATE 23514). Once set, the date
+//   stays when the order is later cancelled, which tells a refused order from one
+//   cancelled after acceptance. (Migration 20261019130000_ord_022_accepted_at)
 model Order {
   id                     String      @id @db.Uuid
   customerRelationshipId String      @map("customer_relationship_id") @db.Uuid
@@ -1252,6 +1257,7 @@ model Order {
   status                 OrderStatus @default(CONFIRMED)
   deliveredAt            DateTime?   @map("delivered_at") @db.Timestamptz
   deliveredById          String?     @map("delivered_by_id") @db.Uuid
+  acceptedAt             DateTime?   @map("accepted_at") @db.Timestamptz
   createdAt              DateTime    @default(now()) @map("created_at") @db.Timestamptz
   desiredDeliveryDate    DateTime?   @map("desired_delivery_date") @db.Date
   cancelledByParty       OrderParty? @map("cancelled_by_party")

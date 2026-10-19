@@ -347,6 +347,57 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 23/23; full suite 2126/2126 after fixing a lint error in my test (first run 2125/2126, quality-gates lint), failing: none; typecheck clean; lint 0 errors, 60 pre-existing warnings
 <!-- end ORD-008 -->
 
+<!-- begin ORD-018 -->
+## ORD-018 — Closing a business refuses its pending orders
+
+- Filed: 2026-10-04 16:53 UTC
+- Status: **done**: Pending orders refused in the close transaction; customers notified
+- Risk: medium · story: [ORD-018-closing-a-business-refuses-its-pending-orders.md](../modules/order/ORD-018-closing-a-business-refuses-its-pending-orders.md)
+- Agent: 54,634 tokens, 13 tool uses, 3 min 55 s
+
+### Agent report
+
+**Summary:** closeOrganization now refuses every PENDING order of the business in the same transaction and notifies registered customers.
+
+**Decisions:**
+- Added `lockPendingOrders` (SELECT ... FOR UPDATE, raw parameterized SQL) beside `refusePendingOrders` (signature kept, returns count): locks rows and gives the customers to notify, so a parallel confirm cannot slip between read and update.
+- `refusePendingOrders` is one updateMany applying the same fields as `transitionOrder` PENDING to CANCELLED, not a call to it: order.state imports the repository (cycle) and one UPDATE covers the whole business.
+- One `order.status_changed` per refused order (related = the order), so a customer with two pending orders gets two; AC-2 does not say.
+- Guest customers (no registered_at) are refused but not notified, because `notify` rejects guests and would roll the close back.
+- Mismatch between locked and refused counts throws 409 CONFLICT (unreachable while the rows are locked, fail closed).
+
+**Tests added beyond the story:**
+- `close-refuses-pending.test.ts` › pending order of another business is untouched: tenant scope (CONVENTIONS scope rules); passed at once
+- `close-refuses-pending.test.ts` › guest customer refused without notification, close succeeds: guest recipients cannot be notified (notify contract)
+
+**Evidence:** story tests 20/20 (6 new + 14 close); full suite 2132/2132, failing: none; typecheck clean; lint 0 errors, 60 warnings (pre-existing)
+
+**Follow-ups:**
+- order/contracts.md does not list `refusePendingOrders`; organization imports order.repository directly as the story's Implementation says.
+<!-- end ORD-018 -->
+
+<!-- begin ORD-022 -->
+## ORD-022 — Orders carry the date they were accepted
+
+- Filed: 2026-10-19 18:28 UTC
+- Status: **done**: accepted_at column and C-51 checks in migration 20261019130000
+- Risk: high · story: [ORD-022-orders-carry-the-date-they-were-accepted.md](../modules/order/ORD-022-orders-carry-the-date-they-were-accepted.md)
+- Agent: 42,822 tokens, 18 tool uses, 7 min 38 s
+
+### Agent report
+
+**Summary:** Added orders.accepted_at (timestamptz, nullable) with the two C-51 checks in one migration, extended the Order comment in schema.prisma, and updated the one listed unit fixture.
+
+**Decisions:**
+- Check names: `orders_accepted_at_customer_check` and `orders_pending_not_accepted_check`; the story left names open.
+- Migration timestamp 20261019130000, after the latest existing migration (20261019120000).
+
+**Evidence:** story tests 8/8; full suite 4087/4088, failing: otp-access-restore-text AB-1 (0 known; flaky, a random code contained "677", passes on rerun, unrelated); typecheck clean; lint 0 errors, 185 warnings
+
+**Follow-ups:**
+- tests/integration/auth/otp-access-restore-text.test.ts is flaky: it asserts a random 6-digit code never contains "677".
+<!-- end ORD-022 -->
+
 <!-- begin ORD-009 -->
 ## ORD-009 — Customer places an order
 
@@ -476,72 +527,6 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 15/15; full suite 2349/2349, failing: none; typecheck clean; lint 0 errors, 62 warnings (pre-existing)
 <!-- end ORD-012 -->
 
-<!-- begin ORD-013 -->
-## ORD-013 — Seller enters an order for a customer
-
-- Filed: 2026-10-04 19:52 UTC
-- Status: **done**: POST /orders enterOrder; 16 tests, full suite green
-- Risk: high · story: [ORD-013-seller-enters-an-order-for-a-customer.md](../modules/order/ORD-013-seller-enters-an-order-for-a-customer.md)
-- Agent: 68,575 tokens, 20 tool uses, 5 min 5 s
-
-### Agent report
-
-**Summary:** Added POST /organizations/{id}/orders (enterOrder): CONFIRMED, SUPPLIER-placed order priced server-side, price gaps authored.
-
-**Decisions:**
-- Counter detection: customerPersonId and customerOrganizationId both null (schema comment "no customer = counter"); checked before status.
-- Relationship lookup: `findSupplierRelationshipLocked` (visibility predicate + row lock), so another business's id is 404.
-- Delivery address: body value, else relationship's delivery_address (as place-order does).
-- ENDED row tested for RELATIONSHIP_NOT_ACTIVE; PENDING cannot exist for an organization supplier (schema rule).
-- No notification sent (story does not ask for one).
-
-**Tests added beyond the story:**
-- `enter-order.test.ts` › negotiated price is the reference: CAT-003 reference price used (AC-1); passed at once
-- `enter-order.test.ts` › price above reference, 0, minimum quantity ignored (AC-2 text); passed at once
-- `enter-order.test.ts` › suspended business 409 (C-14 / assertOrganizationActive)
-- `enter-order.test.ts` › negative/fractional delivery cost or price 400 (story: integer at least 0)
-- `enter-order.test.ts` › price author hidden from SELLER view, shown to OWNER (projectOrderForSupplier rule, v5.0.0-8.2.3); passed at once
-- `enter-order.test.ts` › non-member 404 and product of another business 404 (v5.0.0-8.2.2)
-
-**Other additions:**
-- `insertConfirmedOrder` in order.repository.ts; `NewOrderLine` gained optional priceSetById/priceSetAt.
-- OpenAPI path registered; catalog.test.ts route list extended (per-001 list has no order entries, left alone); openapi.json regenerated.
-
-**Evidence:** story tests 16/16; full suite 2365/2365, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
-<!-- end ORD-013 -->
-
-<!-- begin ORD-014 -->
-## ORD-014 — Seller edits an order they entered, before departure
-
-- Filed: 2026-10-04 19:58 UTC
-- Status: **done**: PATCH orders/{orderId}: editOrder, ORDER_FROZEN, lines replaced
-- Risk: high · story: [ORD-014-seller-edits-an-order-they-entered-before.md](../modules/order/ORD-014-seller-edits-an-order-they-entered-before.md)
-- Agent: 77,086 tokens, 23 tool uses, 5 min 53 s
-
-### Agent report
-
-**Summary:** PATCH /organizations/{organizationId}/orders/{orderId} implemented (editOrder), all tests green.
-
-**Decisions:**
-- Ability: `create Order` (like ORD-013); ACC only gives SELLER `update Order` on supplier_note, and no rule covers editing. DRIVER gets 403.
-- Body carries the gesture `id` (project rule, idempotent()); "at least one field" means one besides `id`.
-- Not restricted to the seller who entered the order: story Context only requires placed_by SUPPLIER and CONFIRMED.
-- A new line reusing an id of this order (live or deleted) answers 400 VALIDATION_ERROR (primary key would otherwise give a 500).
-- `delivery_cost: null` means 0; total always recomputed from lines + cost. assertOrganizationActive checked as in enterOrder.
-
-**Tests added beyond the story:**
-- `edit-order.test.ts` › clears nullable fields; min quantity ignored; reused line id 400; DRIVER 403; repeated gesture; price author hidden from SELLER: all follow ORD-013 / project rules; passed at once.
-
-**Other additions:**
-- ORD-014 path assertion in `catalog.test.ts` (convention); `openapi/openapi.json` regenerated.
-
-**Evidence:** story tests 15/15; full suite 2379/2380 on first run (only the lint-gate test failed on a lint error in my test, fixed, rerun green); typecheck clean; lint 0 errors.
-
-**Follow-ups:**
-- I wrote implementation and tests together, so the red phase was not observed.
-- Editing an order whose relationship has since ENDED is not blocked (story silent).
-<!-- end ORD-014 -->
-
 <!-- begin ORD-015 -->
 ## ORD-015 — Seller writes a note on an order at any time
 
@@ -631,34 +616,71 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - Cancelling does not check that the customer organization is ACTIVE (story silent).
 <!-- end ORD-017 -->
 
-<!-- begin ORD-018 -->
-## ORD-018 — Closing a business refuses its pending orders
+<!-- begin ORD-013 -->
+## ORD-013 — Seller enters an order for a customer
 
-- Filed: 2026-10-04 16:53 UTC
-- Status: **done**: Pending orders refused in the close transaction; customers notified
-- Risk: medium · story: [ORD-018-closing-a-business-refuses-its-pending-orders.md](../modules/order/ORD-018-closing-a-business-refuses-its-pending-orders.md)
-- Agent: 54,634 tokens, 13 tool uses, 3 min 55 s
+- Filed: 2026-10-04 19:52 UTC
+- Status: **done**: POST /orders enterOrder; 16 tests, full suite green
+- Risk: high · story: [ORD-013-seller-enters-an-order-for-a-customer.md](../modules/order/ORD-013-seller-enters-an-order-for-a-customer.md)
+- Agent: 68,575 tokens, 20 tool uses, 5 min 5 s
 
 ### Agent report
 
-**Summary:** closeOrganization now refuses every PENDING order of the business in the same transaction and notifies registered customers.
+**Summary:** Added POST /organizations/{id}/orders (enterOrder): CONFIRMED, SUPPLIER-placed order priced server-side, price gaps authored.
 
 **Decisions:**
-- Added `lockPendingOrders` (SELECT ... FOR UPDATE, raw parameterized SQL) beside `refusePendingOrders` (signature kept, returns count): locks rows and gives the customers to notify, so a parallel confirm cannot slip between read and update.
-- `refusePendingOrders` is one updateMany applying the same fields as `transitionOrder` PENDING to CANCELLED, not a call to it: order.state imports the repository (cycle) and one UPDATE covers the whole business.
-- One `order.status_changed` per refused order (related = the order), so a customer with two pending orders gets two; AC-2 does not say.
-- Guest customers (no registered_at) are refused but not notified, because `notify` rejects guests and would roll the close back.
-- Mismatch between locked and refused counts throws 409 CONFLICT (unreachable while the rows are locked, fail closed).
+- Counter detection: customerPersonId and customerOrganizationId both null (schema comment "no customer = counter"); checked before status.
+- Relationship lookup: `findSupplierRelationshipLocked` (visibility predicate + row lock), so another business's id is 404.
+- Delivery address: body value, else relationship's delivery_address (as place-order does).
+- ENDED row tested for RELATIONSHIP_NOT_ACTIVE; PENDING cannot exist for an organization supplier (schema rule).
+- No notification sent (story does not ask for one).
 
 **Tests added beyond the story:**
-- `close-refuses-pending.test.ts` › pending order of another business is untouched: tenant scope (CONVENTIONS scope rules); passed at once
-- `close-refuses-pending.test.ts` › guest customer refused without notification, close succeeds: guest recipients cannot be notified (notify contract)
+- `enter-order.test.ts` › negotiated price is the reference: CAT-003 reference price used (AC-1); passed at once
+- `enter-order.test.ts` › price above reference, 0, minimum quantity ignored (AC-2 text); passed at once
+- `enter-order.test.ts` › suspended business 409 (C-14 / assertOrganizationActive)
+- `enter-order.test.ts` › negative/fractional delivery cost or price 400 (story: integer at least 0)
+- `enter-order.test.ts` › price author hidden from SELLER view, shown to OWNER (projectOrderForSupplier rule, v5.0.0-8.2.3); passed at once
+- `enter-order.test.ts` › non-member 404 and product of another business 404 (v5.0.0-8.2.2)
 
-**Evidence:** story tests 20/20 (6 new + 14 close); full suite 2132/2132, failing: none; typecheck clean; lint 0 errors, 60 warnings (pre-existing)
+**Other additions:**
+- `insertConfirmedOrder` in order.repository.ts; `NewOrderLine` gained optional priceSetById/priceSetAt.
+- OpenAPI path registered; catalog.test.ts route list extended (per-001 list has no order entries, left alone); openapi.json regenerated.
+
+**Evidence:** story tests 16/16; full suite 2365/2365, failing: none; typecheck clean; lint 0 errors, 62 warnings (existing)
+<!-- end ORD-013 -->
+
+<!-- begin ORD-014 -->
+## ORD-014 — Seller edits an order they entered, before departure
+
+- Filed: 2026-10-04 19:58 UTC
+- Status: **done**: PATCH orders/{orderId}: editOrder, ORDER_FROZEN, lines replaced
+- Risk: high · story: [ORD-014-seller-edits-an-order-they-entered-before.md](../modules/order/ORD-014-seller-edits-an-order-they-entered-before.md)
+- Agent: 77,086 tokens, 23 tool uses, 5 min 53 s
+
+### Agent report
+
+**Summary:** PATCH /organizations/{organizationId}/orders/{orderId} implemented (editOrder), all tests green.
+
+**Decisions:**
+- Ability: `create Order` (like ORD-013); ACC only gives SELLER `update Order` on supplier_note, and no rule covers editing. DRIVER gets 403.
+- Body carries the gesture `id` (project rule, idempotent()); "at least one field" means one besides `id`.
+- Not restricted to the seller who entered the order: story Context only requires placed_by SUPPLIER and CONFIRMED.
+- A new line reusing an id of this order (live or deleted) answers 400 VALIDATION_ERROR (primary key would otherwise give a 500).
+- `delivery_cost: null` means 0; total always recomputed from lines + cost. assertOrganizationActive checked as in enterOrder.
+
+**Tests added beyond the story:**
+- `edit-order.test.ts` › clears nullable fields; min quantity ignored; reused line id 400; DRIVER 403; repeated gesture; price author hidden from SELLER: all follow ORD-013 / project rules; passed at once.
+
+**Other additions:**
+- ORD-014 path assertion in `catalog.test.ts` (convention); `openapi/openapi.json` regenerated.
+
+**Evidence:** story tests 15/15; full suite 2379/2380 on first run (only the lint-gate test failed on a lint error in my test, fixed, rerun green); typecheck clean; lint 0 errors.
 
 **Follow-ups:**
-- order/contracts.md does not list `refusePendingOrders`; organization imports order.repository directly as the story's Implementation says.
-<!-- end ORD-018 -->
+- I wrote implementation and tests together, so the red phase was not observed.
+- Editing an order whose relationship has since ENDED is not blocked (story silent).
+<!-- end ORD-014 -->
 
 <!-- begin ORD-019 -->
 ## ORD-019 — Seller lists the orders
