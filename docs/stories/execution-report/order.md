@@ -496,6 +496,27 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Evidence:** story tests 9/9; full suite 4130/4130, failing: none, 0 known; typecheck clean; lint 0 errors, 186 warnings (pre-existing)
 <!-- end ORD-029 -->
 
+<!-- begin ORD-030 -->
+## ORD-030 — The order module says which variants order lines cite
+
+- Filed: 2026-10-19 20:12 UTC
+- Status: **done**: listOrderedVariantIds added to order.repository; 6 tests pass
+- Risk: medium · story: [ORD-030-the-order-module-says-which-variants-order.md](../modules/order/ORD-030-the-order-module-says-which-variants-order.md)
+- Agent: 33,211 tokens, 13 tool uses, 2 min 27 s
+
+### Agent report
+
+**Summary:** Added `listOrderedVariantIds` to the order repository with its integration test; all green.
+
+**Decisions:**
+- Query: one `SELECT DISTINCT ... WHERE product_variant_id = ANY($1::uuid[])` on order_lines alone, with no deleted or status filter, so deleted lines and cancelled or deleted orders count (C-48).
+
+**Tests added beyond the story:**
+- `tests/integration/order/ordered-variant-ids.test.ts` › answers only for the ids asked: an id not in the list is never returned (AC-1); passed at once
+
+**Evidence:** story tests 6/6; full suite 4135/4136 on the first run, failing: quality-gates (lint errors from 2 unused constants in my own test, fixed, the file reran green), 0 known; typecheck clean; lint 0 errors, warnings only
+<!-- end ORD-030 -->
+
 <!-- begin ORD-009 -->
 ## ORD-009 — Customer places an order
 

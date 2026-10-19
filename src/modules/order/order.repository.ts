@@ -607,3 +607,26 @@ export async function countOrderedLinesByVariant(
   `;
   return new Map(rows.map((row) => [row.product_variant_id, row.line_count]));
 }
+
+/**
+ * Tells which of the given variants at least one order line cites, so the catalog never deletes a
+ * variant the sales history needs (C-48). The state of the line or of its order does not matter: a
+ * deleted line, a CANCELLED order or a deleted order still counts. The ids come from server code
+ * that has already checked the organization (v5.0.0-8.2.2); only the variant column is read.
+ *
+ * @param tx - Transaction client.
+ * @param variantIds - Variant ids to check; an empty list answers an empty set without a query.
+ * @returns The subset of `variantIds` cited by at least one line.
+ */
+export async function listOrderedVariantIds(
+  tx: Prisma.TransactionClient,
+  variantIds: string[]
+): Promise<Set<string>> {
+  if (variantIds.length === 0) return new Set();
+  const rows = await tx.$queryRaw<Array<{ product_variant_id: string }>>`
+    SELECT DISTINCT ol.product_variant_id::text AS product_variant_id
+    FROM order_lines ol
+    WHERE ol.product_variant_id = ANY(${variantIds}::uuid[])
+  `;
+  return new Set(rows.map((row) => row.product_variant_id));
+}
