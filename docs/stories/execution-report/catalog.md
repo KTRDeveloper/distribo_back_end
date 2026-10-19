@@ -677,6 +677,28 @@ Also in this run: relationship, admin, order, finance, delivery.
 - Callers (order, sync) still pass product ids; they work through the legacy variant ids until their own stories.
 <!-- end CAT-017 -->
 
+<!-- begin CAT-019 -->
+## CAT-019 — An active variant is read with its product name
+
+- Filed: 2026-10-19 20:21 UTC
+- Status: **done**: getActiveVariant added to catalog.repository; 9 tests pass
+- Risk: high · story: [CAT-019-an-active-variant-is-read-with-its-product-name.md](../modules/catalog/CAT-019-an-active-variant-is-read-with-its-product-name.md)
+- Agent: 33,530 tokens, 17 tool uses, 2 min 23 s
+
+### Agent report
+
+**Summary:** Added `getActiveVariant` and the `ActiveVariant` type to the catalog repository, with 9 integration tests.
+
+**Decisions:**
+- "Paused product": read as `products.paused_at IS NOT NULL`, as `countProductsOnSale` does; the `status` column on products is old and ignored.
+- The query is bound to the organization twice (variant and product), though the schema's composite FK already guarantees they match.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/active-variant.test.ts` › returns the variant with its product name: the result has exactly the 8 listed fields, nothing else (Types section, Validation conventions); passed at once with the implementation
+
+**Evidence:** story tests 9/9; full suite 4165/4165, failing: none, 0 known; typecheck clean; lint 0 errors, 186 warnings (existing)
+<!-- end CAT-019 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 

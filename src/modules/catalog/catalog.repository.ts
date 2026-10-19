@@ -68,6 +68,67 @@ export async function getActiveProduct(
   return product;
 }
 
+/** A variant on sale with the facts an order line freezes (C-15). */
+export type ActiveVariant = {
+  id: string;
+  productId: string;
+  productName: string;
+  variantName: string | null;
+  unit: string;
+  price: bigint;
+  priceUpdatedAt: Date;
+  minOrderQuantity: Prisma.Decimal | null;
+};
+
+/**
+ * Returns a variant on sale with its product name, so that no order module reads the catalog
+ * tables itself (ADR-004). On sale (C-15) means: the variant is ACTIVE, not deleted and belongs to
+ * the organization, and its product is neither deleted nor paused. A product written the old way
+ * has a variant with its own id, so product ids answer too.
+ *
+ * Read inside the caller's transaction, from the database (v5.0.0-2.2.3), and bound to the
+ * organization id (v5.0.0-8.2.2).
+ *
+ * @param organizationId - The supplier business, from the session or server code, never a request.
+ * @throws 404 NOT_FOUND otherwise, without telling which condition failed.
+ */
+export async function getActiveVariant(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  variantId: string
+): Promise<ActiveVariant> {
+  const variant = await tx.productVariant.findFirst({
+    where: {
+      id: variantId,
+      organizationId,
+      status: 'ACTIVE',
+      deletedAt: null,
+      product: { organizationId, deletedAt: null, pausedAt: null },
+    },
+    select: {
+      id: true,
+      productId: true,
+      name: true,
+      unit: true,
+      price: true,
+      priceUpdatedAt: true,
+      minOrderQuantity: true,
+      product: { select: { name: true } },
+    },
+  });
+  if (!variant) throw notFound();
+  return {
+    id: variant.id,
+    productId: variant.productId,
+    productName: variant.product.name,
+    variantName: variant.name,
+    unit: variant.unit,
+    price: variant.price,
+    priceUpdatedAt: variant.priceUpdatedAt,
+    minOrderQuantity: variant.minOrderQuantity,
+  };
+}
+
 /**
  * Inserts a product of the organization. `price_updated_at` and `created_at` come from the
  * database defaults, never from the caller (C-13).

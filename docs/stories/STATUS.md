@@ -296,7 +296,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-030 | done | | listOrderedVariantIds added to order.repository; 6 tests pass |
 | DLV-013 | done | | driver pool hides orders live-assigned to another driver |
 | CAT-017 | done | | getReferencePrice reads the variant and its negotiated price; 11 new tests + legacy 13 pass |
-| CAT-019 | todo | | |
+| CAT-019 | done | | getActiveVariant added to catalog.repository; 9 tests pass |
 | CAT-020 | todo | | |
 | CAT-022 | todo | | |
 | CAT-023 | todo | | |
