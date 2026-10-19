@@ -8,7 +8,8 @@ export type OtpPurpose =
   | 'PHONE_CHANGE'
   | 'EMAIL_VERIFICATION'
   | 'TOTP_RECOVERY'
-  | 'ORG_CONTACT_VERIFICATION';
+  | 'ORG_CONTACT_VERIFICATION'
+  | 'ACCESS_RESTORE';
 
 export type OtpChallengeInsert = {
   personId: string | null;

@@ -65,7 +65,17 @@ async function enforceCaps(keys: ClientKeys): Promise<void> {
   }
 }
 
-function messageFor(code: string, language: 'FR' | 'EN'): string {
+/**
+ * Text of a code by purpose. ACCESS_RESTORE (CM-40, ADM-018) has a fixed text with no
+ * expiry sentence that tells the person to give the code only to the support agent they
+ * contacted (v5.0.0-6.6.2); it holds the code and nothing else (v5.0.0-16.2.5).
+ */
+function messageFor(code: string, language: 'FR' | 'EN', purpose: OtpPurpose): string {
+  if (purpose === 'ACCESS_RESTORE') {
+    return language === 'EN'
+      ? `Code ${code}. Only give it to the support agent you contacted yourself.`
+      : `Code ${code}. Ne le donnez qu'à l'agent du support que vous avez contacté vous-même.`;
+  }
   return language === 'EN'
     ? `Your Distribo code: ${code}. It expires in 10 minutes.`
     : `Votre code Distribo : ${code}. Il expire dans 10 minutes.`;
@@ -155,7 +165,7 @@ export async function issueCode(
     to: input.target,
     message: input.contact
       ? contactCodeMessage(code, language, input.contact.organizationName, input.channel)
-      : messageFor(code, language),
+      : messageFor(code, language, input.purpose),
     ...(input.channel === 'EMAIL' ? { subject: 'Distribo' } : {}),
   });
   return { challengeId, expiresAt };

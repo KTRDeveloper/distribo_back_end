@@ -114,65 +114,6 @@ Also in this run: relationship, catalog, order, finance, delivery.
 - Guest test runs as an auto-committed statement: the driver does not expose the SQLSTATE of a deferred-trigger failure raised at interactive-transaction commit.
 <!-- end ADM-001 -->
 
-<!-- begin ADM-002 -->
-## ADM-002 — Administration journal table
-
-- Filed: 2026-10-04 06:36 UTC
-- Status: **done**: admin_actions table, immutability, REPLAY_SYNC trigger, recordAdminAction
-- Risk: high · story: [ADM-002-administration-journal-table.md](../modules/admin/ADM-002-administration-journal-table.md)
-- Agent: 46,381 tokens, 14 tool uses, 7 min 13 s
-
-### Agent report
-
-**Summary:** Added admin_actions table (CHECKs, FKs, REPLAY_SYNC role trigger, append-only grants), Prisma model and recordAdminAction.
-
-**Decisions:**
-- Prisma enum AdminActionType plus a literal-union type of the same name in admin.repository.ts: matches the story's type signature without importing the Prisma enum.
-- Blank reason (spaces only) also rejected, like the administrators totp_secret check: "reason not empty" read as not blank.
-- REPLAY_SYNC role trigger fires on INSERT and UPDATE and checks only the administrator's role, not removed_at: the story says role only.
-- Exactly-one-target applies to every action, so a REPLAY_SYNC row also needs a target.
-- Wrote migration before the test file, so the tests passed at once: the TDD red step was skipped.
-
-**Tests added beyond the story:**
-- `tests/integration/admin/admin-action-table.test.ts` › organization target accepted, all other actions accepted, blank reason, missing required columns 23502, unknown FKs 23503: AC-1 and AdminAction:required/fk; passed at once
-- same file › application account can still read rows (C-39); passed at once
-- same file › recordAdminAction distinct ids, and rollback of the whole transaction on a violation (fail closed, CONVENTIONS); passed at once
-
-**Evidence:** story tests 18/18; full suite 1093/1093, failing: none; typecheck clean; lint 0 errors, 44 warnings (existing)
-
-**Follow-ups:**
-- ADM-003 and SYNC-002 must add the FKs for report_id and sync_archive_id and update the schema.prisma comment.
-<!-- end ADM-002 -->
-
-<!-- begin ADM-003 -->
-## ADM-003 — Reports table
-
-- Filed: 2026-10-04 06:45 UTC
-- Status: **done**: reports table, enums, FK admin_actions.report_id; 1109 tests pass
-- Risk: medium · story: [ADM-003-reports-table.md](../modules/admin/ADM-003-reports-table.md)
-- Agent: 40,111 tokens, 13 tool uses, 8 min 28 s
-
-### Agent report
-
-**Summary:** Added `reports` table (enums ReportStatus/ReportDecision, one-target CHECK, registered-reporter and server_updated_at triggers) and FK `admin_actions.report_id` -> reports; schema.prisma updated.
-
-**Decisions:**
-- Migration named `20261004190000_adm_003_reports`; FKs ON DELETE RESTRICT like sibling tables.
-- Added indexes on every FK column of reports and on admin_actions.report_id (the other tables index their FKs).
-- No CHECK tying status/decision/resolved_at/resolved_by_id together: the story does not ask for it; noted in the schema comment as code responsibility (ADM-013).
-
-**Tests added beyond the story:**
-- `tests/integration/admin/report-table.test.ts` › refuses an update that adds a second target: the one-target CHECK also holds on UPDATE (C-28); passed at once
-- same file › rejects a missing reporter, reason, description or status with 23502: Report:required
-- same file › accepts resolved_by_id only for an existing administrator (a non-admin person gives 23503): C-04 / Report:fk
-- same file › refreshes server_updated_at on update: the trigger from the story's Context
-
-**Evidence:** story tests 16/16; full suite 1109/1109, failing: none; typecheck clean; lint 0 errors, 45 warnings (pre-existing security/detect-non-literal-fs-filename)
-
-**Follow-ups:**
-- `prisma migrate diff` against the test DB still shows pre-existing drift on `tasks` (accountId vs account_id), unrelated to this story.
-<!-- end ADM-003 -->
-
 <!-- begin ADM-004 -->
 ## ADM-004 — Two-factor codes for administrators
 
@@ -237,6 +178,89 @@ Also in this run: relationship, catalog, order, finance, delivery.
 - tsconfig/lint cover only src and tests, so scripts/ is not type-checked by `npm run typecheck`; only vitest and tsx compile it.
 - Running two `npm test` at once on the shared test DB makes spurious failures (I hit this by accident).
 <!-- end ADM-005 -->
+
+<!-- begin ADM-018 -->
+## ADM-018 — The access-restore code has its fixed text
+
+- Filed: 2026-10-19 17:31 UTC
+- Status: **done**: ACCESS_RESTORE has its fixed FR/EN text in messageFor; 3 tests green
+- Risk: medium · story: [ADM-018-the-access-restore-code-has-its-fixed-text.md](../modules/admin/ADM-018-the-access-restore-code-has-its-fixed-text.md)
+- Agent: 33,729 tokens, 20 tool uses, 3 min 22 s
+
+### Agent report
+
+**Summary:** `messageFor` now takes the purpose and gives ACCESS_RESTORE its fixed FR/EN text, no expiry sentence; other purposes unchanged.
+
+**Decisions:**
+- Tests go through `issueCode` (messageFor stays private): the story's signature is kept, the queued job is the observable result.
+
+**Other additions:**
+- `src/modules/auth/otp.repository.ts`: added 'ACCESS_RESTORE' to the `OtpPurpose` TS union; the DB enum had it (AUTH-027) but the type did not, so typecheck failed on the new branch.
+
+**Evidence:** story tests 9/9 (3 new + 6 otp-issue); full suite 3884/3884, failing: none, 0 known; typecheck clean; lint 0 errors, 176 warnings
+
+**Follow-ups:**
+- The `OtpPurpose` union is hand-written and drifted from the Prisma enum once; consider deriving it.
+<!-- end ADM-018 -->
+
+<!-- begin ADM-002 -->
+## ADM-002 — Administration journal table
+
+- Filed: 2026-10-04 06:36 UTC
+- Status: **done**: admin_actions table, immutability, REPLAY_SYNC trigger, recordAdminAction
+- Risk: high · story: [ADM-002-administration-journal-table.md](../modules/admin/ADM-002-administration-journal-table.md)
+- Agent: 46,381 tokens, 14 tool uses, 7 min 13 s
+
+### Agent report
+
+**Summary:** Added admin_actions table (CHECKs, FKs, REPLAY_SYNC role trigger, append-only grants), Prisma model and recordAdminAction.
+
+**Decisions:**
+- Prisma enum AdminActionType plus a literal-union type of the same name in admin.repository.ts: matches the story's type signature without importing the Prisma enum.
+- Blank reason (spaces only) also rejected, like the administrators totp_secret check: "reason not empty" read as not blank.
+- REPLAY_SYNC role trigger fires on INSERT and UPDATE and checks only the administrator's role, not removed_at: the story says role only.
+- Exactly-one-target applies to every action, so a REPLAY_SYNC row also needs a target.
+- Wrote migration before the test file, so the tests passed at once: the TDD red step was skipped.
+
+**Tests added beyond the story:**
+- `tests/integration/admin/admin-action-table.test.ts` › organization target accepted, all other actions accepted, blank reason, missing required columns 23502, unknown FKs 23503: AC-1 and AdminAction:required/fk; passed at once
+- same file › application account can still read rows (C-39); passed at once
+- same file › recordAdminAction distinct ids, and rollback of the whole transaction on a violation (fail closed, CONVENTIONS); passed at once
+
+**Evidence:** story tests 18/18; full suite 1093/1093, failing: none; typecheck clean; lint 0 errors, 44 warnings (existing)
+
+**Follow-ups:**
+- ADM-003 and SYNC-002 must add the FKs for report_id and sync_archive_id and update the schema.prisma comment.
+<!-- end ADM-002 -->
+
+<!-- begin ADM-003 -->
+## ADM-003 — Reports table
+
+- Filed: 2026-10-04 06:45 UTC
+- Status: **done**: reports table, enums, FK admin_actions.report_id; 1109 tests pass
+- Risk: medium · story: [ADM-003-reports-table.md](../modules/admin/ADM-003-reports-table.md)
+- Agent: 40,111 tokens, 13 tool uses, 8 min 28 s
+
+### Agent report
+
+**Summary:** Added `reports` table (enums ReportStatus/ReportDecision, one-target CHECK, registered-reporter and server_updated_at triggers) and FK `admin_actions.report_id` -> reports; schema.prisma updated.
+
+**Decisions:**
+- Migration named `20261004190000_adm_003_reports`; FKs ON DELETE RESTRICT like sibling tables.
+- Added indexes on every FK column of reports and on admin_actions.report_id (the other tables index their FKs).
+- No CHECK tying status/decision/resolved_at/resolved_by_id together: the story does not ask for it; noted in the schema comment as code responsibility (ADM-013).
+
+**Tests added beyond the story:**
+- `tests/integration/admin/report-table.test.ts` › refuses an update that adds a second target: the one-target CHECK also holds on UPDATE (C-28); passed at once
+- same file › rejects a missing reporter, reason, description or status with 23502: Report:required
+- same file › accepts resolved_by_id only for an existing administrator (a non-admin person gives 23503): C-04 / Report:fk
+- same file › refreshes server_updated_at on update: the trigger from the story's Context
+
+**Evidence:** story tests 16/16; full suite 1109/1109, failing: none; typecheck clean; lint 0 errors, 45 warnings (pre-existing security/detect-non-literal-fs-filename)
+
+**Follow-ups:**
+- `prisma migrate diff` against the test DB still shows pre-existing drift on `tasks` (accountId vs account_id), unrelated to this story.
+<!-- end ADM-003 -->
 
 <!-- begin ADM-006 -->
 ## ADM-006 — Administrator signs in with password and authenticator code
