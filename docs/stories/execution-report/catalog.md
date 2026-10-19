@@ -855,6 +855,40 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Evidence:** story tests 34/34 (+ api-docs, per-001 green); full suite 4298/4298, failing: none, 0 known; typecheck clean; lint 0 errors, 188 warnings (pre-existing)
 <!-- end CAT-025 -->
 
+<!-- begin CAT-026 -->
+## CAT-026 — Manager deletes a variant or a whole product
+
+- Filed: 2026-10-19 20:48 UTC
+- Status: **done**: DELETE variant and product: soft delete, VARIANT_IN_USE and LAST_VARIANT, locks
+- Risk: high · story: [CAT-026-manager-deletes-a-variant-or-a-whole-product.md](../modules/catalog/CAT-026-manager-deletes-a-variant-or-a-whole-product.md)
+- Agent: 95,031 tokens, 28 tool uses, 4 min 45 s
+
+### Agent report
+
+**Summary:** Added the two DELETE routes (variant, product) with soft delete in one transaction, VARIANT_IN_USE and LAST_VARIANT refusals, and the ability rows.
+
+**Decisions:**
+- A used variant that is also the last one: VARIANT_IN_USE is judged before LAST_VARIANT (stronger rule C-48, and the way out differs); the story does not order them.
+- Locks: variant row, then product row (same order as an edit through its trigger), so concurrent deletions serialize without deadlock; product delete locks its live variants by id first.
+- Already deleted variant or product answers 204 after the organization check, so another business's id is still 404.
+- Org active check (`assertOrganizationActive`) kept like editVariant: a closed org gets 409 ORGANIZATION_NOT_ACTIVE.
+
+**Tests added beyond the story:**
+- `delete-variant.test.ts` › two concurrent deletions: never leaves a product with no live variant (C-45, CONVENTIONS transaction/race); passed at once once the route existed
+- `delete-variant.test.ts` › deleted/cancelled order line still blocks: C-48 "whatever the state of the line"
+- `delete-variant.test.ts` › deleted sibling does not count as another live variant (C-45)
+- `delete-variant.test.ts` › variant of another product, unknown id, non-UUID, variant of a deleted product (404/400/204)
+- `ability.test.ts` › delete examples: MANAGER online and OWNER yes, MANAGER offline and SELLER no (story "Tests to update")
+
+**Other additions:**
+- Repository helpers `lockProductOfOrganizationAnyState`, `lockLiveVariantsOfProduct`, `softDeleteVariants`, `softDeleteProduct`: the locks and soft deletes.
+
+**Evidence:** story tests 23/23 (delete-variant) plus per-001, ability and api-docs green; full suite 4331/4331, failing: none, 0 known; typecheck clean; lint 0 errors, 190 warnings
+
+**Follow-ups:**
+- Existing api-docs/catalog.test.ts only checks the two paths exist (already there from CAT-006/025); the DELETE methods are asserted in per-001.test.ts.
+<!-- end CAT-026 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 

@@ -17,6 +17,7 @@ import {
   countProductsOnSale,
   countVariantNegotiatedPricesBefore,
   findLiveCustomerPriceId,
+  findUsedVariantIds,
   findLiveTwin,
   findVariantAnyState,
   findLiveVariantByText,
@@ -31,7 +32,11 @@ import {
   listLiveVariantsOfProduct,
   listLiveCustomerPricesForCopy,
   listProductsOfOrganization,
+  lockLiveVariantsOfProduct,
+  lockProductOfOrganizationAnyState,
   patchVariant,
+  softDeleteProduct,
+  softDeleteVariants,
   softDeleteCustomerPrice,
   updateProduct,
   upsertCustomerPrice,
@@ -303,6 +308,85 @@ export async function editVariant(
         ? await countVariantNegotiatedPricesBefore(tx, row.id, row.priceUpdatedAt)
         : 0,
     };
+  });
+}
+
+/**
+ * Deletes a variant of the actor's organization (soft delete), unless a sale cites it or it is the
+ * product's last live variant.
+ *
+ * The role is decided by the route (`delete ProductVariant`, ASVS v5.0.0-8.2.1). One transaction
+ * (v5.0.0-2.3.3) locks the variant and its product, selected by id and organization together (404
+ * outside them; v5.0.0-8.2.2), so two deletions of one product's variants run one after the
+ * other and cannot both take the last two. A variant already deleted answers success without a
+ * change. A variant cited by an order line or a live negotiated price is refused (C-48): it can
+ * only be taken off sale (CAT-025). The last live variant is refused too (C-45): delete the
+ * product. The citation is judged first, as it is the stronger rule and the way out differs.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param productId - Validated product id from the path.
+ * @param variantId - Validated variant id from the path.
+ * @throws 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE`, `VARIANT_IN_USE` or `LAST_VARIANT`.
+ */
+export async function deleteVariant(
+  actor: Actor,
+  productId: string,
+  variantId: string
+): Promise<void> {
+  await runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    const variant = await findVariantAnyState(tx, variantId);
+    if (
+      !variant ||
+      variant.productId !== productId ||
+      variant.organizationId !== actor.organizationId
+    ) {
+      throw httpError(404, 'NOT_FOUND', 'Not found');
+    }
+    const product = await lockProductOfOrganizationAnyState(tx, actor.organizationId, productId);
+    if (!product) throw httpError(404, 'NOT_FOUND', 'Not found');
+    if (variant.deletedAt !== null) return;
+
+    if ((await findUsedVariantIds(tx, [variant.id])).size > 0) {
+      throw httpError(409, 'VARIANT_IN_USE', 'The variant is used by a sale or a negotiated price');
+    }
+    const siblings = await listLiveVariantsOfProduct(tx, product.id);
+    if (!siblings.some((sibling) => sibling.id !== variant.id)) {
+      throw httpError(409, 'LAST_VARIANT', 'A product keeps at least one variant');
+    }
+    await softDeleteVariants(tx, [variant.id], new Date());
+  });
+}
+
+/**
+ * Deletes a product of the actor's organization with all its live variants (soft delete), unless
+ * a sale cites one of them.
+ *
+ * The role is decided by the route (`delete Product`, ASVS v5.0.0-8.2.1). One transaction
+ * (v5.0.0-2.3.3) locks the variants then the product, selected by id and organization together
+ * (404 outside them; v5.0.0-8.2.2). A product already deleted answers success without a change.
+ * One variant cited by an order line or a live negotiated price refuses the whole product (409
+ * `VARIANT_IN_USE`, C-48) and nothing is deleted: the sales history keeps its articles.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param productId - Validated product id from the path.
+ * @throws 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE` or `VARIANT_IN_USE`.
+ */
+export async function deleteProduct(actor: Actor, productId: string): Promise<void> {
+  await runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    await lockLiveVariantsOfProduct(tx, actor.organizationId, productId);
+    const product = await lockProductOfOrganizationAnyState(tx, actor.organizationId, productId);
+    if (!product) throw httpError(404, 'NOT_FOUND', 'Not found');
+    if (product.deletedAt !== null) return;
+
+    const variantIds = (await listLiveVariantsOfProduct(tx, product.id)).map(({ id }) => id);
+    if ((await findUsedVariantIds(tx, variantIds)).size > 0) {
+      throw httpError(409, 'VARIANT_IN_USE', 'A variant is used by a sale or a negotiated price');
+    }
+    const now = new Date();
+    await softDeleteVariants(tx, variantIds, now);
+    await softDeleteProduct(tx, product.id, now);
   });
 }
 

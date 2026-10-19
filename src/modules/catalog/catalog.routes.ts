@@ -27,6 +27,8 @@ import {
   copyCustomerPrices,
   copyProduct,
   createProduct,
+  deleteProduct,
+  deleteVariant,
   editProduct,
   editVariant,
   listCustomerPrices,
@@ -170,6 +172,43 @@ catalogRoutes.patch(
     if (!parsed.success) return next(parsed.error);
     editVariant(req.actor!, params.data.productId, params.data.variantId, parsed.data)
       .then((view) => res.json(view))
+      .catch(next);
+    return undefined;
+  }
+);
+
+// DELETE /api/v1/organizations/:organizationId/products/:productId/variants/:variantId - OWNER or an
+// online MANAGER deletes a size that no order line or live negotiated price cites. No body, so no
+// gesture id: a repeat answers 204. The service answers 404 outside the organization, 409
+// VARIANT_IN_USE and LAST_VARIANT.
+catalogRoutes.delete(
+  '/products/:productId/variants/:variantId',
+  authMiddleware,
+  loadActor,
+  requireAbility('delete', 'ProductVariant'),
+  (req, res, next) => {
+    const params = editVariantParamsSchema.safeParse(req.params);
+    if (!params.success) return next(params.error);
+    deleteVariant(req.actor!, params.data.productId, params.data.variantId)
+      .then(() => res.status(204).end())
+      .catch(next);
+    return undefined;
+  }
+);
+
+// DELETE /api/v1/organizations/:organizationId/products/:productId - OWNER or an online MANAGER
+// deletes an article with all its sizes; one cited size refuses the whole article (409
+// VARIANT_IN_USE). A repeat answers 204; the service answers 404 outside the organization.
+catalogRoutes.delete(
+  '/products/:productId',
+  authMiddleware,
+  loadActor,
+  requireAbility('delete', 'Product'),
+  (req, res, next) => {
+    const productId = uuidV7Schema.safeParse(req.params.productId);
+    if (!productId.success) return next(productId.error);
+    deleteProduct(req.actor!, productId.data)
+      .then(() => res.status(204).end())
       .catch(next);
     return undefined;
   }

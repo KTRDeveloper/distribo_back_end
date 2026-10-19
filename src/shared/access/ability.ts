@@ -117,6 +117,20 @@ export const RULES: AccessRule[] = [
   {
     who: 'MANAGER',
     where: 'ONLINE_EXCEPT_OWNER',
+    action: 'delete',
+    subject: 'Product',
+    fields: CATALOG_FIELDS,
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE_EXCEPT_OWNER',
+    action: 'delete',
+    subject: 'ProductVariant',
+    fields: CATALOG_FIELDS,
+  },
+  {
+    who: 'MANAGER',
+    where: 'ONLINE_EXCEPT_OWNER',
     action: 'create',
     subject: 'CustomerPrice',
   },

@@ -176,6 +176,51 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}',
+  tags: ['catalog'],
+  summary: 'The owner or an online manager deletes a variant that no sale or price cites',
+  security: [{ bearerAuth: [] }],
+  request: { params: variantParamsSchema },
+  responses: {
+    204: { description: 'The variant is deleted, or already was' },
+    400: { description: 'Invalid path', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Role not allowed', content: errorContent },
+    404: {
+      description: 'Variant outside the product and organization',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'Organization not active (ORGANIZATION_NOT_ACTIVE), variant cited by an order line or a live negotiated price (VARIANT_IN_USE) or the last live variant (LAST_VARIANT)',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/organizations/{organizationId}/products/{productId}',
+  tags: ['catalog'],
+  summary: 'The owner or an online manager deletes a product with all its variants',
+  security: [{ bearerAuth: [] }],
+  request: { params: productParamsSchema },
+  responses: {
+    204: { description: 'The product and its variants are deleted, or already were' },
+    400: { description: 'Invalid path', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Role not allowed', content: errorContent },
+    404: { description: 'Product absent or outside the organization', content: errorContent },
+    409: {
+      description:
+        'Organization not active (ORGANIZATION_NOT_ACTIVE) or a variant cited by an order line or a live negotiated price (VARIANT_IN_USE)',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
   method: 'patch',
   path: '/api/v1/organizations/{organizationId}/products/{productId}',
   tags: ['catalog'],

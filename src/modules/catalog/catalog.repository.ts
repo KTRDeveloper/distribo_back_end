@@ -3,6 +3,7 @@ import { prisma } from '../../lib/db.js';
 import { httpError } from '../../lib/http-error.js';
 import { imageKeySchema } from '../../lib/image-keys.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
+import { listOrderedVariantIds } from '../order/order.repository.js';
 import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
 
 const notFound = () => httpError(404, 'NOT_FOUND', 'Not found');
@@ -1293,4 +1294,92 @@ export async function setProductsPaused(
     select: { id: true },
   });
   return rows.map((row) => row.id);
+}
+
+/**
+ * Tells which of the given variants an order line or a live negotiated price cites (C-48): those
+ * are never deleted, only taken off sale. Order lines count whatever their own or their order's
+ * state (through the order module's `listOrderedVariantIds`); negotiated prices count only while
+ * live, so a price deleted earlier does not keep a variant alive. The ids come from server code
+ * that has already checked the organization (ASVS v5.0.0-8.2.2).
+ *
+ * @param tx - The caller's transaction, so the check and the deletion that follows are one step.
+ * @param variantIds - Variant ids to check; an empty list answers an empty set.
+ * @returns The subset of `variantIds` that is cited.
+ */
+export async function findUsedVariantIds(
+  tx: Prisma.TransactionClient,
+  variantIds: string[]
+): Promise<Set<string>> {
+  if (variantIds.length === 0) return new Set();
+  const used = await listOrderedVariantIds(tx, variantIds);
+  const prices = await tx.customerPrice.findMany({
+    where: { productVariantId: { in: variantIds }, deletedAt: null },
+    select: { productVariantId: true },
+  });
+  for (const price of prices) {
+    if (price.productVariantId !== null) used.add(price.productVariantId);
+  }
+  return used;
+}
+
+/**
+ * Reads a product of the organization, deleted or not, selected by id and organization together
+ * (ASVS v5.0.0-8.2.2), and locks the row until the caller's transaction ends so two deletions of
+ * one product's variants run one after the other (CWE-362).
+ *
+ * @returns The id and deletion date, or null when the product is absent or another business's.
+ */
+export async function lockProductOfOrganizationAnyState(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  productId: string
+): Promise<{ id: string; deletedAt: Date | null } | null> {
+  const rows = await tx.$queryRaw<Array<{ id: string; deleted_at: Date | null }>>`
+    SELECT "id", "deleted_at" FROM "products"
+    WHERE "id" = ${productId}::uuid AND "organization_id" = ${organizationId}::uuid
+    FOR UPDATE`;
+  const row = rows[0];
+  return row ? { id: row.id, deletedAt: row.deleted_at } : null;
+}
+
+/**
+ * Locks the live variants of a product, in id order, until the caller's transaction ends. Taking
+ * the variant locks before the product lock keeps the same order as an edit (variant, then the
+ * product its trigger touches), so the two cannot deadlock.
+ */
+export async function lockLiveVariantsOfProduct(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  productId: string
+): Promise<void> {
+  await tx.$queryRaw`
+    SELECT "id" FROM "product_variants"
+    WHERE "product_id" = ${productId}::uuid AND "organization_id" = ${organizationId}::uuid
+      AND "deleted_at" IS NULL
+    ORDER BY "id" FOR UPDATE`;
+}
+
+/** Marks the given variants deleted (soft delete); a variant already deleted keeps its date. */
+export async function softDeleteVariants(
+  tx: Prisma.TransactionClient,
+  variantIds: string[],
+  now: Date
+): Promise<void> {
+  await tx.productVariant.updateMany({
+    where: { id: { in: variantIds }, deletedAt: null },
+    data: { deletedAt: now },
+  });
+}
+
+/** Marks a product deleted (soft delete); one already deleted keeps its date. */
+export async function softDeleteProduct(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  now: Date
+): Promise<void> {
+  await tx.product.updateMany({
+    where: { id: productId, deletedAt: null },
+    data: { deletedAt: now },
+  });
 }

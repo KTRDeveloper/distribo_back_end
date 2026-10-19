@@ -142,7 +142,7 @@ describe('relationship, catalog and price rules', () => {
         }
 
         expect(ability.can('read', 'CustomerRelationship')).toBe(false);
-        expect(ability.can('delete', 'Product')).toBe(false);
+        expect(ability.can('read', 'Product')).toBe(false);
         expect(ability.can('read', 'CustomerPrice')).toBe(false);
       }
     }
@@ -153,6 +153,19 @@ describe('relationship, catalog and price rules', () => {
 
     expect(ability.can('create', subject('CustomerRelationship', { counter: true }))).toBe(true);
     expect(ability.can('create', subject('CustomerRelationship', { counter: false }))).toBe(false);
+  });
+
+  it.each([
+    ['MANAGER', online, 'delete', 'Product', true],
+    ['MANAGER', online, 'delete', 'ProductVariant', true],
+    ['OWNER', phoneNow, 'delete', 'Product', true],
+    ['OWNER', phoneNow, 'delete', 'ProductVariant', true],
+    ['MANAGER', phoneNow, 'delete', 'Product', false],
+    ['MANAGER', phoneNow, 'delete', 'ProductVariant', false],
+    ['SELLER', online, 'delete', 'Product', false],
+    ['SELLER', online, 'delete', 'ProductVariant', false],
+  ] as const)('answers the delete examples for %s %s on %s', (role, context, action, resource, expected) => {
+    expect(abilityFor(role, context).can(action, resource)).toBe(expected);
   });
 
   it('denies manager powers offline', () => {
