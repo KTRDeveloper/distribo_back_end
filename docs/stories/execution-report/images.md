@@ -65,3 +65,35 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - ADR-005 still proposed: no real S3 or image-library adapter.
 <!-- end IMG-002 -->
+
+<!-- begin IMG-003 -->
+## IMG-003 — Receive a photo, check it and store a clean copy
+
+- Filed: 2026-10-19 16:54 UTC
+- Status: **done**: imageBody middleware and storeUploadedImage; 20 tests green
+- Risk: high · story: [IMG-003-receive-a-photo-check-it-and-store-a-clean-copy.md](../modules/images/IMG-003-receive-a-photo-check-it-and-store-a-clean-copy.md)
+- Agent: 43,589 tokens, 22 tool uses, 3 min 0 s
+
+### Agent report
+
+**Summary:** Added `imageBody()` middleware and `storeUploadedImage` (size, inspect, pixels, re-encode, put); all story tests pass.
+
+**Decisions:**
+- Empty or missing body: the middleware leaves an empty Buffer and the service answers 400 VALIDATION_ERROR (size 0), matching "a Buffer in req.body".
+- Compressed bodies: `express.raw` runs with `inflate: false`, so a gzip body is refused (415) and no decompression bomb is possible.
+- Media type is compared without parameters and in lower case (`IMAGE/PNG; charset=x` passes); a missing Content-Type gives UNSUPPORTED_IMAGE.
+- A failed `reencode` with UnreadableImageError also maps to UNSUPPORTED_IMAGE (a real processor may fail only at decode).
+
+**Tests added beyond the story:**
+- `tests/integration/images/image-intake.test.ts` › exact byte limit accepted / one byte more refused: limit boundary (AC-2); passed at once
+- same file › exact pixel limit accepted / one pixel more refused: limit boundary (AC-2); passed at once
+- same file › no body, missing Content-Type, Content-Encoding gzip, media type with parameters: fail-closed paths (AC-2, v5.0.0-5.2.2); passed at once
+- same file › storage failure stores nothing and rethrows (fail closed); passed at once
+
+**Other additions:** none.
+
+**Evidence:** story tests 20/20 (no red phase: the implementation was written before the first run); full suite 3783/3783, failing: none, 0 known; typecheck clean; lint 0 errors, 158 warnings (pre-existing)
+
+**Follow-ups:**
+- The fake processor reads sizes from PNG header offsets for every format; a real adapter (ADR-005) must re-run these tests.
+<!-- end IMG-003 -->

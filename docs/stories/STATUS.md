@@ -261,7 +261,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-035 | done | | plan writer, team seats and seat pause added in organization.repository |
 | ORG-038 | done | | getLogoKey and setLogoKey added to organization.repository.ts; 8 tests pass |
 | IMG-002 | done | | ports, fakes, deleteImageFiles, env settings; 22 tests green |
-| IMG-003 | todo | | |
+| IMG-003 | done | | imageBody middleware and storeUploadedImage; 20 tests green |
 | IMG-004 | todo | | |
 | IMG-005 | todo | | |
 | IMG-006 | todo | | |
