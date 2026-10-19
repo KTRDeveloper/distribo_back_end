@@ -309,3 +309,30 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 **Evidence:** story tests 39/39 (new file 12); full suite 3852/3852, failing: none, 0 known; typecheck clean; lint 0 errors, 175 warnings (pre-existing)
 <!-- end IMG-011 -->
+
+<!-- begin IMG-012 -->
+## IMG-012 — The nightly cleanup releases the photos of deleted products and variants
+
+- Filed: 2026-10-19 17:21 UTC
+- Status: **done**: release step in cleanupOrphanImages; 6 new tests + suite green
+- Risk: medium · story: [IMG-012-the-nightly-cleanup-releases-the-photos-of.md](../modules/images/IMG-012-the-nightly-cleanup-releases-the-photos-of.md)
+- Agent: 37,700 tokens, 19 tool uses, 2 min 53 s
+
+### Agent report
+
+**Summary:** `cleanupOrphanImages` now releases the photos of cards deleted over 24 h ago before the walk; result and log carry `released`.
+
+**Decisions:**
+- Transaction helper: used `runInTransaction` (organization.repository) and imported `releaseDeletedImageKeys` from catalog.repository directly, as card-photos.service already does.
+- `scanned` counts only files left after the release step (released files are already gone when the walk starts).
+- `released` counts every key emptied, including non-canonical ones (`deleteImageFiles` skips those itself).
+
+**Tests added beyond the story:**
+- `image-cleanup-deleted.test.ts` › logs the three counts and never a key: ASVS 16.3.3 (story Security); passed at once? no, failed first
+- `image-cleanup-deleted.test.ts` › releases in rounds of 500 until a call returns no key: loop and batch size (story Context)
+
+**Evidence:** story tests 15/15 (6 new, 9 existing); full suite 3858/3858, failing: none, 0 known; typecheck clean; lint 0 errors, 175 warnings (pre-existing kind)
+
+**Follow-ups:**
+- Existing image-cleanup.test.ts: three `toEqual` assertions got `released: 0` (listed under Tests to update).
+<!-- end IMG-012 -->

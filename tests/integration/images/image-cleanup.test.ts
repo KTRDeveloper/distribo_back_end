@@ -65,7 +65,7 @@ describe('cleanupOrphanImages', () => {
     const result = await cleanupOrphanImages(NOW);
 
     expect(await exists(key)).toBe(false);
-    expect(result).toEqual({ scanned: 1, deleted: 1 });
+    expect(result).toEqual({ scanned: 1, deleted: 1, released: 0 });
   });
 
   it('AC-2, C-50 keeps a recent uncited file and an old cited file', async () => {
@@ -79,7 +79,7 @@ describe('cleanupOrphanImages', () => {
 
     expect(await exists(recent)).toBe(true);
     expect(await exists(cited)).toBe(true);
-    expect(result).toEqual({ scanned: 2, deleted: 0 });
+    expect(result).toEqual({ scanned: 2, deleted: 0, released: 0 });
   });
 
   it('keeps a file stored exactly 24 hours before now', async () => {
@@ -103,7 +103,7 @@ describe('cleanupOrphanImages', () => {
 
     const result = await cleanupOrphanImages(NOW);
 
-    expect(result).toEqual({ scanned: 1203, deleted: 1200 });
+    expect(result).toEqual({ scanned: 1203, deleted: 1200, released: 0 });
     const left = await storage.listFiles(null, 5000);
     expect(left.map((file) => file.key).sort()).toEqual([...cited].sort());
   });
