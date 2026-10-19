@@ -300,7 +300,7 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/api/v1/auth/password-reset/request',
   tags: ['auth'],
-  summary: 'Ask for a password reset code',
+  summary: 'Ask for a password reset code (sent by SMS only)',
   request: { body: { content: { 'application/json': { schema: passwordResetRequestSchema } } } },
   responses: {
     202: {
@@ -312,7 +312,7 @@ openApiRegistry.registerPath({
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     429: {
-      description: 'OTP_RATE_LIMITED',
+      description: 'Number check or code limits reached (RATE_LIMITED, OTP_RATE_LIMITED)',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

@@ -104,9 +104,9 @@ export const refreshResponseSchema = z
   })
   .strict();
 
-/** Body of POST /auth/password-reset/request; the number is validated in the service. */
+/** Body of POST /auth/password-reset/request; the code goes by SMS only, so `use_email` is rejected (strict). */
 export const passwordResetRequestSchema = z
-  .object({ phone_number: z.string().min(1).max(32), use_email: z.boolean().optional() })
+  .object({ phone_number: z.string().min(1).max(32) })
   .strict();
 
 /** Body of POST /auth/email/verify/confirm. */

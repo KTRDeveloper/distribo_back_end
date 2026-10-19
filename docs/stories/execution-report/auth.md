@@ -182,6 +182,35 @@ Also in this run: access.
 - Code changes (auth.service.ts, otp.service.ts, new test) are left in the working tree for the orchestrator to set aside.
 <!-- end AUTH-032 -->
 
+<!-- begin AUTH-033 -->
+## AUTH-033 — The reset code comes by SMS only
+
+- Filed: 2026-10-19 12:10 UTC
+- Status: **done**: Reset code by SMS only; use_email now 400; number quota counted first
+- Risk: high · story: [AUTH-033-the-reset-code-comes-by-sms-only.md](../modules/auth/AUTH-033-the-reset-code-comes-by-sms-only.md)
+- Agent: 33,456 tokens, 14 tool uses, 1 min 58 s
+
+### Agent report
+
+**Summary:** Password reset request now sends the code by SMS only; `use_email` is refused with 400 and `checkNumberQuota` runs first.
+
+**Decisions:**
+- Quota placement: `checkNumberQuota` runs before number normalization, so malformed numbers are counted too (story: "runs first").
+- `use_email` removal: dropped from the strict schema, so the 400 comes from the existing schema validation (also for `use_email: false`).
+
+**Tests added beyond the story:**
+- `tests/integration/auth/password-reset-sms-only.test.ts` › a malformed number is counted too: scans cannot dodge the IP limit (Context: quota runs first); failed before the change
+- same file › email refused also for `use_email: false` (strict schema, AC-2); failed before the change
+
+**Other additions:**
+- Updated the 'email' and 'unverified email' cases in `password-reset-request.test.ts` as listed under Tests to update; 429 description in `auth.openapi.ts` now mentions RATE_LIMITED.
+
+**Evidence:** story tests 16/16; full suite 3270/3270, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings
+
+**Follow-ups:**
+- `confirmPasswordReset` still accepts `use_email` (AUTH-034 scope), so an EMAIL code can no longer be issued for reset but the confirm schema still allows the flag.
+<!-- end AUTH-033 -->
+
 <!-- begin AUTH-038 -->
 ## AUTH-038 — A verified email is unique whatever the letter case
 

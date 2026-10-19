@@ -71,8 +71,9 @@ describe('password reset request', () => {
   it('email', async () => {
     await register({ email: 'b@example.com', emailVerifiedAt: new Date() });
     const res = await post({ phone_number: PHONE, use_email: true });
-    expect(res.status).toBe(202);
-    expect(jobs.map((j) => j.to)).toEqual(['b@example.com']);
+    expect(res.status).toBe(400);
+    expect((res.raw.error as { code: string }).code).toBe('VALIDATION_ERROR');
+    expect(jobs).toHaveLength(0);
   });
 
   it('nothing sent: unknown', async () => {
@@ -93,8 +94,8 @@ describe('password reset request', () => {
   it('nothing sent: unverified email', async () => {
     await register({ email: 'b@example.com' });
     const res = await post({ phone_number: PHONE, use_email: true });
-    expect(res.status).toBe(202);
-    expect(res.raw).toEqual(SAME);
+    expect(res.status).toBe(400);
+    expect((res.raw.error as { code: string }).code).toBe('VALIDATION_ERROR');
     expect(jobs).toHaveLength(0);
   });
 

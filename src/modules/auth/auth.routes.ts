@@ -182,7 +182,7 @@ authRoutes.post('/logout-all', authMiddleware, (req, res, next) => {
   })().catch(next);
 });
 
-// Public route: always 202 with the same keys, whatever the number.
+// Public route: always 202 with the same keys, whatever the number; the code goes by SMS only.
 authRoutes.post('/password-reset/request', (req, res, next) => {
   void (async () => {
     const body = passwordResetRequestSchema.safeParse(req.body);

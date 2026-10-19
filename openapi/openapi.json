@@ -2081,7 +2081,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "Ask for a password reset code",
+        "summary": "Ask for a password reset code (sent by SMS only)",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2092,9 +2092,6 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 32
-                  },
-                  "use_email": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -2156,7 +2153,7 @@
             }
           },
           "429": {
-            "description": "OTP_RATE_LIMITED",
+            "description": "Number check or code limits reached (RATE_LIMITED, OTP_RATE_LIMITED)",
             "content": {
               "application/json": {
                 "schema": {
