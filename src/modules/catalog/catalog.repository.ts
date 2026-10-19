@@ -1444,3 +1444,20 @@ export async function softDeleteProduct(
     data: { deletedAt: now },
   });
 }
+
+/**
+ * Takes variants off sale (`INACTIVE`), the only change a retired variant gets (C-48,
+ * v5.0.0-15.3.3). The ids come from server code that has already checked the organization
+ * (v5.0.0-8.2.2); a deleted variant is left alone. The database moves the product's
+ * `server_updated_at` (CAT-021).
+ */
+export async function retireVariants(
+  tx: Prisma.TransactionClient,
+  variantIds: string[]
+): Promise<void> {
+  if (variantIds.length === 0) return;
+  await tx.productVariant.updateMany({
+    where: { id: { in: variantIds }, deletedAt: null, status: 'ACTIVE' },
+    data: { status: 'INACTIVE' },
+  });
+}

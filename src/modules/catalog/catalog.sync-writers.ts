@@ -5,10 +5,16 @@ import { simplifyText, variantLabel } from '../../shared/variant.js';
 import {
   findLiveTwin,
   findProductAnyState,
+  findUsedVariantIds,
   findVariantAnyState,
   insertMergedVariant,
   insertSyncedProduct,
   insertVariant,
+  listLiveVariantsOfProduct,
+  lockLiveVariantsOfProduct,
+  retireVariants,
+  softDeleteProduct,
+  softDeleteVariants,
   updateProductText,
   updateVariant,
 } from './catalog.repository.js';
@@ -280,4 +286,122 @@ export async function applyVariantFromSync(
   }
   await updateVariant(tx, existing.id, fields);
   return { result: 'UPDATED' };
+}
+
+export type DeleteSyncResult = {
+  result: 'DELETED' | 'RETIRED' | 'ALREADY' | 'LAST_VARIANT' | 'NOT_FOUND';
+  /** Labels of the variants taken off sale instead of deleted. Set with `RETIRED`. */
+  retiredLabels: string[];
+};
+
+/**
+ * Deletes a variant sent by the owner's phone, for the product push of the synchronization
+ * (ADR-004). It never throws for a business reason: every refusal is a result (C-36).
+ *
+ * A variant cited by an order line or a live negotiated price is never deleted: it becomes
+ * `INACTIVE` and its label is returned (`RETIRED`, C-48), so no sale loses its article. Only its
+ * status changes (v5.0.0-15.3.3). An unused variant gets `deleted_at = now` (`DELETED`), unless it
+ * is the last live variant of its product, which is kept (`LAST_VARIANT`, C-45). An already
+ * deleted variant gives `ALREADY`; an unknown id or one of another organization gives `NOT_FOUND`
+ * (v5.0.0-8.2.2). The refusals write nothing. The variant row, then the product row, are locked
+ * for the caller's transaction (v5.0.0-2.3.3), so two deletions of one product's variants cannot
+ * both leave it without a variant.
+ *
+ * @param tx - Transaction of the synchronization.
+ * @param organizationId - Organization of the session, never taken from the input.
+ * @param variantId - Variant to delete.
+ * @param now - Deletion date.
+ */
+export async function deleteVariantFromSync(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  variantId: string,
+  now: Date
+): Promise<DeleteSyncResult> {
+  const variant = await findVariantAnyState(tx, variantId);
+  if (!variant || variant.organizationId !== organizationId) {
+    return { result: 'NOT_FOUND', retiredLabels: [] };
+  }
+  if (variant.deletedAt) return { result: 'ALREADY', retiredLabels: [] };
+  const product = await findProductAnyState(tx, variant.productId);
+  // The foreign key keeps the product; its absence is an unexpected state: fail closed.
+  if (!product || product.organizationId !== organizationId) {
+    throw new Error('Variant points to a missing or foreign product');
+  }
+
+  if ((await findUsedVariantIds(tx, [variant.id])).size > 0) {
+    await retireVariants(tx, [variant.id]);
+    return {
+      result: 'RETIRED',
+      retiredLabels: [variantLabel(product.name, variant.name, variant.unit)],
+    };
+  }
+  const siblings = await listLiveVariantsOfProduct(tx, product.id);
+  if (!siblings.some((sibling) => sibling.id !== variant.id)) {
+    return { result: 'LAST_VARIANT', retiredLabels: [] };
+  }
+  await softDeleteVariants(tx, [variant.id], now);
+  return { result: 'DELETED', retiredLabels: [] };
+}
+
+/**
+ * Deletes a product sent by the owner's phone, for the product push of the synchronization
+ * (ADR-004). It never throws for a business reason: every refusal is a result (C-36).
+ *
+ * Each live variant is handled as in {@link deleteVariantFromSync}, except that the last-variant
+ * rule does not apply: the whole product goes. With no used variant the product and its variants
+ * get `deleted_at = now` (`DELETED`). Otherwise the used variants become `INACTIVE`, the unused
+ * ones are deleted and the product stays, so no order line loses its article or product (C-48,
+ * C-45); the answer is `RETIRED` with the labels of the retired variants. An already deleted
+ * product gives `ALREADY`; an unknown id or one of another organization gives `NOT_FOUND`
+ * (v5.0.0-8.2.2). The refusals write nothing. Everything runs in the caller's transaction
+ * (v5.0.0-2.3.3), variants locked before the product like every other writer.
+ *
+ * @param tx - Transaction of the synchronization.
+ * @param organizationId - Organization of the session, never taken from the input.
+ * @param productId - Product to delete.
+ * @param now - Deletion date.
+ */
+export async function deleteProductFromSync(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  productId: string,
+  now: Date
+): Promise<DeleteSyncResult> {
+  await lockLiveVariantsOfProduct(tx, organizationId, productId);
+  const product = await findProductAnyState(tx, productId);
+  if (!product || product.organizationId !== organizationId) {
+    return { result: 'NOT_FOUND', retiredLabels: [] };
+  }
+  if (product.deletedAt) return { result: 'ALREADY', retiredLabels: [] };
+
+  const variants = await listLiveVariantsOfProduct(tx, product.id);
+  const used = await findUsedVariantIds(
+    tx,
+    variants.map(({ id }) => id)
+  );
+  if (used.size === 0) {
+    await softDeleteVariants(
+      tx,
+      variants.map(({ id }) => id),
+      now
+    );
+    await softDeleteProduct(tx, product.id, now);
+    return { result: 'DELETED', retiredLabels: [] };
+  }
+
+  const retired = variants.filter(({ id }) => used.has(id));
+  await retireVariants(
+    tx,
+    retired.map(({ id }) => id)
+  );
+  await softDeleteVariants(
+    tx,
+    variants.filter(({ id }) => !used.has(id)).map(({ id }) => id),
+    now
+  );
+  return {
+    result: 'RETIRED',
+    retiredLabels: retired.map((variant) => variantLabel(product.name, variant.name, variant.unit)),
+  };
 }

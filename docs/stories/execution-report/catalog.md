@@ -944,6 +944,37 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Evidence:** story tests 37/37; full suite 4358/4358, failing: none, 0 known; typecheck clean; lint 0 errors, 190 warnings
 <!-- end CAT-028 -->
 
+<!-- begin CAT-036 -->
+## CAT-036 — A deletion sent by a phone retires what was sold instead
+
+- Filed: 2026-10-19 21:00 UTC
+- Status: **done**: deleteVariantFromSync and deleteProductFromSync; 18 tests, suite green
+- Risk: high · story: [CAT-036-a-deletion-sent-by-a-phone-retires-what-was.md](../modules/catalog/CAT-036-a-deletion-sent-by-a-phone-retires-what-was.md)
+- Agent: 56,885 tokens, 21 tool uses, 3 min 1 s
+
+### Agent report
+
+**Summary:** Added `deleteVariantFromSync` and `deleteProductFromSync` (sold variants retired to INACTIVE, unused ones soft-deleted), plus `retireVariants` in the repository.
+
+**Decisions:**
+- A sold last variant: RETIRED, not LAST_VARIANT, since C-45 only protects an unused one (story wording "if unused").
+- Locking: variant row then product row for a variant; live variants then product for a product (same order as the REST deletion, no deadlock).
+- A product with sold variants and no live variant left to delete returns RETIRED with the sold labels; an already INACTIVE sold variant is still listed in `retiredLabels`.
+- A variant whose product is missing or foreign throws (unexpected state, fail closed) instead of a result.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/sync-delete.test.ts` › sold last variant is retired: C-48 outranks C-45 (story Context); passed at once
+- same file › order line cancelled and deleted still retires; deleted sibling is not a live variant; product date moves (CAT-026/CAT-021 rules); passed at once
+
+**Other additions:**
+- `retireVariants` in `catalog.repository.ts`: status-only update, so the retired variant changes nothing else (v5.0.0-15.3.3).
+
+**Evidence:** story tests 18/18; full suite 4376/4376, failing: none, 0 known; typecheck clean; lint 0 errors, 190 warnings (existing)
+
+**Follow-ups:**
+- None. Functions are not yet wired to the synchronization push (later story).
+<!-- end CAT-036 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 
