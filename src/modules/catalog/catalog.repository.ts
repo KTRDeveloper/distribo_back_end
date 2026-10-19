@@ -604,6 +604,88 @@ export async function setVariantImageKeys(
   return rows[0].image_keys;
 }
 
+/** The photo keys of a variant with the product it belongs to. */
+export type VariantImageKeys = { productId: string; keys: string[] };
+
+/**
+ * Reads the photo keys of a live product of the organization, in display order, and locks the row
+ * until the caller's transaction ends, so the read and the write that follows are one step
+ * (ASVS v5.0.0-2.3.3, CWE-362). The row is selected by id and organization together (v5.0.0-8.2.2).
+ * Keys never leave the server through a catalog route (C-49).
+ *
+ * @throws 404 NOT_FOUND when the product is unknown, deleted or another organization's.
+ */
+export async function lockProductImageKeys(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  productId: string
+): Promise<string[]> {
+  const rows = await tx.$queryRaw<Array<{ image_keys: string[] }>>`
+    SELECT "image_keys" FROM "products"
+    WHERE "id" = ${productId}::uuid AND "organization_id" = ${organizationId}::uuid
+      AND "deleted_at" IS NULL
+    FOR UPDATE`;
+  if (rows.length === 0) throw notFound();
+  return rows[0].image_keys;
+}
+
+/**
+ * Same read as {@link lockProductImageKeys} without the lock, for a card a photo is copied from.
+ *
+ * @throws 404 NOT_FOUND when the product is unknown, deleted or another organization's.
+ */
+export async function readProductImageKeys(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  productId: string
+): Promise<string[]> {
+  const rows = await tx.$queryRaw<Array<{ image_keys: string[] }>>`
+    SELECT "image_keys" FROM "products"
+    WHERE "id" = ${productId}::uuid AND "organization_id" = ${organizationId}::uuid
+      AND "deleted_at" IS NULL`;
+  if (rows.length === 0) throw notFound();
+  return rows[0].image_keys;
+}
+
+/**
+ * Reads the photo keys and the product id of a live variant (ACTIVE or INACTIVE) of the
+ * organization, and locks the row until the caller's transaction ends. Same rules as
+ * {@link lockProductImageKeys}.
+ *
+ * @throws 404 NOT_FOUND when the variant is unknown, deleted or another organization's.
+ */
+export async function lockVariantImageKeys(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  variantId: string
+): Promise<VariantImageKeys> {
+  const rows = await tx.$queryRaw<Array<{ product_id: string; image_keys: string[] }>>`
+    SELECT "product_id", "image_keys" FROM "product_variants"
+    WHERE "id" = ${variantId}::uuid AND "organization_id" = ${organizationId}::uuid
+      AND "deleted_at" IS NULL
+    FOR UPDATE`;
+  if (rows.length === 0) throw notFound();
+  return { productId: rows[0].product_id, keys: rows[0].image_keys };
+}
+
+/**
+ * Same read as {@link lockVariantImageKeys} without the lock, for a card a photo is copied from.
+ *
+ * @throws 404 NOT_FOUND when the variant is unknown, deleted or another organization's.
+ */
+export async function readVariantImageKeys(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  variantId: string
+): Promise<VariantImageKeys> {
+  const rows = await tx.$queryRaw<Array<{ product_id: string; image_keys: string[] }>>`
+    SELECT "product_id", "image_keys" FROM "product_variants"
+    WHERE "id" = ${variantId}::uuid AND "organization_id" = ${organizationId}::uuid
+      AND "deleted_at" IS NULL`;
+  if (rows.length === 0) throw notFound();
+  return { productId: rows[0].product_id, keys: rows[0].image_keys };
+}
+
 /** A product row as the synchronization sees it, whoever owns it and whatever its state. */
 export type ProductAnyState = {
   id: string;

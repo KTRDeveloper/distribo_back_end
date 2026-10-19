@@ -247,7 +247,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-033 | done | | applyProductFromSync + repo functions; 15 tests green |
 | CAT-034 | done | | applyVariantFromSync with 4 repository functions; 39 tests green |
 | CAT-035 | done | | Duplicate variant folded: deleted row with merged_into_id, MERGED result; 2 CAT-034 tests adapted |
-| CAT-044 | todo | | |
+| CAT-044 | done | | Four image-key readers (lock and plain) in catalog.repository; 14 tests, suite green |
 | CAT-046 | todo | | |
 | ORG-020 | done | | plan fields, logo key and payment code migration; 16 tests + full suite green |
 | BIL-001 | done | | subscription_payments table, enums, trigger and grants; 42 tests |

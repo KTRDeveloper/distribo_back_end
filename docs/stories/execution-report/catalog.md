@@ -410,6 +410,28 @@ Also in this run: relationship, admin, order, finance, delivery.
 - CAT-037 still has to repoint order lines and negotiated prices at the first variant.
 <!-- end CAT-035 -->
 
+<!-- begin CAT-044 -->
+## CAT-044 — The server reads the photo keys of a product or a variant under a lock
+
+- Filed: 2026-10-19 16:15 UTC
+- Status: **done**: Four image-key readers (lock and plain) in catalog.repository; 14 tests, suite green
+- Risk: medium · story: [CAT-044-the-server-reads-the-photo-keys-of-a-product-or.md](../modules/catalog/CAT-044-the-server-reads-the-photo-keys-of-a-product-or.md)
+- Agent: 33,439 tokens, 12 tool uses, 2 min 10 s
+
+### Agent report
+
+**Summary:** Added lock/read image-key readers for products and variants in catalog.repository.ts, with 14 integration tests.
+
+**Decisions:**
+- Readers select by id, organization and deleted_at IS NULL (raw SQL, like the CAT-032 writers); no check on the variant's product being deleted, since the story does not say.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/image-key-readers.test.ts` › second variant locker waits: the variant lock also blocks (AC-3 applied to variants); passed once implemented
+- same file › INACTIVE variant read, and all four readers on unknown id (AC-4 "an INACTIVE variant can be read")
+
+**Evidence:** story tests 14/14; full suite 3594/3594, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings
+<!-- end CAT-044 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 
