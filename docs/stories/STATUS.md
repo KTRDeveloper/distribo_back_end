@@ -272,7 +272,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | IMG-011 | done | | POST variants/:id/photos/copy; takeVariantPhoto; 12 tests |
 | IMG-012 | done | | release step in cleanupOrphanImages; 6 new tests + suite green |
 | ORG-040 | done | | owner rows create/update Collaboration and create/delete OrganizationContact with named fields; routes updated |
-| ORG-041 | todo | | |
+| ORG-041 | done | | issueCode/verifyCode tied to one contact; fixed business text |
 | ADM-018 | todo | | |
 | ORG-024 | todo | | |
 | ORG-025 | todo | | |

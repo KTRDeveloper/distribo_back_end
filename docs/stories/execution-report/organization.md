@@ -229,3 +229,36 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 
 **Evidence:** story tests 170/170 (7 files); full suite 3874/3874, failing: none, 0 known; typecheck clean; lint 0 errors, 176 warnings
 <!-- end ORG-040 -->
+
+<!-- begin ORG-041 -->
+## ORG-041 — A contact code names the business and serves one contact
+
+- Filed: 2026-10-19 17:27 UTC
+- Status: **done**: issueCode/verifyCode tied to one contact; fixed business text
+- Risk: high · story: [ORG-041-a-contact-code-names-the-business-and-serves.md](../modules/organization/ORG-041-a-contact-code-names-the-business-and-serves.md)
+- Agent: 43,528 tokens, 25 tool uses, 3 min 32 s
+
+### Agent report
+
+**Summary:** issueCode and verifyCode now work on one business contact, with the fixed text naming the business; done.
+
+**Decisions:**
+- Name cleaning: removes Cc, Zl and Zp characters (so U+2028/2029 too), then cuts at 40 code points; no trim.
+- verifyCode keeps its second `options` argument (`spend`); `organizationContactId` goes in the first.
+- The clean-name unit test sits in the story's single test file (`otp-contact-code.test.ts`), not a separate unit file.
+- Pairing refusal (id without the purpose, purpose without the id) happens before any DB read, so no attempt is counted.
+
+**Tests added beyond the story:**
+- `tests/integration/auth/otp-contact-code.test.ts` › says address for an email: the EMAIL variant of the text (story open question); passed at once.
+- same file › refuses a contact with another purpose, and no contact with this purpose: issueCode throws an Error and writes and queues nothing (story Context); passed at once.
+- same file › AB-1: the contact B stays unverified and the code of A is neither consumed nor charged an attempt (AB-1, C-33).
+
+**Other additions:**
+- `contactCodeMessage` is exported from `otp.service.ts` (listed signature).
+
+**Evidence:** story tests 20/20 (contact-code 7, issue and verify 13); full suite 3881/3881, failing: none, 0 known; typecheck clean; lint 0 errors, 176 warnings (pre-existing)
+
+**Follow-ups:**
+- The local generated Prisma client was stale (no organization_contact_id) and had to be regenerated with `npm run db:generate`; other environments may need the same.
+- The EMAIL wording ("cette adresse" / "this address") is still an open question in the story.
+<!-- end ORG-041 -->

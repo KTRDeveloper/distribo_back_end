@@ -7,7 +7,8 @@ export type OtpPurpose =
   | 'PASSWORD_RESET'
   | 'PHONE_CHANGE'
   | 'EMAIL_VERIFICATION'
-  | 'TOTP_RECOVERY';
+  | 'TOTP_RECOVERY'
+  | 'ORG_CONTACT_VERIFICATION';
 
 export type OtpChallengeInsert = {
   personId: string | null;
@@ -16,6 +17,8 @@ export type OtpChallengeInsert = {
   channel: 'SMS' | 'EMAIL';
   codeHash: string;
   expiresAt: Date;
+  /** Set if and only if the purpose is ORG_CONTACT_VERIFICATION (C-33). */
+  organizationContactId?: string;
 };
 
 /** Database operations for one-time code challenges. */
@@ -26,10 +29,10 @@ export const otpRepository = {
     return id;
   },
 
-  /** Latest challenge (by created_at) for a target and purpose. */
-  findLatest(target: string, purpose: OtpPurpose) {
+  /** Latest challenge (by created_at) for a target and purpose, and for one contact when given. */
+  findLatest(target: string, purpose: OtpPurpose, organizationContactId?: string) {
     return prisma.otpChallenge.findFirst({
-      where: { target, purpose },
+      where: { target, purpose, ...(organizationContactId ? { organizationContactId } : {}) },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
   },
