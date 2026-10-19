@@ -23,7 +23,7 @@ As a visitor, I want my registration on a recycled number to be refused if the o
 - Exists: `register` with `new_holder: true` releases a registered holder in one transaction (`releaseRegisteredHolder`), notifies them (`phone.taken_over`) and registers the new person; `claimRefusal` (AUTH-031); `firePhoneReleased(phoneNumber, tx)` from `src/modules/person/phone-released.ts` (PER-014).
 - With `new_holder: true` and a registered holder, the code is checked as before, then `claimRefusal` runs before the code is spent: a refusal answers 409 `NUMBER_NOT_AVAILABLE`, the code stays unspent and nothing changes. The rule is checked again here because the holder may have come back between the claim and the registration.
 - After the release and inside the same transaction, `firePhoneReleased(phone, tx)` runs, so the shop contacts that carry the number go back to pending (ORG-037). If a handler throws, the whole registration is rolled back and the old holder keeps the number.
-- A holder with no device is idle, so the fixtures of AUTH-011 stay valid. Without `new_holder`, a registered holder still answers 409 `ACCOUNT_EXISTS`.
+- A holder with no device is idle. A device counts as activity from its creation (AUTH-031), so the AUTH-011 fixture that creates one is backdated (see Tests to update). Without `new_holder`, a registered holder still answers 409 `ACCOUNT_EXISTS`.
 - `CM-04`: releasing a number moves it to `released_phone_number`. `C-02`: one number, one holder.
 - `CM-04`: Releasing a number moves it from phone_number to released_phone_number and clears phone_verified_at; lookups, SMS and registration read only the active number (design line 71)
 - `C-02`: `phone_number` is unique, E.164 (`^\+[1-9][0-9]{7,14}$`); exactly one of `phone_number` and `released_phone_number` is set; status ANONYMIZED means `phone_number` and `avatar_key` are empty.
@@ -87,7 +87,7 @@ Command: `npx vitest run tests/integration/auth/register-recycled-recheck.test.t
 ### Tests to update
 | existing test | reason | new expectation |
 |---|---|---|
-| tests/integration/auth/register-new-holder.test.ts | the claim check and the release hook run on the same path | unchanged: its holders have no device, so the old assertions hold |
+| tests/integration/auth/register-new-holder.test.ts | the claim check and the release hook run on the same path; its `seedHolder` creates a device dated now, so the holder is recently active and the re-check refuses with 409 | `seedHolder` backdates the device's creation by more than six months (an idle holder); every assertion stays as it is |
 
 ## Out of scope
 - What a handler does with the number (ORG-037 for shop contacts).
