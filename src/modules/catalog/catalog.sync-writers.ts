@@ -5,20 +5,27 @@ import { simplifyText, variantLabel } from '../../shared/variant.js';
 import {
   findLiveTwin,
   findProductAnyState,
+  findCustomerPriceAnyState,
+  findLiveCustomerPriceId,
   findUsedVariantIds,
   findVariantAnyState,
   insertMergedVariant,
   insertSyncedProduct,
   insertVariant,
   listLiveVariantsOfProduct,
+  lockCustomerPricePair,
+  lockLiveRelationshipOfSupplier,
   lockLiveVariantsOfProduct,
   restoreProduct,
   restoreVariantOffSale,
   retireVariants,
+  softDeleteCustomerPrice,
   softDeleteProduct,
   softDeleteVariants,
+  updateCustomerPriceAmount,
   updateProductText,
   updateVariant,
+  upsertCustomerPrice,
   type VariantAnyState,
 } from './catalog.repository.js';
 
@@ -493,4 +500,127 @@ export async function resolveVariantForLine(
   await restoreVariantOffSale(tx, current.id);
   if (product.deletedAt) await restoreProduct(tx, product.id);
   return answer(current, true);
+}
+
+/** The only fields a phone may send for a negotiated price. */
+export type PriceSyncInput = {
+  id: string;
+  relationshipId: string;
+  variantId: string;
+  price: number;
+  setById: string;
+};
+
+export type PriceSyncResult = {
+  result:
+    | 'CREATED'
+    | 'UPDATED'
+    | 'UNCHANGED'
+    | 'GONE'
+    | 'FOREIGN'
+    | 'NO_RELATIONSHIP'
+    | 'NO_VARIANT'
+    | 'INVALID';
+  /** Field names only, never values (v5.0.0-2.2.1). Set with `INVALID`. */
+  invalidFields?: string[];
+};
+
+/** Judges an id that is already known; null when the id is unknown (a creation). */
+async function judgeKnownPrice(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  input: PriceSyncInput
+): Promise<PriceSyncResult | null> {
+  const existing = await findCustomerPriceAnyState(tx, input.id);
+  if (!existing) return null;
+  if (existing.supplierOrganizationId !== organizationId) return { result: 'FOREIGN' };
+  if (existing.deletedAt) return { result: 'GONE' };
+  if (existing.price === BigInt(input.price)) return { result: 'UNCHANGED' };
+  await updateCustomerPriceAmount(tx, existing.id, input.price);
+  return { result: 'UPDATED' };
+}
+
+/**
+ * Creates or edits a negotiated price sent by the owner's phone, for the price push of the
+ * synchronization (ADR-004). It never throws for a business reason: every refusal is a result and
+ * writes nothing, so one price never fails the batch (C-36).
+ *
+ * The price is checked first (an integer of at least 1, v5.0.0-2.2.1), before any read or write.
+ * An id that is already known is judged alone: another organization's price gives `FOREIGN`, a
+ * deleted one `GONE`, and a live one has only its `price` rewritten (`UPDATED`, or `UNCHANGED`
+ * when equal): the relationship and variant of the input are ignored, so a price never moves to
+ * another customer or variant (v5.0.0-15.3.3). An unknown id needs a live relationship supplied by
+ * the organization (`NO_RELATIONSHIP`) and a variant that {@link resolveVariantForLine} finds,
+ * following a merge or bringing a deleted one back off sale (`NO_VARIANT`). Both are read through
+ * the organization of the session (v5.0.0-8.2.2). A live price of the same pair under another id
+ * is deleted first, then the new row is written: the last arrival wins and the pair keeps one
+ * live price (C-11). Concurrent pushes of one pair are ordered by the relationship lock and the
+ * pair lock.
+ *
+ * @param tx - Transaction of the synchronization.
+ * @param organizationId - Organization of the session, never taken from the input.
+ * @param now - Date of the deletion of a replaced price and `set_at` of a new one.
+ */
+export async function applyPriceFromSync(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  input: PriceSyncInput,
+  now: Date
+): Promise<PriceSyncResult> {
+  if (!Number.isSafeInteger(input.price) || input.price < 1) {
+    return { result: 'INVALID', invalidFields: ['price'] };
+  }
+
+  const known = await judgeKnownPrice(tx, organizationId, input);
+  if (known) return known;
+
+  const relationshipId = await lockLiveRelationshipOfSupplier(
+    tx,
+    organizationId,
+    input.relationshipId
+  );
+  if (!relationshipId) return { result: 'NO_RELATIONSHIP' };
+  const variant = await resolveVariantForLine(tx, organizationId, input.variantId, now);
+  if (!variant) return { result: 'NO_VARIANT' };
+
+  await lockCustomerPricePair(tx, relationshipId, variant.variantId);
+  // The same id pushed twice at once: the other push may have written it while this one waited.
+  const raced = await judgeKnownPrice(tx, organizationId, input);
+  if (raced) return raced;
+  const replaced = await findLiveCustomerPriceId(tx, relationshipId, variant.variantId);
+  if (replaced) await softDeleteCustomerPrice(tx, replaced, now);
+  await upsertCustomerPrice(tx, {
+    id: input.id,
+    relationshipId,
+    productId: variant.productId,
+    variantId: variant.variantId,
+    price: input.price,
+    setById: input.setById,
+    now,
+  });
+  return { result: 'CREATED' };
+}
+
+/**
+ * Deletes a negotiated price sent by the owner's phone, for the price push of the synchronization
+ * (ADR-004). It never throws for a business reason (C-36). A live price of the organization gets
+ * `deleted_at = now` (`DELETED`); a deleted one gives `ALREADY` and is not touched again; an
+ * unknown id or one of another organization gives `NOT_FOUND`, never confirming that it exists
+ * (v5.0.0-8.2.2).
+ *
+ * @param tx - Transaction of the synchronization.
+ * @param organizationId - Organization of the session, never taken from the input.
+ * @param priceId - Price to delete.
+ * @param now - Deletion date.
+ */
+export async function deletePriceFromSync(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  priceId: string,
+  now: Date
+): Promise<'DELETED' | 'ALREADY' | 'NOT_FOUND'> {
+  const price = await findCustomerPriceAnyState(tx, priceId);
+  if (!price || price.supplierOrganizationId !== organizationId) return 'NOT_FOUND';
+  if (price.deletedAt) return 'ALREADY';
+  return (await softDeleteCustomerPrice(tx, price.id, now)) ? 'DELETED' : 'ALREADY';
 }

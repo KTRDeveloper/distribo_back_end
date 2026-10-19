@@ -763,13 +763,93 @@ export async function findLiveCustomerPriceId(
  */
 export async function softDeleteCustomerPrice(
   tx: Prisma.TransactionClient,
-  priceId: string
+  priceId: string,
+  now: Date = new Date()
 ): Promise<boolean> {
   const result = await tx.customerPrice.updateMany({
     where: { id: priceId, deletedAt: null },
-    data: { deletedAt: new Date() },
+    data: { deletedAt: now },
   });
   return result.count === 1;
+}
+
+/** A negotiated price in any state, with the organization that supplies its relationship. */
+export type CustomerPriceAnyState = {
+  id: string;
+  price: bigint;
+  deletedAt: Date | null;
+  supplierOrganizationId: string | null;
+};
+
+/**
+ * Reads a negotiated price by id whatever its state, with the supplier organization of its
+ * relationship, so the caller can tell a foreign price from a deleted one. The row is locked for
+ * the transaction's length, so two pushes of one price apply one after the other.
+ */
+export async function findCustomerPriceAnyState(
+  tx: Prisma.TransactionClient,
+  priceId: string
+): Promise<CustomerPriceAnyState | null> {
+  await tx.$queryRaw`SELECT "id" FROM "customer_prices" WHERE "id" = ${priceId}::uuid FOR UPDATE`;
+  const row = await tx.customerPrice.findUnique({
+    where: { id: priceId },
+    select: {
+      id: true,
+      price: true,
+      deletedAt: true,
+      customerRelationship: { select: { supplierOrganizationId: true } },
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    price: row.price,
+    deletedAt: row.deletedAt,
+    supplierOrganizationId: row.customerRelationship.supplierOrganizationId,
+  };
+}
+
+/**
+ * Selects and locks a live relationship supplied by the organization (not deleted, not merged
+ * away), by id and organization together (ASVS v5.0.0-8.2.2). The lock is taken before the pair
+ * lock of {@link upsertCustomerPrice}, the same order as the online price routes.
+ *
+ * @returns The relationship id, or null when it is absent, deleted or of another organization.
+ */
+export async function lockLiveRelationshipOfSupplier(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  relationshipId: string
+): Promise<string | null> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "customer_relationships"
+    WHERE "id" = ${relationshipId}::uuid
+      AND "supplier_organization_id" = ${organizationId}::uuid
+      AND "deleted_at" IS NULL AND "merged_into_id" IS NULL
+    FOR UPDATE`;
+  return rows[0]?.id ?? null;
+}
+
+/** Serializes the writers of one (relationship, variant) pair for the transaction's length. */
+export async function lockCustomerPricePair(
+  tx: Prisma.TransactionClient,
+  relationshipId: string,
+  variantId: string
+): Promise<void> {
+  await tx.$executeRaw`
+    SELECT pg_advisory_xact_lock(hashtextextended(${relationshipId} || ':' || ${variantId}, 0))`;
+}
+
+/** Rewrites the amount of a live negotiated price; nothing else on the row changes. */
+export async function updateCustomerPriceAmount(
+  tx: Prisma.TransactionClient,
+  priceId: string,
+  price: number
+): Promise<void> {
+  await tx.customerPrice.updateMany({
+    where: { id: priceId, deletedAt: null },
+    data: { price: BigInt(price) },
+  });
 }
 
 /**

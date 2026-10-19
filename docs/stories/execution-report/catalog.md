@@ -1167,6 +1167,42 @@ Also in this run: relationship, admin, order, finance, delivery.
 - Confirm the api-docs assertion change above.
 <!-- end CAT-030 -->
 
+<!-- begin CAT-039 -->
+## CAT-039 — A negotiated price sent or removed by a phone is applied without failing the batch
+
+- Filed: 2026-10-19 21:28 UTC
+- Status: **done**: applyPriceFromSync and deletePriceFromSync written; 22 tests pass
+- Risk: high · story: [CAT-039-a-negotiated-price-sent-or-removed-by-a-phone.md](../modules/catalog/CAT-039-a-negotiated-price-sent-or-removed-by-a-phone.md)
+- Agent: 63,584 tokens, 16 tool uses, 3 min 31 s
+
+### Agent report
+
+**Summary:** Added applyPriceFromSync and deletePriceFromSync (sync-writers) with repository helpers; all green.
+
+**Decisions:**
+- "Live relationship" means not deleted and not merged, supplied by the organization; status (PENDING/ENDED) is not checked, so a sync never fails on it (the online route's 409 is not a batch concern). Worth a human look.
+- A known id is judged alone (FOREIGN, GONE, then price-only update) before the relationship and variant are read, so AB-2 ignores the pair sent.
+- Order for an unknown id: INVALID, NO_RELATIONSHIP, then NO_VARIANT, so a refusal never brings a variant back.
+- Locks: relationship row, then the pair advisory lock (same order as the online routes), then the id is re-read.
+- `set_at` of a new row is `now`; an edit rewrites only `price` (not set_by_id or set_at).
+
+**Tests added beyond the story:**
+- `sync-apply-price.test.ts` › invalid price values (negative, NaN, 2^60) and no variant restored on invalid price: AC-5 "checked before any write"; passed at once
+- › unknown and deleted relationship give NO_RELATIONSHIP (story: "live"); passed at once
+- › removal of another business price gives NOT_FOUND and keeps it (v5.0.0-8.2.2); passed at once
+- › two pushes of one pair at once leave one live price (C-11); passed at once
+- › the same new id pushed twice at once gives CREATED then UNCHANGED (C-36, idempotent repeat); passed at once
+
+**Other additions:**
+- Repository: findCustomerPriceAnyState, lockLiveRelationshipOfSupplier, lockCustomerPricePair, updateCustomerPriceAmount; softDeleteCustomerPrice got an optional `now` (default unchanged).
+- judgeKnownPrice helper re-read after the locks, to avoid a primary key error on a same-id race.
+
+**Evidence:** story tests 22/22; full suite 4481/4481, failing: none, 0 known; typecheck clean; lint 0 errors, 192 warnings (existing)
+
+**Follow-ups:**
+- TDD red phase was not observed separately (tests and code written together); every test passed at the first run.
+<!-- end CAT-039 -->
+
 <!-- begin CAT-011 -->
 ## CAT-011 — Reseller copies a purchased article into their catalog
 

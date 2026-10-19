@@ -313,7 +313,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-023 | done | | accepted_at written by the conditional PENDING-only update; views and OpenAPI list it |
 | CAT-029 | done | | PUT prices/{variantId} and copy by variant; upsertCustomerPrice keeps a legacy no-variant call for CAT-015 tests |
 | CAT-030 | done | | List and remove negotiated prices by variant; suite 4459 passed |
-| CAT-039 | todo | | |
+| CAT-039 | done | | applyPriceFromSync and deletePriceFromSync written; 22 tests pass |
 | ADM-016 | todo | | |
 | ADM-017 | todo | | |
 | ADM-019 | todo | | |
