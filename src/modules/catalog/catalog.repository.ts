@@ -1,6 +1,7 @@
 import type { Prisma, Product } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { httpError } from '../../lib/http-error.js';
+import { imageKeySchema } from '../../lib/image-keys.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
 
@@ -525,4 +526,80 @@ export async function listLiveCustomerPricesForCopy(
     orderBy: { productId: 'asc' },
     select: { productId: true, price: true },
   });
+}
+
+const MAX_IMAGE_KEYS = 5;
+
+/**
+ * Checks a photo key list before any write: canonical keys of the `products` folder, distinct,
+ * five at most (C-49, ASVS v5.0.0-15.3.3). Nothing about the keys is echoed in the message.
+ *
+ * @throws {RangeError} when a key is not canonical, not in `products/`, repeated, or over five.
+ */
+function assertProductImageKeys(keys: string[]): void {
+  if (keys.length > MAX_IMAGE_KEYS || new Set(keys).size !== keys.length) {
+    throw new RangeError('Invalid image key list');
+  }
+  for (const key of keys) {
+    if (!key.startsWith('products/') || !imageKeySchema.safeParse(key).success) {
+      throw new RangeError('Invalid image key list');
+    }
+  }
+}
+
+/**
+ * Replaces the photo keys of a live product of the organization and returns the previous keys, so
+ * the images module can delete the old files after the commit. An empty list clears the photos.
+ *
+ * The only writer of `products.image_keys` (C-49, ASVS v5.0.0-15.3.3). The row is selected by id
+ * and organization together (v5.0.0-8.2.2) and locked before the previous keys are read, so two
+ * replacements at once each return what the other wrote (v5.0.0-2.2.3). The database moves
+ * `server_updated_at` on the update (C-35).
+ *
+ * @throws {RangeError} on an invalid key list, before any query.
+ * @throws 404 NOT_FOUND when the product is unknown, deleted or another organization's.
+ */
+export async function setProductImageKeys(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  productId: string,
+  keys: string[]
+): Promise<string[]> {
+  assertProductImageKeys(keys);
+  const rows = await tx.$queryRaw<Array<{ image_keys: string[] }>>`
+    SELECT "image_keys" FROM "products"
+    WHERE "id" = ${productId}::uuid AND "organization_id" = ${organizationId}::uuid
+      AND "deleted_at" IS NULL
+    FOR UPDATE`;
+  if (rows.length === 0) throw notFound();
+  await tx.product.update({ where: { id: productId }, data: { imageKeys: { set: keys } } });
+  return rows[0].image_keys;
+}
+
+/**
+ * Replaces the photo keys of a live variant of the organization (ACTIVE or INACTIVE) and returns
+ * the previous keys. Same rules as {@link setProductImageKeys}; the CAT-021 trigger also moves the
+ * `server_updated_at` of the variant's product.
+ *
+ * @throws {RangeError} on an invalid key list, before any query.
+ * @throws 404 NOT_FOUND when the variant is unknown, deleted or another organization's.
+ */
+export async function setVariantImageKeys(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  variantId: string,
+  keys: string[]
+): Promise<string[]> {
+  assertProductImageKeys(keys);
+  const rows = await tx.$queryRaw<Array<{ image_keys: string[] }>>`
+    SELECT "image_keys" FROM "product_variants"
+    WHERE "id" = ${variantId}::uuid AND "organization_id" = ${organizationId}::uuid
+      AND "deleted_at" IS NULL
+    FOR UPDATE`;
+  if (rows.length === 0) throw notFound();
+  await tx.productVariant.update({
+    where: { id: variantId },
+    data: { imageKeys: { set: keys } },
+  });
+  return rows[0].image_keys;
 }

@@ -291,6 +291,37 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Evidence:** story tests 9/9; full suite 3498/3498, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings
 <!-- end CAT-021 -->
 
+<!-- begin CAT-032 -->
+## CAT-032 — The server writes the photo keys of a product or a variant
+
+- Filed: 2026-10-19 16:00 UTC
+- Status: **done**: setProductImageKeys and setVariantImageKeys in catalog.repository; 17 tests green
+- Risk: medium · story: [CAT-032-the-server-writes-the-photo-keys-of-a-product.md](../modules/catalog/CAT-032-the-server-writes-the-photo-keys-of-a-product.md)
+- Agent: 38,784 tokens, 18 tool uses, 2 min 30 s
+
+### Agent report
+
+**Summary:** Added setProductImageKeys and setVariantImageKeys to catalog.repository.ts with the story's integration test file; all green.
+
+**Decisions:**
+- Key validation runs before any query, so a bad list throws RangeError even for an unknown id: the story says "nothing is written" and does not order the two errors.
+- Lock with raw `SELECT ... FOR UPDATE` filtered by id, organization and `deleted_at IS NULL`, then a Prisma update; `server_updated_at` is left to the existing BEFORE triggers (and CAT-021 for the product date).
+- The RangeError message is fixed and does not echo the keys.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/image-key-writers.test.ts` › accepts five keys: the limit boundary (C-49); passed at once
+- same file › moves the server date of the product: product writer touches server_updated_at (story Context); passed at once
+- same file › writes an INACTIVE variant (story Context); passed at once
+
+**Other additions:**
+- None.
+
+**Evidence:** story tests 17/17; full suite 3515/3515, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings (existing)
+
+**Follow-ups:**
+- `npx prisma generate` was needed locally: the generated client was stale (no `imageKeys`), which made the first run fail.
+<!-- end CAT-032 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 
