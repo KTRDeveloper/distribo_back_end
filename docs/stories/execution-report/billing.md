@@ -35,3 +35,28 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - Tests and implementation were written in one pass, so no separate red run was observed.
 <!-- end BIL-008 -->
+
+<!-- begin BIL-010 -->
+## BIL-010 — Plan arithmetic for upgrades, queues and grace
+
+- Filed: 2026-10-19 15:21 UTC
+- Status: **done**: plan-math.ts pure; 17 unit tests, suite green
+- Risk: medium · story: [BIL-010-plan-arithmetic-for-upgrades-queues-and-grace.md](../modules/billing/BIL-010-plan-arithmetic-for-upgrades-queues-and-grace.md)
+- Agent: 23,118 tokens, 11 tool uses, 1 min 48 s
+
+### Agent report
+
+**Summary:** Added pure `src/modules/billing/plan-math.ts` (rank, addMonths, addDays, GRACE_DAYS, convertRemainingDays) with unit tests; done.
+
+**Decisions:**
+- Conversion uses BigInt: sum of remainingMs x price(plan), one ceiling division by price(to) x 86 400 000.
+- Strictly lower plan required (rank(part) < rank(to)); this also refuses PRO to PRO and anything to FREE.
+- `remainingMs` must be a safe non-negative integer, else RangeError (NaN, Infinity and fractions too).
+
+**Tests added beyond the story:**
+- `tests/unit/billing/plan-math.test.ts` › non-finite or fractional remainingMs: refused with RangeError (ASVS 2.2.1, Security section); passed at once? no, written before the code
+- same file › one bad part among good ones refuses the whole call (fail closed)
+- same file › addMonths does not mutate its input date
+
+**Evidence:** story tests 17/17; full suite 3336/3336, failing: none, 0 known; typecheck clean; lint 0 errors, 142 warnings (existing)
+<!-- end BIL-010 -->
