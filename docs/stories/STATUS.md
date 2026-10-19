@@ -238,7 +238,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | IMG-001 | done | | image_copies table, root trigger, insert-only grant; 13 tests |
 | CAT-012 | done | | product_variants table, composite FK, checks, triggers; 19 tests + full suite green |
 | CAT-013 | done | | migration copies each product into a variant of the same id; 6 tests |
-| CAT-014 | todo | | |
+| CAT-014 | blocked | | Mirror triggers break 3 tests of variant-per-product.test.ts (CAT-013) and the cleanUp of product-variant-table.test.ts (CAT-012); CAT-014 lists no Tests to update and CAT-041 only fixes them later: may I adapt them now? |
 | CAT-015 | todo | | |
 | CAT-018 | todo | | |
 | CAT-016 | todo | | |
