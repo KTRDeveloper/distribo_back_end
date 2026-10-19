@@ -155,3 +155,26 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - AB-1 sends a body just over 3 MB (3 MiB, the limit); the 403 comes before the body is read, with no connection reset in supertest.
 <!-- end IMG-005 -->
+
+<!-- begin IMG-006 -->
+## IMG-006 — Copy a photo under a new key and record the copy
+
+- Filed: 2026-10-19 17:03 UTC
+- Status: **done**: copyImage, findCopyRoot, insertImageCopy; 7 tests green
+- Risk: high · story: [IMG-006-copy-a-photo-under-a-new-key-and-record-the-copy.md](../modules/images/IMG-006-copy-a-photo-under-a-new-key-and-record-the-copy.md)
+- Agent: 31,494 tokens, 13 tool uses, 2 min 23 s
+
+### Agent report
+
+**Summary:** Added `copyImage` (image-copy.service.ts) and the repository functions `findCopyRoot` / `insertImageCopy`; all tests green.
+
+**Decisions:**
+- Source key check: a key that is not canonical or not under `products/` throws RangeError (covers logos, avatars, path tricks), using `imageKeySchema`.
+- Order: file is stored before the registry insert, so a failed transaction leaves only an orphan file (per the story, IMG-007 cleans it).
+
+**Tests added beyond the story:**
+- `tests/integration/images/image-copy.test.ts` › rolls back the registry row when the caller transaction fails: the row is written in the caller's transaction and the file stays (story Context, C-56); passed at once
+- same file, "nothing copied" also checks avatars and a path-traversal key (AC-4, ASVS 5.3.2); passed at once
+
+**Evidence:** story tests 7/7; full suite 3804/3804, failing: none, 0 known; typecheck clean; lint 0 errors, 162 warnings (existing)
+<!-- end IMG-006 -->
