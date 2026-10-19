@@ -60,8 +60,7 @@ async function seedPerson(id: string, phone: string) {
 async function seedMember(
   orgId: string,
   personId: string,
-  role: 'OWNER' | 'MANAGER' | 'SELLER' | 'DRIVER',
-  isPublicContact = false
+  role: 'OWNER' | 'MANAGER' | 'SELLER' | 'DRIVER'
 ) {
   await prisma.collaboration.create({
     data: {
@@ -71,7 +70,6 @@ async function seedMember(
       role,
       status: 'ACTIVE',
       acceptedAt: REG,
-      isPublicContact,
     },
   });
 }
@@ -112,11 +110,23 @@ beforeEach(async () => {
   await seedMember(ORG_A, MANAGER, 'MANAGER');
   await seedMember(ORG_A, SELLER, 'SELLER');
   await seedMember(ORG_A, DRIVER, 'DRIVER');
-  // A business that publishes PUBLIC_PHONE as its contact number.
+  // A business with PUBLIC_PHONE as a verified PHONE contact.
   await prisma.organization.create({
     data: { id: ORG_PUBLIC, name: 'Public Org', status: 'ACTIVE' },
   });
-  await seedMember(ORG_PUBLIC, PUBLIC_OWNER, 'OWNER', true);
+  await seedMember(ORG_PUBLIC, PUBLIC_OWNER, 'OWNER');
+  await prisma.organizationContact.create({
+    data: {
+      id: newId(),
+      organizationId: ORG_PUBLIC,
+      kind: 'PHONE',
+      slot: 1,
+      value: PUBLIC_PHONE,
+      createdById: PUBLIC_OWNER,
+      verifiedAt: REG,
+      verificationMethod: 'CODE',
+    },
+  });
 });
 
 describe('POST /api/v1/suppliers/invitations', () => {

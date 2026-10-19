@@ -280,7 +280,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-027 | done | | DELETE contacts/{contactId}: guarded soft delete, owner only; 3956 tests green |
 | ORG-033 | done | | Review notice with slot mention, 13 tests; suite 3969 green |
 | ORG-037 | done | | Handler downgrades verified PHONE contacts on release and notifies ACTIVE owners; 3980 tests pass |
-| ORG-029 | todo | | |
+| ORG-029 | done | | verified PHONE contacts drive the lookup; 4 tests updated |
 | ORG-031 | todo | | |
 | ORG-042 | todo | | |
 | ORG-044 | todo | | |

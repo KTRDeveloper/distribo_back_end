@@ -773,10 +773,11 @@ export async function findActiveSubscription(organizationId: string): Promise<Su
 const LOOKUP_RESULT_MAX = 50;
 
 /**
- * Finds the ACTIVE, non-deleted organizations that have an ACTIVE, non-deleted collaborator with
- * `is_public_contact` whose current number is `e164` (CM-26). Only the person's current number is
- * compared, so a released number matches nothing. Selects three fields, never collaborator data
- * (ASVS v5.0.0-15.3.1).
+ * Finds the ACTIVE, non-deleted organizations that hold a live, verified PHONE
+ * `OrganizationContact` with value `e164` (CM-26). Only the business's own proven contacts are
+ * compared: the person behind the number and the `is_public_contact` flag are not read, and a
+ * pending, deleted or EMAIL contact matches nothing (C-44). Selects three fields, never contact
+ * or collaborator data (ASVS v5.0.0-15.3.1).
  *
  * @param e164 - Normalized E.164 number.
  */
@@ -787,12 +788,12 @@ export function findOrganizationsByPublicNumber(
     where: {
       status: 'ACTIVE',
       deletedAt: null,
-      collaborations: {
+      contacts: {
         some: {
-          status: 'ACTIVE',
-          isPublicContact: true,
+          kind: 'PHONE',
+          value: e164,
+          verifiedAt: { not: null },
           deletedAt: null,
-          person: { phoneNumber: e164 },
         },
       },
     },

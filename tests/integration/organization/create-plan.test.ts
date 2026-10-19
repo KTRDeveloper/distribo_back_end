@@ -224,7 +224,6 @@ describe('plan fields are for the team only (AB-1, CWE-200)', () => {
               role: 'OWNER',
               status: 'ACTIVE',
               acceptedAt: REG,
-              isPublicContact: true,
             },
             ...(status
               ? [
@@ -260,8 +259,19 @@ describe('plan fields are for the team only (AB-1, CWE-200)', () => {
   );
 
   it('keeps the lookup item to id, name and description', async () => {
-    await prisma.person.update({ where: { id: OWNER }, data: { phoneNumber: '+237677123456' } });
     const id = await seedOrgWithMember(null);
+    await prisma.organizationContact.create({
+      data: {
+        id: newId(),
+        organizationId: id,
+        kind: 'PHONE',
+        slot: 1,
+        value: '+237677123456',
+        createdById: OWNER,
+        verifiedAt: REG,
+        verificationMethod: 'CODE',
+      },
+    });
 
     const response = await createAuthenticatedRequest(app, OUTSIDER)
       .get('/api/v1/organizations/lookup')

@@ -64,9 +64,27 @@ async function seedOrg(
           role: 'OWNER',
           status: 'ACTIVE',
           acceptedAt: REG,
-          isPublicContact: ownerId === OWNER,
         },
       },
+    },
+  });
+}
+
+/** Gives the organization a verified PHONE contact (or another state) holding the number. */
+async function seedContact(
+  organizationId: string,
+  opts: { verified?: boolean; deleted?: boolean; value?: string; slot?: number } = {}
+) {
+  return prisma.organizationContact.create({
+    data: {
+      id: nextId('0003'),
+      organizationId,
+      kind: 'PHONE',
+      slot: opts.slot ?? 1,
+      value: opts.value ?? PHONE,
+      createdById: SECOND,
+      ...(opts.verified === false ? {} : { verifiedAt: REG, verificationMethod: 'CODE' as const }),
+      ...(opts.deleted ? { deletedAt: REG } : {}),
     },
   });
 }
@@ -75,7 +93,6 @@ async function seedCollaboration(
   personId: string,
   organizationId: string,
   status: 'ACTIVE' | 'INVITED' | 'REVOKED',
-  isPublicContact: boolean,
   role: 'OWNER' | 'MANAGER' = 'MANAGER'
 ) {
   return prisma.collaboration.create({
@@ -86,7 +103,6 @@ async function seedCollaboration(
       role,
       status,
       acceptedAt: status === 'ACTIVE' ? REG : null,
-      isPublicContact,
     },
   });
 }
@@ -108,6 +124,7 @@ beforeEach(async () => {
 describe('GET /api/v1/organizations/lookup', () => {
   it('lists the organization with id, name and description only (AC-1, CM-26)', async () => {
     const org = await seedOrg('Chez Mama', 'ACTIVE', 'About us', OWNER);
+    await seedContact(org.id);
 
     const response = await lookup('6 77 12 34 56');
 
@@ -118,9 +135,9 @@ describe('GET /api/v1/organizations/lookup', () => {
     expect(limiter.keys).toEqual([`lookup:${CALLER}`]);
   });
 
-  it('answers 200 with an empty list when the flag is false (AC-2)', async () => {
-    const org = await seedOrg('Private flag');
-    await seedCollaboration(OWNER, org.id, 'ACTIVE', false);
+  it('answers 200 with an empty list when the contact is not verified (AC-2)', async () => {
+    const org = await seedOrg('Pending contact');
+    await seedContact(org.id, { verified: false });
 
     const response = await lookup(PHONE);
 
@@ -129,11 +146,10 @@ describe('GET /api/v1/organizations/lookup', () => {
   });
 
   it.each(['INVITED', 'REVOKED'] as const)(
-    'answers an empty list for a %s collaborator (AC-2)',
+    'answers an empty list for a %s collaborator holding the number without a contact (AC-2)',
     async (status) => {
       const org = await seedOrg('Not active');
-      // The database refuses the flag on a non-ACTIVE row, so the flag stays false here.
-      await seedCollaboration(OWNER, org.id, status, false);
+      await seedCollaboration(OWNER, org.id, status);
 
       const response = await lookup(PHONE);
 
@@ -146,7 +162,7 @@ describe('GET /api/v1/organizations/lookup', () => {
     'answers an empty list for a %s organization (AC-2)',
     async (status) => {
       const org = await seedOrg('Not open', status);
-      await seedCollaboration(OWNER, org.id, 'ACTIVE', true);
+      await seedContact(org.id);
 
       const response = await lookup(PHONE);
 
@@ -172,6 +188,8 @@ describe('GET /api/v1/organizations/lookup', () => {
   it('lists both organizations of one public contact (AC-3)', async () => {
     const first = await seedOrg('First', 'ACTIVE', 'About us', OWNER);
     const second = await seedOrg('Second', 'ACTIVE', null, OWNER);
+    await seedContact(first.id);
+    await seedContact(second.id);
 
     const response = await lookup(PHONE);
 
@@ -196,21 +214,9 @@ describe('GET /api/v1/organizations/lookup', () => {
     expect(bodyOf<ErrorBody>(sixtyFirst).error.code).toBe('RATE_LIMITED');
   });
 
-  it('no longer lists an organization once the number is released (AB-1)', async () => {
-    await seedOrg('Released', 'ACTIVE', 'About us', OWNER);
-    await prisma.person.update({
-      where: { id: OWNER },
-      data: { phoneNumber: null, phoneVerifiedAt: null, releasedPhoneNumber: PHONE },
-    });
-
-    const response = await lookup(PHONE);
-
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ items: [] });
-  });
-
   it('exposes no collaborator data (AB-3)', async () => {
-    await seedOrg('Chez Mama', 'ACTIVE', 'About us', OWNER);
+    const org = await seedOrg('Chez Mama', 'ACTIVE', 'About us', OWNER);
+    await seedContact(org.id);
 
     const response = await lookup(PHONE);
     const serialized = JSON.stringify(response.body);

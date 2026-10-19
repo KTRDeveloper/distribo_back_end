@@ -436,3 +436,30 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 **Follow-ups:**
 - None.
 <!-- end ORG-037 -->
+
+<!-- begin ORG-029 -->
+## ORG-029 — A business is found by its verified public contacts
+
+- Filed: 2026-10-19 17:58 UTC
+- Status: **done**: verified PHONE contacts drive the lookup; 4 tests updated
+- Risk: high · story: [ORG-029-a-business-is-found-by-its-verified-public.md](../modules/organization/ORG-029-a-business-is-found-by-its-verified-public.md)
+- Agent: 24,956 tokens, 7 tool uses, 1 min 43 s
+
+### Agent report
+
+**Summary:** The lookup now matches live, verified PHONE `OrganizationContact`s of ACTIVE businesses. The `is_public_contact` flag is no longer read.
+
+**Decisions:**
+- `create-plan.test.ts` (user-authorized): the lookup-item test seeds a verified PHONE contact; the `isPublicContact: true` in its shared seed helper is removed, since only that test needed it.
+
+**Tests added beyond the story:**
+- `tests/integration/organization/lookup-contacts.test.ts` › EMAIL contact with the same value finds nothing: only PHONE matches (AC-2, CM-26)
+- `tests/integration/organization/lookup-contacts.test.ts` › business listed once when it holds the number in two verified slots: no duplicates; passed at once
+- `tests/integration/organization/lookup-contacts.test.ts` › finds the business with no collaborator holding the number or the flag (C-44)
+- `tests/integration/organization/lookup-contacts.test.ts` › 400 for a missing number: the validation is unchanged; passed at once
+
+**Evidence:** story tests 66/66 (the 4 files run together); full suite 3991/3991, failing: none, 0 known; typecheck clean; lint 0 errors, 183 warnings
+
+**Follow-ups:**
+- The `isPublicContact` seeds in other test files remain until ORG-031 and ORG-032 remove the flag.
+<!-- end ORG-029 -->
