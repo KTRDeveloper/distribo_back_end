@@ -102,7 +102,7 @@ organizationRoutes.get('/:organizationId/collaborators', loadActor, (req, res, n
 organizationRoutes.post(
   '/:organizationId/collaborators',
   loadActor,
-  requireAbility('manage', 'Collaboration'),
+  requireAbility('create', 'Collaboration'),
   // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
   (req, _res, next) => {
     const parsed = inviteCollaboratorSchema.safeParse(req.body);
@@ -135,7 +135,7 @@ organizationRoutes.patch('/:organizationId/collaborators/me', loadActor, (req, r
 organizationRoutes.patch(
   '/:organizationId/collaborators/:collaborationId',
   loadActor,
-  requireAbility('manage', 'Collaboration'),
+  requireAbility('update', 'Collaboration'),
   (req, res, next) => {
     Promise.resolve()
       .then(() => {
@@ -153,7 +153,7 @@ organizationRoutes.patch(
 organizationRoutes.delete(
   '/:organizationId/collaborators/:collaborationId',
   loadActor,
-  requireAbility('manage', 'Collaboration'),
+  requireAbility('update', 'Collaboration'),
   (req, res, next) => {
     Promise.resolve()
       .then(() => {

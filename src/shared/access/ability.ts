@@ -230,11 +230,35 @@ export const RULES: AccessRule[] = [
     action: 'cancel',
     subject: 'Handover',
   },
+  // Team and contacts: owner only, online only, with the writable fields named per action
+  // (ASVS v5.0.0-8.2.1, v5.0.0-15.3.3). `create` is the invite, `update` a role change or a revoke.
   {
     who: 'OWNER',
     where: 'ONLINE_FOR_ALL',
-    action: 'manage',
+    action: 'create',
     subject: 'Collaboration',
+    fields: ['role'],
+  },
+  {
+    who: 'OWNER',
+    where: 'ONLINE_FOR_ALL',
+    action: 'update',
+    subject: 'Collaboration',
+    fields: ['role', 'status'],
+  },
+  {
+    who: 'OWNER',
+    where: 'ONLINE_FOR_ALL',
+    action: 'create',
+    subject: 'OrganizationContact',
+    fields: ['kind', 'slot', 'value'],
+  },
+  {
+    who: 'OWNER',
+    where: 'ONLINE_FOR_ALL',
+    action: 'delete',
+    subject: 'OrganizationContact',
+    fields: ['kind', 'slot', 'value'],
   },
   {
     who: 'OWNER',

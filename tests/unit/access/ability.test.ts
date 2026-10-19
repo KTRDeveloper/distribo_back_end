@@ -349,9 +349,10 @@ describe('team, subscription and organization rules', () => {
   const serverOnline = { daysSinceSync: 30, online: true, onServer: true };
 
   it.each([
-    ['OWNER', online, 'manage', 'Collaboration', true],
-    ['OWNER', offline, 'manage', 'Collaboration', false],
-    ['MANAGER', online, 'manage', 'Collaboration', false],
+    ['OWNER', online, 'create', 'Collaboration', true],
+    ['OWNER', online, 'update', 'Collaboration', true],
+    ['OWNER', offline, 'update', 'Collaboration', false],
+    ['MANAGER', online, 'update', 'Collaboration', false],
     ['OWNER', offline, 'close', 'Organization', false],
     ['OWNER', online, 'close', 'Organization', true],
     ['MANAGER', online, 'invite_supplier', 'CustomerRelationship', true],
@@ -369,7 +370,8 @@ describe('team, subscription and organization rules', () => {
     const contexts = [offline, online, serverOffline, serverOnline];
     const teamRules = RULES.filter((rule) =>
       [
-        'manage:Collaboration',
+        'create:Collaboration',
+        'update:Collaboration',
         'manage:Subscription',
         'transfer_ownership:Organization',
         'close:Organization',
@@ -379,7 +381,7 @@ describe('team, subscription and organization rules', () => {
       ].includes(`${rule.action}:${rule.subject}`)
     );
 
-    expect(teamRules).toHaveLength(7);
+    expect(teamRules).toHaveLength(8);
     for (const role of roles) {
       for (const context of contexts) {
         const ability = abilityFor(role, context);
@@ -399,7 +401,8 @@ describe('team, subscription and organization rules', () => {
     for (const context of [offline, online, serverOffline, serverOnline]) {
       const ability = abilityFor('MANAGER', context);
 
-      expect(ability.can('manage', 'Collaboration')).toBe(false);
+      expect(ability.can('create', 'Collaboration')).toBe(false);
+      expect(ability.can('update', 'Collaboration')).toBe(false);
       expect(ability.can('manage', 'Subscription')).toBe(false);
       expect(ability.can('close', 'Organization')).toBe(false);
       expect(ability.can('reopen', 'Organization')).toBe(false);

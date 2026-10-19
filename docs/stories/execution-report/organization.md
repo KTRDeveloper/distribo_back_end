@@ -206,3 +206,26 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 AB-2 (logo_key in the creation body gives 400) passed at once because the existing creation schema is strict; it stays as a regression guard.
 <!-- end ORG-038 -->
+
+<!-- begin ORG-040 -->
+## ORG-040 — The owner rules for the team and the contacts are written out
+
+- Filed: 2026-10-19 17:24 UTC
+- Status: **done**: owner rows create/update Collaboration and create/delete OrganizationContact with named fields; routes updated
+- Risk: high · story: [ORG-040-the-owner-rules-for-the-team-and-the-contacts.md](../modules/organization/ORG-040-the-owner-rules-for-the-team-and-the-contacts.md)
+- Agent: 39,206 tokens, 13 tool uses, 1 min 56 s
+
+### Agent report
+
+**Summary:** Replaced `manage Collaboration` with owner rows create (role) and update (role, status), added create/delete OrganizationContact (kind, slot, value); routes use create (invite) and update (role, revoke).
+
+**Decisions:**
+- delete OrganizationContact gets the same field list as create: the story gives one list for both rows.
+- ability.test.ts: team rule count 7 → 8 (two Collaboration rows replace one); service JSDoc updated to the new action names.
+
+**Tests added beyond the story:**
+- `tests/unit/access/owner-rules.test.ts` › writable fields of a contact: create/delete limited to kind, slot, value; update refused (AC-2, 15.3.3); passed at once
+- `tests/unit/access/owner-rules.test.ts` › manager refused in every context incl. server contexts (AB-1); passed at once
+
+**Evidence:** story tests 170/170 (7 files); full suite 3874/3874, failing: none, 0 known; typecheck clean; lint 0 errors, 176 warnings
+<!-- end ORG-040 -->

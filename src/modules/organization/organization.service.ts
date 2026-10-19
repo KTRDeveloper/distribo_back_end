@@ -181,7 +181,7 @@ const INVITED_CONTENT = {
  * limit is refused after locking the organization row (C-42). A registered invitee is notified in the same transaction, so a rolled-back
  * invitation never leaves a notification. Sending the WhatsApp or SMS message is the client's job.
  *
- * @param actor - Owner loaded from the path and checked for `manage Collaboration`.
+ * @param actor - Owner loaded from the path and checked for `create Collaboration`.
  * @param input - Validated body: gesture id, E.164 number and role.
  * @returns The closed collaboration view.
  * @throws 409 `ORGANIZATION_NOT_ACTIVE`, 409 `ALREADY_MEMBER`, 409 `COLLABORATOR_LIMIT_REACHED`, 429 `RATE_LIMITED`.
@@ -346,7 +346,7 @@ const ROLE_CHANGED_CONTENT = {
  * protected (CM-09). An ACTIVE target gets a scope version bump (CM-03) and a notification in the
  * same transaction; an INVITED target has no rights yet, so only the role is written.
  *
- * @param actor - Owner loaded from the path and checked for `manage Collaboration`.
+ * @param actor - Owner loaded from the path and checked for `update Collaboration`.
  * @param collaborationId - Collaboration from the path.
  * @param role - New role from the validated body; never OWNER.
  * @returns The closed collaboration view.
@@ -410,7 +410,7 @@ const REVOKED_CONTENT = {
  * target has no rights yet. Access ends on the next request because the actor is loaded from the
  * database (ASVS v5.0.0-7.4.2).
  *
- * @param actor - Owner loaded from the path and checked for `manage Collaboration`.
+ * @param actor - Owner loaded from the path and checked for `update Collaboration`.
  * @param collaborationId - Collaboration from the path.
  * @throws 404 `NOT_FOUND` for an unknown, foreign or REVOKED row; 409 `OWNER_PROTECTED`.
  */
