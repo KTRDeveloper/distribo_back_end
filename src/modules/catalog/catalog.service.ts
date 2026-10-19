@@ -15,7 +15,10 @@ import type { Actor } from '../../types/express.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   countProductsOnSale,
+  countVariantNegotiatedPricesBefore,
   findLiveCustomerPriceId,
+  findLiveTwin,
+  findVariantAnyState,
   findLiveVariantByText,
   findSupplierRelationshipForPrice,
   getProductCopyableBy,
@@ -28,6 +31,7 @@ import {
   listLiveVariantsOfProduct,
   listLiveCustomerPricesForCopy,
   listProductsOfOrganization,
+  patchVariant,
   softDeleteCustomerPrice,
   updateProduct,
   upsertCustomerPrice,
@@ -43,6 +47,8 @@ import type {
   CustomerPricePage,
   CustomerPriceView,
   EditProductInput,
+  EditVariantInput,
+  EditedVariantView,
   FlatProductView,
   ListCustomerPricesQuery,
   ListProductsQuery,
@@ -219,6 +225,84 @@ export async function addVariant(
       }
       throw error;
     }
+  });
+}
+
+/**
+ * Changes the name, unit, price, minimum quantity or status of a variant of the actor's business.
+ *
+ * The role is decided by the route (`update ProductVariant`, ASVS v5.0.0-8.2.1). The product is
+ * selected by id and organization, then the variant is locked and must belong to that product and
+ * organization and not be deleted, else 404 (v5.0.0-8.2.2). One transaction refuses a name and
+ * unit that equal another live variant's (C-47, the unique index is the fallback for a race) and,
+ * when an INACTIVE variant goes back to ACTIVE on an unpaused product with no other ACTIVE
+ * variant, checks the plan's room (C-46). `price_updated_at` is moved by the database on a real
+ * price change only (C-13); the count of live negotiated prices of this variant older than it
+ * is then returned, else 0.
+ *
+ * @param actor - Actor loaded from the path.
+ * @param productId - Validated product id from the path.
+ * @param variantId - Validated variant id from the path.
+ * @param input - Validated body, at least one field.
+ * @throws 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE`, `VARIANT_EXISTS` or
+ * `PRODUCT_LIMIT_REACHED`.
+ */
+export async function editVariant(
+  actor: Actor,
+  productId: string,
+  variantId: string,
+  input: EditVariantInput
+): Promise<EditedVariantView> {
+  return runInTransaction(async (tx) => {
+    await assertOrganizationActive(actor.organizationId, tx);
+    const product = await getProductOfOrganization(tx, actor.organizationId, productId);
+    const before = await findVariantAnyState(tx, variantId);
+    if (
+      !before ||
+      before.productId !== product.id ||
+      before.organizationId !== actor.organizationId ||
+      before.deletedAt !== null
+    ) {
+      throw httpError(404, 'NOT_FOUND', 'Not found');
+    }
+
+    if (input.name !== undefined || input.unit !== undefined) {
+      const name = input.name === undefined ? before.name : input.name;
+      const unit = input.unit ?? before.unit;
+      if (await findLiveTwin(tx, product.id, name, unit, before.id)) {
+        throw httpError(409, 'VARIANT_EXISTS', 'A variant with this name and unit exists');
+      }
+    }
+
+    if (input.status === 'ACTIVE' && before.status === 'INACTIVE' && product.pausedAt === null) {
+      const variants = await listLiveVariantsOfProduct(tx, product.id);
+      if (!variants.some((variant) => variant.id !== before.id && variant.status === 'ACTIVE')) {
+        await assertRoomForProduct(tx, actor.organizationId);
+      }
+    }
+
+    let row: ProductVariant;
+    try {
+      row = await patchVariant(tx, before.id, {
+        name: input.name,
+        unit: input.unit,
+        price: input.price === undefined ? undefined : BigInt(input.price),
+        minOrderQuantity: input.min_order_quantity,
+        status: input.status,
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw httpError(409, 'VARIANT_EXISTS', 'A variant with this name and unit exists');
+      }
+      throw error;
+    }
+    const priceChanged = row.price !== before.price;
+    return {
+      ...toVariantView(product.name, row),
+      negotiated_prices_to_review: priceChanged
+        ? await countVariantNegotiatedPricesBefore(tx, row.id, row.priceUpdatedAt)
+        : 0,
+    };
   });
 }
 

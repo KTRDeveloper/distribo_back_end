@@ -301,7 +301,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-022 | done | | POST products takes variants; 201 ProductView; VARIANT_EXISTS, plan limit |
 | CAT-023 | done | | PATCH edits name/description/category only, answers ProductView; tests green |
 | CAT-024 | done | | POST variants route, addVariant, findLiveVariantByText; 33 story tests + suite green |
-| CAT-025 | todo | | |
+| CAT-025 | done | | PATCH variant: 34 tests + suite 4298 green |
 | CAT-026 | todo | | |
 | CAT-027 | todo | | |
 | CAT-028 | todo | | |

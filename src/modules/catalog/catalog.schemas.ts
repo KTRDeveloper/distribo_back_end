@@ -51,6 +51,31 @@ export const addVariantParamsSchema = z
   .object({ organizationId: uuidV7Schema, productId: uuidV7Schema })
   .strict();
 
+/** Path of the edit-a-variant gesture: the three ids are UUIDv7. */
+export const editVariantParamsSchema = z
+  .object({ organizationId: uuidV7Schema, productId: uuidV7Schema, variantId: uuidV7Schema })
+  .strict();
+
+/**
+ * Strict body of the edit-a-variant gesture (ASVS v5.0.0-15.3.3): at least one of the name (`null`
+ * clears it), the unit, a whole XAF price of at least 1, the minimum order quantity (`null` clears
+ * it) and a status of ACTIVE or INACTIVE. Product, organization, photos, `price_updated_at` and
+ * deletion are the server's (C-13, CWE-915).
+ */
+export const editVariantSchema = z
+  .object({
+    name: z.string().trim().min(1).max(NAME_MAX).nullable(),
+    unit: z.string().trim().min(1).max(NAME_MAX),
+    price: z.number().int().safe().min(1),
+    min_order_quantity: minOrderQuantitySchema.nullable(),
+    status: z.enum(['ACTIVE', 'INACTIVE']),
+  })
+  .partial()
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, { message: 'at_least_one_field' });
+
+export type EditVariantInput = z.infer<typeof editVariantSchema>;
+
 /** Most variants one product holds when it is created (CAT-004 limits). */
 const VARIANTS_MAX = 50;
 
@@ -90,6 +115,9 @@ export type VariantView = {
   image_urls: string[];
   status: 'ACTIVE' | 'INACTIVE';
 };
+
+/** A variant after an edit, with the negotiated prices the new price leaves to review. */
+export type EditedVariantView = VariantView & { negotiated_prices_to_review: number };
 
 /** Closed response of the create gesture: the product with its variants in request order. */
 export type ProductView = {

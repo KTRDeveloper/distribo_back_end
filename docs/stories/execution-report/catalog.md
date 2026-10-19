@@ -825,6 +825,36 @@ Also in this run: relationship, admin, order, finance, delivery.
 - None.
 <!-- end CAT-024 -->
 
+<!-- begin CAT-025 -->
+## CAT-025 — Manager changes a variant's price, unit or availability
+
+- Filed: 2026-10-19 20:42 UTC
+- Status: **done**: PATCH variant: 34 tests + suite 4298 green
+- Risk: medium · story: [CAT-025-manager-changes-a-variant-s-price-unit-or.md](../modules/catalog/CAT-025-manager-changes-a-variant-s-price-unit-or.md)
+- Agent: 90,258 tokens, 25 tool uses, 4 min 18 s
+
+### Agent report
+
+**Summary:** Added `PATCH .../products/{productId}/variants/{variantId}` (editVariant) with strict schema, twin check, back-on-sale limit check and negotiated-price review count.
+
+**Decisions:**
+- Negotiated prices to review: counted by `product_variant_id` (live, `set_at` < new `price_updated_at`), only when the price really changed; the old product-level `countNegotiatedPricesBefore` is left untouched.
+- Variant read with `findVariantAnyState` (FOR UPDATE), then 404 if product, organization or deletion do not match; twin test uses `findLiveTwin` excluding the variant itself, P2002 mapped to 409 as a race fallback.
+- No gesture id/idempotency middleware: the story's body has no `id` and a repeat sets the same values (same as CAT-023).
+- `assertOrganizationActive` applied (409 ORGANIZATION_NOT_ACTIVE), as in CAT-024.
+
+**Tests added beyond the story:**
+- `edit-variant.test.ts` › race onto the same text: one 200, one 409 (C-47 unique index); passed at once with the P2002 mapping
+- `edit-variant.test.ts` › same price changes nothing, 0 to review; count ignores deleted prices and other variants (AC-2, C-13); passed at once
+- `edit-variant.test.ts` › another ACTIVE variant / paused product / under limit go back on sale (C-46 as in the story text); passed at once
+- `edit-variant.test.ts` › CLOSED organization 409, variant under another product 404 (v5.0.0-8.2.2)
+
+**Other additions:**
+- `openapi/openapi.json` regenerated, as CAT-024 did.
+
+**Evidence:** story tests 34/34 (+ api-docs, per-001 green); full suite 4298/4298, failing: none, 0 known; typecheck clean; lint 0 errors, 188 warnings (pre-existing)
+<!-- end CAT-025 -->
+
 <!-- begin CAT-008 -->
 ## CAT-008 — Owner or manager sets a negotiated price
 

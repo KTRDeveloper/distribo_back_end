@@ -15,6 +15,8 @@ import {
   customerPriceParamsSchema,
   customerPricesParamsSchema,
   editProductSchema,
+  editVariantParamsSchema,
+  editVariantSchema,
   listCustomerPricesQuerySchema,
   listProductsQuerySchema,
   setCustomerPriceSchema,
@@ -26,6 +28,7 @@ import {
   copyProduct,
   createProduct,
   editProduct,
+  editVariant,
   listCustomerPrices,
   listProducts,
   removeCustomerPrice,
@@ -145,6 +148,27 @@ catalogRoutes.patch(
     const parsed = editProductSchema.safeParse(req.body);
     if (!parsed.success) return next(parsed.error);
     editProduct(req.actor!, productId.data, parsed.data)
+      .then((view) => res.json(view))
+      .catch(next);
+    return undefined;
+  }
+);
+
+// PATCH /api/v1/organizations/:organizationId/products/:productId/variants/:variantId - OWNER or an
+// online MANAGER changes a size's name, unit, price, minimum quantity or status. Repeating it sets
+// the same values, so it needs no gesture id; the service answers 404 for a deleted variant or
+// another business's, 409 VARIANT_EXISTS and PRODUCT_LIMIT_REACHED
+catalogRoutes.patch(
+  '/products/:productId/variants/:variantId',
+  authMiddleware,
+  loadActor,
+  requireAbility('update', 'ProductVariant'),
+  (req, res, next) => {
+    const params = editVariantParamsSchema.safeParse(req.params);
+    if (!params.success) return next(params.error);
+    const parsed = editVariantSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    editVariant(req.actor!, params.data.productId, params.data.variantId, parsed.data)
       .then((view) => res.json(view))
       .catch(next);
     return undefined;

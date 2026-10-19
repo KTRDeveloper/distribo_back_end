@@ -279,6 +279,39 @@ export async function countNegotiatedPricesBefore(
   });
 }
 
+/**
+ * Counts the live negotiated prices of a variant set before `since` (the variant's new
+ * `price_updated_at`): the ones the manager should review after a price change.
+ */
+export async function countVariantNegotiatedPricesBefore(
+  tx: Prisma.TransactionClient,
+  variantId: string,
+  since: Date
+): Promise<number> {
+  return tx.customerPrice.count({
+    where: { productVariantId: variantId, deletedAt: null, setAt: { lt: since } },
+  });
+}
+
+/**
+ * Writes the listed fields of a variant already loaded for its organization. `undefined` keys are
+ * left alone, `null` clears the name and the minimum quantity. The database moves
+ * `price_updated_at` only when the price really changes (C-13); the code never sets it.
+ */
+export async function patchVariant(
+  tx: Prisma.TransactionClient,
+  variantId: string,
+  data: {
+    name?: string | null;
+    unit?: string;
+    price?: bigint;
+    minOrderQuantity?: string | null;
+    status?: 'ACTIVE' | 'INACTIVE';
+  }
+): Promise<ProductVariant> {
+  return tx.productVariant.update({ where: { id: variantId }, data });
+}
+
 /** Escapes `\`, `%` and `_` so a search text is matched literally by a LIKE pattern. */
 function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, (char) => `\\${char}`);

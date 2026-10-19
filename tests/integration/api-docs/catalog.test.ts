@@ -113,6 +113,11 @@ describe('GET /docs/openapi.json', () => {
     // CAT-024: the variant route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/products/{productId}/variants');
 
+    // CAT-025: the variant edit route
+    expect(paths).toContain(
+      '/api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}'
+    );
+
     // CAT-007: the customer's catalog route
     expect(paths).toContain('/api/v1/organizations/{organizationId}/catalog');
 

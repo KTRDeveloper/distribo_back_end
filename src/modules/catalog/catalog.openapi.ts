@@ -10,6 +10,7 @@ import {
   customerPriceParamsSchema,
   customerPricesParamsSchema,
   editProductSchema,
+  editVariantSchema,
   listCustomerPricesQuerySchema,
   listProductsQuerySchema,
   setCustomerPriceSchema,
@@ -17,6 +18,7 @@ import {
 
 const organizationParamsSchema = z.object({ organizationId: uuidV7Schema });
 const productParamsSchema = organizationParamsSchema.extend({ productId: uuidV7Schema });
+const variantParamsSchema = productParamsSchema.extend({ variantId: uuidV7Schema });
 
 const productViewSchema = z.object({
   id: z.string().uuid(),
@@ -41,6 +43,10 @@ const createdVariantViewSchema = z.object({
   min_order_quantity: z.string().nullable(),
   image_urls: z.array(z.string()),
   status: z.enum(['ACTIVE', 'INACTIVE']),
+});
+
+const editedVariantViewSchema = createdVariantViewSchema.extend({
+  negotiated_prices_to_review: z.number().int().min(0),
 });
 
 const createdProductViewSchema = z.object({
@@ -133,6 +139,37 @@ openApiRegistry.registerPath({
     409: {
       description:
         'Organization not active (ORGANIZATION_NOT_ACTIVE), plan limit reached (PRODUCT_LIMIT_REACHED) or a live variant with this name and unit (VARIANT_EXISTS)',
+      content: errorContent,
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/api/v1/organizations/{organizationId}/products/{productId}/variants/{variantId}',
+  tags: ['catalog'],
+  summary: "The owner or an online manager changes a variant's price, unit or availability",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: variantParamsSchema,
+    body: { content: { 'application/json': { schema: editVariantSchema } } },
+  },
+  responses: {
+    200: {
+      description:
+        'The variant and the count of live negotiated prices older than its new price date',
+      content: { 'application/json': { schema: editedVariantViewSchema } },
+    },
+    400: { description: 'Invalid body or path', content: errorContent },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    403: { description: 'Role not allowed', content: errorContent },
+    404: {
+      description: 'Variant absent, deleted or outside the product and organization',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'Organization not active (ORGANIZATION_NOT_ACTIVE), plan limit reached (PRODUCT_LIMIT_REACHED) or another live variant with this name and unit (VARIANT_EXISTS)',
       content: errorContent,
     },
   },
