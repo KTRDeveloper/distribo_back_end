@@ -267,7 +267,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | IMG-006 | done | | copyImage, findCopyRoot, insertImageCopy; 7 tests green |
 | IMG-007 | done | | 9 story tests pass; full suite 3813 pass |
 | IMG-008 | done | | PUT product photo route, change_photos rule, card-photos service; suite green |
-| IMG-009 | todo | | |
+| IMG-009 | done | | DELETE photos/{photoId} by id; removeCardPhoto; 5 story tests + route lists |
 | IMG-010 | todo | | |
 | IMG-011 | todo | | |
 | IMG-012 | todo | | |

@@ -193,3 +193,49 @@ openApiRegistry.registerPath({
     },
   },
 });
+
+openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/api/v1/organizations/{organizationId}/products/{productId}/photos/{photoId}',
+  tags: ['images'],
+  summary: 'Remove a photo of a product by its id (manager or owner)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      organizationId: z.string().uuid().openapi({ description: 'The business' }),
+      productId: z.string().uuid().openapi({ description: 'The product' }),
+      photoId: z
+        .string()
+        .uuid()
+        .openapi({ description: 'The file name of the photo key, at the end of its address' }),
+    }),
+  },
+  responses: {
+    200: {
+      description:
+        'The photo is removed, or the product did not hold it; the public addresses of the remaining photos, in order',
+      content: { 'application/json': { schema: productPhotosResponseSchema } },
+    },
+    400: {
+      description: 'VALIDATION_ERROR: the product id or the photo id is not a UUID',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing or invalid token',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'FORBIDDEN: only a manager or the owner changes product photos',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description:
+        'NOT_FOUND: the caller is not an active member of this business, or the product is not in it',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'ORGANIZATION_NOT_ACTIVE: the business is suspended or closed',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});

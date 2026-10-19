@@ -1,4 +1,5 @@
 import { Router, type RequestHandler } from 'express';
+import { z } from 'zod';
 import { authMiddleware } from '../../middleware/auth.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
@@ -7,7 +8,7 @@ import { logger } from '../../lib/logger.js';
 import { httpError } from '../../lib/http-error.js';
 import { uuidV7Schema } from '../../shared/ids.js';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
-import { PHOTOS_PER_CARD, productCard, putCardPhoto } from './card-photos.service.js';
+import { PHOTOS_PER_CARD, productCard, putCardPhoto, removeCardPhoto } from './card-photos.service.js';
 import { removeAvatar, replaceAvatar } from './avatar.service.js';
 import { removeLogo, replaceLogo } from './logo.service.js';
 
@@ -111,6 +112,48 @@ productPhotoRoutes.put(
             personId: actor.personId,
           },
           'Product photos changed'
+        );
+        res.status(200).json(result);
+      })
+      .catch(next);
+  }
+);
+
+const photoIdSchema = z.string().uuid();
+
+/** Checks the product id and the photo id (a UUID, the file name of a key) of a removal. */
+const checkPhotoIdPath: RequestHandler = (req, _res, next) => {
+  if (
+    !uuidV7Schema.safeParse(req.params.productId).success ||
+    !photoIdSchema.safeParse(req.params.photoId).success
+  ) {
+    next(httpError(400, 'VALIDATION_ERROR', 'Invalid request'));
+    return;
+  }
+  next();
+};
+
+// DELETE /api/v1/organizations/:organizationId/products/:productId/photos/:photoId - remove a
+// product photo by its id (the file name of its key), never by position, so a retry is harmless.
+productPhotoRoutes.delete(
+  '/:photoId',
+  authMiddleware,
+  loadActor,
+  requireAbility('change_photos', 'Product'),
+  checkPhotoIdPath,
+  (req, res, next) => {
+    const actor = req.actor!;
+    const productId = String(req.params.productId);
+    removeCardPhoto(productCard(actor.organizationId, productId), String(req.params.photoId))
+      .then((result) => {
+        logger.info(
+          {
+            event: 'product_photo_removed',
+            organizationId: actor.organizationId,
+            productId,
+            personId: actor.personId,
+          },
+          'Product photo removed'
         );
         res.status(200).json(result);
       })

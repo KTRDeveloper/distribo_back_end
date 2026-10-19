@@ -77,3 +77,29 @@ export async function putCardPhoto(
   if (replaced !== undefined) await deleteImageFiles([replaced]);
   return { image_urls: keys.map((held) => imageUrl(held)!) };
 }
+
+/**
+ * Removes the photo whose file name is `photoId` from a card and returns the public addresses of
+ * those that remain (C-50). The photo is found by its id, never by its position, so a retry cannot
+ * remove another photo. In one transaction the list is locked, the key dropped and the list
+ * written; after the commit the file is deleted. An id the card does not hold changes nothing,
+ * writes nothing and deletes no file. The caller has already checked the role and the format of
+ * the id.
+ * @throws {HttpError} 404 `NOT_FOUND`, 409 `ORGANIZATION_NOT_ACTIVE`.
+ */
+export async function removeCardPhoto(
+  card: PhotoCard,
+  photoId: string
+): Promise<{ image_urls: string[] }> {
+  const wanted = `products/${photoId.toLowerCase()}.webp`;
+  const { keys, removed } = await runInTransaction(async (tx) => {
+    const held = await card.lock(tx);
+    if (!held.includes(wanted)) return { keys: held, removed: false };
+    const next = held.filter((key) => key !== wanted);
+    await card.write(tx, next);
+    return { keys: next, removed: true };
+  });
+
+  if (removed) await deleteImageFiles([wanted]);
+  return { image_urls: keys.map((held) => imageUrl(held)!) };
+}

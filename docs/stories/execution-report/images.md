@@ -236,3 +236,27 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 **Follow-ups:**
 - IMG-010 (variants) can reuse `putCardPhoto`, but it hard-codes the `products` folder in `storeUploadedImage('products', ...)`; check that is right for variants.
 <!-- end IMG-008 -->
+
+<!-- begin IMG-009 -->
+## IMG-009 — A manager removes a photo of a product
+
+- Filed: 2026-10-19 17:12 UTC
+- Status: **done**: DELETE photos/{photoId} by id; removeCardPhoto; 5 story tests + route lists
+- Risk: medium · story: [IMG-009-a-manager-removes-a-photo-of-a-product.md](../modules/images/IMG-009-a-manager-removes-a-photo-of-a-product.md)
+- Agent: 41,808 tokens, 15 tool uses, 2 min 9 s
+
+### Agent report
+
+**Summary:** Added DELETE .../products/{productId}/photos/{photoId} and removeCardPhoto; photos are removed by id, retries are harmless.
+
+**Decisions:**
+- photoId validation: any UUID (z.string().uuid()), because keys are UUIDv4 (newImageKey), not v7; compared lower-case against `products/<id>.webp`.
+- productId in the path: UUIDv7 check as in the PUT route, answering 400 after the role check.
+- Unknown id: no write, no file delete; returns the current list with 200.
+
+**Tests added beyond the story:**
+- `product-photo-remove.test.ts` › AC-1 owner removes the last photo: empty list and file gone (AC-1); passed with the implementation
+- AB-1 (404 for another business) also asserts the no-op via the caller's own business id.
+
+**Evidence:** story tests 5/5 (29/29 with api-docs and per-001); full suite 3830/3830, failing: none, 0 known; typecheck clean; lint 0 errors, 168 warnings
+<!-- end IMG-009 -->

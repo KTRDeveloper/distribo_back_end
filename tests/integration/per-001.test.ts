@@ -100,6 +100,15 @@ describe('PER-001: Retire the old sign-in module', () => {
       expect(Object.keys(doc.paths)).toContain(path);
       expect(Object.keys(doc.paths[path])).toEqual(expect.arrayContaining(['put']));
     });
+
+    it('/api/v1/organizations/{organizationId}/products/{productId}/photos/{photoId} is listed in OpenAPI with DELETE', async () => {
+      const response = await request(app).get('/api/v1/docs/openapi.json');
+      const doc = bodyOf<OpenApiDoc>(response);
+      const path = '/api/v1/organizations/{organizationId}/products/{productId}/photos/{photoId}';
+
+      expect(Object.keys(doc.paths)).toContain(path);
+      expect(Object.keys(doc.paths[path])).toEqual(expect.arrayContaining(['delete']));
+    });
   });
 
   describe('AC-3: Profile still works with a signed token', () => {
