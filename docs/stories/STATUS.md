@@ -240,7 +240,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-013 | done | | migration copies each product into a variant of the same id; 6 tests |
 | CAT-014 | done | | Photos, pause date and mirror triggers; seeds of CAT-012/013/015 tests disable user triggers |
 | CAT-015 | done | | Variant column, fill and supplier triggers, per-variant unique index; upsert handles products without variant |
-| CAT-018 | blocked | | New CHECK (merged implies deleted) breaks 2 CAT-012 tests in product-variant-table.test.ts that insert merged_into_id without deleted_at; story lists no Tests to update: allow adding deleted_at to them? |
+| CAT-018 | done | | variant name/unit unique index and merged-is-deleted CHECK; 3474 tests pass |
 | CAT-016 | todo | | |
 | CAT-021 | todo | | |
 | CAT-032 | todo | | |

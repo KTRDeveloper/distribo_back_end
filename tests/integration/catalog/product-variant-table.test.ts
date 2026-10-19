@@ -286,9 +286,9 @@ describe('product_variants table', () => {
       const code = await captureSqlCode(
         prisma.$executeRaw`
           INSERT INTO product_variants
-            (id, product_id, organization_id, unit, price, merged_into_id)
+            (id, product_id, organization_id, unit, price, merged_into_id, deleted_at)
           VALUES (${VARIANT_ID}::uuid, ${PRODUCT_A}::uuid, ${ORG_A}::uuid, 'sack', 3000,
-            ${UNKNOWN_ID}::uuid)
+            ${UNKNOWN_ID}::uuid, now())
         `
       );
       expect(code).toBe('23503');
@@ -299,9 +299,9 @@ describe('product_variants table', () => {
       await expect(
         prisma.$executeRaw`
           INSERT INTO product_variants
-            (id, product_id, organization_id, unit, price, merged_into_id)
+            (id, product_id, organization_id, unit, price, merged_into_id, deleted_at)
           VALUES (${OTHER_VARIANT_ID}::uuid, ${PRODUCT_A}::uuid, ${ORG_A}::uuid, 'bag', 2000,
-            ${VARIANT_ID}::uuid)
+            ${VARIANT_ID}::uuid, now())
         `
       ).resolves.toBe(1);
     });

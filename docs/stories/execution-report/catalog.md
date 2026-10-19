@@ -222,25 +222,28 @@ Also in this run: relationship, admin, order, finance, delivery.
 <!-- begin CAT-018 -->
 ## CAT-018 — Two variants of a product never share a name and a unit
 
-- Filed: 2026-10-19 15:40 UTC
-- Status: **blocked**: New CHECK (merged implies deleted) breaks 2 CAT-012 tests in product-variant-table.test.ts that insert merged_into_id without deleted_at; story lists no Tests to update: allow adding deleted_at to them?
+- Filed: 2026-10-19 15:53 UTC
+- Status: **done**: variant name/unit unique index and merged-is-deleted CHECK; 3474 tests pass
 - Risk: high · story: [CAT-018-two-variants-of-a-product-never-share-a-name.md](../modules/catalog/CAT-018-two-variants-of-a-product-never-share-a-name.md)
-- Agent: 32,166 tokens, 11 tool uses, 2 min 6 s
+- Agent: 34,356 tokens, 13 tool uses, 1 min 56 s
 
 ### Agent report
 
-**Summary:** Blocked: migration, schema comment and story tests are done and green (16/16), but the new CHECK breaks 2 existing CAT-012 tests the story does not list for update.
+**Summary:** Added the live name+unit unique index and the merged-is-deleted CHECK in one migration, with the ProductVariant schema comment; done.
 
 **Decisions:**
-- Index and CHECK in migration 20261019060000_cat_018_variant_name_unit: names product_variants_live_name_unit_key and product_variants_merged_is_deleted.
+- Fixture products in the new test use unit '' (new-style): the CAT-014 insert trigger mirrors a product with a unit into a variant (empty name, same unit), which collided with the test rows.
 
 **Tests added beyond the story:**
-- `tests/integration/catalog/variant-name-unit.test.ts` › null vs '' name, tab/space name, UPDATE making twins, several deleted twins, live variant pointed at another without delete, undelete of a merged variant: C-47 / C-35 edge cases; all passed once the migration existed.
+- `tests/integration/catalog/variant-name-unit.test.ts` › empty vs null name, tab/extra-space names, UPDATE making two variants alike, several deleted duplicates, UPDATE merging/undeleting without delete: guard C-47 and C-35 beyond the listed examples; passed at once (migration already in place)
 
-**Evidence:** story tests 16/16; full suite 3402/3404, failing: product-variant-table.test.ts "accepts a merged_into_id naming another variant" and "rejects an unknown merged_into_id with 23503", 0 known; typecheck clean; lint 0 errors, 146 warnings
+**Other additions:**
+- Edits to existing tests (user-approved): `tests/integration/catalog/product-variant-table.test.ts`, the two merged_into_id inserts ("rejects an unknown merged_into_id with 23503", "accepts a merged_into_id naming another variant") now also insert `deleted_at = now()`; intent unchanged. No other existing test broke.
+
+**Evidence:** story tests 16/16; full suite 3474/3474, failing: none, 0 known; typecheck clean; lint 0 errors, 148 warnings
 
 **Follow-ups:**
-- Question: both failing tests insert merged_into_id with deleted_at empty (now 23514, as C-47 requires). Fix is to add deleted_at = now() to both inserts. The story has no "Tests to update", so I did not touch them. Approve that edit (or add the section to the story), then rerun.
+- The later merge story must delete and point in one write (23514 otherwise).
 <!-- end CAT-018 -->
 
 <!-- begin CAT-002 -->

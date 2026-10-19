@@ -993,6 +993,16 @@ model Product {
 //   moves only when the price really changes. A value sent by the code is
 //   ignored, so never try to set it yourself.
 // - server_updated_at is set by the database on every change.
+// - Only one live variant may exist per product, name and unit, compared
+//   without capitals or extra spaces, and an empty name counts as no name
+//   ("Sac  10 kg" equals "sac 10 kg", but "sac 10kg" is different). A deleted
+//   variant frees its name and unit. This cannot be written as @@unique because
+//   it ignores deleted rows and compares simplified text. Two writes made at the
+//   same time cannot both pass (23505). From migration
+//   20261019060000_cat_018_variant_name_unit.
+// - A merged variant (merged_into_id set) is always deleted (deleted_at set), so
+//   the code that merges must delete and point in one write (23514). Same
+//   migration.
 model ProductVariant {
   id               String        @id @db.Uuid
   productId        String        @map("product_id") @db.Uuid
