@@ -93,3 +93,33 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 - `prisma migrate diff` against the dev DB shows unrelated drift (dev_migration_1 drift is already known). I did not check the schema against a clean migrated DB. Check it if the CI has a drift check.
 - This story adds no route, so there is no catalog.test.ts or per-001 change.
 <!-- end BIL-001 -->
+
+<!-- begin BIL-003 -->
+## BIL-003 — Table of subscription receipts with gap-free numbers
+
+- Filed: 2026-10-19 16:22 UTC
+- Status: **done**: receipts table, number function, triggers and grants; 32 tests
+- Risk: high · story: [BIL-003-table-of-subscription-receipts-with-gap-free.md](../modules/billing/BIL-003-table-of-subscription-receipts-with-gap-free.md)
+- Agent: 57,016 tokens, 18 tool uses, 3 min 42 s
+
+### Agent report
+
+**Summary:** Added the subscription_receipts table, ReceiptKind enum, number function, number and credit-note triggers, grants and the schema model with its comment.
+
+**Decisions:**
+- Year of the number: the UTC year of `issued_at` (the story says only "issue year").
+- Credit-note "same amounts": compared excl. tax, VAT and total, not `vat_rate_bp` (a rate is not an amount).
+- Number check runs in a second BEFORE INSERT trigger that calls the function; it skips a NULL number so NOT NULL (23502) still answers.
+- Last suffix is `max(right(number, 6))` (full scan, table is one row per payment); numbers past 999999 raise 23514 instead of truncating.
+- Added indexes (organization_id, issued_at) and (payment_id); `vat_rate_bp >= 0` in the non-negative check; self-FK ON DELETE RESTRICT.
+- Function EXECUTE revoked from PUBLIC and granted to distribo_app.
+
+**Tests added beyond the story:**
+- `subscription-receipts-table.test.ts` › credit note for another payment/business, credit note cancelling a credit note, RECEIPT with cancels_receipt_id, unknown cancelled receipt: the trigger rules (C-54, Context); passed with the migration
+- same file › repeated number, wrong year, rate-0 receipt accepted, function executable by the app account: number rules (AC-3, C-39)
+
+**Evidence:** story tests 32/32; full suite 3632/3632, failing: none, 0 known; typecheck clean; lint 0 errors, 149 warnings
+
+**Follow-ups:**
+- `prisma migrate diff` still shows a customer_prices FK drift that predates this story.
+<!-- end BIL-003 -->

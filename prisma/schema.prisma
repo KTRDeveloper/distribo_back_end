@@ -153,6 +153,11 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum ReceiptKind {
+  RECEIPT
+  CREDIT_NOTE
+}
+
 enum CollaborationRole {
   OWNER
   MANAGER
@@ -452,6 +457,7 @@ model Organization {
   subscriptions  Subscription[]
 
   subscriptionPayments SubscriptionPayment[]
+  subscriptionReceipts SubscriptionReceipt[]
 
   products        Product[]
   productVariants ProductVariant[]
@@ -522,11 +528,56 @@ model SubscriptionPayment {
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
   confirmedAt       DateTime?       @map("confirmed_at") @db.Timestamptz
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  receipts     SubscriptionReceipt[]
 
   @@index([organizationId, createdAt])
   @@index([status, createdAt])
   @@map("subscription_payments")
+}
+
+// Rules the database enforces on subscription receipts (a receipt per payment,
+// or a credit note that cancels one), beyond what this model declares. All come
+// from migration 20261019090000_bil_003_subscription_receipts.
+// - A receipt is never changed or deleted, and the table is never emptied: the
+//   application account can only add and read rows. A mistake is corrected by a
+//   credit note, never by an edit.
+// - Numbers have no gap and form one series across years, like R-2026-000123.
+//   The only number the database accepts is the one returned by the function
+//   next_subscription_receipt_number (the last number plus one, the year being
+//   the issue year, taken under a lock). Ask for the number and insert the row
+//   in the same transaction. A PostgreSQL sequence is not used because it can
+//   skip numbers.
+// - The total is the amount excluding tax plus the VAT. The total is above zero
+//   and the other amounts are not negative.
+// - A credit note names the receipt it cancels, and a receipt never does. The
+//   cancelled row must be a receipt of the same business, for the same payment
+//   and with the same amounts, and a receipt has at most one credit note.
+// Receipts are not synchronized to phones.
+model SubscriptionReceipt {
+  id               String      @id @db.Uuid
+  number           String      @unique
+  kind             ReceiptKind
+  organizationId   String      @map("organization_id") @db.Uuid
+  paymentId        String      @map("payment_id") @db.Uuid
+  cancelsReceiptId String?     @unique @map("cancels_receipt_id") @db.Uuid
+  customerName     String      @map("customer_name")
+  customerTaxId    String?     @map("customer_tax_id")
+  label            String
+  amountExclTax    BigInt      @map("amount_excl_tax")
+  vatRateBp        Int         @map("vat_rate_bp")
+  vatAmount        BigInt      @map("vat_amount")
+  amount           BigInt
+  issuedAt         DateTime    @default(now()) @map("issued_at") @db.Timestamptz
+
+  organization Organization         @relation(fields: [organizationId], references: [id])
+  payment      SubscriptionPayment  @relation(fields: [paymentId], references: [id])
+  cancels      SubscriptionReceipt? @relation("ReceiptCancellation", fields: [cancelsReceiptId], references: [id], onDelete: Restrict)
+  creditNote   SubscriptionReceipt? @relation("ReceiptCancellation")
+
+  @@index([organizationId, issuedAt])
+  @@index([paymentId])
+  @@map("subscription_receipts")
 }
 
 // Rules the database enforces on collaborations (a person's membership in an
