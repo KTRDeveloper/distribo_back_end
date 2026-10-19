@@ -67,6 +67,9 @@ const envSchema = z.object({
     .refine((value) => /^https?:\/\//i.test(value), 'must start with http:// or https://')
     .refine((value) => !value.endsWith('/'), 'must not end with /')
     .refine((value) => !/[?#]/.test(value), 'must not contain a query or a fragment'),
+
+  // Payment aggregator (ADR-006): only the fake adapter exists until a human accepts the ADR
+  PAYMENT_DRIVER: z.enum(['fake']).default('fake'),
 });
 
 // Validate and export environment variables

@@ -233,7 +233,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-035 | done | | findByVerifiedEmail removed; unit test guards export and src scan |
 | AUTH-037 | done | | warnHolderOfClaim: one phone.claimed notice per active holder per day; 3304 tests pass |
 | AUTH-038 | done | | Characterization test for case-insensitive verified email uniqueness; 3 tests pass |
-| BIL-008 | todo | | |
+| BIL-008 | done | | port, fake adapter and PAYMENT_DRIVER; 15 tests pass |
 | BIL-010 | todo | | |
 | IMG-001 | todo | | |
 | CAT-012 | todo | | |
