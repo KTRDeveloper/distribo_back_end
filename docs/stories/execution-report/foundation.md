@@ -36,3 +36,28 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 - The 7 failing tests predate this story (likely the data-model v16 update); a human should look at them.
 - One earlier full run showed 9 failures in 4 files; two later runs showed only the 7 above (flaky cause not identified).
 <!-- end FND-013 -->
+
+<!-- begin FND-014 -->
+## FND-014 — Plan grid and business payment codes
+
+- Filed: 2026-10-19 09:10 UTC
+- Status: **done**: 29 story tests pass; 7 unrelated DB-state failures in person-table and anonymize tests (tasks table absent in test DB)
+- Risk: medium · story: [FND-014-plan-grid-and-business-payment-codes.md](../modules/foundation/FND-014-plan-grid-and-business-payment-codes.md)
+- Agent: 26,271 tokens, 14 tool uses, 8 min 25 s
+
+### Agent report
+
+**Summary:** Added the plan table, price grid and payment code generator with their unit tests; story tests green.
+
+**Decisions:**
+- Price grid stored as nested `Map`s: avoids object-injection lint warnings and makes "constructor"/"__proto__" plans miss, with no lint rule disabled.
+
+**Tests added beyond the story:**
+- `tests/unit/shared/plans.test.ts` › no price outside the grid: also covers -1, 1.5, NaN, "constructor", "__proto__", string "3" (AB-1, AC-3); passed at once
+- `tests/unit/shared/plans.test.ts` › lists the four pack lengths: guards `PACK_MONTHS` (Implementation types); passed at once
+
+**Evidence:** story tests 29/29; full suite 3150/3157, failing: person-table "uses uuid..." (1) and privacy/anonymize AC-1,2,3,5,6,AB-2 (6), all DB-state failures unrelated to this story (the test DB has no `tasks` table; they fail alone too); typecheck clean; lint 0 errors, 133 warnings (none from the new files)
+
+**Follow-ups:**
+- Test database looks stale versus migrations (missing `tasks."accountId"`): reset it (`npm run test:db:up`) and rerun those two files.
+<!-- end FND-014 -->
