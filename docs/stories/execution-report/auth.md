@@ -6,6 +6,19 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-19 15:09 UTC: `/implement-stories AUTH-037 (re-run after unblock)`
+
+| story | status | commit | note |
+|---|---|---|---|
+| AUTH-037 The active holder is told someone claimed their number | done | f9458a1 | warnHolderOfClaim: one phone.claimed notice per active holder per day; 3304 tests pass |
+
+- AUTH-037, blocked in the previous run, is now done: its story was amended to list number-claim.test.ts under "Tests to update" (user's request), the stash was popped and the story re-run. Full suite 3304/3304.
+- Its second report was filed without the figures (the notification came with the same result); no stash left for this selection.
+- Run completed: all 13 stories done (ACC-008, AUTH-027..AUTH-038).
+- Baseline failing count: 0.
+- Follow-up for a human: contracts.md of the auth module does not list claimRefusal (AUTH-031).
+- Next command: none for this selection.
+
 ### Run 2026-10-19 12:22 UTC: `/implement-stories ACC-008,AUTH-027..AUTH-038`
 
 | story | status | commit | note |
