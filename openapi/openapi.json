@@ -1061,7 +1061,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "Ask for a registration code",
+        "summary": "Ask for a registration code (none is sent to a registered number)",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1084,17 +1084,14 @@
         },
         "responses": {
           "202": {
-            "description": "Code queued",
+            "description": "Code queued (sent true), or none for a registered number (sent false, masked name)",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "sent": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
+                      "type": "boolean"
                     },
                     "expires_in": {
                       "type": "integer"
@@ -1136,7 +1133,7 @@
             }
           },
           "429": {
-            "description": "Code limits reached",
+            "description": "Number check or code limits reached (RATE_LIMITED, OTP_RATE_LIMITED)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2031,10 +2028,7 @@
                   "type": "object",
                   "properties": {
                     "sent": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
+                      "type": "boolean"
                     },
                     "expires_in": {
                       "type": "integer"

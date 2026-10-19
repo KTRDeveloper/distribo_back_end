@@ -37,16 +37,24 @@ export function maskName(fullName: string): string {
 }
 
 /**
- * Send a REGISTRATION code to a +237 mobile (CM-07, v5.0.0-6.6.1). Foreign or
- * invalid numbers are refused before any limit is consumed or SMS queued.
- * `masked_name` is the one deliberate disclosure (v5.0.0-6.3.8).
+ * Send a REGISTRATION code to a +237 mobile that is unknown or held by a guest
+ * (CM-07, v5.0.0-6.6.1). A registered holder gets no code and no challenge: the
+ * answer is `sent: false` with the masked name, so this route cannot flood their
+ * phone (v5.0.0-2.4.1, AUTH-029). Foreign or invalid numbers are refused before any
+ * limit is consumed or SMS queued; every valid check then counts against the IP
+ * quota (AUTH-028). `masked_name` is the one deliberate disclosure (v5.0.0-6.3.8,
+ * v5.0.0-8.2.2).
  *
- * @throws 400 VALIDATION_ERROR, 400 UNSUPPORTED_NUMBER, 429 OTP_RATE_LIMITED
+ * @throws 400 VALIDATION_ERROR, 400 UNSUPPORTED_NUMBER, 429 RATE_LIMITED, 429 OTP_RATE_LIMITED
  */
 export async function requestRegistrationCode(
   input: { phone_number: string },
   clientKeys: ClientKeys = {}
-): Promise<{ sent: true; expires_in: number; existing_account: { masked_name: string } | null }> {
+): Promise<{
+  sent: boolean;
+  expires_in: number;
+  existing_account: { masked_name: string } | null;
+}> {
   const phone = normalizeE164(input.phone_number);
   if (phone === null) {
     const parsed = parsePhoneNumberFromString(input.phone_number, 'CM');
@@ -56,23 +64,27 @@ export async function requestRegistrationCode(
     throw httpError(400, 'VALIDATION_ERROR', 'Invalid phone number');
   }
 
+  await checkNumberQuota(clientKeys.ip);
+
   const holder = await findByActivePhone(phone);
-  const registered = holder?.registeredAt != null && holder.fullName;
+  if (holder?.registeredAt != null && holder.fullName) {
+    return {
+      sent: false,
+      expires_in: 0,
+      existing_account: { masked_name: maskName(holder.fullName) },
+    };
+  }
   await issueCode(
     {
       personId: holder?.id ?? null,
       target: phone,
       purpose: 'REGISTRATION',
       channel: 'SMS',
-      ...(registered ? {} : { language: 'FR' as const }),
+      language: 'FR',
     },
     clientKeys
   );
-  return {
-    sent: true,
-    expires_in: EXPIRES_IN_SECONDS,
-    existing_account: registered ? { masked_name: maskName(holder.fullName ?? '') } : null,
-  };
+  return { sent: true, expires_in: EXPIRES_IN_SECONDS, existing_account: null };
 }
 
 /**

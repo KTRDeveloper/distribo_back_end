@@ -223,7 +223,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ACC-008 | done | | Where values renamed, unknown value denied; 3206 tests pass |
 | AUTH-027 | done | | OtpPurpose gains ORG_CONTACT_VERIFICATION and ACCESS_RESTORE; 3212 tests pass |
 | AUTH-028 | done | | 404/401/403 answers, number-check quota; anonymize AC-5 test updated to 404 |
-| AUTH-029 | todo | | |
+| AUTH-029 | done | | registered holder: sent false, no challenge, no job; IP number-check quota counted |
 | AUTH-030 | done | | preferred_language optional FR/EN on register, stored for new and guest; tests green |
 | AUTH-031 | todo | | |
 | AUTH-032 | todo | | |

@@ -23,11 +23,12 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/api/v1/auth/register/request',
   tags: ['auth'],
-  summary: 'Ask for a registration code',
+  summary: 'Ask for a registration code (none is sent to a registered number)',
   request: { body: { content: { 'application/json': { schema: registerRequestSchema } } } },
   responses: {
     202: {
-      description: 'Code queued',
+      description:
+        'Code queued (sent true), or none for a registered number (sent false, masked name)',
       content: { 'application/json': { schema: registerRequestResponseSchema } },
     },
     400: {
@@ -35,7 +36,7 @@ openApiRegistry.registerPath({
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     429: {
-      description: 'Code limits reached',
+      description: 'Number check or code limits reached (RATE_LIMITED, OTP_RATE_LIMITED)',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

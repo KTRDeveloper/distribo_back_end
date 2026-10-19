@@ -73,6 +73,28 @@ Also in this run: access.
 - Code is uncommitted in the working tree.
 <!-- end AUTH-028 -->
 
+<!-- begin AUTH-029 -->
+## AUTH-029 — A registered number gets no registration code
+
+- Filed: 2026-10-19 12:03 UTC
+- Status: **done**: registered holder: sent false, no challenge, no job; IP number-check quota counted
+- Risk: high · story: [AUTH-029-a-registered-number-gets-no-registration-code.md](../modules/auth/AUTH-029-a-registered-number-gets-no-registration-code.md)
+- Agent: 31,794 tokens, 12 tool uses, 1 min 40 s
+
+### Agent report
+
+**Summary:** register/request now answers sent false, expires_in 0 and the masked name for a registered holder (no challenge, no job) and counts each valid check in the IP quota.
+
+**Decisions:**
+- checkNumberQuota runs after number normalization, before the holder lookup (login pattern): invalid or foreign numbers stay refused before any limit is consumed, as the existing "pumping" test requires.
+- Response schema `sent` widened from literal true to boolean (openapi text updated).
+
+**Tests added beyond the story:**
+- `register-request-no-code.test.ts` > a registered number is counted as a number check too: the quota also covers the no-code answer (AC-4, AUTH-028); written with the implementation, passed at once.
+
+**Evidence:** story tests 16/16; full suite 3244/3244, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings
+<!-- end AUTH-029 -->
+
 <!-- begin AUTH-030 -->
 ## AUTH-030 — Registration saves the interface language
 

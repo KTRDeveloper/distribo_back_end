@@ -73,11 +73,13 @@ describe('register request', () => {
     const res = await post('+237677123456');
     expect(res.status).toBe(202);
     expect(res.raw).toEqual({
-      sent: true,
-      expires_in: 600,
+      sent: false,
+      expires_in: 0,
       existing_account: { masked_name: 'Béatrice N…' },
     });
-    expect(jobs).toHaveLength(1);
+    const rows = await prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM otp_challenges`;
+    expect(Number(rows[0]?.n)).toBe(0);
+    expect(jobs).toHaveLength(0);
   });
 
   it.each([

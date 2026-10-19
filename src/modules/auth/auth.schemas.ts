@@ -5,7 +5,7 @@ export const registerRequestSchema = z.object({ phone_number: z.string().min(1).
 
 export const registerRequestResponseSchema = z
   .object({
-    sent: z.literal(true),
+    sent: z.boolean(),
     expires_in: z.number().int(),
     existing_account: z.object({ masked_name: z.string() }).strict().nullable(),
   })
