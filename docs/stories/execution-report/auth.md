@@ -271,6 +271,24 @@ Also in this run: access.
 - Baseline failures file was empty; the two pull-catalog failures look like load-dependent flakes.
 <!-- end AUTH-036 -->
 
+<!-- begin AUTH-035 -->
+## AUTH-035 — Remove the verified-email lookup
+
+- Filed: 2026-10-19 12:21 UTC
+- Status: **done**: findByVerifiedEmail removed; unit test guards export and src scan
+- Risk: medium · story: [AUTH-035-remove-the-verified-email-lookup.md](../modules/auth/AUTH-035-remove-the-verified-email-lookup.md)
+- Agent: 19,307 tokens, 10 tool uses, 1 min 19 s
+
+### Agent report
+
+**Summary:** Removed findByVerifiedEmail from the person repository; added a unit test for the missing export and a src/ scan.
+
+**Decisions:**
+- Contract entry: person contracts.md has no mention of the function, so nothing to edit there.
+
+**Evidence:** story tests 2/2; full suite 3295/3295, failing: none, 0 known; typecheck clean; lint 0 errors, 139 warnings (existing style)
+<!-- end AUTH-035 -->
+
 <!-- begin AUTH-038 -->
 ## AUTH-038 — A verified email is unique whatever the letter case
 

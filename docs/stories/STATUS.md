@@ -230,7 +230,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-033 | done | | Reset code by SMS only; use_email now 400; number quota counted first |
 | AUTH-034 | done | | Reset confirm returns 200 session; suspended refused after code; all tests pass |
 | AUTH-036 | done | | login and verify bodies are phone-only and SMS-only; email paths removed |
-| AUTH-035 | todo | | |
+| AUTH-035 | done | | findByVerifiedEmail removed; unit test guards export and src scan |
 | AUTH-037 | todo | | |
 | AUTH-038 | done | | Characterization test for case-insensitive verified email uniqueness; 3 tests pass |
 | BIL-008 | todo | | |
