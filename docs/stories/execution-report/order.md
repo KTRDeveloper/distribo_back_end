@@ -398,6 +398,28 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 - tests/integration/auth/otp-access-restore-text.test.ts is flaky: it asserts a random 6-digit code never contains "677".
 <!-- end ORD-022 -->
 
+<!-- begin ORD-024 -->
+## ORD-024 — Order lines can name a variant
+
+- Filed: 2026-10-19 18:31 UTC
+- Status: **done**: order_lines.product_variant_id with FK, index and fill trigger; 4093 tests pass
+- Risk: high · story: [ORD-024-order-lines-can-name-a-variant.md](../modules/order/ORD-024-order-lines-can-name-a-variant.md)
+- Agent: 45,176 tokens, 15 tool uses, 2 min 49 s
+
+### Agent report
+
+**Summary:** Added order_lines.product_variant_id (nullable uuid, restrict FK, index) and the before-insert trigger order_lines_a_fill_variant; schema, comment and the fixture updated.
+
+**Decisions:**
+- Trigger fills unconditionally from product_id when empty: the FK refuses new-style products (23503), so no EXISTS check is needed.
+- Test builds a new-style product with unit '' (CAT-014 mirror skips it) and its own variant of another id.
+
+**Tests added beyond the story:**
+- `order-line-variant.test.ts` › AC-4 and AB-1 also assert no line row is stored after the 23503 (AB-1 "no line stored").
+
+**Evidence:** story tests 5/5 (+ order-line-table, unit order pass); full suite 4093/4093, failing: none, 0 known; typecheck clean; lint 0 errors, 185 warnings
+<!-- end ORD-024 -->
+
 <!-- begin ORD-009 -->
 ## ORD-009 — Customer places an order
 

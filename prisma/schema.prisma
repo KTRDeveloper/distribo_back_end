@@ -1144,6 +1144,7 @@ model ProductVariant {
   mergedInto     ProductVariant?  @relation("VariantMerge", fields: [mergedIntoId], references: [id], onDelete: Restrict)
   mergedFrom     ProductVariant[] @relation("VariantMerge")
   customerPrices CustomerPrice[]
+  orderLines     OrderLine[]
 
   @@index([productId])
   @@index([organizationId])
@@ -1326,10 +1327,17 @@ model Order {
 // the same transaction (SQLSTATE 23514 otherwise). A DELIVERED order needs a
 // delivered quantity on every non-deleted line.
 // These are CHECK constraints and triggers, which Prisma cannot express.
+// Migration 20261019140000_ord_024_order_line_variant: a line names a product
+// variant. When a line is saved without one, the database fills it from
+// product_id, because every old-style product has a variant with its own id.
+// A new-style product has no such variant, so the line is refused (SQLSTATE
+// 23503) and no variant is guessed. A variant that is given is kept as it is.
+// The column becomes required in ORD-025.
 model OrderLine {
   id                String    @id @db.Uuid
   orderId           String    @map("order_id") @db.Uuid
   productId         String    @map("product_id") @db.Uuid
+  productVariantId  String?   @map("product_variant_id") @db.Uuid
   labelApplied      String    @map("label_applied")
   quantity          Decimal   @db.Decimal(12, 3)
   deliveredQuantity Decimal?  @map("delivered_quantity") @db.Decimal(12, 3)
@@ -1341,12 +1349,14 @@ model OrderLine {
   serverUpdatedAt   DateTime  @default(now()) @map("server_updated_at") @db.Timestamptz
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
 
-  order      Order   @relation(fields: [orderId], references: [id])
-  product    Product @relation(fields: [productId], references: [id])
-  priceSetBy Person? @relation("OrderLinePriceSetBy", fields: [priceSetById], references: [id])
+  order          Order           @relation(fields: [orderId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
+  priceSetBy     Person?         @relation("OrderLinePriceSetBy", fields: [priceSetById], references: [id])
 
   @@index([orderId])
   @@index([productId])
+  @@index([productVariantId])
   @@map("order_lines")
 }
 

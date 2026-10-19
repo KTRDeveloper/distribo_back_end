@@ -14,6 +14,7 @@ function line(overrides: Partial<OrderLine> = {}): OrderLine {
     id: ID(10),
     orderId: ID(1),
     productId: ID(20),
+    productVariantId: null,
     labelApplied: 'Rice 25kg',
     quantity: new Prisma.Decimal('10'),
     deliveredQuantity: new Prisma.Decimal('8'),
