@@ -72,6 +72,21 @@ export async function releaseRegisteredHolder(
   };
 }
 
+/**
+ * Reads the active number of a registered person (CM-04). Null for an unknown id, a guest
+ * and a person whose number is already released; the caller decides which error that is.
+ */
+export async function findRegisteredActiveNumber(
+  tx: Prisma.TransactionClient,
+  personId: string
+): Promise<string | null> {
+  const row = await tx.person.findFirst({
+    where: { id: personId, registeredAt: { not: null } },
+    select: { phoneNumber: true },
+  });
+  return row?.phoneNumber ?? null;
+}
+
 /** Reads the saved email and its verification state for a person id (the target never comes from the request). */
 export function findEmailState(
   personId: string

@@ -22,6 +22,7 @@ import {
   listAdminActions,
   reactivateOrganization,
   reactivatePerson,
+  releasePhone,
   removeAdministrator,
   requestRecoveryEmail,
   requestTotpRecovery,
@@ -171,6 +172,21 @@ adminRoutes.post(
   '/organizations/:organizationId/reactivate',
   ...moderatorOnly,
   organizationAction(reactivateOrganization)
+);
+
+// POST /api/v1/admin/people/{personId}/release-phone - SUPER_ADMIN only: frees the active number
+// of a person who still holds it so its new holder can register (CM-41)
+adminRoutes.post(
+  '/people/:personId/release-phone',
+  adminAuthMiddleware,
+  requireAdminRole('SUPER_ADMIN'),
+  (req, res, next) => {
+    const { personId } = personIdParamsSchema.parse(req.params);
+    const body = moderationReasonSchema.parse(req.body);
+    releasePhone(req.admin!, personId, body)
+      .then(() => res.status(204).end())
+      .catch(next);
+  }
 );
 
 // GET /api/v1/admin/actions - any live administrator reads the journal, newest first

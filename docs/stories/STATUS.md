@@ -315,7 +315,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-030 | done | | List and remove negotiated prices by variant; suite 4459 passed |
 | CAT-039 | done | | applyPriceFromSync and deletePriceFromSync written; 22 tests pass |
 | ADM-016 | done | | Migration adm_016: 5 enum values, super-admin trigger, target_kind check; code lists twelve actions |
-| ADM-017 | todo | | |
+| ADM-017 | done | | POST /admin/people/{id}/release-phone, SUPER_ADMIN only; all tests pass |
 | ADM-019 | todo | | |
 | ADM-020 | todo | | |
 | CAT-031 | todo | | |

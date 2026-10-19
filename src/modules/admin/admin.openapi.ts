@@ -299,6 +299,26 @@ for (const [path, summary, kind, verb] of moderationRoutes) {
   });
 }
 
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/people/{personId}/release-phone',
+  tags: ['admin'],
+  summary: 'Release the active number of a person (super administrator token only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: personIdParamsSchema,
+    body: { content: { 'application/json': { schema: moderationReasonSchema } } },
+  },
+  responses: {
+    204: { description: 'Number released, journaled and notified' },
+    400: err('VALIDATION_ERROR'),
+    401: err('UNAUTHORIZED'),
+    403: err('FORBIDDEN'),
+    404: err('NOT_FOUND'),
+    409: err('TARGET_ANONYMIZED or NO_ACTIVE_NUMBER'),
+  },
+});
+
 const adminActionSchema = z.object({
   id: z.string(),
   administrator_id: z.string(),

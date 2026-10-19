@@ -9,6 +9,7 @@ import { createTotpSecret, decryptSecret, encryptSecret, verifyTotp } from '../.
 import { normalizeE164 } from '../../shared/phone.js';
 import { issueCode, verifyCode } from '../auth/otp.service.js';
 import { revokeSessions } from '../auth/session.service.js';
+import { releaseNumberOfPerson } from '../auth/support-access.service.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   findByActivePhone,
@@ -901,6 +902,61 @@ export function reactivateOrganization(
   input: ModerationReasonInput
 ): Promise<void> {
   return changeOrganizationStatus(admin, organizationId, input, 'reactivate');
+}
+
+const PHONE_RELEASED_NOTICE = {
+  FR: 'Le support a libéré votre numéro. Ajoutez votre nouveau numéro pour continuer.',
+  EN: 'Support has released your number. Add your new number to keep using the app.',
+};
+
+/**
+ * Releases the active number of a person on behalf of support (CM-41, CM-04, C-29;
+ * v5.0.0-8.2.1: the route only lets SUPER_ADMIN in). The release (and the phone-released
+ * handlers), the `RELEASE_PHONE` journal row (caller as author, the person as target, the
+ * reason) and the `admin.phone_released` notice are one transaction, so a failed handler,
+ * journal insert or notice leaves the number in place (v5.0.0-16.3.1). Sessions are kept.
+ * The log holds ids only, never the number.
+ *
+ * @throws 404 NOT_FOUND; 409 TARGET_ANONYMIZED; 409 NO_ACTIVE_NUMBER (guest, or number already released)
+ */
+export async function releasePhone(
+  admin: AdminContext,
+  personId: string,
+  input: ModerationReasonInput
+): Promise<void> {
+  await inTransaction(async (tx) => {
+    const status = await findPersonStatus(tx, personId);
+    if (status === null) throw httpError(404, 'NOT_FOUND', 'Person not found');
+    if (status === 'ANONYMIZED') {
+      throw httpError(409, 'TARGET_ANONYMIZED', 'The target is anonymized');
+    }
+    if ((await releaseNumberOfPerson(tx, personId)) === null) {
+      throw httpError(409, 'NO_ACTIVE_NUMBER', 'The person has no active number');
+    }
+    await recordAdminAction(tx, {
+      administratorId: admin.administratorId,
+      action: 'RELEASE_PHONE',
+      targetPersonId: personId,
+      reason: input.reason,
+    });
+    const language = await recipientLanguage(personId, tx);
+    await notify(
+      {
+        recipientId: personId,
+        sourceEvent: 'admin.phone_released',
+        content: PHONE_RELEASED_NOTICE[language],
+      },
+      tx
+    );
+  });
+  logger.warn(
+    {
+      event: 'phone_released_by_support',
+      administratorId: admin.administratorId,
+      targetPersonId: personId,
+    },
+    'Phone number released by support'
+  );
 }
 
 /** One journal row as administrators see it: ids, kind, reason and time, nothing else. */

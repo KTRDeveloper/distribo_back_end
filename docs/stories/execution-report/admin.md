@@ -635,3 +635,34 @@ Also in this run: relationship, catalog, order, finance, delivery.
 **Follow-ups:**
 - ADM-002 story text still says seven values (docs not touched).
 <!-- end ADM-016 -->
+
+<!-- begin ADM-017 -->
+## ADM-017 — Support releases the number of a person
+
+- Filed: 2026-10-19 21:37 UTC
+- Status: **done**: POST /admin/people/{id}/release-phone, SUPER_ADMIN only; all tests pass
+- Risk: high · story: [ADM-017-support-releases-the-number-of-a-person.md](../modules/admin/ADM-017-support-releases-the-number-of-a-person.md)
+- Agent: 74,416 tokens, 21 tool uses, 3 min 48 s
+
+### Agent report
+
+**Summary:** Added POST /admin/people/{personId}/release-phone (SUPER_ADMIN), `releaseNumberOfPerson`, journal row, notice, OpenAPI and route-list entries.
+
+**Decisions:**
+- Body schema: reused `moderationReasonSchema` (reason 1 to 2000, strict), same shape the story asks for.
+- Number lookup: added `findRegisteredActiveNumber` to auth.repository so only repositories touch prisma.
+- Notice language: FR or EN from `recipientLanguage`, like the other admin notices.
+- Order of checks: 404, then 409 TARGET_ANONYMIZED, then NO_ACTIVE_NUMBER, all inside the transaction.
+
+**Tests added beyond the story:**
+- `tests/integration/admin/release-phone.test.ts` › a repeat gives 409 NO_ACTIVE_NUMBER: idempotent repeat leaves one journal row, one notice, one handler call (AC-2); passed at once
+- same file › no token 401, malformed id 400, unknown field 400, reason over 2000 400 (AC-2, CONVENTIONS validation); passed at once
+
+**Other additions:**
+- AC-1 test also registers the new holder through /auth/register to prove the number is free.
+
+**Evidence:** story tests 53/53 (release-phone, api-docs, per-001); full suite 4505/4506, failing: tests/unit/tooling/quality-gates.test.ts (lint exit 0 check; it failed on two lint errors in my new test, which I then fixed and the file passes on rerun), 0 known; typecheck clean; lint 0 errors, 194 warnings (existing)
+
+**Follow-ups:**
+- I wrote the implementation before watching the new tests fail, so the red phase of TDD was skipped.
+<!-- end ADM-017 -->
