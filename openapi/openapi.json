@@ -1419,21 +1419,14 @@
                     "minLength": 1,
                     "maxLength": 32
                   },
-                  "email": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 254
-                  },
                   "password": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256
-                  },
-                  "use_email": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
+                  "phone_number",
                   "password"
                 ],
                 "additionalProperties": false
@@ -1458,8 +1451,7 @@
                     "channel": {
                       "type": "string",
                       "enum": [
-                        "SMS",
-                        "EMAIL"
+                        "SMS"
                       ]
                     },
                     "expires_in": {
@@ -1477,7 +1469,7 @@
             }
           },
           "400": {
-            "description": "Invalid request or EMAIL_NOT_VERIFIED",
+            "description": "Invalid request (VALIDATION_ERROR, including the removed email and use_email fields)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1899,11 +1891,6 @@
                     "minLength": 1,
                     "maxLength": 32
                   },
-                  "email": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 254
-                  },
                   "code": {
                     "type": "string",
                     "minLength": 1,
@@ -1945,12 +1932,10 @@
                       "app_version"
                     ],
                     "additionalProperties": false
-                  },
-                  "use_email": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
+                  "phone_number",
                   "code",
                   "device"
                 ],

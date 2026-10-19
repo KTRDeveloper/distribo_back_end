@@ -105,7 +105,8 @@ openApiRegistry.registerPath({
       content: { 'application/json': { schema: loginResponseSchema } },
     },
     400: {
-      description: 'Invalid request or EMAIL_NOT_VERIFIED',
+      description:
+        'Invalid request (VALIDATION_ERROR, including the removed email and use_email fields)',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     401: {

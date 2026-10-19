@@ -243,6 +243,34 @@ Also in this run: access.
 **Evidence:** story tests 16/16 (plus quality-gates rerun 13/13 after a lint fix); full suite 3277/3278 on first run, the one failure (quality-gates lint) was my 4 test lint errors, fixed and rerun green; typecheck clean; lint 0 errors.
 <!-- end AUTH-034 -->
 
+<!-- begin AUTH-036 -->
+## AUTH-036 — Sign-in no longer uses the email
+
+- Filed: 2026-10-19 12:19 UTC
+- Status: **done**: login and verify bodies are phone-only and SMS-only; email paths removed
+- Risk: high · story: [AUTH-036-sign-in-no-longer-uses-the-email.md](../modules/auth/AUTH-036-sign-in-no-longer-uses-the-email.md)
+- Agent: 43,754 tokens, 14 tool uses, 2 min 16 s
+
+### Agent report
+
+**Summary:** Login and login/verify are phone-only, SMS-only; email, use_email and requestLoginByEmail removed.
+
+**Decisions:**
+- phone_number now required in both schemas (the refine on phone/email is gone), so email-only bodies fail as strict-schema 400.
+- loginResponseSchema channel narrowed to the literal 'SMS' (openapi follows).
+
+**Tests added beyond the story:**
+- `login-sms-only.test.ts` › verify refused: email and phone: body with both fields stays 400 (AC-3); passed at once
+
+**Other additions:**
+- login-by-email.test.ts rewritten as refusal cases (right credentials, upper case, unverified, active number): per the Tests to update table.
+
+**Evidence:** story tests 30/30; full suite 3291/3293, failing: pull-catalog.test.ts x2 (flaky under load, passes alone 7/7; unrelated), 0 known; typecheck clean; lint 0 errors, 137 warnings
+
+**Follow-ups:**
+- Baseline failures file was empty; the two pull-catalog failures look like load-dependent flakes.
+<!-- end AUTH-036 -->
+
 <!-- begin AUTH-038 -->
 ## AUTH-038 — A verified email is unique whatever the letter case
 

@@ -133,7 +133,10 @@ describe('login verify', () => {
   it('email channel', async () => {
     const p = await person();
     await challenge(p.id, { target: EMAIL });
-    expect((await verify({ use_email: true })).status).toBe(200);
+    const res = await verify({ use_email: true });
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+    expect(await devices(p.id)).toBe(0);
   });
 
   it('suspended', async () => {

@@ -52,37 +52,27 @@ export const sessionResponseSchema = z
   })
   .strict();
 
-/** Body of POST /auth/login; the number is normalized in the service. */
+/** Body of POST /auth/login; the number is normalized in the service. The code goes by SMS only, so `email` and `use_email` are rejected (strict, AUTH-036). */
 export const loginSchema = z
   .object({
-    phone_number: z.string().min(1).max(32).optional(),
-    email: z.string().min(3).max(254).optional(),
+    phone_number: z.string().min(1).max(32),
     password: z.string().min(1).max(256),
-    use_email: z.boolean().optional(),
   })
-  .strict()
-  .refine((b) => (b.phone_number === undefined) !== (b.email === undefined), {
-    message: 'Exactly one of phone_number and email',
-  });
+  .strict();
 
-/** Body of POST /auth/login/verify; exactly one of `phone_number` and `email`. */
+/** Body of POST /auth/login/verify; the phone number only, `email` and `use_email` are rejected (strict, AUTH-036). */
 export const loginVerifySchema = z
   .object({
-    phone_number: z.string().min(1).max(32).optional(),
-    email: z.string().min(3).max(254).optional(),
+    phone_number: z.string().min(1).max(32),
     code: z.string().min(1).max(16),
     device: deviceSchema,
-    use_email: z.boolean().optional(),
   })
-  .strict()
-  .refine((b) => (b.phone_number === undefined) !== (b.email === undefined), {
-    message: 'Exactly one of phone_number and email',
-  });
+  .strict();
 
 export const loginResponseSchema = z
   .object({
     sent: z.literal(true),
-    channel: z.enum(['SMS', 'EMAIL']),
+    channel: z.literal('SMS'),
     expires_in: z.number().int(),
   })
   .strict();

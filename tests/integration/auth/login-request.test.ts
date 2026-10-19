@@ -93,9 +93,9 @@ describe('login request', () => {
   it('email code', async () => {
     await person({ email: 'bea@example.com', emailVerifiedAt: new Date() });
     const res = await login(PASSWORD, PHONE, { use_email: true });
-    expect(res.status).toBe(202);
-    expect(res.body.channel).toBe('EMAIL');
-    expect(jobs).toEqual([expect.objectContaining({ to: 'bea@example.com', channel: 'EMAIL' })]);
+    expect(res.status).toBe(400);
+    expect(res.body.error?.code).toBe('VALIDATION_ERROR');
+    expect(jobs).toHaveLength(0);
   });
 
   it.each([
@@ -105,7 +105,7 @@ describe('login request', () => {
     await person(data);
     const res = await login(PASSWORD, PHONE, { use_email: true });
     expect(res.status).toBe(400);
-    expect(res.body.error?.code).toBe('EMAIL_NOT_VERIFIED');
+    expect(res.body.error?.code).toBe('VALIDATION_ERROR');
     expect(jobs).toHaveLength(0);
   });
 
