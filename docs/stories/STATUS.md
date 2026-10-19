@@ -237,7 +237,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-010 | done | | plan-math.ts pure; 17 unit tests, suite green |
 | IMG-001 | done | | image_copies table, root trigger, insert-only grant; 13 tests |
 | CAT-012 | done | | product_variants table, composite FK, checks, triggers; 19 tests + full suite green |
-| CAT-013 | todo | | |
+| CAT-013 | done | | migration copies each product into a variant of the same id; 6 tests |
 | CAT-014 | todo | | |
 | CAT-015 | todo | | |
 | CAT-018 | todo | | |

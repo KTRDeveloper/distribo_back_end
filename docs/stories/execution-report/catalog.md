@@ -136,6 +136,30 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Evidence:** story tests 19/19; full suite 3368/3368, failing: none, 0 known; typecheck clean; lint 0 errors, 144 warnings (pre-existing)
 <!-- end CAT-012 -->
 
+<!-- begin CAT-013 -->
+## CAT-013 — Every existing product gets its variant
+
+- Filed: 2026-10-19 15:29 UTC
+- Status: **done**: migration copies each product into a variant of the same id; 6 tests
+- Risk: high · story: [CAT-013-every-existing-product-gets-its-variant.md](../modules/catalog/CAT-013-every-existing-product-gets-its-variant.md)
+- Agent: 34,367 tokens, 14 tool uses, 2 min 35 s
+
+### Agent report
+
+**Summary:** Migration 20261019040000_cat_013_variant_per_product copies every product into a variant of the same id between the copy markers; 6 tests green.
+
+**Decisions:**
+- "Empty name": stored as NULL, as the column is nullable in CAT-012 and null and empty count the same elsewhere.
+- Skip rule: NOT EXISTS on any variant of the product (any id), which covers AC-3 and AC-4 in one condition.
+- server_updated_at left to its existing trigger (migration time), no explicit value.
+
+**Evidence:** story tests 6/6; full suite 3374/3374, failing: none, 0 known; typecheck clean; lint 0 errors, 145 warnings (1 in the new test file: readFileSync on a fixed path)
+
+**Follow-ups:**
+- The test splits the marked lines on ";", so comments between the markers must stay free of semicolons (noted in the migration header).
+- The red phase was only shown by a mutation of the migration (all 6 failed); the test file was written after the migration.
+<!-- end CAT-013 -->
+
 <!-- begin CAT-002 -->
 ## CAT-002 — Negotiated prices table
 
