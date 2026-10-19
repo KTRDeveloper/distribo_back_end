@@ -32,7 +32,6 @@ type Item = {
   };
   role: string;
   status: string;
-  is_public_contact: boolean;
   invited_at: string;
   accepted_at: string | null;
   amount_held?: number;
@@ -113,7 +112,6 @@ describe('GET /api/v1/organizations/:organizationId/collaborators', () => {
     expect(page.items.find((i) => i.id === OWNER_ROW)).toMatchObject({
       role: 'OWNER',
       status: 'ACTIVE',
-      is_public_contact: true,
       person: {
         public_name: 'Fixture Person',
         phone_number: '+237600019001',

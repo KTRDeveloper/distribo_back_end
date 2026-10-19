@@ -44,7 +44,6 @@ import {
   revokeCollaboration,
   revokeInvitation,
   runInTransaction,
-  updatePublicContact,
   updateRole,
 } from './organization.repository.js';
 import type { CreatedOrganization } from './organization.repository.js';
@@ -696,34 +695,6 @@ export async function reopenOrganization(actor: Actor): Promise<{ status: 'ACTIV
   return { status: 'ACTIVE' };
 }
 
-/**
- * The caller chooses whether their number is published as a contact of the organization.
- *
- * The row is the caller's own, selected by person id and organization id from the loaded actor
- * (ASVS v5.0.0-8.2.2); no other collaborator's flag can be reached. Turning it on needs a current
- * phone number (C-05).
- *
- * @param actor - ACTIVE member loaded from the path.
- * @param value - New value of the flag from the validated body.
- * @throws 409 `NO_ACTIVE_NUMBER` when turning on without a current number; 404 `NOT_FOUND` when
- * the membership ended meanwhile.
- */
-export async function setPublicContact(
-  actor: Actor,
-  value: boolean
-): Promise<{ is_public_contact: boolean }> {
-  return runInTransaction(async (tx) => {
-    const updated = await updatePublicContact(tx, actor.personId, actor.organizationId, value);
-    if (updated) return { is_public_contact: updated.isPublicContact };
-
-    const own = await findCollaboration(tx, actor.personId, actor.organizationId);
-    if (own?.status === 'ACTIVE' && value) {
-      throw httpError(409, 'NO_ACTIVE_NUMBER', 'An active phone number is required');
-    }
-    throw httpError(404, 'NOT_FOUND', 'Not found');
-  });
-}
-
 type StoredSubscription = {
   id: string;
   plan: string;
@@ -866,7 +837,6 @@ export async function listCollaborators(
         person: toPublicPerson(row.person),
         role: row.role,
         status: row.status,
-        is_public_contact: row.isPublicContact,
         invited_at: row.invitedAt.toISOString(),
         accepted_at: row.acceptedAt ? row.acceptedAt.toISOString() : null,
       };

@@ -18,8 +18,6 @@ import {
   listOrganizationsQuerySchema,
   lookupOrganizationsQuerySchema,
   organizationIdParamsSchema,
-  organizationScopeParamsSchema,
-  setPublicContactSchema,
   startSubscriptionSchema,
   transferOwnershipSchema,
 } from './organization.schemas.js';
@@ -174,7 +172,6 @@ openApiRegistry.registerPath({
                 }),
                 role: roleSchema,
                 status: z.enum(['INVITED', 'ACTIVE', 'REVOKED']),
-                is_public_contact: z.boolean(),
                 invited_at: z.string().datetime(),
                 accepted_at: z.string().datetime().nullable(),
                 amount_held: z.number().int().optional(),
@@ -404,28 +401,6 @@ openApiRegistry.registerPath({
     403: { description: 'Caller is not the owner', content: errorContent },
     404: { description: 'Not found, REVOKED or not a member', content: errorContent },
     409: { description: 'OWNER_PROTECTED', content: errorContent },
-  },
-});
-
-openApiRegistry.registerPath({
-  method: 'patch',
-  path: '/api/v1/organizations/{organizationId}/collaborators/me',
-  tags: ['organization'],
-  summary: 'Choose whether my number is published as a contact of the organization',
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: organizationScopeParamsSchema,
-    body: { content: { 'application/json': { schema: setPublicContactSchema } } },
-  },
-  responses: {
-    200: {
-      description: 'The stored flag',
-      content: { 'application/json': { schema: z.object({ is_public_contact: z.boolean() }) } },
-    },
-    400: { description: 'Malformed id or invalid body', content: errorContent },
-    401: { description: 'Missing or invalid token', content: errorContent },
-    404: { description: 'Not an ACTIVE member', content: errorContent },
-    409: { description: 'NO_ACTIVE_NUMBER', content: errorContent },
   },
 });
 

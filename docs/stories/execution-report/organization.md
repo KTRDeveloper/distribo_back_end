@@ -463,3 +463,27 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 **Follow-ups:**
 - The `isPublicContact` seeds in other test files remain until ORG-031 and ORG-032 remove the flag.
 <!-- end ORG-029 -->
+
+<!-- begin ORG-031 -->
+## ORG-031 — Stop using the public-contact flag of a collaborator
+
+- Filed: 2026-10-19 18:01 UTC
+- Status: **done**: collaborators/me route and is_public_contact removed from team item; owner created with flag false
+- Risk: medium · story: [ORG-031-stop-using-the-public-contact-flag-of-a.md](../modules/organization/ORG-031-stop-using-the-public-contact-flag-of-a.md)
+- Agent: 41,999 tokens, 22 tool uses, 3 min 13 s
+
+### Agent report
+
+**Summary:** Removed the `collaborators/me` route (routes, service, repository, schema, openapi), dropped `is_public_contact` from the team item, and created the owner row with the flag false.
+
+**Decisions:**
+- `organizationScopeParamsSchema`: deleted too, because the removed openapi path was its only user and typecheck and lint flagged it as unused.
+
+**Tests added beyond the story:**
+- `tests/integration/organization/public-contact-removed.test.ts` › AB-1 split per role (MANAGER, SELLER, DRIVER): each gets 403 and no flag changes (AB-1)
+
+**Evidence:** story tests 508/508 (organization, api-docs, per-001 folders); full suite 3987/3987, failing: none, 0 known; typecheck clean; lint 0 errors, 183 warnings (all pre-existing warnings, none in changed files)
+
+**Follow-ups:**
+- `isPublicContact: false` writes in revoke, re-invite and close are kept until ORG-043 drops the column.
+<!-- end ORG-031 -->

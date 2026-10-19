@@ -87,7 +87,7 @@ describe('POST /api/v1/organizations', () => {
       personId: PERSON_ID,
       role: 'OWNER',
       status: 'ACTIVE',
-      isPublicContact: true,
+      isPublicContact: false,
     });
     expect(collabs[0].acceptedAt).not.toBeNull();
   });

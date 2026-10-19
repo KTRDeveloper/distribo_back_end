@@ -108,15 +108,6 @@ export type InvitationItem = {
 };
 
 /**
- * Strict body of the public-contact gesture: `is_public_contact` is the only writable field
- * (ASVS v5.0.0-15.3.3). The target row is always the caller's own, so no id is accepted.
- */
-export const setPublicContactSchema = z.object({ is_public_contact: z.boolean() }).strict();
-
-/** Path parameter of the public-contact route. */
-export const organizationScopeParamsSchema = z.object({ organizationId: uuidV7Schema }).strict();
-
-/**
  * Strict body of the transfer-ownership gesture: the gesture id and the target collaboration are
  * the only writable fields (ASVS v5.0.0-15.3.3). The caller's own row is never named by the
  * client: the server reads it from the loaded actor.
@@ -189,7 +180,6 @@ export type CollaboratorItem = {
   person: { public_name: string | null; phone_number: string | null; registered: boolean };
   role: string;
   status: string;
-  is_public_contact: boolean;
   invited_at: string;
   accepted_at: string | null;
   amount_held?: number;

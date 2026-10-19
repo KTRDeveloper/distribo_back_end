@@ -5394,9 +5394,6 @@
                               "REVOKED"
                             ]
                           },
-                          "is_public_contact": {
-                            "type": "boolean"
-                          },
                           "invited_at": {
                             "type": "string",
                             "format": "date-time"
@@ -5417,7 +5414,6 @@
                           "person",
                           "role",
                           "status",
-                          "is_public_contact",
                           "invited_at",
                           "accepted_at"
                         ]
@@ -6498,108 +6494,6 @@
           },
           "409": {
             "description": "OWNER_PROTECTED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/organizations/{organizationId}/collaborators/me": {
-      "patch": {
-        "tags": [
-          "organization"
-        ],
-        "summary": "Choose whether my number is published as a contact of the organization",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "required": true,
-            "name": "organizationId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "is_public_contact": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "is_public_contact"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The stored flag",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "is_public_contact": {
-                      "type": "boolean"
-                    }
-                  },
-                  "required": [
-                    "is_public_contact"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed id or invalid body",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not an ACTIVE member",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "NO_ACTIVE_NUMBER",
             "content": {
               "application/json": {
                 "schema": {
