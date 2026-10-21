@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c0b5-0000-7000-8000-000000000001';
@@ -56,7 +57,7 @@ async function seedMember(
 
 const idOf = (n: number) => `0199c0b5-0000-7000-8000-0000000000d${n}`;
 
-async function seedProduct(
+async function seedListedProduct(
   n: number,
   data: {
     name: string;
@@ -67,18 +68,18 @@ async function seedProduct(
     deletedAt?: Date;
   }
 ) {
-  await prisma.product.create({
-    data: {
-      id: idOf(n),
-      organizationId: data.organizationId ?? ORG_A,
-      name: data.name,
-      unit: 'sac',
-      price: 1000n,
-      category: data.category ?? null,
-      status: data.status ?? 'ACTIVE',
-      createdAt: new Date(data.createdAt),
-      deletedAt: data.deletedAt ?? null,
-    },
+  await seedProduct(prisma, {
+    id: idOf(n),
+    organizationId: data.organizationId ?? ORG_A,
+    name: data.name,
+    unit: 'sac',
+    price: 1000n,
+    status: data.status ?? 'ACTIVE',
+    deletedAt: data.deletedAt ?? null,
+  });
+  await prisma.product.update({
+    where: { id: idOf(n) },
+    data: { category: data.category ?? null, createdAt: new Date(data.createdAt) },
   });
 }
 
@@ -101,16 +102,24 @@ beforeEach(async () => {
   await seedMember(ORG_B, OTHER_OWNER, 'OWNER', 9);
 
   // Oldest first by number: Riz (1) is the oldest, Soda (4) the newest.
-  await seedProduct(1, { name: 'Riz', category: 'Céréales', createdAt: '2026-02-01T00:00:00Z' });
-  await seedProduct(2, { name: 'Eau', category: 'Boissons', createdAt: '2026-02-02T00:00:00Z' });
-  await seedProduct(3, {
+  await seedListedProduct(1, {
+    name: 'Riz',
+    category: 'Céréales',
+    createdAt: '2026-02-01T00:00:00Z',
+  });
+  await seedListedProduct(2, {
+    name: 'Eau',
+    category: 'Boissons',
+    createdAt: '2026-02-02T00:00:00Z',
+  });
+  await seedListedProduct(3, {
     name: 'Jus',
     category: 'Boissons',
     status: 'INACTIVE',
     createdAt: '2026-02-03T00:00:00Z',
   });
-  await seedProduct(4, { name: 'Soda', createdAt: '2026-02-04T00:00:00Z' });
-  await seedProduct(5, {
+  await seedListedProduct(4, { name: 'Soda', createdAt: '2026-02-04T00:00:00Z' });
+  await seedListedProduct(5, {
     name: 'Huile',
     organizationId: ORG_B,
     category: 'Boissons',
@@ -146,7 +155,11 @@ describe('GET /api/v1/organizations/:organizationId/products', () => {
   });
 
   it('a soft-deleted product is not listed', async () => {
-    await seedProduct(6, { name: 'Vieux', createdAt: '2026-02-06T00:00:00Z', deletedAt: REG });
+    await seedListedProduct(6, {
+      name: 'Vieux',
+      createdAt: '2026-02-06T00:00:00Z',
+      deletedAt: REG,
+    });
 
     const body = bodyOf<Page>(await list());
 

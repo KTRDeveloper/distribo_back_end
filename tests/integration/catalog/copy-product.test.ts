@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const id = (n: string) => `0199c0c8-0000-7000-8000-0000000000${n}`;
@@ -108,44 +109,44 @@ beforeEach(async () => {
   });
 
   const base = { unit: 'carton de 24', price: 12000n };
-  await prisma.product.create({
-    data: {
-      ...base,
-      id: SOURCE,
-      organizationId: SUPPLIER_ORG,
-      name: 'Pack 24',
-      description: 'Eau minerale',
-      category: 'Boissons',
-      minOrderQuantity: '5',
-    },
+  await seedProduct(prisma, {
+    ...base,
+    id: SOURCE,
+    organizationId: SUPPLIER_ORG,
+    name: 'Pack 24',
+    minOrderQuantity: '5',
   });
-  await prisma.product.create({
-    data: {
-      ...base,
-      id: INACTIVE_SOURCE,
-      organizationId: SUPPLIER_ORG,
-      name: 'Old',
-      status: 'INACTIVE',
-    },
+  await prisma.product.update({
+    where: { id: SOURCE },
+    data: { description: 'Eau minerale', category: 'Boissons' },
   });
-  await prisma.product.create({
-    data: {
-      ...base,
-      id: DELETED_SOURCE,
-      organizationId: SUPPLIER_ORG,
-      name: 'Gone',
-      deletedAt: REG,
-    },
+  await seedProduct(prisma, {
+    ...base,
+    id: INACTIVE_SOURCE,
+    organizationId: SUPPLIER_ORG,
+    name: 'Old',
+    status: 'INACTIVE',
   });
-  await prisma.product.create({
-    data: { ...base, id: STRANGER_SOURCE, organizationId: OTHER_ORG, name: 'Competitor' },
+  await seedProduct(prisma, {
+    ...base,
+    id: DELETED_SOURCE,
+    organizationId: SUPPLIER_ORG,
+    name: 'Gone',
+    deletedAt: REG,
   });
-  await prisma.product.create({
-    data: { ...base, id: ENDED_SOURCE, organizationId: OTHER_ORG, name: 'Ended' },
+  await seedProduct(prisma, {
+    ...base,
+    id: STRANGER_SOURCE,
+    organizationId: OTHER_ORG,
+    name: 'Competitor',
   });
-  await prisma.product.create({
-    data: { ...base, id: OWN_SOURCE, organizationId: BUYER_ORG, name: 'Mine' },
+  await seedProduct(prisma, {
+    ...base,
+    id: ENDED_SOURCE,
+    organizationId: OTHER_ORG,
+    name: 'Ended',
   });
+  await seedProduct(prisma, { ...base, id: OWN_SOURCE, organizationId: BUYER_ORG, name: 'Mine' });
 });
 
 describe('POST /api/v1/organizations/:organizationId/products/copy', () => {
@@ -185,6 +186,7 @@ describe('POST /api/v1/organizations/:organizationId/products/copy', () => {
       where: { id: NEW_VARIANT_ID },
     });
     expect(variant.price).toBe(9000n);
+    expect(variant.status).toBe('ACTIVE');
     expect(variant.minOrderQuantity).toBeNull();
     expect(variant.priceUpdatedAt).toBeInstanceOf(Date);
   });

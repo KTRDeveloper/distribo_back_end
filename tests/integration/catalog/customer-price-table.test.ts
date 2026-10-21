@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
 import { expectColumnType } from '../../helpers/db-schema';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 
 const SUPPLIER_ORG_ID = '0199c002-0000-7000-8000-000000000001';
 const OTHER_ORG_ID = '0199c002-0000-7000-8000-000000000002';
@@ -106,22 +107,20 @@ beforeEach(async () => {
     INSERT INTO organizations (id, name)
     VALUES (${SUPPLIER_ORG_ID}::uuid, 'Fixture Supplier'), (${OTHER_ORG_ID}::uuid, 'Fixture Other Business')
   `;
-  // The CAT-014 mirror triggers would give each product its variant, which is inserted below, so they are off while seeding.
-  await prisma.$executeRaw`ALTER TABLE products DISABLE TRIGGER USER`;
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES
-      (${PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Rice', 'sack', 3000),
-      (${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'Fixture Oil', 'can', 1500)
-  `;
-  await prisma.$executeRaw`ALTER TABLE products ENABLE TRIGGER USER`;
-  // CAT-015: the uniqueness is per variant, so each product has its variant (same id, CAT-013).
-  await prisma.$executeRaw`
-    INSERT INTO product_variants (id, product_id, organization_id, unit, price)
-    VALUES
-      (${PRODUCT_ID}::uuid, ${PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'sack', 3000),
-      (${FOREIGN_PRODUCT_ID}::uuid, ${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'can', 1500)
-  `;
+  await seedProduct(prisma, {
+    id: PRODUCT_ID,
+    organizationId: SUPPLIER_ORG_ID,
+    name: 'Fixture Rice',
+    unit: 'sack',
+    price: 3000n,
+  });
+  await seedProduct(prisma, {
+    id: FOREIGN_PRODUCT_ID,
+    organizationId: OTHER_ORG_ID,
+    name: 'Fixture Oil',
+    unit: 'can',
+    price: 1500n,
+  });
   await prisma.$executeRaw`
     INSERT INTO customer_relationships (id, supplier_organization_id, customer_person_id, created_by_id)
     VALUES (${REL_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, ${CUSTOMER_ID}::uuid, ${OWNER_ID}::uuid)

@@ -3,6 +3,7 @@ import request from 'supertest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const id = (n: string) => `0199c0c8-0000-7000-8000-0000000000${n}`;
@@ -173,14 +174,26 @@ beforeEach(async () => {
   await seedMember('c8', BUYER_ORG, BUYER_OWNER, 'OWNER');
   await seedMember('c6', BUYER_ORG, MANAGER, 'MANAGER');
 
-  await prisma.product.create({
-    data: { id: RICE, organizationId: SUPPLIER_ORG, name: 'Riz', unit: 'sac', price: 3000n },
+  await seedProduct(prisma, {
+    id: RICE,
+    organizationId: SUPPLIER_ORG,
+    name: 'Riz',
+    unit: 'sac',
+    price: 3000n,
   });
-  await prisma.product.create({
-    data: { id: OIL, organizationId: SUPPLIER_ORG, name: 'Huile', unit: 'litre', price: 1500n },
+  await seedProduct(prisma, {
+    id: OIL,
+    organizationId: SUPPLIER_ORG,
+    name: 'Huile',
+    unit: 'litre',
+    price: 1500n,
   });
-  await prisma.product.create({
-    data: { id: SOAP, organizationId: SUPPLIER_ORG, name: 'Savon', unit: 'pain', price: 500n },
+  await seedProduct(prisma, {
+    id: SOAP,
+    organizationId: SUPPLIER_ORG,
+    name: 'Savon',
+    unit: 'pain',
+    price: 500n,
   });
 
   await seedRelationship(REL, { personId: CUSTOMER });
@@ -364,8 +377,12 @@ describe('DELETE /api/v1/organizations/:organizationId/customers/:relationshipId
 
 describe('security', () => {
   it('AB-1 a member of A lists or deletes prices under a relationship of B: 404, nothing changes', async () => {
-    await prisma.product.create({
-      data: { id: FOREIGN_PRODUCT, organizationId: OTHER_ORG, name: 'Sel', unit: 'sac', price: 9n },
+    await seedProduct(prisma, {
+      id: FOREIGN_PRODUCT,
+      organizationId: OTHER_ORG,
+      name: 'Sel',
+      unit: 'sac',
+      price: 9n,
     });
     await seedPrice('e1', REL_FOREIGN, FOREIGN_PRODUCT, 1n);
 

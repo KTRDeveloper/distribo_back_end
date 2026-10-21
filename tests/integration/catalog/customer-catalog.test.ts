@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const id = (n: string) => `0199c0c7-0000-7000-8000-0000000000${n}`;
@@ -81,24 +82,25 @@ async function seedMember(
   });
 }
 
-async function seedProduct(
+async function seedCatalogProduct(
   productId: string,
   name: string,
   price: bigint,
   createdAt: string,
   extra: { status?: 'ACTIVE' | 'INACTIVE'; deletedAt?: Date } = {}
 ) {
-  await prisma.product.create({
-    data: {
-      id: productId,
-      organizationId: SUPPLIER_ORG,
-      name,
-      unit: 'sac',
-      price,
-      status: extra.status ?? 'ACTIVE',
-      deletedAt: extra.deletedAt ?? null,
-      createdAt: new Date(createdAt),
-    },
+  await seedProduct(prisma, {
+    id: productId,
+    organizationId: SUPPLIER_ORG,
+    name,
+    unit: 'sac',
+    price,
+    status: extra.status ?? 'ACTIVE',
+    deletedAt: extra.deletedAt ?? null,
+  });
+  await prisma.product.update({
+    where: { id: productId },
+    data: { createdAt: new Date(createdAt) },
   });
 }
 
@@ -135,7 +137,7 @@ function browse(personId: string, query = '', orgId = SUPPLIER_ORG) {
   );
 }
 
-// A product written the old way has one variant with its own id (CAT-014).
+// The fixture helper gives each product one variant with the same id.
 const priceOf = (page: Page, productId: string) =>
   page.items.find((item) => item.id === productId)?.variants.find((v) => v.id === productId);
 
@@ -162,11 +164,11 @@ beforeEach(async () => {
   await seedMember('c3', BUYER_ORG, BUYER_SELLER, 'SELLER');
   await seedMember('c4', OTHER_ORG, OTHER_MANAGER, 'OWNER');
 
-  await seedProduct(RICE, 'Riz', 3000n, '2026-02-01T00:00:00Z');
-  await seedProduct(OIL, 'Huile', 1500n, '2026-02-02T00:00:00Z');
-  await seedProduct(SOAP, 'Savon', 500n, '2026-02-03T00:00:00Z', { status: 'INACTIVE' });
-  await seedProduct(SALT, 'Sel', 200n, '2026-02-04T00:00:00Z');
-  await seedProduct(OLD, 'Vieux', 100n, '2026-02-05T00:00:00Z', { deletedAt: REG });
+  await seedCatalogProduct(RICE, 'Riz', 3000n, '2026-02-01T00:00:00Z');
+  await seedCatalogProduct(OIL, 'Huile', 1500n, '2026-02-02T00:00:00Z');
+  await seedCatalogProduct(SOAP, 'Savon', 500n, '2026-02-03T00:00:00Z', { status: 'INACTIVE' });
+  await seedCatalogProduct(SALT, 'Sel', 200n, '2026-02-04T00:00:00Z');
+  await seedCatalogProduct(OLD, 'Vieux', 100n, '2026-02-05T00:00:00Z', { deletedAt: REG });
 });
 
 describe('GET /api/v1/organizations/:organizationId/catalog', () => {

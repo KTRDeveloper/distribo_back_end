@@ -1337,31 +1337,32 @@ CAT-031 done
 <!-- begin CAT-040 -->
 ## CAT-040 — Catalog tests seed products through one helper
 
-- Filed: 2026-10-21 13:41 UTC
-- Status: **blocked**: getActiveProduct reads legacy price/status: may CAT-040 migrate that function to variants, or must its assertions remain until CAT-041?
+- Filed: 2026-10-21 14:26 UTC
+- Status: **done**: 4599/4599 tests; typecheck clean; legacy fixtures retained only for getActiveProduct per approved exception
 - Risk: low · story: [CAT-040-catalog-tests-seed-products-through-one-helper.md](../modules/catalog/CAT-040-catalog-tests-seed-products-through-one-helper.md)
-- Agent: 60,872 tokens, 39 tool uses, 13 min 18 s
+- Agent: 32,952 tokens, 24 tool uses, 5 min 40 s
 
 ### Agent report
 
-**Summary:** CAT-040 blocked: helper and nine fixture conversions implemented, but two unchanged getActiveProduct assertions depend on legacy product columns.
+**Summary:** CAT-040 done; continued the restored helper/conversions, isolated legacy fixtures to getActiveProduct, preserved assertions and production behavior; no commit.
 
 **Decisions:**
-- Used variant upsert to support CAT-014 mirror triggers now and explicit variant creation after their removal.
-- Preserved product metadata and pagination dates through separate product updates; price timestamps and copied status assertions now target variants.
-- Did not open or modify the repository, which is outside the story's permitted files.
+- Applied the coordinator-transmitted approved exception only inside the getActiveProduct describe block; all other product creation in the nine files uses seedProduct.
+- Reproduced both original failures before fixing fixture isolation; restored the product-row assertions previously removed from copy-product.test.ts and retained the added variant assertions.
+- No report file written: the final developer instruction prohibits report .md files; this handback is the report for the orchestrator.
 
 **Tests added beyond the story:**
-- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/catalog/seed-product.test.ts` › leaves no product when the variant write fails in a transaction: guards C-45 and transactional rollback; passed after implementation.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/catalog/seed-product.test.ts` › leaves no product when the variant write fails in a transaction: guards atomic failure rollback (AC-3 and transactional convention); already present in restored work, passed at once.
 
-**Evidence:** story tests 746/748; full suite 4584/4586, failing: getActiveProduct returns an ACTIVE product (expected 3000n, received legacy default 1n), getActiveProduct rejects an INACTIVE product (resolved with legacy ACTIVE status), 0 known; typecheck clean; lint 0 errors, 197 warnings.
-- TDD: missing-helper failure observed before implementation; all five new helper tests pass; git diff --check clean.
-- Full-suite output: `/tmp/distribo-next10-BPwRch6e/CAT-040-suite.txt`; suite ran once.
+**Evidence:** story/catalog tests 761/761; full suite 4599/4599 across 335 files, failing: none, 0 known; typecheck clean; lint 0 errors, 197 warnings; git diff --check clean.
+- Full-suite output: `/tmp/distribo-next10-BPwRch6e/CAT-040-suite.txt`.
+- Status set to done through set-status; working changes left uncommitted.
 
 **Follow-ups:**
-- May CAT-040 migrate getActiveProduct to variants, or must those assertions remain until CAT-041? The story requires legacy columns to retain defaults and unchanged behavioral coverage, which currently conflict.
-- Status set to blocked; no commit created. Report file `/tmp/distribo-next10-BPwRch6e/CAT-040-report.md` was not written because the final developer instruction prohibits report-file writes; this handback supplies its contents.
-CAT-040 blocked
+- CAT-041 must remove the legacy getActiveProduct fixtures in `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/catalog/reference-price.test.ts` when removing that reader.
+- npm audit reports 94 vulnerabilities (53 moderate, 35 high, 6 critical); dependencies unchanged. semgrep and gitleaks are unavailable, so those scans could not run.
+
+CAT-040 done
 <!-- end CAT-040 -->
 
 <!-- begin CAT-045 -->

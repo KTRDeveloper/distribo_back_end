@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import {
   getActiveProduct,
   getReferencePrice,
@@ -44,6 +45,40 @@ const reference = (relationshipId: string, productId = PRODUCT_ID) =>
 const active = (organizationId: string, productId: string) =>
   prisma.$transaction((tx) => getActiveProduct(tx, organizationId, productId));
 
+/** Seeds variant-backed fixtures for reference-price checks. */
+async function seedReferenceProducts(): Promise<void> {
+  await seedProduct(prisma, {
+    id: PRODUCT_ID,
+    organizationId: SUPPLIER_ORG_ID,
+    name: 'Fixture Rice',
+    unit: 'sack',
+    price: 3000n,
+  });
+  await seedProduct(prisma, {
+    id: INACTIVE_PRODUCT_ID,
+    organizationId: SUPPLIER_ORG_ID,
+    name: 'Fixture Sugar',
+    unit: 'sack',
+    price: 900n,
+    status: 'INACTIVE',
+  });
+  await seedProduct(prisma, {
+    id: DELETED_PRODUCT_ID,
+    organizationId: SUPPLIER_ORG_ID,
+    name: 'Fixture Salt',
+    unit: 'bag',
+    price: 400n,
+    deletedAt: new Date(),
+  });
+  await seedProduct(prisma, {
+    id: FOREIGN_PRODUCT_ID,
+    organizationId: OTHER_ORG_ID,
+    name: 'Fixture Oil',
+    unit: 'can',
+    price: 1500n,
+  });
+}
+
 beforeEach(async () => {
   const registered = {
     phoneVerifiedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -68,14 +103,6 @@ beforeEach(async () => {
     VALUES (${SUPPLIER_ORG_ID}::uuid, 'Fixture Supplier'), (${OTHER_ORG_ID}::uuid, 'Fixture Other Business')
   `;
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, status, deleted_at)
-    VALUES
-      (${PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Rice', 'sack', 3000, 'ACTIVE', NULL),
-      (${INACTIVE_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Sugar', 'sack', 900, 'INACTIVE', NULL),
-      (${DELETED_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Salt', 'bag', 400, 'ACTIVE', now()),
-      (${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'Fixture Oil', 'can', 1500, 'ACTIVE', NULL)
-  `;
-  await prisma.$executeRaw`
     INSERT INTO customer_relationships (id, supplier_organization_id, customer_person_id, created_by_id)
     VALUES
       (${REL_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, ${CUSTOMER_ID}::uuid, ${OWNER_ID}::uuid),
@@ -84,14 +111,16 @@ beforeEach(async () => {
 });
 
 describe('getReferencePrice (AC-1, CM-11)', () => {
+  beforeEach(seedReferenceProducts);
+
   it('returns the product price when no negotiated price exists', async () => {
     const result = await reference(REL_ID);
     expect(result.price).toBe(3000n);
     expect(result.negotiated).toBe(false);
-    const [product] = await prisma.$queryRaw<Array<{ price_updated_at: Date }>>`
-      SELECT price_updated_at FROM products WHERE id = ${PRODUCT_ID}::uuid
+    const [variant] = await prisma.$queryRaw<Array<{ price_updated_at: Date }>>`
+      SELECT price_updated_at FROM product_variants WHERE id = ${PRODUCT_ID}::uuid
     `;
-    expect(result.changedAt.getTime()).toBe(product.price_updated_at.getTime());
+    expect(result.changedAt.getTime()).toBe(variant.price_updated_at.getTime());
   });
 
   it('returns the negotiated price and its set_at when lower', async () => {
@@ -136,6 +165,8 @@ describe('getReferencePrice (AC-1, CM-11)', () => {
 });
 
 describe('getReferencePrice other customers (AC-2, AB-1, CWE-200)', () => {
+  beforeEach(seedReferenceProducts);
+
   it('is unchanged by another relationship negotiated price', async () => {
     await insertPrice(OTHER_PRICE_ID, OTHER_REL_ID, 1000);
     const result = await reference(REL_ID);
@@ -152,6 +183,18 @@ describe('getReferencePrice other customers (AC-2, AB-1, CWE-200)', () => {
 });
 
 describe('getActiveProduct (AC-3, C-15)', () => {
+  beforeEach(async () => {
+    // Keep legacy fixtures only for this obsolete reader until CAT-041 removes it.
+    await prisma.$executeRaw`
+      INSERT INTO products (id, organization_id, name, unit, price, status, deleted_at)
+      VALUES
+        (${PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Rice', 'sack', 3000, 'ACTIVE', NULL),
+        (${INACTIVE_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Sugar', 'sack', 900, 'INACTIVE', NULL),
+        (${DELETED_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Salt', 'bag', 400, 'ACTIVE', now()),
+        (${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'Fixture Oil', 'can', 1500, 'ACTIVE', NULL)
+    `;
+  });
+
   it('returns an ACTIVE product of the organization', async () => {
     const product = await active(SUPPLIER_ORG_ID, PRODUCT_ID);
     expect(product.id).toBe(PRODUCT_ID);

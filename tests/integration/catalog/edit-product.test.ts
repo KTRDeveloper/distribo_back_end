@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c0b5-0000-7000-8000-000000000001';
@@ -81,20 +82,24 @@ beforeEach(async () => {
   await seedMember(ORG_A, DRIVER, 'DRIVER', 3);
   await prisma.organization.create({ data: { id: ORG_B, name: 'Org B' } });
   await seedMember(ORG_B, OTHER_OWNER, 'OWNER', 9);
-  await prisma.product.create({
-    data: {
-      id: PRODUCT_A,
-      organizationId: ORG_A,
-      name: 'Riz',
-      unit: 'sac 25 kg',
-      price: 15000n,
-      minOrderQuantity: '2',
-      description: 'Sac',
-      category: 'Céréales',
-    },
+  await seedProduct(prisma, {
+    id: PRODUCT_A,
+    organizationId: ORG_A,
+    name: 'Riz',
+    unit: 'sac 25 kg',
+    price: 15000n,
+    minOrderQuantity: '2',
   });
-  await prisma.product.create({
-    data: { id: PRODUCT_B, organizationId: ORG_B, name: 'Huile', unit: 'bidon', price: 9000n },
+  await prisma.product.update({
+    where: { id: PRODUCT_A },
+    data: { description: 'Sac', category: 'Céréales' },
+  });
+  await seedProduct(prisma, {
+    id: PRODUCT_B,
+    organizationId: ORG_B,
+    name: 'Huile',
+    unit: 'bidon',
+    price: 9000n,
   });
 });
 

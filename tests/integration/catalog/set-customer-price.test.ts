@@ -3,6 +3,7 @@ import request from 'supertest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const id = (n: string) => `0199c0c8-0000-7000-8000-0000000000${n}`;
@@ -129,24 +130,34 @@ beforeEach(async () => {
   await seedMember('c6', BUYER_ORG, MANAGER, 'MANAGER');
   await seedMember('c7', BUYER_ORG, OWNER, 'MANAGER');
 
-  await prisma.product.create({
-    data: { id: RICE, organizationId: SUPPLIER_ORG, name: 'Riz', unit: 'sac', price: 3000n },
+  await seedProduct(prisma, {
+    id: RICE,
+    organizationId: SUPPLIER_ORG,
+    name: 'Riz',
+    unit: 'sac',
+    price: 3000n,
   });
-  await prisma.product.create({
-    data: { id: OIL, organizationId: SUPPLIER_ORG, name: 'Huile', unit: 'litre', price: 1500n },
+  await seedProduct(prisma, {
+    id: OIL,
+    organizationId: SUPPLIER_ORG,
+    name: 'Huile',
+    unit: 'litre',
+    price: 1500n,
   });
-  await prisma.product.create({
-    data: {
-      id: INACTIVE_PRODUCT,
-      organizationId: SUPPLIER_ORG,
-      name: 'Savon',
-      unit: 'pain',
-      price: 500n,
-      status: 'INACTIVE',
-    },
+  await seedProduct(prisma, {
+    id: INACTIVE_PRODUCT,
+    organizationId: SUPPLIER_ORG,
+    name: 'Savon',
+    unit: 'pain',
+    price: 500n,
+    status: 'INACTIVE',
   });
-  await prisma.product.create({
-    data: { id: FOREIGN_PRODUCT, organizationId: OTHER_ORG, name: 'Sel', unit: 'sac', price: 200n },
+  await seedProduct(prisma, {
+    id: FOREIGN_PRODUCT,
+    organizationId: OTHER_ORG,
+    name: 'Sel',
+    unit: 'sac',
+    price: 200n,
   });
 
   await seedRelationship(REL, { personId: CUSTOMER });

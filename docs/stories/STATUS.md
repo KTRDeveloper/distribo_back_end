@@ -319,7 +319,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-019 | done | | Start route sends EMAIL and SMS ACCESS_RESTORE codes; 11 story tests + extras green, suite 4523/4523 |
 | ADM-020 | done | | Complete restoration: two codes checked before either is spent, move + sign-out + journal + notice in one transaction |
 | CAT-031 | done | | 51 story tests and 4581 suite tests pass; typecheck clean; lint 0 errors; dependency audit findings and unavailable scanners reported |
-| CAT-040 | blocked | | getActiveProduct reads legacy price/status: may CAT-040 migrate that function to variants, or must its assertions remain until CAT-041? |
+| CAT-040 | done | | 4599/4599 tests; typecheck clean; legacy fixtures retained only for getActiveProduct per approved exception |
 | CAT-042 | todo | | |
 | CAT-045 | done | | 49/49 targeted and 4594/4594 suite pass; typecheck clean; lint 0 errors; audit flags existing dependency vulnerabilities; scanners unavailable |
 | DLV-016 | todo | | |

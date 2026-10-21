@@ -4,6 +4,7 @@ import { app } from '../../../src/app.js';
 import * as repository from '../../../src/modules/catalog/catalog.repository.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 vi.mock('../../../src/modules/catalog/catalog.repository.js', async (importOriginal) => {
@@ -139,9 +140,7 @@ beforeEach(async () => {
     [OIL, 'Huile', 1500n],
     [SOAP, 'Savon', 500n],
   ] as const) {
-    await prisma.product.create({
-      data: { id: pid, organizationId: SUPPLIER_ORG, name, unit: 'u', price },
-    });
+    await seedProduct(prisma, { id: pid, organizationId: SUPPLIER_ORG, name, unit: 'u', price });
   }
 
   await seedRelationship(SOURCE, CUSTOMER_A);
@@ -308,14 +307,12 @@ describe('POST /api/v1/organizations/:organizationId/customers/:relationshipId/p
 
   describe('security', () => {
     it('AB-1 a source of another business answers 404 and copies nothing', async () => {
-      await prisma.product.create({
-        data: {
-          id: FOREIGN_PRODUCT,
-          organizationId: OTHER_ORG,
-          name: 'Autre',
-          unit: 'u',
-          price: 9n,
-        },
+      await seedProduct(prisma, {
+        id: FOREIGN_PRODUCT,
+        organizationId: OTHER_ORG,
+        name: 'Autre',
+        unit: 'u',
+        price: 9n,
       });
       await seedPrice('e1', FOREIGN, FOREIGN_PRODUCT, 1n);
 
