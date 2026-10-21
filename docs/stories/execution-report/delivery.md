@@ -328,6 +328,38 @@ Also in this run: relationship, admin, catalog, order, finance.
 **Evidence:** story tests 3/3 (delivery folder 216/216); full suite 4400/4400, failing: none, 0 known; typecheck clean; lint 0 errors, 191 warnings (pre-existing style)
 <!-- end DLV-014 -->
 
+<!-- begin DLV-016 -->
+## DLV-016 — Delivery and finance tests seed products through the catalog helper
+
+- Filed: 2026-10-21 20:49 UTC
+- Status: **done**: 16 product fixtures migrated; story tests 248/248; full suite 4623/4623; typecheck clean; lint 0 errors
+- Risk: low · story: [DLV-016-delivery-and-finance-tests-seed-products.md](../modules/delivery/DLV-016-delivery-and-finance-tests-seed-products.md)
+- Agent: 41,885 tokens, 38 tool uses, 7 min 48 s
+
+### Agent report
+
+**Summary:** Migrated all 16 product creations across the ten listed integration files to `seedProduct`; IDs, fixture values, assertions and test order remain unchanged. DLV-016 is marked done.
+
+**Decisions:**
+- The source guard rejects all direct product creation in these files and requires `seedProduct`, enforcing the story's helper-only constraint.
+- Source reads use literal repository-relative paths to avoid adding security lint warnings.
+
+**Tests added beyond the story:**
+- None; existing tests already cover tenant scope, roles, rollback, races and idempotency.
+
+**Evidence:** Story tests 248/248; full suite 4623/4623, failing: none, 0 known; typecheck clean; lint 0 errors, 198 warnings, none in changed files.
+- TDD: the ten new source-guard cases failed before migration and passed afterward.
+- Full-suite output: `/tmp/distribo-next10-BPwRch6e/DLV-016-suite.txt`.
+- New guard: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/unit/delivery/seed-products.test.ts`.
+
+**Follow-ups:**
+- Dependency audit reports 94 vulnerabilities (53 moderate, 35 high, 6 critical); dependencies were not changed.
+- Semgrep and Gitleaks are unavailable locally; their scans were not run.
+- No report Markdown file was written, following the explicit instruction to deliver the report directly through handback.
+
+DLV-016 done
+<!-- end DLV-016 -->
+
 <!-- begin DLV-007 -->
 ## DLV-007 — "Commande livrée": deliver a whole order and record the sale and the payment
 

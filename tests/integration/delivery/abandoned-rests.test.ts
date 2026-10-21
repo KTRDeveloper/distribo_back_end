@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c0f7-0000-7000-8000-000000000001';
@@ -166,14 +167,20 @@ beforeEach(async () => {
       },
     });
   }
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${PRODUCT}::uuid, ${ORG}::uuid, 'Fixture Rice', 'sack', 3000)
-  `;
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${OTHER_PRODUCT}::uuid, ${OTHER_ORG}::uuid, 'Fixture Rice', 'sack', 3000)
-  `;
+  await seedProduct(prisma, {
+    id: PRODUCT,
+    organizationId: ORG,
+    name: 'Fixture Rice',
+    unit: 'sack',
+    price: 3000n,
+  });
+  await seedProduct(prisma, {
+    id: OTHER_PRODUCT,
+    organizationId: OTHER_ORG,
+    name: 'Fixture Rice',
+    unit: 'sack',
+    price: 3000n,
+  });
 });
 
 describe('DLV-012 abandoned rests join the owner money exceptions', () => {

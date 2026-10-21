@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c0f6-0000-7000-8000-000000000001';
@@ -206,10 +207,13 @@ beforeEach(async () => {
       status: 'ACTIVE',
     },
   });
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${PRODUCT}::uuid, ${ORG}::uuid, 'Fixture Rice', 'sack', 3200)
-  `;
+  await seedProduct(prisma, {
+    id: PRODUCT,
+    organizationId: ORG,
+    name: 'Fixture Rice',
+    unit: 'sack',
+    price: 3200n,
+  });
 });
 
 describe('FIN-019 owner reads the money exceptions', () => {

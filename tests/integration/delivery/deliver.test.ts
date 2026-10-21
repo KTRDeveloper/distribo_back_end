@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c0d7-0000-7000-8000-000000000001';
@@ -133,8 +134,12 @@ async function seedBase(options: { balance?: bigint; creditLimit?: bigint | null
   await seedMember(SUPPLIER, DRIVER_1, 'DRIVER', 4);
   await seedMember(SUPPLIER, DRIVER_2, 'DRIVER', 5);
   await seedMember(OTHER_ORG, OTHER_OWNER, 'OWNER', 6);
-  await prisma.product.create({
-    data: { id: PRODUCT, organizationId: SUPPLIER, name: 'Rice', unit: 'sack', price: 10000n },
+  await seedProduct(prisma, {
+    id: PRODUCT,
+    organizationId: SUPPLIER,
+    name: 'Rice',
+    unit: 'sack',
+    price: 10000n,
   });
   await prisma.customerRelationship.create({
     data: {

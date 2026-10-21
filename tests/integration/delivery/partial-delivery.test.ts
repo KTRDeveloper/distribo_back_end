@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c0d7-0000-7000-8000-000000000001';
@@ -109,8 +110,12 @@ async function seedBase(options: { balance?: bigint; creditLimit?: bigint | null
       },
     });
   }
-  await prisma.product.create({
-    data: { id: PRODUCT, organizationId: SUPPLIER, name: 'Rice', unit: 'sack', price: 3000n },
+  await seedProduct(prisma, {
+    id: PRODUCT,
+    organizationId: SUPPLIER,
+    name: 'Rice',
+    unit: 'sack',
+    price: 3000n,
   });
   await prisma.customerRelationship.create({
     data: {

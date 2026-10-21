@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c0e0-0000-7000-8000-000000000001';
@@ -133,8 +134,12 @@ describe('DLV-010 unstarted deliveries are dropped with their order', () => {
     await seedMember(OWNER, 'OWNER', 1);
     await seedMember(SELLER, 'SELLER', 2);
     await seedMember(DRIVER, 'DRIVER', 3);
-    await prisma.product.create({
-      data: { id: PRODUCT, organizationId: SUPPLIER, name: 'Rice', unit: 'sack', price: 10000n },
+    await seedProduct(prisma, {
+      id: PRODUCT,
+      organizationId: SUPPLIER,
+      name: 'Rice',
+      unit: 'sack',
+      price: 10000n,
     });
     await prisma.customerRelationship.create({
       data: {

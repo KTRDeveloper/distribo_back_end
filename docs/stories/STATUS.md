@@ -322,7 +322,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-040 | done | | 4599/4599 tests; typecheck clean; legacy fixtures retained only for getActiveProduct per approved exception |
 | CAT-042 | done | | 4613 tests passent; pull par variante et helper temporaire; audit 35 high/6 critical sur dependances inchangees, scanners SAST/secrets indisponibles. |
 | CAT-045 | done | | 49/49 targeted and 4594/4594 suite pass; typecheck clean; lint 0 errors; audit flags existing dependency vulnerabilities; scanners unavailable |
-| DLV-016 | todo | | |
+| DLV-016 | done | | 16 product fixtures migrated; story tests 248/248; full suite 4623/4623; typecheck clean; lint 0 errors |
 | ORD-031 | todo | | |
 | ORD-032 | todo | | |
 | DLV-015 | todo | | |
