@@ -1,4 +1,4 @@
-import { seedCustomerPrice } from '../../helpers/catalog-fixtures.js';
+import { seedCustomerPrice, seedProduct } from '../../helpers/catalog-fixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
@@ -76,24 +76,6 @@ async function seedMember(
   });
 }
 
-async function seedProduct(
-  id: string,
-  organizationId: string,
-  data: { name: string; unit: string; price: bigint; min?: string; status?: 'ACTIVE' | 'INACTIVE' }
-) {
-  await prisma.product.create({
-    data: {
-      id,
-      organizationId,
-      name: data.name,
-      unit: data.unit,
-      price: data.price,
-      minOrderQuantity: data.min ?? null,
-      status: data.status ?? 'ACTIVE',
-    },
-  });
-}
-
 async function seedRelationship(status: 'ACTIVE' | 'ENDED', address: string | null = null) {
   await prisma.customerRelationship.create({
     data: {
@@ -147,15 +129,35 @@ beforeEach(async () => {
   await seedMember(ORG, MANAGER, 'MANAGER', 2);
   await seedMember(ORG, SELLER, 'SELLER', 3);
   await seedMember(ORG, DRIVER, 'DRIVER', 4);
-  await seedProduct(PRODUCT_A, ORG, { name: 'Rice', unit: 'sack', price: 3000n });
-  await seedProduct(PRODUCT_B, ORG, { name: 'Salt', unit: 'kg', price: 500n });
-  await seedProduct(PRODUCT_INACTIVE, ORG, {
+  await seedProduct(prisma, {
+    id: PRODUCT_A,
+    organizationId: ORG,
+    name: 'Rice',
+    unit: 'sack',
+    price: 3000n,
+  });
+  await seedProduct(prisma, {
+    id: PRODUCT_B,
+    organizationId: ORG,
+    name: 'Salt',
+    unit: 'kg',
+    price: 500n,
+  });
+  await seedProduct(prisma, {
+    id: PRODUCT_INACTIVE,
+    organizationId: ORG,
     name: 'Old',
     unit: 'kg',
     price: 100n,
     status: 'INACTIVE',
   });
-  await seedProduct(PRODUCT_FOREIGN, OTHER_ORG, { name: 'Oil', unit: 'l', price: 900n });
+  await seedProduct(prisma, {
+    id: PRODUCT_FOREIGN,
+    organizationId: OTHER_ORG,
+    name: 'Oil',
+    unit: 'l',
+    price: 900n,
+  });
 });
 
 describe('ORD-009 place an order', () => {
@@ -258,7 +260,10 @@ describe('ORD-009 place an order', () => {
 
   describe('refusals (AC-4, C-15)', () => {
     it('refuses a quantity below min_order_quantity with 400 and stores nothing', async () => {
-      await prisma.product.update({ where: { id: PRODUCT_A }, data: { minOrderQuantity: '12' } });
+      await prisma.productVariant.update({
+        where: { id: PRODUCT_A },
+        data: { minOrderQuantity: '12' },
+      });
       const response = await place(goodBody());
       expect(response.status).toBe(400);
       expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');

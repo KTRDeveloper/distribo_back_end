@@ -1,3 +1,4 @@
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
@@ -157,17 +158,19 @@ beforeEach(async () => {
   await seedMember(BUYER, BUYER_MANAGER, 'MANAGER', 5);
   await seedMember(BUYER, BUYER_SELLER, 'SELLER', 6);
   await seedMember(OTHER_BUYER, OTHER_BUYER_OWNER, 'OWNER', 7);
-  await prisma.product.create({
-    data: { id: PRODUCT, organizationId: SUPPLIER, name: 'Rice', unit: 'sack', price: 3000n },
+  await seedProduct(prisma, {
+    id: PRODUCT,
+    organizationId: SUPPLIER,
+    name: 'Rice',
+    unit: 'sack',
+    price: 3000n,
   });
-  await prisma.product.create({
-    data: {
-      id: OTHER_PRODUCT,
-      organizationId: OTHER_SUPPLIER,
-      name: 'Oil',
-      unit: 'l',
-      price: 900n,
-    },
+  await seedProduct(prisma, {
+    id: OTHER_PRODUCT,
+    organizationId: OTHER_SUPPLIER,
+    name: 'Oil',
+    unit: 'l',
+    price: 900n,
   });
   const personRels = [
     [REL_A1, SUPPLIER, CUSTOMER_A, OWNER],

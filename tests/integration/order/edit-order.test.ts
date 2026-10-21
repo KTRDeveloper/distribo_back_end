@@ -1,3 +1,4 @@
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
@@ -142,31 +143,35 @@ beforeEach(async () => {
   await seedMember(SUPPLIER, SELLER, 'SELLER', 3);
   await seedMember(SUPPLIER, DRIVER, 'DRIVER', 4);
   await seedMember(OTHER_ORG, OTHER_OWNER, 'OWNER', 5);
-  await prisma.product.create({
-    data: { id: PRODUCT_A, organizationId: SUPPLIER, name: 'Rice', unit: 'sack', price: 3000n },
+  await seedProduct(prisma, {
+    id: PRODUCT_A,
+    organizationId: SUPPLIER,
+    name: 'Rice',
+    unit: 'sack',
+    price: 3000n,
   });
-  await prisma.product.create({
-    data: {
-      id: PRODUCT_B,
-      organizationId: SUPPLIER,
-      name: 'Salt',
-      unit: 'kg',
-      price: 500n,
-      minOrderQuantity: '5',
-    },
+  await seedProduct(prisma, {
+    id: PRODUCT_B,
+    organizationId: SUPPLIER,
+    name: 'Salt',
+    unit: 'kg',
+    price: 500n,
+    minOrderQuantity: '5',
   });
-  await prisma.product.create({
-    data: {
-      id: PRODUCT_OFF,
-      organizationId: SUPPLIER,
-      name: 'Old',
-      unit: 'kg',
-      price: 100n,
-      status: 'INACTIVE',
-    },
+  await seedProduct(prisma, {
+    id: PRODUCT_OFF,
+    organizationId: SUPPLIER,
+    name: 'Old',
+    unit: 'kg',
+    price: 100n,
+    status: 'INACTIVE',
   });
-  await prisma.product.create({
-    data: { id: OTHER_PRODUCT, organizationId: OTHER_ORG, name: 'Oil', unit: 'l', price: 900n },
+  await seedProduct(prisma, {
+    id: OTHER_PRODUCT,
+    organizationId: OTHER_ORG,
+    name: 'Oil',
+    unit: 'l',
+    price: 900n,
   });
   await prisma.customerRelationship.create({
     data: {

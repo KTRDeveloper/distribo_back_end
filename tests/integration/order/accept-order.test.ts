@@ -1,3 +1,4 @@
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
@@ -155,11 +156,19 @@ beforeEach(async () => {
   await seedMember(OTHER_ORG, OTHER_OWNER, 'OWNER', 5);
   await seedMember(BUSINESS, CUSTOMER, 'OWNER', 7);
   await seedMember(BUSINESS, BIZ_MANAGER, 'MANAGER', 6);
-  await prisma.product.create({
-    data: { id: PRODUCT_A, organizationId: SUPPLIER, name: 'Rice', unit: 'sack', price: 2800n },
+  await seedProduct(prisma, {
+    id: PRODUCT_A,
+    organizationId: SUPPLIER,
+    name: 'Rice',
+    unit: 'sack',
+    price: 2800n,
   });
-  await prisma.product.create({
-    data: { id: PRODUCT_B, organizationId: SUPPLIER, name: 'Salt', unit: 'kg', price: 500n },
+  await seedProduct(prisma, {
+    id: PRODUCT_B,
+    organizationId: SUPPLIER,
+    name: 'Salt',
+    unit: 'kg',
+    price: 500n,
   });
   await prisma.customerRelationship.create({
     data: {

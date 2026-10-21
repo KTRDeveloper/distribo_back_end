@@ -1,3 +1,4 @@
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
 
@@ -113,10 +114,14 @@ async function insertProduct(
   orgId: string,
   minQuantity: string | null = '5'
 ): Promise<void> {
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, min_order_quantity)
-    VALUES (${id}::uuid, ${orgId}::uuid, 'Fixture Rice', 'sack', 3000, ${minQuantity}::numeric)
-  `;
+  await seedProduct(prisma, {
+    id,
+    organizationId: orgId,
+    name: 'Fixture Rice',
+    unit: 'sack',
+    price: 3000n,
+    minOrderQuantity: minQuantity,
+  });
 }
 
 beforeEach(async () => {
@@ -157,7 +162,7 @@ describe('product rule (AC-1, C-15, AB-1)', () => {
 
   it('rejects an INACTIVE product of the supplier with 23514', async () => {
     await prisma.$executeRaw`
-      UPDATE products SET status = 'INACTIVE' WHERE id = ${PRODUCT_ID}::uuid
+      UPDATE product_variants SET status = 'INACTIVE' WHERE id = ${PRODUCT_ID}::uuid
     `;
     expect(await captureSqlCode(insertLine())).toBe('23514');
   });
@@ -211,7 +216,7 @@ describe('minimum quantity (AC-2, C-15)', () => {
 
   it('accepts any quantity on a product without a minimum', async () => {
     await prisma.$executeRaw`
-      UPDATE products SET min_order_quantity = NULL WHERE id = ${PRODUCT_ID}::uuid
+      UPDATE product_variants SET min_order_quantity = NULL WHERE id = ${PRODUCT_ID}::uuid
     `;
     await expect(insertLine({ quantity: '0.001', amount: 3n })).resolves.toBe(1);
   });
@@ -221,7 +226,7 @@ describe('later changes do not block (AC-3)', () => {
   it('updates delivered_quantity after the product became INACTIVE or its minimum rose', async () => {
     await insertLine({ orderId: SUPPLIER_ORDER_ID });
     await prisma.$executeRaw`
-      UPDATE products SET status = 'INACTIVE', min_order_quantity = 50
+      UPDATE product_variants SET status = 'INACTIVE', min_order_quantity = 50
       WHERE id = ${PRODUCT_ID}::uuid
     `;
     await expect(

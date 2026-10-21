@@ -1,4 +1,4 @@
-import { seedCustomerPrice } from '../../helpers/catalog-fixtures.js';
+import { seedCustomerPrice, seedProduct } from '../../helpers/catalog-fixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
@@ -115,11 +115,19 @@ beforeEach(async () => {
   await seedMember(BUSINESS, BIZ_DRIVER, 'DRIVER', 6);
   await seedMember(OTHER_BUSINESS, OTHER_OWNER, 'OWNER', 8);
   await seedMember(OTHER_BUSINESS, OTHER_MANAGER, 'MANAGER', 7);
-  await prisma.product.create({
-    data: { id: PRODUCT_A, organizationId: SUPPLIER, name: 'Rice', unit: 'sack', price: 3000n },
+  await seedProduct(prisma, {
+    id: PRODUCT_A,
+    organizationId: SUPPLIER,
+    name: 'Rice',
+    unit: 'sack',
+    price: 3000n,
   });
-  await prisma.product.create({
-    data: { id: PRODUCT_B, organizationId: SUPPLIER, name: 'Salt', unit: 'kg', price: 500n },
+  await seedProduct(prisma, {
+    id: PRODUCT_B,
+    organizationId: SUPPLIER,
+    name: 'Salt',
+    unit: 'kg',
+    price: 500n,
   });
 });
 
@@ -281,7 +289,10 @@ describe('ORD-010 organization manager orders from a supplier', () => {
     });
 
     it('refuses a quantity below the minimum with 400 and stores nothing', async () => {
-      await prisma.product.update({ where: { id: PRODUCT_A }, data: { minOrderQuantity: '12' } });
+      await prisma.productVariant.update({
+        where: { id: PRODUCT_A },
+        data: { minOrderQuantity: '12' },
+      });
       const response = await purchase(goodBody());
       expect(response.status).toBe(400);
       expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');

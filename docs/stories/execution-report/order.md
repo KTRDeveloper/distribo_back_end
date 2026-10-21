@@ -1005,3 +1005,30 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 **Follow-ups:**
 - `per-001.test.ts` has no order routes listed, so nothing was added there.
 <!-- end ORD-021 -->
+
+<!-- begin ORD-031 -->
+## ORD-031 — Order tests seed products through the catalog helper
+
+- Filed: 2026-10-21 20:59 UTC
+- Status: **done**: Fixtures catalogue migrees; tests cibles 481/481, suite 4653/4653; typecheck OK; lint 0 erreur.
+- Risk: low · story: [ORD-031-order-tests-seed-products-through-the-catalog.md](../modules/order/ORD-031-order-tests-seed-products-through-the-catalog.md)
+- Agent: 41,027 tokens, 34 tool uses, 5 min 29 s
+
+### Agent report
+
+**Summary:** ORD-031 termine : les quinze fichiers de tests utilisent le helper catalogue, sans changer les assertions, identifiants ou ordre des tests.
+
+**Decisions:**
+- Suppression du helper local homonyme de place-order pour appeler directement seedProduct du catalogue.
+- Le garde-fou couvre les creations SQL/Prisma et les mises a jour des anciennes colonnes ; TDD observe : 18 echecs avant migration, puis 30/30 tests unitaires verts.
+
+**Evidence:** tests cibles 481/481 ; suite complete 4653/4653 (339 fichiers), failing: none, 0 known ; typecheck clean ; lint 0 errors, 199 warnings ; git diff --check clean.
+
+**Follow-ups:**
+- npm audit --audit-level=high echoue sur les dependances inchangees ; Semgrep et Gitleaks sont absents de cet environnement. Aucune dependance modifiee.
+- Rapport retourne ici, sans fichier Markdown, conformement a la derniere instruction developpeur interdisant les fichiers de rapport.
+- Garde-fou : /home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/unit/order/seed-products.test.ts
+- Sortie complete : /tmp/distribo-next10-BPwRch6e/ORD-031-suite.txt
+
+ORD-031 done
+<!-- end ORD-031 -->
