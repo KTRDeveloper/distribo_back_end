@@ -13,6 +13,7 @@ import { newId } from '../../shared/ids.js';
 import { atLeast } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
+import { copyImage } from '../images/image-copy.service.js';
 import {
   countProductsOnSale,
   countVariantNegotiatedPricesBefore,
@@ -35,6 +36,10 @@ import {
   lockLiveVariantsOfProduct,
   lockProductOfOrganizationAnyState,
   patchVariant,
+  readProductImageKeys,
+  readVariantImageKeys,
+  setProductImageKeys,
+  setVariantImageKeys,
   softDeleteProduct,
   softDeleteVariants,
   softDeleteCustomerPrice,
@@ -374,6 +379,19 @@ export async function deleteProduct(actor: Actor, productId: string): Promise<vo
   });
 }
 
+/** Copies photos sequentially to preserve display order, omitting missing files (CAT-045). */
+async function copyPhotoKeys(
+  tx: Prisma.TransactionClient,
+  sourceKeys: string[]
+): Promise<string[]> {
+  const keys: string[] = [];
+  for (const sourceKey of sourceKeys) {
+    const key = await copyImage(tx, sourceKey);
+    if (key !== null) keys.push(key);
+  }
+  return keys;
+}
+
 /**
  * Copies purchased variants into a new or existing product at the reseller's prices (CAT-031).
  *
@@ -383,7 +401,11 @@ export async function deleteProduct(actor: Actor, productId: string): Promise<vo
  * destinations are locked in the same variant-then-product order as deletion so concurrent copies
  * see the winning live twin instead of violating C-47. Twins of either status stay unchanged.
  * One transaction checks C-46 room before creating a product or filling an unpaused destination
- * with no ACTIVE variants. New rows have no photos, minimums or source links (v5.0.0-15.3.3).
+ * with no ACTIVE variants. New rows have no minimums or source links (v5.0.0-15.3.3).
+ * Photos are read under the authorized supplier's organization and copied in display order only
+ * for new rows (CAT-045). C-56 registry entries and C-49 destination keys share this transaction
+ * (v5.0.0-2.3.3); missing files are skipped, other storage or database errors roll it all back.
+ * Stored files from a rollback wait for IMG-007 cleanup. Responses expose only the copies' URLs.
  *
  * @param actor - Actor loaded from the path.
  * @param input - Strictly validated source, destination and variant ids with reseller prices.
@@ -426,6 +448,14 @@ export async function copyProduct(
         description: source.description,
         category: source.category,
       });
+      const sourceKeys = await readProductImageKeys(
+        tx,
+        source.organizationId,
+        input.source_product_id
+      );
+      const keys = await copyPhotoKeys(tx, sourceKeys);
+      await setProductImageKeys(tx, actor.organizationId, product.id, keys);
+      product.imageKeys = keys;
     }
     const sources = new Map(source.variants.map((variant) => [variant.id, variant]));
     const copied: CopyProductResult['copied'] = [];
@@ -456,6 +486,9 @@ export async function copyProduct(
         price: BigInt(requested.price),
         minOrderQuantity: null,
       });
+      const sourcePhotos = await readVariantImageKeys(tx, source.organizationId, variant.id);
+      const keys = await copyPhotoKeys(tx, sourcePhotos.keys);
+      await setVariantImageKeys(tx, actor.organizationId, created.id, keys);
       copied.push(created.id);
     }
     return {

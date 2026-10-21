@@ -196,14 +196,14 @@ export async function insertActiveVariant(
 /**
  * Reads only copyable supplier texts through the buyer's live relationship (ASVS v5.0.0-8.2.2).
  * The product must be live and unpaused; every requested variant must be ACTIVE, live and of
- * that product. An explicit selection never reads supplier prices, minimums or photos (CAT-031
- * AB-2, v5.0.0-15.3.3), even to build an intermediate object.
+ * that product. An explicit selection never reads supplier prices or minimums (CAT-031 AB-2,
+ * v5.0.0-15.3.3). The supplier organization scopes subsequent photo reads (CAT-045).
  *
  * @param tx - The copy transaction.
  * @param buyerOrganizationId - Buyer's organization from the loaded actor.
  * @param productId - Requested supplier product.
  * @param variantIds - Distinct source variant ids validated at the boundary.
- * @returns The product texts and the selected variants' names and units only.
+ * @returns The supplier organization id, product texts and selected variants' names and units.
  * @throws 404 `NOT_FOUND` if any source is unavailable or outside the relationship.
  */
 export async function getProductCopyableBy(
@@ -212,6 +212,7 @@ export async function getProductCopyableBy(
   productId: string,
   variantIds: string[]
 ): Promise<{
+  organizationId: string;
   name: string;
   description: string | null;
   category: string | null;
@@ -236,6 +237,7 @@ export async function getProductCopyableBy(
       },
     },
     select: {
+      organizationId: true,
       name: true,
       description: true,
       category: true,

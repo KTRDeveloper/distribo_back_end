@@ -6,6 +6,22 @@ import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
 import { prisma } from '../../setup.js';
 
+const photoFiles = vi.hoisted(() => new Map<string, Buffer>());
+
+vi.mock('../../../src/modules/images/image.ports.js', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getImageStorage: () => ({
+    get: (key: string) => Promise.resolve(photoFiles.get(key) ?? null),
+    put: (key: string, bytes: Buffer) => {
+      photoFiles.set(key, Buffer.from(bytes));
+      return Promise.resolve();
+    },
+  }),
+  getImageProcessor: () => ({
+    reencode: (bytes: Buffer) => Promise.resolve(Buffer.concat([bytes, Buffer.from('-copy')])),
+  }),
+}));
+
 const id = (n: number) => `0199c031-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
 const OWNER = id(1);
 const MANAGER = id(2);
@@ -63,6 +79,7 @@ async function fullPlan() {
 }
 
 beforeEach(async () => {
+  photoFiles.clear();
   for (const [index, personId] of [
     [1, OWNER],
     [2, MANAGER],
@@ -422,37 +439,57 @@ describe('CAT-031 copy purchased variants', () => {
     expect(await buyerCounts()).toEqual(before);
   });
 
-  it('AB-2 copies neither supplier prices nor minimums nor photos', async () => {
+  it('AB-2 keeps reseller prices and minimums independent and copies photos under new keys', async () => {
+    const productPhoto = 'products/0199c031-0000-4000-8000-000000000001.webp';
+    const variantPhoto = 'products/0199c031-0000-4000-8000-000000000002.webp';
+    photoFiles.set(productPhoto, Buffer.from('supplier-product'));
+    photoFiles.set(variantPhoto, Buffer.from('supplier-variant'));
     await prisma.product.update({
       where: { id: SOURCE },
-      data: { imageKeys: [`products/${SOURCE}/photo.webp`] },
+      data: { imageKeys: [productPhoto] },
     });
     await prisma.productVariant.update({
       where: { id: SMALL },
-      data: { imageKeys: [`variants/${SMALL}/photo.webp`] },
+      data: { imageKeys: [variantPhoto] },
     });
     const response = await copy();
     expect(response.status).toBe(201);
     const result = bodyOf<CopyProductResult>(response);
-    expect(result.product.image_urls).toEqual([]);
+    expect(result.product.image_urls).toHaveLength(1);
     expect(result.product.variants.map((variant) => variant.price)).toEqual([16000, 31000]);
     expect(result.product.variants.map((variant) => variant.min_order_quantity)).toEqual([
       null,
       null,
     ]);
-    expect(result.product.variants.every((variant) => variant.image_urls.length === 0)).toBe(true);
+    expect(result.product.variants.map((variant) => variant.image_urls.length)).toEqual([1, 0]);
     const rows = await prisma.productVariant.findMany({
       where: { productId: NEW_PRODUCT },
       orderBy: { id: 'asc' },
     });
     expect(rows.map((row) => row.price)).toEqual([16000n, 31000n]);
-    expect(rows.every((row) => row.minOrderQuantity === null && row.imageKeys.length === 0)).toBe(
-      true
-    );
+    expect(rows.every((row) => row.minOrderQuantity === null)).toBe(true);
+    expect(rows.map((row) => row.imageKeys.length)).toEqual([1, 0]);
     const product = await prisma.product.findUniqueOrThrow({ where: { id: NEW_PRODUCT } });
     expect(product.price).not.toBe(12000n);
     expect(product.minOrderQuantity).toBeNull();
-    expect(product.imageKeys).toEqual([]);
+    expect(product.imageKeys).toHaveLength(1);
+    const copiedKeys = [...product.imageKeys, ...rows.flatMap((row) => row.imageKeys)];
+    expect(new Set([...copiedKeys, productPhoto, variantPhoto]).size).toBe(4);
+    expect(copiedKeys.every((key) => photoFiles.has(key))).toBe(true);
+    expect(result.product.image_urls[0]).toContain(product.imageKeys[0]);
+    expect(result.product.variants[0].image_urls[0]).toContain(rows[0].imageKeys[0]);
+    const serialized = JSON.stringify(
+      [result, product, rows],
+      (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value)
+    );
+    expect(serialized).not.toContain(productPhoto);
+    expect(serialized).not.toContain(variantPhoto);
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: SOURCE } })).imageKeys).toEqual([
+      productPhoto,
+    ]);
+    expect(
+      (await prisma.productVariant.findUniqueOrThrow({ where: { id: SMALL } })).imageKeys
+    ).toEqual([variantPhoto]);
   });
 
   it('C-47 concurrent copies into the same destination report the winning live variant', async () => {

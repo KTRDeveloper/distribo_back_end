@@ -1363,3 +1363,34 @@ CAT-031 done
 - Status set to blocked; no commit created. Report file `/tmp/distribo-next10-BPwRch6e/CAT-040-report.md` was not written because the final developer instruction prohibits report-file writes; this handback supplies its contents.
 CAT-040 blocked
 <!-- end CAT-040 -->
+
+<!-- begin CAT-045 -->
+## CAT-045 — Copied variants and new products take copies of the photos
+
+- Filed: 2026-10-21 14:17 UTC
+- Status: **done**: 49/49 targeted and 4594/4594 suite pass; typecheck clean; lint 0 errors; audit flags existing dependency vulnerabilities; scanners unavailable
+- Risk: high · story: [CAT-045-copied-variants-and-new-products-take-copies-of.md](../modules/catalog/CAT-045-copied-variants-and-new-products-take-copies-of.md)
+- Agent: 42,134 tokens, 27 tool uses, 7 min 25 s
+
+### Agent report
+
+**Summary:** CAT-045 is complete; supplier photos are copied transactionally under independent keys, and the approved CAT-031 regression update is green. No commit created.
+
+**Decisions:**
+- Resumed existing implementation and 13 photo tests; updated the obsolete CAT-031 AB-2 test using canonical keys and fake storage/processor ports, preserving real `copyImage` validation and all price/minimum assertions.
+- Did not write `/tmp/distribo-next10-BPwRch6e/CAT-045-report.md`: the final developer instruction forbids report Markdown files; this handback contains the report.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/catalog/copy-photos.test.ts`: storage-error and database-error rollback, revoked supplier relationship, idempotent repeat, and five-photo boundary guard transactionality, scope, ACC and C-49; inherited tests passed immediately on resumption.
+
+**Other additions:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/catalog/copy-variants.test.ts`: approved AB-2 update also checks independent destination keys, URL correspondence, unchanged source keys and absence of supplier keys in destination responses/rows.
+
+**Evidence:** story tests 49/49; full suite 4594/4594, failing: none, 0 known; typecheck clean; lint 0 errors, 197 warnings; git diff --check clean.
+- Full suite output: `/tmp/distribo-next10-BPwRch6e/CAT-045-suite.txt`.
+
+**Follow-ups:**
+- Dependency audit reports 94 vulnerabilities (53 moderate, 35 high, 6 critical); dependencies unchanged. Semgrep and Gitleaks unavailable, so those standalone scans could not run.
+
+CAT-045 done
+<!-- end CAT-045 -->
