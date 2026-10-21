@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
-import { seedProduct } from '../../helpers/catalog-fixtures.js';
+import { seedCustomerPrice, seedProduct } from '../../helpers/catalog-fixtures.js';
 import {
   getActiveProduct,
   getReferencePrice,
@@ -28,15 +28,14 @@ async function insertPrice(
   price: number,
   deleted = false
 ): Promise<void> {
-  await prisma.$executeRaw`
-    INSERT INTO customer_prices (
-      id, customer_relationship_id, product_id, price, set_by_id, deleted_at
-    )
-    VALUES (
-      ${id}::uuid, ${relationshipId}::uuid, ${PRODUCT_ID}::uuid, ${price}::bigint,
-      ${OWNER_ID}::uuid, ${deleted ? new Date('2026-02-01T00:00:00.000Z') : null}::timestamptz
-    )
-  `;
+  await seedCustomerPrice(prisma, {
+    id,
+    customerRelationshipId: relationshipId,
+    productVariantId: PRODUCT_ID,
+    price: BigInt(price),
+    setById: OWNER_ID,
+    deletedAt: deleted ? new Date('2026-02-01T00:00:00.000Z') : null,
+  });
 }
 
 const reference = (relationshipId: string, productId = PRODUCT_ID) =>

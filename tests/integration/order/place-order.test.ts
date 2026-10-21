@@ -1,3 +1,4 @@
+import { seedCustomerPrice } from '../../helpers/catalog-fixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
@@ -161,14 +162,12 @@ describe('ORD-009 place an order', () => {
   describe('prices and totals (AC-1, C-17)', () => {
     it('freezes negotiated and default prices and sums the total', async () => {
       await seedRelationship('ACTIVE', '12 Rue du Marche');
-      await prisma.customerPrice.create({
-        data: {
-          id: '0199c009-0000-7000-8000-0000000000f1',
-          customerRelationshipId: REL_ID,
-          productId: PRODUCT_A,
-          price: 2800n,
-          setById: OWNER,
-        },
+      await seedCustomerPrice(prisma, {
+        id: '0199c009-0000-7000-8000-0000000000f1',
+        customerRelationshipId: REL_ID,
+        productVariantId: PRODUCT_A,
+        price: 2800n,
+        setById: OWNER,
       });
 
       const response = await place(goodBody());
@@ -371,7 +370,9 @@ describe('ORD-009 place an order', () => {
       ['amount', { amount: 1 }],
     ])('refuses a line carrying %s', async (_field, extra) => {
       const response = await place(
-        goodBody({ lines: [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: '1', ...extra }] })
+        goodBody({
+          lines: [{ id: LINE_1, product_variant_id: PRODUCT_A, quantity: '1', ...extra }],
+        })
       );
       expect(response.status).toBe(400);
       expect(await stored()).toEqual({ orders: 0, lines: 0, relationships: 0, notifications: 0 });

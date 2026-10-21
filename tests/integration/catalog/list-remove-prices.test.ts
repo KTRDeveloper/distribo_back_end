@@ -3,7 +3,7 @@ import request from 'supertest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
-import { seedProduct } from '../../helpers/catalog-fixtures.js';
+import { seedCustomerPrice, seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const id = (n: string) => `0199c0c8-0000-7000-8000-0000000000${n}`;
@@ -97,16 +97,14 @@ async function seedPrice(
   price: bigint,
   extra: { setAt?: Date; deletedAt?: Date; setById?: string } = {}
 ) {
-  await prisma.customerPrice.create({
-    data: {
-      id: id(n),
-      customerRelationshipId: relationshipId,
-      productId,
-      price,
-      setById: extra.setById ?? OWNER,
-      setAt: extra.setAt ?? PAST,
-      deletedAt: extra.deletedAt ?? null,
-    },
+  await seedCustomerPrice(prisma, {
+    id: id(n),
+    customerRelationshipId: relationshipId,
+    productVariantId: productId,
+    price,
+    setById: extra.setById ?? OWNER,
+    setAt: extra.setAt ?? PAST,
+    deletedAt: extra.deletedAt ?? null,
   });
 }
 
@@ -137,7 +135,7 @@ function put(relationshipId: string, productId: string, body: object, caller = M
 
 const livePrices = (relationshipId = REL, productId = RICE) =>
   prisma.customerPrice.findMany({
-    where: { customerRelationshipId: relationshipId, productId, deletedAt: null },
+    where: { customerRelationshipId: relationshipId, productVariantId: productId, deletedAt: null },
   });
 
 const customerPriceOfRice = async () => {

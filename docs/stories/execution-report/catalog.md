@@ -1365,6 +1365,40 @@ CAT-031 done
 CAT-040 done
 <!-- end CAT-040 -->
 
+<!-- begin CAT-042 -->
+## CAT-042 — Price tests name the variant of a negotiated price
+
+- Filed: 2026-10-21 20:40 UTC
+- Status: **done**: 4613 tests passent; pull par variante et helper temporaire; audit 35 high/6 critical sur dependances inchangees, scanners SAST/secrets indisponibles.
+- Risk: low · story: [CAT-042-price-tests-name-the-variant-of-a-negotiated.md](../modules/catalog/CAT-042-price-tests-name-the-variant-of-a-negotiated.md)
+- Agent: 84,409 tokens, 30 tool uses, 8 min 17 s
+
+### Agent report
+
+**Summary:** CAT-042 done: price fixtures identify variants, the approved helper supplies the legacy parent, and sync pull now emits the variant-only contract.
+
+**Decisions:**
+- Followed SYNC-027: replace the price wire field, without a legacy alias, endpoint version, scope-version change or database-column removal.
+- Compatibility helper derives the parent through a parameterized Prisma lookup; CAT-043 removes that compatibility layer.
+- OpenAPI now specifies the strict customer-price row; adapter selection/output remain explicit and all scope filters are unchanged.
+- Documented client cache migration consequences in `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/sync/contracts.md`; unchanged rows are not replayed automatically.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/unit/catalog/catalog-fixtures.test.ts`: distinct parent resolution and missing-variant no-write behavior; both failed first, then passed.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/sync/pull-relationships.test.ts`: distinct variant, exact wire allowlist, incremental updates and scope isolation (approved API evolution / SYNC-027); failed first, then passed.
+
+**Other additions:**
+- Approved production changes are limited to `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/sync/adapters/relationship.adapter.ts` and `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/sync/sync.openapi.ts`; generated OpenAPI changed during verification.
+
+**Evidence:** affected tests 1553/1553; full suite 4613/4613, failing: none, 0 known; typecheck clean; lint 0 errors, 198 warnings; diff whitespace check clean.
+- Full output: `/tmp/distribo-next10-BPwRch6e/CAT-042-suite.txt`; targeted output: `/tmp/distribo-next10-BPwRch6e/CAT-042-api-green.txt`.
+
+**Follow-ups:**
+- Dependency audit fails: 53 moderate, 35 high, 6 critical on unchanged dependencies; semgrep/gitleaks unavailable, so those scans were not run. No dependency changes or commits made.
+- No Markdown report file written per final developer restriction; this is the inline report intended for `/tmp/distribo-next10-BPwRch6e/CAT-042-report.md`.
+CAT-042 done
+<!-- end CAT-042 -->
+
 <!-- begin CAT-045 -->
 ## CAT-045 — Copied variants and new products take copies of the photos
 

@@ -164,7 +164,8 @@ export const customerRelationshipsAdapter: SyncAdapter = {
 /**
  * `customer_prices`: the negotiated prices of the organization's customers for OWNER, MANAGER and
  * SELLER; a customer person receives only the prices of their own relationships; a DRIVER none.
- * `set_at` stands for `created_at`.
+ * `set_at` stands for `created_at`. Prices identify the sellable variant, never its legacy parent
+ * (SYNC-027, ASVS v5.0.0-15.3.1); the database compatibility column is not part of the wire contract.
  */
 export const customerPricesAdapter: SyncAdapter = {
   table: 'customer_prices',
@@ -187,7 +188,7 @@ export const customerPricesAdapter: SyncAdapter = {
       select: {
         id: true,
         customerRelationshipId: true,
-        productId: true,
+        productVariantId: true,
         price: true,
         setAt: true,
         serverUpdatedAt: true,
@@ -202,7 +203,7 @@ export const customerPricesAdapter: SyncAdapter = {
       (r) => ({
         id: r.id,
         customer_relationship_id: r.customerRelationshipId,
-        product_id: r.productId,
+        product_variant_id: r.productVariantId,
         price: Number(r.price),
         set_at: toEpoch(r.setAt),
         server_updated_at: toEpoch(r.serverUpdatedAt),

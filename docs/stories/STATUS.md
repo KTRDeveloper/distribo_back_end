@@ -320,7 +320,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-020 | done | | Complete restoration: two codes checked before either is spent, move + sign-out + journal + notice in one transaction |
 | CAT-031 | done | | 51 story tests and 4581 suite tests pass; typecheck clean; lint 0 errors; dependency audit findings and unavailable scanners reported |
 | CAT-040 | done | | 4599/4599 tests; typecheck clean; legacy fixtures retained only for getActiveProduct per approved exception |
-| CAT-042 | todo | | |
+| CAT-042 | done | | 4613 tests passent; pull par variante et helper temporaire; audit 35 high/6 critical sur dependances inchangees, scanners SAST/secrets indisponibles. |
 | CAT-045 | done | | 49/49 targeted and 4594/4594 suite pass; typecheck clean; lint 0 errors; audit flags existing dependency vulnerabilities; scanners unavailable |
 | DLV-016 | todo | | |
 | ORD-031 | todo | | |

@@ -4,7 +4,7 @@ import { app } from '../../../src/app.js';
 import * as repository from '../../../src/modules/catalog/catalog.repository.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
-import { seedProduct } from '../../helpers/catalog-fixtures.js';
+import { seedCustomerPrice, seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 vi.mock('../../../src/modules/catalog/catalog.repository.js', async (importOriginal) => {
@@ -86,15 +86,13 @@ async function seedRelationship(
 }
 
 async function seedPrice(n: string, relationshipId: string, productId: string, price: bigint) {
-  await prisma.customerPrice.create({
-    data: {
-      id: id(n),
-      customerRelationshipId: relationshipId,
-      productId,
-      price,
-      setById: OWNER,
-      setAt: PAST,
-    },
+  await seedCustomerPrice(prisma, {
+    id: id(n),
+    customerRelationshipId: relationshipId,
+    productVariantId: productId,
+    price,
+    setById: OWNER,
+    setAt: PAST,
   });
 }
 

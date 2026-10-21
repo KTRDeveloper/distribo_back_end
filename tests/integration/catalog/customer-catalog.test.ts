@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
-import { seedProduct } from '../../helpers/catalog-fixtures.js';
+import { seedCustomerPrice, seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const id = (n: string) => `0199c0c7-0000-7000-8000-0000000000${n}`;
@@ -120,14 +120,12 @@ async function seedRelationship(
 }
 
 async function seedNegotiated(n: string, relId: string, productId: string, price: bigint) {
-  await prisma.customerPrice.create({
-    data: {
-      id: id(n),
-      customerRelationshipId: relId,
-      productId,
-      price,
-      setById: SUPPLIER_OWNER,
-    },
+  await seedCustomerPrice(prisma, {
+    id: id(n),
+    customerRelationshipId: relId,
+    productVariantId: productId,
+    price,
+    setById: SUPPLIER_OWNER,
   });
 }
 
@@ -216,15 +214,13 @@ describe('GET /api/v1/organizations/:organizationId/catalog', () => {
 
   it('a deleted negotiated price is ignored', async () => {
     await seedRelationship(id('d1'), { personId: CUSTOMER_A });
-    await prisma.customerPrice.create({
-      data: {
-        id: id('e1'),
-        customerRelationshipId: id('d1'),
-        productId: RICE,
-        price: 2800n,
-        setById: SUPPLIER_OWNER,
-        deletedAt: REG,
-      },
+    await seedCustomerPrice(prisma, {
+      id: id('e1'),
+      customerRelationshipId: id('d1'),
+      productVariantId: RICE,
+      price: 2800n,
+      setById: SUPPLIER_OWNER,
+      deletedAt: REG,
     });
 
     const page = bodyOf<Page>(await browse(CUSTOMER_A));

@@ -27069,7 +27069,7 @@
           "sync"
         ],
         "summary": "Pull what changed for the signed-in person since the last pull",
-        "description": "Returns, per synchronized table, the rows created, updated and deleted since `last_pulled_at` (epoch milliseconds; absent for a first pull), limited to what the caller may see. Order, order line and delivery rows follow the role of the caller: supplier view for owners, managers and sellers, a narrower view for drivers, the customer view for customers. The header `X-Scope-Version` is the rights version the phone knows: when it is lower than the person's and `last_pulled_at` is set, the answer is `{ resync_required: true }` without changes and the phone starts again with a full pull. A full pull records the version on the device. Every pull sets the device `last_synced_at`.",
+        "description": "Returns, per synchronized table, the rows created, updated and deleted since `last_pulled_at` (epoch milliseconds; absent for a first pull), limited to what the caller may see. Order, order line and delivery rows follow the role of the caller: supplier view for owners, managers and sellers, a narrower view for drivers, the customer view for customers. The header `X-Scope-Version` is the rights version the phone knows: when it is lower than the person's and `last_pulled_at` is set, the answer is `{ resync_required: true }` without changes and the phone starts again with a full pull. A full pull records the version on the device. Every pull sets the device `last_synced_at`. `customer_prices` created/updated rows identify `product_variant_id`, never `product_id`. Clients must migrate their local price references to variants; there is no legacy field alias. Rights scope versions and incremental timestamp/deletion rules are unchanged.",
         "security": [
           {
             "bearerAuth": []
@@ -27108,38 +27108,142 @@
                       "type": "object",
                       "properties": {
                         "changes": {
-                          "type": "object",
-                          "additionalProperties": {
-                            "type": "object",
-                            "properties": {
-                              "created": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "additionalProperties": {}
-                                }
-                              },
-                              "updated": {
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "additionalProperties": {}
-                                }
-                              },
-                              "deleted": {
-                                "type": "array",
-                                "items": {
-                                  "type": "string",
-                                  "format": "uuid"
-                                }
+                          "allOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "created": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "additionalProperties": {}
+                                    }
+                                  },
+                                  "updated": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "additionalProperties": {}
+                                    }
+                                  },
+                                  "deleted": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "format": "uuid"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "created",
+                                  "updated",
+                                  "deleted"
+                                ]
                               }
                             },
-                            "required": [
-                              "created",
-                              "updated",
-                              "deleted"
-                            ]
-                          }
+                            {
+                              "type": "object",
+                              "properties": {
+                                "customer_prices": {
+                                  "type": "object",
+                                  "properties": {
+                                    "created": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string",
+                                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                                          },
+                                          "customer_relationship_id": {
+                                            "type": "string",
+                                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                                          },
+                                          "product_variant_id": {
+                                            "type": "string",
+                                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                                          },
+                                          "price": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                          },
+                                          "set_at": {
+                                            "type": "integer"
+                                          },
+                                          "server_updated_at": {
+                                            "type": "integer"
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "customer_relationship_id",
+                                          "product_variant_id",
+                                          "price",
+                                          "set_at",
+                                          "server_updated_at"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "updated": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "id": {
+                                            "type": "string",
+                                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                                          },
+                                          "customer_relationship_id": {
+                                            "type": "string",
+                                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                                          },
+                                          "product_variant_id": {
+                                            "type": "string",
+                                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                                          },
+                                          "price": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                          },
+                                          "set_at": {
+                                            "type": "integer"
+                                          },
+                                          "server_updated_at": {
+                                            "type": "integer"
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "customer_relationship_id",
+                                          "product_variant_id",
+                                          "price",
+                                          "set_at",
+                                          "server_updated_at"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "deleted": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "created",
+                                    "updated",
+                                    "deleted"
+                                  ]
+                                }
+                              }
+                            }
+                          ]
                         },
                         "timestamp": {
                           "type": "integer"

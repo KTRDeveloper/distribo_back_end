@@ -1,3 +1,4 @@
+import { seedCustomerPrice } from '../../helpers/catalog-fixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
@@ -208,23 +209,19 @@ describe('GET /api/v1/sync/pull (relationships and negotiated prices)', () => {
         data: { id, organizationId: org, name: 'Eau', unit: 'carton', price: 5000n },
       });
     }
-    await prisma.customerPrice.create({
-      data: {
-        id: PRICE,
-        customerRelationshipId: REL_CUSTOMER,
-        productId: PRODUCT,
-        price: 4500n,
-        setById: SELLER,
-      },
+    await seedCustomerPrice(prisma, {
+      id: PRICE,
+      customerRelationshipId: REL_CUSTOMER,
+      productVariantId: PRODUCT,
+      price: 4500n,
+      setById: SELLER,
     });
-    await prisma.customerPrice.create({
-      data: {
-        id: PRICE_B,
-        customerRelationshipId: REL_OTHER_ORG,
-        productId: PRODUCT_B,
-        price: 100n,
-        setById: OWNER_B,
-      },
+    await seedCustomerPrice(prisma, {
+      id: PRICE_B,
+      customerRelationshipId: REL_OTHER_ORG,
+      productVariantId: PRODUCT_B,
+      price: 100n,
+      setById: OWNER_B,
     });
   });
 
@@ -385,11 +382,66 @@ describe('GET /api/v1/sync/pull (relationships and negotiated prices)', () => {
       expect(idsOf(rows)).toEqual([PRICE]);
       expect(rows[0]).toMatchObject({
         customer_relationship_id: REL_CUSTOMER,
-        product_id: PRODUCT,
+        product_variant_id: PRODUCT,
         price: 4500,
       });
     }
     for (const person of [DRIVER, DRIVER_IDLE]) {
+      const body = bodyOf<PullBody>(await pull(person));
+      expect(body.changes['customer_prices']).toEqual({ created: [], updated: [], deleted: [] });
+    }
+  });
+
+  it('pulls a distinct variant with only the price wire fields, including incremental updates', async () => {
+    const variantId = '0199e004-0000-7000-8000-0000000000d3';
+    await prisma.productVariant.create({
+      data: {
+        id: variantId,
+        productId: PRODUCT,
+        organizationId: ORG_A,
+        name: 'sac 10 kg',
+        unit: 'sac',
+        price: 5000n,
+      },
+    });
+    await prisma.customerPrice.update({
+      where: { id: PRICE },
+      data: { productVariantId: variantId },
+    });
+
+    for (const person of [OWNER, SELLER, CUSTOMER]) {
+      const first = bodyOf<PullBody>(await pull(person));
+      const row = first.changes['customer_prices'].created[0];
+      expect(Object.keys(row).sort()).toEqual([
+        'customer_relationship_id',
+        'id',
+        'price',
+        'product_variant_id',
+        'server_updated_at',
+        'set_at',
+      ]);
+      expect(row).toMatchObject({
+        id: PRICE,
+        customer_relationship_id: REL_CUSTOMER,
+        product_variant_id: variantId,
+        price: 4500,
+      });
+
+      await sleep(20);
+      await prisma.customerPrice.update({ where: { id: PRICE }, data: { price: 4500n } });
+      const incremental = bodyOf<PullBody>(
+        await pull(person, `?last_pulled_at=${first.timestamp}`)
+      );
+      const updated = incremental.changes['customer_prices'].updated;
+      expect(updated).toHaveLength(1);
+      expect(updated[0]).toEqual({
+        ...row,
+        server_updated_at: updated[0]['server_updated_at'],
+      });
+      expect(updated[0]['server_updated_at']).toBeGreaterThan(first.timestamp);
+    }
+
+    for (const person of [DRIVER, DRIVER_IDLE, CUSTOMER_3]) {
       const body = bodyOf<PullBody>(await pull(person));
       expect(body.changes['customer_prices']).toEqual({ created: [], updated: [], deleted: [] });
     }

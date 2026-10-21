@@ -16,6 +16,29 @@ const tableChangesSchema = z.object({
   deleted: z.array(z.string().uuid()),
 });
 
+const customerPriceRowSchema = z
+  .object({
+    id: uuidV7Schema,
+    customer_relationship_id: uuidV7Schema,
+    product_variant_id: uuidV7Schema,
+    price: z.number().int().nonnegative(),
+    set_at: z.number().int(),
+    server_updated_at: z.number().int(),
+  })
+  .strict();
+
+const pullChangesSchema = z.record(z.string(), tableChangesSchema).and(
+  z.object({
+    customer_prices: z
+      .object({
+        created: z.array(customerPriceRowSchema),
+        updated: z.array(customerPriceRowSchema),
+        deleted: z.array(uuidV7Schema),
+      })
+      .optional(),
+  })
+);
+
 openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/sync/pull',
@@ -29,7 +52,10 @@ openApiRegistry.registerPath({
     'The header `X-Scope-Version` is the rights version the phone knows: when it is lower than the ' +
     "person's and `last_pulled_at` is set, the answer is `{ resync_required: true }` without changes " +
     'and the phone starts again with a full pull. A full pull records the version on the device. ' +
-    'Every pull sets the device `last_synced_at`.',
+    'Every pull sets the device `last_synced_at`. ' +
+    '`customer_prices` created/updated rows identify `product_variant_id`, never `product_id`. ' +
+    'Clients must migrate their local price references to variants; there is no legacy field alias. ' +
+    'Rights scope versions and incremental timestamp/deletion rules are unchanged.',
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
@@ -54,7 +80,7 @@ openApiRegistry.registerPath({
         'application/json': {
           schema: z.union([
             z.object({
-              changes: z.record(z.string(), tableChangesSchema),
+              changes: pullChangesSchema,
               timestamp: z.number().int(),
               scope_version: z.number().int(),
             }),

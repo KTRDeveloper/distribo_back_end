@@ -265,7 +265,9 @@ describe('first push after a rights change (SYNC-019)', () => {
           ],
         }),
         customer_prices: table({
-          updated: [{ id: PRICE, customer_relationship_id: REL, product_id: PRODUCT, price: 10 }],
+          updated: [
+            { id: PRICE, customer_relationship_id: REL, product_variant_id: PRODUCT, price: 10 },
+          ],
         }),
       });
 

@@ -1,5 +1,29 @@
 import type { Prisma } from '@prisma/client';
 
+type SeedCustomerPriceInput = Omit<
+  Prisma.CustomerPriceUncheckedCreateInput,
+  'productId' | 'productVariantId'
+> & { productVariantId: string };
+
+/**
+ * Seeds a variant's negotiated price while the legacy parent column is mandatory.
+ * CAT-043 removes the parent lookup and compatibility field when dropping that column.
+ * @param client Prisma client or enclosing transaction client; writes use parameterized ORM queries.
+ * @param input Fake price values identifying only the variant, never its parent product.
+ * @returns The inserted price row.
+ * @throws If the variant is missing or the database rejects the fixture; no error is swallowed.
+ */
+export async function seedCustomerPrice(
+  client: Prisma.TransactionClient,
+  input: SeedCustomerPriceInput
+) {
+  const variant = await client.productVariant.findUniqueOrThrow({
+    where: { id: input.productVariantId },
+    select: { productId: true },
+  });
+  return client.customerPrice.create({ data: { ...input, productId: variant.productId } });
+}
+
 export type SeedProductInput = {
   id: string;
   organizationId: string;

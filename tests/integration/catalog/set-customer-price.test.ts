@@ -3,7 +3,7 @@ import request from 'supertest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
-import { seedProduct } from '../../helpers/catalog-fixtures.js';
+import { seedCustomerPrice, seedProduct } from '../../helpers/catalog-fixtures.js';
 import { prisma } from '../../setup.js';
 
 const id = (n: string) => `0199c0c8-0000-7000-8000-0000000000${n}`;
@@ -234,15 +234,13 @@ describe('PUT /api/v1/organizations/:organizationId/customers/:relationshipId/pr
   });
 
   it('a price deleted earlier does not block a new live price', async () => {
-    await prisma.customerPrice.create({
-      data: {
-        id: id('e1'),
-        customerRelationshipId: REL,
-        productId: RICE,
-        price: 100n,
-        setById: OWNER,
-        deletedAt: REG,
-      },
+    await seedCustomerPrice(prisma, {
+      id: id('e1'),
+      customerRelationshipId: REL,
+      productVariantId: RICE,
+      price: 100n,
+      setById: OWNER,
+      deletedAt: REG,
     });
 
     expect((await put(REL, RICE, { id: G1, price: 2800 })).status).toBe(200);
