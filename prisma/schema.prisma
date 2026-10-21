@@ -1360,10 +1360,14 @@ model Order {
 // can never be saved or updated with an empty variant (SQLSTATE 23502). Code may
 // still leave the variant out of a create, because the database fills it, so the
 // field has an unknown default here and every read returns a value.
+// Migration 20261021210235_ord_032_line_product_optional: the product is optional.
+// The variant alone decides which product and supplier the line belongs to; a
+// product given by the caller must still match the variant's product. The insert
+// trigger checks this because Prisma cannot express rules across these tables.
 model OrderLine {
   id                String    @id @db.Uuid
   orderId           String    @map("order_id") @db.Uuid
-  productId         String    @map("product_id") @db.Uuid
+  productId         String?   @map("product_id") @db.Uuid
   productVariantId  String    @default(dbgenerated()) @map("product_variant_id") @db.Uuid
   labelApplied      String    @map("label_applied")
   quantity          Decimal   @db.Decimal(12, 3)
@@ -1377,7 +1381,7 @@ model OrderLine {
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
 
   order          Order          @relation(fields: [orderId], references: [id])
-  product        Product        @relation(fields: [productId], references: [id])
+  product        Product?       @relation(fields: [productId], references: [id], onDelete: Restrict)
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
   priceSetBy     Person?        @relation("OrderLinePriceSetBy", fields: [priceSetById], references: [id])
 

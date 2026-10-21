@@ -1032,3 +1032,34 @@ Also in this run: relationship, admin, catalog, finance, delivery.
 
 ORD-031 done
 <!-- end ORD-031 -->
+
+<!-- begin ORD-032 -->
+## ORD-032 — An order line may be saved without its product
+
+- Filed: 2026-10-21 21:17 UTC
+- Status: **done**: Produit facultatif, controles et reliquats par variante; 4671/4671 tests, typecheck propre, lint 0 erreur (199 avertissements).
+- Risk: high · story: [ORD-032-an-order-line-may-be-saved-without-its-product.md](../modules/order/ORD-032-an-order-line-may-be-saved-without-its-product.md)
+- Agent: 63,552 tokens, 23 tool uses, 5 min 22 s
+
+### Agent report
+
+**Summary:** ORD-032 done: transactional migration makes order-line product optional; variant-based checks, sync price controls and delivery rests remain functional.
+
+**Decisions:**
+- Preserve the existing product FK deletion behavior with explicit `onDelete: Restrict`; supplied products still must match the required variant.
+- Follow the existing catalogue contract for variant reference prices; retirement checks read the variant and its actual parent.
+- Preserve null productId in delivery rests, without guessing IDs or changing API contracts; delivery.service.ts needs no change.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/order/line-product-optional.test.ts`: deletion, pause and minimum-boundary guards; these rejection guards passed before implementation.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/sync/nullable-line-prices.test.ts`: distinct variant/parent IDs, null products, price correction, negotiated prices, retired-state controls and supplier scope; all 7 failed before fixes, then passed.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/delivery/line-variant.test.ts`: null-product rest preserves variant, discount and remaining quantity; passed immediately as a regression guard.
+
+**Evidence:** story tests 51/51; expanded focused tests 99/99; final full suite 4671/4671, failing none, 0 known; typecheck clean; lint 0 errors, 199 warnings; git diff --check clean.
+
+**Follow-ups:**
+- Dependency audit reports 94 vulnerabilities (53 moderate, 35 high, 6 critical); dependencies unchanged, no fixes attempted. SAST/secret scanner executables unavailable.
+- Status marked done; no commits. No Markdown report written, following the developer prohibition; this inline handback replaces `/tmp/distribo-next10-BPwRch6e/ORD-032-report.md`.
+
+ORD-032 done
+<!-- end ORD-032 -->

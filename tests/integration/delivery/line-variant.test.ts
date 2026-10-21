@@ -181,6 +181,37 @@ describe('DLV-014 the rest of a delivery and a counter sale keep the variant', (
     expect(child.lines[0]?.quantity.toString()).toBe('2');
   });
 
+  it('the rest preserves a null product and its distinct variant (ORD-032)', async () => {
+    await seedOrder(1, SHIRT_PRODUCT, RED_L, 'Fixture Red');
+    await prisma.orderLine.update({ where: { id: lineId(1) }, data: { productId: null } });
+
+    const response = await createAuthenticatedRequest(app, DRIVER)
+      .post(`/api/v1/organizations/${SUPPLIER}/orders/${orderId(1)}/deliver`)
+      .send({
+        id: gestureId(1),
+        collected_amount: 0,
+        sale_entry_id: saleId(1),
+        lines: [{ line_id: lineId(1), delivered_quantity: '3' }],
+        rest: 'LATER',
+      });
+
+    expect(response.status).toBe(200);
+    const child = await prisma.order.findFirstOrThrow({
+      where: { parentOrderId: orderId(1) },
+      include: { lines: true },
+    });
+    expect(child.lines).toHaveLength(1);
+    expect(child.lines[0]).toMatchObject({
+      productId: null,
+      productVariantId: RED_L,
+      referencePrice: 3000n,
+      unitPriceApplied: 2700n,
+      amount: 5400n,
+      priceSetById: SELLER,
+    });
+    expect(child.lines[0]?.quantity.toString()).toBe('2');
+  });
+
   it('a counter sale names the variant and its product (AC-2)', async () => {
     const response = await createAuthenticatedRequest(app, SELLER)
       .post(`/api/v1/organizations/${SUPPLIER}/counters/${COUNTER}/sales`)

@@ -174,6 +174,11 @@ describe('order line amount rule (AC-1, C-20, CM-14, C-01, C-35)', () => {
     for (const column of ['id', 'order_id', 'product_id', 'price_set_by_id']) {
       await expectColumnType('order_lines', column, 'uuid');
     }
+    const [productColumn] = await prisma.$queryRaw<Array<{ is_nullable: string }>>`
+      SELECT is_nullable FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'order_lines' AND column_name = 'product_id'
+    `;
+    expect(productColumn.is_nullable).toBe('YES');
     for (const column of ['reference_price', 'unit_price_applied', 'amount']) {
       await expectColumnType('order_lines', column, 'bigint');
     }

@@ -449,7 +449,12 @@ export async function findFlaggedOrders(
       deliveredById: true,
       lines: {
         where: { deletedAt: null },
-        select: { productId: true, quantity: true, unitPriceApplied: true, referencePrice: true },
+        select: {
+          productVariantId: true,
+          quantity: true,
+          unitPriceApplied: true,
+          referencePrice: true,
+        },
         orderBy: { id: 'asc' },
       },
     },
@@ -463,7 +468,11 @@ export async function findFlaggedOrders(
       const lines: FlaggedLine[] = [];
       if (issue.includes('PRICE_CHANGED:')) {
         for (const line of order.lines) {
-          const current = await getReferencePrice(tx, order.customerRelationshipId, line.productId);
+          const current = await getReferencePrice(
+            tx,
+            order.customerRelationshipId,
+            line.productVariantId
+          );
           lines.push({
             quantity: line.quantity,
             unitPriceApplied: line.unitPriceApplied,

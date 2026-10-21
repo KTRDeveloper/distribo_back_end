@@ -501,10 +501,10 @@ export async function setLineDelivered(
 
 /**
  * A line of the order made for the undelivered rest, its amount computed by the caller. It keeps the
- * variant of the original line: the database only fills it for a product's legacy variant (ORD-025).
+ * variant of the original line and preserves its optional product without guessing (ORD-032).
  */
 export type RestLine = {
-  productId: string;
+  productId: string | null;
   productVariantId: string;
   labelApplied: string;
   quantity: string;

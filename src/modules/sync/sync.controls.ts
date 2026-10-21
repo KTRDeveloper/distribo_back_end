@@ -45,19 +45,36 @@ async function priceControl(
   lines: OrderLine[]
 ): Promise<string | null> {
   const parts: string[] = [];
-  const products = await tx.product.findMany({
-    where: { id: { in: lines.map((line) => line.productId) } },
-    select: { id: true, status: true, deletedAt: true },
+  const variants = await tx.productVariant.findMany({
+    where: { id: { in: lines.map((line) => line.productVariantId) } },
+    select: {
+      id: true,
+      status: true,
+      deletedAt: true,
+      product: { select: { deletedAt: true, pausedAt: true } },
+    },
   });
   const retired = new Set(
-    products.filter((p) => p.status !== 'ACTIVE' || p.deletedAt !== null).map((p) => p.id)
+    variants
+      .filter(
+        (variant) =>
+          variant.status !== 'ACTIVE' ||
+          variant.deletedAt !== null ||
+          variant.product.deletedAt !== null ||
+          variant.product.pausedAt !== null
+      )
+      .map((variant) => variant.id)
   );
   for (const line of lines) {
-    const current = await getReferencePrice(tx, order.customerRelationshipId, line.productId);
+    const current = await getReferencePrice(
+      tx,
+      order.customerRelationshipId,
+      line.productVariantId
+    );
     if (line.referencePrice === current.price) continue;
     if (current.changedAt.getTime() > order.createdAt.getTime()) {
       // A withdrawn article's price will not be applied again: PRODUCT_RETIRED already says it.
-      if (retired.has(line.productId)) continue;
+      if (retired.has(line.productVariantId)) continue;
       const said = `vendu ${francs(line.unitPriceApplied)} ; prix passé à ${francs(current.price)} ${whenWords(current.changedAt)}`;
       parts.push(lines.length > 1 ? `${line.labelApplied} : ${said}` : said);
       continue;
