@@ -1281,3 +1281,37 @@ Also in this run: relationship, admin, order, finance, delivery.
 **Follow-ups:**
 - openapi/openapi.json regenerated.
 <!-- end CAT-011 -->
+
+<!-- begin CAT-031 -->
+## CAT-031 — Reseller copies purchased variants into their catalog
+
+- Filed: 2026-10-21 12:31 UTC
+- Status: **done**: 51 story tests and 4581 suite tests pass; typecheck clean; lint 0 errors; dependency audit findings and unavailable scanners reported
+- Risk: medium · story: [CAT-031-reseller-copies-purchased-variants-into-their.md](../modules/catalog/CAT-031-reseller-copies-purchased-variants-into-their.md)
+- Agent: 52,177 tokens, 54 tool uses, 13 min 56 s
+
+### Agent report
+
+**Summary:** CAT-031 implemented: strict variant-copy input, tenant-scoped source/destination checks, reseller prices, twin reporting, transactional writes and updated OpenAPI.
+
+**Decisions:**
+- Reused variant-then-product locks to serialize concurrent destination copies consistently with deletion.
+- Source queries explicitly select texts only; supplier prices, minimum quantities and photos are never read.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/catalog/copy-variants.test.ts` › concurrent copies: both succeed, one variant wins and the other reports its twin (C-47; observed failing before implementation).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/catalog/copy-variants.test.ts` › invalid later source: existing destination remains unchanged (transaction convention; observed failing before implementation).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/catalog/copy-variants.test.ts` › quota boundary and deleted/unnamed twins: guards C-46/C-47; observed failing before implementation.
+
+**Other additions:**
+- Generated OpenAPI artifact refreshed by suite tooling; no route added and no dependencies changed.
+
+**Evidence:** story tests 51/51; full suite 4581/4581 across 333 files, failing: none, 0 known; typecheck clean; lint 0 errors, 197 warnings; diff whitespace check clean.
+
+**Follow-ups:**
+- Dependency audit reports 94 vulnerabilities (53 moderate, 35 high, 6 critical); dependency remediation remains outside this story.
+- Semgrep and Gitleaks are unavailable, so those scans were not run.
+- Report returned directly rather than written to the requested scratchpad path, following the explicit no-report-file instruction.
+
+CAT-031 done
+<!-- end CAT-031 -->

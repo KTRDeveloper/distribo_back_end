@@ -20,19 +20,6 @@ const organizationParamsSchema = z.object({ organizationId: uuidV7Schema });
 const productParamsSchema = organizationParamsSchema.extend({ productId: uuidV7Schema });
 const variantParamsSchema = productParamsSchema.extend({ variantId: uuidV7Schema });
 
-const productViewSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  unit: z.string(),
-  price: z.number().int(),
-  price_updated_at: z.string().datetime(),
-  min_order_quantity: z.string().nullable(),
-  description: z.string().nullable(),
-  category: z.string().nullable(),
-  status: z.enum(['ACTIVE', 'INACTIVE']),
-  created_at: z.string().datetime(),
-});
-
 const createdVariantViewSchema = z.object({
   id: z.string().uuid(),
   name: z.string().nullable(),
@@ -418,7 +405,7 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/api/v1/organizations/{organizationId}/products/copy',
   tags: ['catalog'],
-  summary: 'The owner or an online manager copies an article they buy into their catalog',
+  summary: 'The owner or an online manager copies purchased variants into their catalog',
   security: [{ bearerAuth: [] }],
   request: {
     params: organizationParamsSchema,
@@ -426,16 +413,35 @@ openApiRegistry.registerPath({
   },
   responses: {
     201: {
-      description: 'The created product, with no link to the source',
-      content: { 'application/json': { schema: productViewSchema } },
+      description: 'The destination product, copied variant ids and unchanged live twins',
+      content: {
+        'application/json': {
+          schema: z.object({
+            product: createdProductViewSchema,
+            copied: z.array(z.string().uuid()),
+            already_in_catalog: z.array(
+              z.object({
+                source_variant_id: z.string().uuid(),
+                variant_id: z.string().uuid(),
+                status: z.enum(['ACTIVE', 'INACTIVE']),
+              })
+            ),
+          }),
+        },
+      },
     },
     400: { description: 'Invalid body', content: errorContent },
     401: { description: 'Missing or invalid token', content: errorContent },
     403: { description: 'Role not allowed', content: errorContent },
     404: {
-      description: 'Not a member, or the source is not an ACTIVE article of a supplier',
+      description:
+        'Not a member; source product or variant unavailable through a live supplier relationship; destination absent, deleted or outside the organization',
       content: errorContent,
     },
-    409: { description: 'Organization not active or conflicting repeat', content: errorContent },
+    409: {
+      description:
+        'Organization not active (ORGANIZATION_NOT_ACTIVE), plan limit reached (PRODUCT_LIMIT_REACHED) or conflicting repeat',
+      content: errorContent,
+    },
   },
 });

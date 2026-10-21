@@ -293,16 +293,51 @@ export type CopyCustomerPricesInput = z.infer<typeof copyCustomerPricesSchema>;
 export type CopyCustomerPricesView = { copied: number };
 
 /**
- * Strict body of the copy-article gesture (ASVS v5.0.0-15.3.3): the gesture id, the source
- * article and the caller's own price. Texts come from the source, the organization and the
- * status from the server (CWE-915).
+ * Strict copy body: an existing destination or a new product name, and 1 to 50 source variants
+ * with the reseller's prices. Source ids and new variant ids are distinct; status, photos and
+ * minimum quantities are never writable (ASVS v5.0.0-15.3.3, CWE-915).
  */
 export const copyProductSchema = z
   .object({
     id: uuidV7Schema,
     source_product_id: uuidV7Schema,
-    price: z.number().int().safe().min(1),
+    destination: z.union([
+      z.object({ product_id: uuidV7Schema }).strict(),
+      z.object({ name: z.string().trim().min(1).max(NAME_MAX).optional() }).strict(),
+    ]),
+    variants: z
+      .array(
+        z
+          .object({
+            id: uuidV7Schema,
+            source_variant_id: uuidV7Schema,
+            price: z.number().int().safe().min(1),
+          })
+          .strict()
+      )
+      .min(1)
+      .max(VARIANTS_MAX)
+      .refine((list) => new Set(list.map((variant) => variant.id)).size === list.length, {
+        message: 'duplicate_variant_id',
+      })
+      .refine(
+        (list) => new Set(list.map((variant) => variant.source_variant_id)).size === list.length,
+        {
+          message: 'duplicate_source_variant_id',
+        }
+      ),
   })
   .strict();
 
 export type CopyProductInput = z.infer<typeof copyProductSchema>;
+
+/** Closed copy result: the destination and the copied ids or unchanged live twins (C-47). */
+export type CopyProductResult = {
+  product: ProductView;
+  copied: string[];
+  already_in_catalog: Array<{
+    source_variant_id: string;
+    variant_id: string;
+    status: 'ACTIVE' | 'INACTIVE';
+  }>;
+};

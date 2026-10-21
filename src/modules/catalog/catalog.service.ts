@@ -26,7 +26,6 @@ import {
   getProductOfOrganization,
   getVariantOfOrganization,
   insertActiveVariant,
-  insertProduct,
   insertProductForVariants,
   listCatalogForCustomer,
   listCustomerPricesOfRelationship,
@@ -47,6 +46,7 @@ import type {
   BrowseQuery,
   CopyCustomerPricesInput,
   CopyProductInput,
+  CopyProductResult,
   CopyCustomerPricesView,
   CatalogPage,
   CreateProductInput,
@@ -55,7 +55,6 @@ import type {
   EditProductInput,
   EditVariantInput,
   EditedVariantView,
-  FlatProductView,
   ListCustomerPricesQuery,
   ListProductsQuery,
   ProductPage,
@@ -64,22 +63,6 @@ import type {
   VariantInput,
   VariantView,
 } from './catalog.schemas.js';
-
-/** Builds the closed flat product view from an explicit field list. */
-function toFlatProductView(product: Product): FlatProductView {
-  return {
-    id: product.id,
-    name: product.name,
-    unit: product.unit,
-    price: Number(product.price),
-    price_updated_at: product.priceUpdatedAt.toISOString(),
-    min_order_quantity: product.minOrderQuantity?.toString() ?? null,
-    description: product.description,
-    category: product.category,
-    status: product.status,
-    created_at: product.createdAt.toISOString(),
-  };
-}
 
 /** Tells whether the database refused a row as a duplicate (PostgreSQL 23505, Prisma P2002). */
 function isUniqueViolation(error: unknown): boolean {
@@ -392,34 +375,94 @@ export async function deleteProduct(actor: Actor, productId: string): Promise<vo
 }
 
 /**
- * Copies an article the actor's organization buys into its own catalog, at its own price.
+ * Copies purchased variants into a new or existing product at the reseller's prices (CAT-031).
  *
- * The role is decided by the route (`create Product`, ASVS v5.0.0-8.2.1). One transaction checks
- * that the organization is ACTIVE, then reads the source only through a live ACTIVE relationship
- * where the actor's organization is the customer (404 otherwise, so a competitor's article is
- * never confirmed; v5.0.0-8.2.2). The copy takes name, unit, description and category, keeps no
- * link to the source and does not take its minimum order quantity. Status and `price_updated_at`
- * are set by the server (C-13).
+ * The route authorizes owners and online managers (ASVS v5.0.0-8.2.1). All sources are checked
+ * through the buyer's live supplier relationship before any write; supplier prices and minimums
+ * are never read. The destination belongs to the actor's organization (v5.0.0-8.2.2). Existing
+ * destinations are locked in the same variant-then-product order as deletion so concurrent copies
+ * see the winning live twin instead of violating C-47. Twins of either status stay unchanged.
+ * One transaction checks C-46 room before creating a product or filling an unpaused destination
+ * with no ACTIVE variants. New rows have no photos, minimums or source links (v5.0.0-15.3.3).
  *
  * @param actor - Actor loaded from the path.
- * @param input - Validated body: gesture id, source article, caller's price in XAF.
- * @throws 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE`.
+ * @param input - Strictly validated source, destination and variant ids with reseller prices.
+ * @returns The destination view, created variant ids and existing twins with their statuses.
+ * @throws 404 `NOT_FOUND`; 409 `ORGANIZATION_NOT_ACTIVE` or `PRODUCT_LIMIT_REACHED`.
  */
-export async function copyProduct(actor: Actor, input: CopyProductInput): Promise<FlatProductView> {
+export async function copyProduct(
+  actor: Actor,
+  input: CopyProductInput
+): Promise<CopyProductResult> {
   return runInTransaction(async (tx) => {
     await assertOrganizationActive(actor.organizationId, tx);
-    const source = await getProductCopyableBy(tx, actor.organizationId, input.source_product_id);
-    const product = await insertProduct(tx, {
-      id: input.id,
-      organizationId: actor.organizationId,
-      name: source.name,
-      unit: source.unit,
-      price: BigInt(input.price),
-      minOrderQuantity: null,
-      description: source.description,
-      category: source.category,
-    });
-    return toFlatProductView(product);
+    const source = await getProductCopyableBy(
+      tx,
+      actor.organizationId,
+      input.source_product_id,
+      input.variants.map((variant) => variant.source_variant_id)
+    );
+    let product: Product;
+    if ('product_id' in input.destination) {
+      const destinationId = input.destination.product_id;
+      await lockLiveVariantsOfProduct(tx, actor.organizationId, destinationId);
+      const locked = await lockProductOfOrganizationAnyState(
+        tx,
+        actor.organizationId,
+        destinationId
+      );
+      if (!locked || locked.deletedAt !== null) throw httpError(404, 'NOT_FOUND', 'Not found');
+      product = await getProductOfOrganization(tx, actor.organizationId, destinationId);
+      const variants = await listLiveVariantsOfProduct(tx, product.id);
+      if (product.pausedAt === null && !variants.some((variant) => variant.status === 'ACTIVE')) {
+        await assertRoomForProduct(tx, actor.organizationId);
+      }
+    } else {
+      await assertRoomForProduct(tx, actor.organizationId);
+      product = await insertProductForVariants(tx, {
+        id: input.id,
+        organizationId: actor.organizationId,
+        name: input.destination.name ?? source.name,
+        description: source.description,
+        category: source.category,
+      });
+    }
+    const sources = new Map(source.variants.map((variant) => [variant.id, variant]));
+    const copied: CopyProductResult['copied'] = [];
+    const alreadyInCatalog: CopyProductResult['already_in_catalog'] = [];
+    for (const requested of input.variants) {
+      const variant = sources.get(requested.source_variant_id);
+      if (!variant) throw httpError(404, 'NOT_FOUND', 'Not found');
+      const twin = await findLiveVariantByText(
+        tx,
+        product.id,
+        variant.name ?? undefined,
+        variant.unit
+      );
+      if (twin) {
+        alreadyInCatalog.push({
+          source_variant_id: variant.id,
+          variant_id: twin.id,
+          status: twin.status,
+        });
+        continue;
+      }
+      const created = await insertActiveVariant(tx, {
+        id: requested.id,
+        productId: product.id,
+        organizationId: actor.organizationId,
+        name: variant.name,
+        unit: variant.unit,
+        price: BigInt(requested.price),
+        minOrderQuantity: null,
+      });
+      copied.push(created.id);
+    }
+    return {
+      product: toProductView(product, await listLiveVariantsOfProduct(tx, product.id)),
+      copied,
+      already_in_catalog: alreadyInCatalog,
+    };
   });
 }
 

@@ -24,6 +24,7 @@ const ENDED_SOURCE = id('b5');
 const DELETED_SOURCE = id('b6');
 
 const NEW_ID = id('f1');
+const NEW_VARIANT_ID = id('f2');
 const REG = new Date('2026-01-01T00:00:00.000Z');
 
 async function seedPerson(personId: string, phone: string) {
@@ -59,7 +60,8 @@ function copy(body: object, caller = BUYER_MANAGER, organizationId = BUYER_ORG) 
 const validBody = (over: object = {}) => ({
   id: NEW_ID,
   source_product_id: SOURCE,
-  price: 9000,
+  destination: {},
+  variants: [{ id: NEW_VARIANT_ID, source_variant_id: SOURCE, price: 9000 }],
   ...over,
 });
 
@@ -153,36 +155,38 @@ describe('POST /api/v1/organizations/:organizationId/products/copy', () => {
 
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
-      id: NEW_ID,
-      name: 'Pack 24',
-      unit: 'carton de 24',
-      description: 'Eau minerale',
-      category: 'Boissons',
-      price: 9000,
-      status: 'ACTIVE',
-      min_order_quantity: null,
+      product: {
+        id: NEW_ID,
+        name: 'Pack 24',
+        description: 'Eau minerale',
+        category: 'Boissons',
+        variants: [
+          {
+            id: NEW_VARIANT_ID,
+            unit: 'carton de 24',
+            price: 9000,
+            status: 'ACTIVE',
+            min_order_quantity: null,
+          },
+        ],
+      },
+      copied: [NEW_VARIANT_ID],
+      already_in_catalog: [],
     });
     expect(Object.keys(bodyOf<Record<string, unknown>>(response)).sort()).toEqual(
-      [
-        'category',
-        'created_at',
-        'description',
-        'id',
-        'min_order_quantity',
-        'name',
-        'price',
-        'price_updated_at',
-        'status',
-        'unit',
-      ].sort()
+      ['product', 'copied', 'already_in_catalog'].sort()
     );
     expect(await productCount()).toBe(before + 1);
     const row = await prisma.product.findUniqueOrThrow({ where: { id: NEW_ID } });
     expect(row.organizationId).toBe(BUYER_ORG);
     expect(row.status).toBe('ACTIVE');
-    expect(row.price).toBe(9000n);
     expect(row.minOrderQuantity).toBeNull();
-    expect(row.priceUpdatedAt).toBeInstanceOf(Date);
+    const variant = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: NEW_VARIANT_ID },
+    });
+    expect(variant.price).toBe(9000n);
+    expect(variant.minOrderQuantity).toBeNull();
+    expect(variant.priceUpdatedAt).toBeInstanceOf(Date);
   });
 
   it('AC-1 an OWNER may copy too', async () => {
@@ -217,7 +221,9 @@ describe('POST /api/v1/organizations/:organizationId/products/copy', () => {
 
   it('AC-4 price 0 answers 400', async () => {
     const before = await productCount();
-    const response = await copy(validBody({ price: 0 }));
+    const response = await copy(
+      validBody({ variants: [{ id: NEW_VARIANT_ID, source_variant_id: SOURCE, price: 0 }] })
+    );
     expect(response.status).toBe(400);
     expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
     expect(await productCount()).toBe(before);
@@ -227,7 +233,13 @@ describe('POST /api/v1/organizations/:organizationId/products/copy', () => {
     expect((await copy(validBody({ organization_id: OTHER_ORG }))).status).toBe(400);
     expect((await copy(validBody({ name: 'Other name' }))).status).toBe(400);
     expect((await copy({ id: NEW_ID, price: 9000 })).status).toBe(400);
-    expect((await copy(validBody({ price: 10.5 }))).status).toBe(400);
+    expect(
+      (
+        await copy(
+          validBody({ variants: [{ id: NEW_VARIANT_ID, source_variant_id: SOURCE, price: 10.5 }] })
+        )
+      ).status
+    ).toBe(400);
   });
 
   it('AC-4 a SELLER answers 403', async () => {

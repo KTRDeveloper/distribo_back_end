@@ -318,7 +318,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ADM-017 | done | | POST /admin/people/{id}/release-phone, SUPER_ADMIN only; all tests pass |
 | ADM-019 | done | | Start route sends EMAIL and SMS ACCESS_RESTORE codes; 11 story tests + extras green, suite 4523/4523 |
 | ADM-020 | done | | Complete restoration: two codes checked before either is spent, move + sign-out + journal + notice in one transaction |
-| CAT-031 | todo | | |
+| CAT-031 | done | | 51 story tests and 4581 suite tests pass; typecheck clean; lint 0 errors; dependency audit findings and unavailable scanners reported |
 | CAT-040 | todo | | |
 | CAT-042 | todo | | |
 | CAT-045 | todo | | |

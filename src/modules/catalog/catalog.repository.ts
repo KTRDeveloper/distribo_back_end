@@ -194,22 +194,35 @@ export async function insertActiveVariant(
 }
 
 /**
- * Returns an ACTIVE, live product that the buyer organization may copy: it belongs to another
- * organization that supplies the buyer through a live, ACTIVE relationship where the buyer is
- * `customer_organization_id` (ASVS v5.0.0-8.2.2).
+ * Reads only copyable supplier texts through the buyer's live relationship (ASVS v5.0.0-8.2.2).
+ * The product must be live and unpaused; every requested variant must be ACTIVE, live and of
+ * that product. An explicit selection never reads supplier prices, minimums or photos (CAT-031
+ * AB-2, v5.0.0-15.3.3), even to build an intermediate object.
  *
- * @throws 404 NOT_FOUND otherwise, without telling which condition failed.
+ * @param tx - The copy transaction.
+ * @param buyerOrganizationId - Buyer's organization from the loaded actor.
+ * @param productId - Requested supplier product.
+ * @param variantIds - Distinct source variant ids validated at the boundary.
+ * @returns The product texts and the selected variants' names and units only.
+ * @throws 404 `NOT_FOUND` if any source is unavailable or outside the relationship.
  */
 export async function getProductCopyableBy(
   tx: Prisma.TransactionClient,
   buyerOrganizationId: string,
-  productId: string
-): Promise<Product> {
+  productId: string,
+  variantIds: string[]
+): Promise<{
+  name: string;
+  description: string | null;
+  category: string | null;
+  variants: Array<{ id: string; name: string | null; unit: string }>;
+}> {
   const product = await tx.product.findFirst({
     where: {
       id: productId,
       status: 'ACTIVE',
       deletedAt: null,
+      pausedAt: null,
       organizationId: { not: buyerOrganizationId },
       organization: {
         suppliedRelationships: {
@@ -222,8 +235,17 @@ export async function getProductCopyableBy(
         },
       },
     },
+    select: {
+      name: true,
+      description: true,
+      category: true,
+      variants: {
+        where: { id: { in: variantIds }, status: 'ACTIVE', deletedAt: null },
+        select: { id: true, name: true, unit: true },
+      },
+    },
   });
-  if (!product) throw notFound();
+  if (!product || product.variants.length !== variantIds.length) throw notFound();
   return product;
 }
 
