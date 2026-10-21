@@ -530,13 +530,15 @@ export type ExpenseView = {
  * the payer's held money goes down. The route checked the rules table (`create` Expense, ASVS
  * v5.0.0-8.2.1). One transaction (v5.0.0-2.3.3): the organization must be ACTIVE (money moves, so
  * a CLOSED one is refused too); the payer defaults to the caller and must have a collaboration in
- * the caller's own organization, ACTIVE or revoked (a person of another business, an unknown id or
- * a mere invitee is 404, v5.0.0-8.2.2). `recordExpenseInTx` inserts the row and lowers the money.
+ * the caller's own organization, ACTIVE, PAUSED or revoked (FIN-021, CM-39): paused members keep
+ * their held money. A person of another business, an unknown id or a mere invitee is 404
+ * (v5.0.0-8.2.2). `recordExpenseInTx` inserts the row and lowers the money.
  *
  * @param actor - Person, organization and role from `loadActor`; the route checked the role.
  * @param input - Validated body.
  * @returns The stored expense.
- * @throws 404 `NOT_FOUND` (payer outside the organization); 409 `ORGANIZATION_NOT_ACTIVE`.
+ * @throws 404 `NOT_FOUND` (no ACTIVE, PAUSED or revoked payer in the organization);
+ * 409 `ORGANIZATION_NOT_ACTIVE`.
  */
 export function recordExpense(actor: Actor, input: RecordExpenseInput): Promise<ExpenseView> {
   return runInTransaction(async (tx) => {
@@ -548,7 +550,10 @@ export function recordExpense(actor: Actor, input: RecordExpenseInput): Promise<
 
     const paidById = input.paid_by_id ?? actor.personId;
     const payer = await findCollaboration(tx, paidById, actor.organizationId);
-    if (!payer || (payer.status !== 'ACTIVE' && payer.status !== 'REVOKED')) {
+    if (
+      !payer ||
+      (payer.status !== 'ACTIVE' && payer.status !== 'PAUSED' && payer.status !== 'REVOKED')
+    ) {
       throw httpError(404, 'NOT_FOUND', 'Not found');
     }
 
@@ -647,17 +652,18 @@ const HANDOVER_CONTENT = {
  * the remitter's held money falls and the caller's rises. The route checked the rules table
  * (`create` Handover, ASVS v5.0.0-8.2.1); the receiver is always the caller. One transaction
  * (v5.0.0-2.3.3): the organization must be ACTIVE; a remitter equal to the caller is a 400; the
- * remitter must have a collaboration in the caller's own organization, ACTIVE or revoked (a person
- * of another business, an unknown id or a mere invitee is 404, v5.0.0-8.2.2). `recordHandoverInTx`
- * inserts the row and moves both amounts in a fixed order. The remitter is then told, in their
+ * remitter must have a collaboration in the caller's own organization, ACTIVE, PAUSED or revoked
+ * (FIN-021, CM-39): paused members keep their held money. A person of another business, an unknown
+ * id or a mere invitee is 404 (v5.0.0-8.2.2). `recordHandoverInTx` inserts the row and moves both
+ * amounts in a fixed order. The remitter is then told, in their
  * language, the noted amount and what they still hold (`handover.recorded`), so a note lower than
  * what they handed over shows (CWE-778). An amount above what the remitter holds is accepted.
  *
  * @param actor - Person, organization and role from `loadActor`; the route checked the role.
  * @param input - Validated body.
  * @returns The stored handover.
- * @throws 400 `VALIDATION_ERROR` (remitter is the caller); 404 `NOT_FOUND` (remitter outside the
- * organization); 409 `ORGANIZATION_NOT_ACTIVE`.
+ * @throws 400 `VALIDATION_ERROR` (remitter is the caller); 404 `NOT_FOUND` (no ACTIVE, PAUSED or
+ * revoked remitter in the organization); 409 `ORGANIZATION_NOT_ACTIVE`.
  */
 export function recordHandover(actor: Actor, input: RecordHandoverInput): Promise<HandoverView> {
   return runInTransaction(async (tx) => {
@@ -671,7 +677,10 @@ export function recordHandover(actor: Actor, input: RecordHandoverInput): Promis
     }
 
     const remitter = await findCollaboration(tx, input.from_person_id, actor.organizationId);
-    if (!remitter || (remitter.status !== 'ACTIVE' && remitter.status !== 'REVOKED')) {
+    if (
+      !remitter ||
+      (remitter.status !== 'ACTIVE' && remitter.status !== 'PAUSED' && remitter.status !== 'REVOKED')
+    ) {
       throw httpError(404, 'NOT_FOUND', 'Not found');
     }
 

@@ -75,6 +75,68 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - REL-002's migration, test file and schema.prisma comment are left uncommitted in the working tree, waiting for the human decision.
 - Next: decide whether that REL-001 test may be updated (amend REL-002's "Tests to update"), then `/implement-stories REL-002` and `/implement-stories next:100`.
 
+<!-- begin FIN-011 -->
+## FIN-011 — Expenses table
+
+- Filed: 2026-10-04 10:28 UTC
+- Status: **done**: expenses table, triggers and tests green
+- Risk: medium · story: [FIN-011-expenses-table.md](../modules/finance/FIN-011-expenses-table.md)
+- Agent: 60,450 tokens, 22 tool uses, 17 min 13 s
+
+### Agent report
+
+**Summary:** Added `expenses` table (migration 20261004240000_fin_011_expenses, Prisma model, schema comment) with CHECKs, FKs, payer-collaborator trigger, cancel-once trigger, registered-person and server_updated_at triggers.
+
+**Decisions:**
+- deleted_at: kept per "Adds" but made immutable too (story says every change except cancelling raises 23514); no delete path exists yet.
+- Immutability trigger compares to_jsonb(NEW)/(OLD) minus server_updated_at and the two cancel columns, so future columns are protected by default.
+- Payer trigger counts any collaboration row (any status, deleted or not); it steps aside on NULL or unknown organization so 23502/23503 are reported by their own checks.
+- paid_by_id is also under require_registered_person (story lists it), checked at commit.
+- No REVOKE on distribo_app: story asks for triggers only; DELETE is not blocked (see follow-ups).
+
+**Tests added beyond the story:**
+- `expense-table.test.ts` › payer collaborating only with another organization: tenant scope of C-27 (C-27); passed at once after the migration
+- `expense-table.test.ts` › amount -5, clearing a cancellation, half cancellation, guest canceller, cancel combined with an amount edit: fail-closed paths (AC-2, C-27, C-04)
+- `expense-table.test.ts` › edits of description, organization, recorder, occurred_at, deleted_at: every other column is immutable (AC-3)
+- `expense-table.test.ts` › NOT NULL (23502) and unknown FK (23503), server_updated_at moves on cancel (Expense:required, Expense:fk)
+
+**Other additions:**
+- Test-DB: first migration version failed 23502/23503 tests (BEFORE trigger fired first); I edited the unmerged migration and dropped its objects from the test DB by hand.
+
+**Evidence:** story tests 28/28; full suite 1388/1388, failing: none; typecheck clean; lint 0 errors, 56 warnings (pre-existing)
+
+**Follow-ups:**
+- DELETE/TRUNCATE on expenses by distribo_app is not revoked; confirm whether Expense should be append-only at privilege level (not in story or C-27).
+<!-- end FIN-011 -->
+
+<!-- begin FIN-014 -->
+## FIN-014 — Handovers table
+
+- Filed: 2026-10-04 10:41 UTC
+- Status: **done**: handovers table, party-role and cancel-once triggers; 33 tests pass
+- Risk: medium · story: [FIN-014-handovers-table.md](../modules/finance/FIN-014-handovers-table.md)
+- Agent: 41,058 tokens, 16 tool uses, 12 min 52 s
+
+### Agent report
+
+**Summary:** Added the handovers table (migration 20261004250000_fin_014_handovers), Prisma model with rules comment, and the integration test file.
+
+**Decisions:**
+- Receiver check ignores deleted_at: story says only ACTIVE OWNER or MANAGER status; sender check likewise counts any row, as for expenses.
+- Sender/receiver checks live in one BEFORE INSERT trigger that steps aside on NULL or unknown organization so 23502/23503 are reported by the native checks (same pattern as FIN-011).
+
+**Tests added beyond the story:**
+- `handover-table.test.ts` › receiver is a DRIVER / owner of another org / never collaborated: receiver scope per organization (C-27); passed at once with the implementation
+- `handover-table.test.ts` › guest as sender/receiver/canceller rejected: C-04
+- `handover-table.test.ts` › refuses to change amount/sender/receiver/org/occurred_at/deleted_at: never-edit rule (C-27)
+- `handover-table.test.ts` › app account insert to a driver: AB-1 through the application role
+
+**Evidence:** story tests 33/33; full suite 1421/1421, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
+
+**Follow-ups:**
+- Tests were written first and failed (33/33) before the migration existed.
+<!-- end FIN-014 -->
+
 <!-- begin FIN-001 -->
 ## FIN-001 — Ledger entries table
 
@@ -403,40 +465,6 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - Page and balance reflect occurred_at ms precision in the cursor; entries sharing a microsecond-level timestamp from DB-generated times could skip, as in the existing cursor pattern.
 <!-- end FIN-010 -->
 
-<!-- begin FIN-011 -->
-## FIN-011 — Expenses table
-
-- Filed: 2026-10-04 10:28 UTC
-- Status: **done**: expenses table, triggers and tests green
-- Risk: medium · story: [FIN-011-expenses-table.md](../modules/finance/FIN-011-expenses-table.md)
-- Agent: 60,450 tokens, 22 tool uses, 17 min 13 s
-
-### Agent report
-
-**Summary:** Added `expenses` table (migration 20261004240000_fin_011_expenses, Prisma model, schema comment) with CHECKs, FKs, payer-collaborator trigger, cancel-once trigger, registered-person and server_updated_at triggers.
-
-**Decisions:**
-- deleted_at: kept per "Adds" but made immutable too (story says every change except cancelling raises 23514); no delete path exists yet.
-- Immutability trigger compares to_jsonb(NEW)/(OLD) minus server_updated_at and the two cancel columns, so future columns are protected by default.
-- Payer trigger counts any collaboration row (any status, deleted or not); it steps aside on NULL or unknown organization so 23502/23503 are reported by their own checks.
-- paid_by_id is also under require_registered_person (story lists it), checked at commit.
-- No REVOKE on distribo_app: story asks for triggers only; DELETE is not blocked (see follow-ups).
-
-**Tests added beyond the story:**
-- `expense-table.test.ts` › payer collaborating only with another organization: tenant scope of C-27 (C-27); passed at once after the migration
-- `expense-table.test.ts` › amount -5, clearing a cancellation, half cancellation, guest canceller, cancel combined with an amount edit: fail-closed paths (AC-2, C-27, C-04)
-- `expense-table.test.ts` › edits of description, organization, recorder, occurred_at, deleted_at: every other column is immutable (AC-3)
-- `expense-table.test.ts` › NOT NULL (23502) and unknown FK (23503), server_updated_at moves on cancel (Expense:required, Expense:fk)
-
-**Other additions:**
-- Test-DB: first migration version failed 23502/23503 tests (BEFORE trigger fired first); I edited the unmerged migration and dropped its objects from the test DB by hand.
-
-**Evidence:** story tests 28/28; full suite 1388/1388, failing: none; typecheck clean; lint 0 errors, 56 warnings (pre-existing)
-
-**Follow-ups:**
-- DELETE/TRUNCATE on expenses by distribo_app is not revoked; confirm whether Expense should be append-only at privilege level (not in story or C-27).
-<!-- end FIN-011 -->
-
 <!-- begin FIN-012 -->
 ## FIN-012 — Manager records an expense
 
@@ -506,34 +534,6 @@ Also in this run: relationship, admin, catalog, order, delivery.
 **Follow-ups:**
 - Cancelling in a CLOSED or SUSPENDED organization is allowed; decide whether it should be refused like recording is.
 <!-- end FIN-013 -->
-
-<!-- begin FIN-014 -->
-## FIN-014 — Handovers table
-
-- Filed: 2026-10-04 10:41 UTC
-- Status: **done**: handovers table, party-role and cancel-once triggers; 33 tests pass
-- Risk: medium · story: [FIN-014-handovers-table.md](../modules/finance/FIN-014-handovers-table.md)
-- Agent: 41,058 tokens, 16 tool uses, 12 min 52 s
-
-### Agent report
-
-**Summary:** Added the handovers table (migration 20261004250000_fin_014_handovers), Prisma model with rules comment, and the integration test file.
-
-**Decisions:**
-- Receiver check ignores deleted_at: story says only ACTIVE OWNER or MANAGER status; sender check likewise counts any row, as for expenses.
-- Sender/receiver checks live in one BEFORE INSERT trigger that steps aside on NULL or unknown organization so 23502/23503 are reported by the native checks (same pattern as FIN-011).
-
-**Tests added beyond the story:**
-- `handover-table.test.ts` › receiver is a DRIVER / owner of another org / never collaborated: receiver scope per organization (C-27); passed at once with the implementation
-- `handover-table.test.ts` › guest as sender/receiver/canceller rejected: C-04
-- `handover-table.test.ts` › refuses to change amount/sender/receiver/org/occurred_at/deleted_at: never-edit rule (C-27)
-- `handover-table.test.ts` › app account insert to a driver: AB-1 through the application role
-
-**Evidence:** story tests 33/33; full suite 1421/1421, failing: none; typecheck clean; lint 0 errors, 57 warnings (existing)
-
-**Follow-ups:**
-- Tests were written first and failed (33/33) before the migration existed.
-<!-- end FIN-014 -->
 
 <!-- begin FIN-015 -->
 ## FIN-015 — Owner or manager records a handover received
@@ -740,3 +740,34 @@ Also in this run: relationship, admin, catalog, order, delivery.
 - Prettier flags `src/modules/finance/ledger.service.ts` (not touched by this story).
 - A reversal is counted at its own date, so a payment reversed in a later period lowers that later period, not the original one.
 <!-- end FIN-020 -->
+
+<!-- begin FIN-021 -->
+## FIN-021 — Expenses and handovers accept a paused member
+
+- Filed: 2026-10-21 21:36 UTC
+- Status: **done**: Finance 332/332; suite 4690/4691 then OTP+finance 335/335 (random OTP substring); typecheck clean; lint 0 errors, 199 warnings; existing dependency audit findings
+- Risk: medium · story: [FIN-021-expenses-and-handovers-accept-a-paused-member.md](../modules/finance/FIN-021-expenses-and-handovers-accept-a-paused-member.md)
+- Agent: 35,511 tokens, 31 tool uses, 5 min 26 s
+
+### Agent report
+
+**Summary:** FIN-021 implemented: paused members can pay expenses and remit handovers; tenant scoping, invited-member rejection and existing transactions remain unchanged.
+
+**Decisions:**
+- Extended the existing explicit status allowlists with PAUSED; updated both functions' JSDoc and @throws descriptions without migrations or dependencies.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/finance/paused-member.test.ts` › foreign paused expense payer: 404 with no persisted effects (tenant scope); passed before implementation.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/finance/paused-member.test.ts` › repeated paused-member handovers and expenses: identical response, one write and one balance movement (ACC); failed before implementation, now pass.
+
+**Evidence:** story tests 11/11; finance 332/332; full suite 4690/4691, failing: OTP text AB-1, 0 known; targeted OTP+finance rerun 335/335; typecheck clean; lint 0 errors, 199 warnings; git diff --check clean.
+- Full-suite output: `/tmp/distribo-next10-BPwRch6e/FIN-021-suite.txt`.
+- Production change: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/finance/finance.service.ts`.
+
+**Follow-ups:**
+- OTP test is flaky: generated code 457677 accidentally matched forbidden substring 677; passed on targeted rerun. Existing test was not changed.
+- Dependency audit reports vulnerabilities in unchanged dependencies; Semgrep and Gitleaks executables are unavailable, so those scans were not performed.
+- No report Markdown file written, following the final developer instruction; this handback contains the report.
+
+FIN-021 done
+<!-- end FIN-021 -->
