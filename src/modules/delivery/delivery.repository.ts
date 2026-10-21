@@ -152,6 +152,40 @@ export async function listOwnDeliveries(
   };
 }
 
+/**
+ * Finds the requested people still on the road for this supplier (DLV-015), so billing can avoid
+ * pausing them mid-round. Deleted deliveries and orders never count; the supplier is checked
+ * through the order's relationship to prevent cross-business results (ASVS v5.0.0-8.2.2).
+ *
+ * @param tx - The caller's transaction, shared with the billing decision.
+ * @param organizationId - The supplier organization from server code, never client input.
+ * @param personIds - People to check; empty input returns without querying.
+ * @returns Distinct assigned person ids with a departed, neither arrived nor failed delivery.
+ */
+export async function findDriversWithOpenDeliveries(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  personIds: string[]
+): Promise<Set<string>> {
+  if (personIds.length === 0) return new Set();
+  const deliveries = await tx.delivery.findMany({
+    where: {
+      assignedToId: { in: personIds },
+      departedAt: { not: null },
+      arrivedAt: null,
+      failedAt: null,
+      deletedAt: null,
+      order: {
+        deletedAt: null,
+        customerRelationship: { supplierOrganizationId: organizationId },
+      },
+    },
+    select: { assignedToId: true },
+    distinct: ['assignedToId'],
+  });
+  return new Set(deliveries.map((delivery) => delivery.assignedToId));
+}
+
 /** Runs the writes of one gesture in a single transaction. */
 export function runInTransaction<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>

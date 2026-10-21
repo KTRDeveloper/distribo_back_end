@@ -565,3 +565,34 @@ DLV-016 done
 **Follow-ups:**
 - None.
 <!-- end DLV-012 -->
+
+<!-- begin DLV-015 -->
+## DLV-015 — Find the drivers who still have deliveries on the road
+
+- Filed: 2026-10-21 21:27 UTC
+- Status: **done**: 9 story tests and all 4680 suite tests pass; typecheck clean; lint 0 errors, 199 warnings; dependency audit reports existing vulnerabilities
+- Risk: medium · story: [DLV-015-find-the-drivers-who-still-have-deliveries-on.md](../modules/delivery/DLV-015-find-the-drivers-who-still-have-deliveries-on.md)
+- Agent: 30,409 tokens, 27 tool uses, 5 min 20 s
+
+### Agent report
+
+**Summary:** Implemented DLV-015: transaction-scoped lookup of requested drivers with open deliveries, supplier isolation, deleted-order exclusion and query-free empty input.
+
+**Decisions:**
+- Select only assigned person IDs and return a Set; no routes, migrations or dependency changes.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/delivery/open-deliveries.test.ts` › excludes deliveries of a deleted order: guards the explicit context requirement.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/delivery/open-deliveries.test.ts` › excludes a driver not in the requested people: guards the requested-person scope.
+- All nine tests failed on the missing function before implementation, then passed.
+
+**Evidence:** story tests 9/9; full suite 4680/4680, failing: none, 0 known; typecheck clean; lint 0 errors, 199 warnings; git diff --check clean.
+
+**Follow-ups:**
+- Dependency audit reports 94 vulnerabilities (53 moderate, 35 high, 6 critical); dependencies were not changed.
+- Semgrep and Gitleaks executables are unavailable; those scans were not run.
+- Code: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/delivery/delivery.repository.ts`; suite output: `/tmp/distribo-next10-BPwRch6e/DLV-015-suite.txt`.
+- No report file written, following the later instruction prohibiting report Markdown files; this handback contains the report.
+
+DLV-015 done
+<!-- end DLV-015 -->
