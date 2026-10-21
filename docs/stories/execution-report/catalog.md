@@ -6,6 +6,24 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-21 12:31 UTC: `/implement-stories next:10`
+
+| story | status | commit | note |
+|---|---|---|---|
+| CAT-031 Reseller copies purchased variants into their catalog | done | 9699566 | 51 story tests and 4581 suite tests pass; typecheck clean; lint 0 errors; dependency audit findings and unavailable scanners reported |
+
+Not run: CAT-040, CAT-042, CAT-045.
+Also in this run: delivery, order, finance.
+
+- Run stopped after CAT-031: the story note reports unavailable scanners; Semgrep and Gitleaks were not run. This triggers the skill's stop condition for missing environment commands.
+- CAT-031 is recorded as done by its agent, but the scan portion of Definition of Done is not verified: dependency audit reports 94 vulnerabilities (53 moderate, 35 high, 6 critical); SAST and secret scans are unavailable. The test baseline does not establish whether these audit findings predate this run.
+- CAT-040, CAT-042, CAT-045, DLV-016, ORD-031, ORD-032, DLV-015, FIN-021 and FIN-022 were not reached because the run stopped.
+- Every implementation Agent launch used explicit effort max, no model override and the prescribed three-line prompt.
+- CAT-031 reached its 40-turn limit and was resumed with its existing context; final notification metrics were filed as supplied (52177 tokens, 54 tool uses, 835757 ms).
+- CAT-031 returned its report in its hand-back instead of writing the requested file. The first report command failed with report file not found; the hand-back was copied verbatim to the scratchpad and the retry succeeded.
+- No stash was created; the working tree was clean at the start; the baseline had 0 failing tests.
+- After restoring scanner availability and addressing or explicitly resolving the dependency-scan findings, continue with /implement-stories next:9. Re-state the explicit effort max override for the next invocation if desired.
+
 ### Run 2026-10-19 21:51 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
