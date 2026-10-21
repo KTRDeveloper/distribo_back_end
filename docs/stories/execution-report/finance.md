@@ -771,3 +771,32 @@ Also in this run: relationship, admin, catalog, order, delivery.
 
 FIN-021 done
 <!-- end FIN-021 -->
+
+<!-- begin FIN-022 -->
+## FIN-022 — The dispute notice says versement
+
+- Filed: 2026-10-21 21:41 UTC
+- Status: **done**: French disputed-handover notice uses versement; finance 334/334, full suite 4693/4693; typecheck clean, lint 0 errors.
+- Risk: low · story: [FIN-022-the-dispute-notice-says-versement.md](../modules/finance/FIN-022-the-dispute-notice-says-versement.md)
+- Agent: 33,273 tokens, 20 tool uses, 4 min 0 s
+
+### Agent report
+
+**Summary:** FIN-022 changes only the French dispute notice to "son versement."; English and received-notice text remain unchanged.
+
+**Decisions:**
+- Added exact FR/EN notification assertions with opposite remitter languages to verify the owner's language controls the wording.
+- No additional critical-behavior tests: existing dispute tests already cover scope, idempotency and unchanged amounts.
+
+**Evidence:** story tests 2/2; finance tests 334/334; full suite 4693/4693, failing: none, 0 known; typecheck clean; lint 0 errors, 199 warnings.
+- TDD: French test failed on the old wording; English passed immediately; both pass after the one-line correction.
+- Implementation: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/finance/finance.service.ts:769`.
+- Tests: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/finance/dispute-wording.test.ts`.
+- Full-suite output: `/tmp/distribo-next10-BPwRch6e/FIN-022-suite.txt`; `git diff --check` clean.
+
+**Follow-ups:**
+- Dependency audit reports 94 vulnerabilities (53 moderate, 35 high, 6 critical); dependencies unchanged. Semgrep and Gitleaks unavailable on PATH.
+- Report file not written because the final developer instruction prohibits writing report Markdown files; this handback supplies the report instead.
+
+FIN-022 done
+<!-- end FIN-022 -->

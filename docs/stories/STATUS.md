@@ -327,7 +327,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-032 | done | | Produit facultatif, controles et reliquats par variante; 4671/4671 tests, typecheck propre, lint 0 erreur (199 avertissements). |
 | DLV-015 | done | | 9 story tests and all 4680 suite tests pass; typecheck clean; lint 0 errors, 199 warnings; dependency audit reports existing vulnerabilities |
 | FIN-021 | done | | Finance 332/332; suite 4690/4691 then OTP+finance 335/335 (random OTP substring); typecheck clean; lint 0 errors, 199 warnings; existing dependency audit findings |
-| FIN-022 | todo | | |
+| FIN-022 | done | | French disputed-handover notice uses versement; finance 334/334, full suite 4693/4693; typecheck clean, lint 0 errors. |
 | REL-026 | todo | | |
 | ORG-039 | todo | | |
 | ORG-032 | todo | | |

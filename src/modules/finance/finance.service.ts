@@ -766,7 +766,7 @@ export function cancelHandover(actor: Actor, handoverId: string): Promise<Handov
 
 const HANDOVER_DISPUTED_CONTENT = {
   FR: (remitter: string, amount: number) =>
-    `${remitter} conteste le montant de ${amount} noté pour sa remise d'argent.`,
+    `${remitter} conteste le montant de ${amount} noté pour son versement.`,
   EN: (remitter: string, amount: number) =>
     `${remitter} disputes the amount of ${amount} noted for their handover.`,
 };
