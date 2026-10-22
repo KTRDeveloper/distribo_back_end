@@ -1,6 +1,6 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { config } from '../config/index.js';
 import { logger } from './logger.js';
 
@@ -23,7 +23,7 @@ export function initializeOtel() {
 
   try {
     sdk = new NodeSDK({
-      resource: new Resource({
+      resource: resourceFromAttributes({
         'service.name': config.otel.serviceName,
       }),
       instrumentations: [

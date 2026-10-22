@@ -30,7 +30,7 @@ export const tasksController = {
   /**
    * GET /api/v1/tasks/:id
    */
-  async getTask(req: Request, res: Response) {
+  async getTask(req: Request<{ id: string }>, res: Response) {
     if (!req.user) {
       res.status(401).json({
         error: {

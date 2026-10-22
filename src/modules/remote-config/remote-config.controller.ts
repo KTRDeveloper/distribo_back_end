@@ -109,7 +109,10 @@ export async function getById(req: Request, res: Response): Promise<void> {
  * Get configuration by category and key
  * GET /api/remote-config/category/:category/key/:key
  */
-export async function getByCategoryAndKey(req: Request, res: Response): Promise<void> {
+export async function getByCategoryAndKey(
+  req: Request<{ category: string; key: string }>,
+  res: Response
+): Promise<void> {
   try {
     const { category, key } = req.params;
     const config = await service.getByCategoryAndKey(category, key);

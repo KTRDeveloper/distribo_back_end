@@ -9,21 +9,13 @@ import type { SystemConfig, ConfigHistory } from '@prisma/client';
 /**
  * Configuration value can be any JSON-serializable type
  */
-export type ConfigValue = string | number | boolean | object | unknown[];
+export type ConfigValue = string | number | boolean | object;
 
 /**
  * Standard configuration categories
  * (extensible - users can define custom categories)
  */
-export type ConfigCategory =
-  | 'database'
-  | 'cache'
-  | 'email'
-  | 'storage'
-  | 'feature_flags'
-  | 'external_apis'
-  | 'monitoring'
-  | (string & Record<never, never>);
+export type ConfigCategory = string;
 
 /**
  * Validation status enumeration
