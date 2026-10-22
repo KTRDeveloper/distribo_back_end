@@ -599,3 +599,31 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 
 **Evidence:** story tests 20/20; full suite 4071/4071, failing: none, 0 known; typecheck clean; lint 0 errors, 185 warnings (existing)
 <!-- end ORG-045 -->
+
+<!-- begin ORG-039 -->
+## ORG-039 — The identity pull stops sending the removed fields
+
+- Filed: 2026-10-22 04:28 UTC
+- Status: **done**: Removed retired identity pull fields; 25 story tests and 4724 full-suite tests pass; typecheck clean; lint 0 errors; SAST and secrets clean
+- Risk: medium · story: [ORG-039-the-identity-pull-stops-sending-the-removed.md](../modules/organization/ORG-039-the-identity-pull-stops-sending-the-removed.md)
+- Agent: 27,833 tokens, 30 tool uses, 5 min 36 s
+
+### Agent report
+
+**Summary:** ORG-039 implemented: identity pull no longer selects or emits organization `email` or collaboration `is_public_contact`; filters and `amount_held` scope remain unchanged.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/sync/pull-identity-removed-fields.test.ts` › also omits removed fields from incremental updated rows: guards disclosure through incremental sync (AC-1, AC-2); failed before implementation, then passed.
+
+**Other additions:**
+- Updated adapter JSDoc in `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/sync/adapters/identity.adapter.ts` to document the retired fields.
+- Semgrep: 22 rules, 2 files, 0 findings; Gitleaks: no leaks; dependency audit: 0 high/critical, 1 low and 1 moderate advisory.
+
+**Evidence:** story tests 25/25 (6 new, 19 existing); full suite 4724/4724, failing: none, 0 known; typecheck clean; lint 0 errors, 199 warnings; `git diff --check` clean.
+
+**Follow-ups:**
+- Existing lint warnings and lower-severity dependency advisories remain outside this story; no dependencies changed.
+- Report returned directly rather than written to `/tmp/distribo-implement-stories-20261022-8J2vtC/ORG-039-report.md`, following the instruction prohibiting report Markdown files.
+
+ORG-039 done
+<!-- end ORG-039 -->

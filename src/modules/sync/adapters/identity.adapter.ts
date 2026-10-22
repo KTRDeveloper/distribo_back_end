@@ -25,7 +25,7 @@ export function refuseEveryLine(change: TableChange): LineOutcome[] {
     }));
 }
 
-/** `organizations`: the viewer's ACTIVE organizations, every column (C-35, CM-30). */
+/** `organizations`: the viewer's ACTIVE organizations, excluding the retired email (ORG-039). */
 export const organizationsAdapter: SyncAdapter = {
   table: 'organizations',
   async pull(viewer, since, tx): Promise<Changes> {
@@ -38,7 +38,6 @@ export const organizationsAdapter: SyncAdapter = {
         id: true,
         name: true,
         description: true,
-        email: true,
         status: true,
         createdAt: true,
         serverUpdatedAt: true,
@@ -54,7 +53,6 @@ export const organizationsAdapter: SyncAdapter = {
         id: r.id,
         name: r.name,
         description: r.description,
-        email: r.email,
         status: r.status,
         created_at: toEpoch(r.createdAt),
         server_updated_at: toEpoch(r.serverUpdatedAt),
@@ -68,6 +66,7 @@ export const organizationsAdapter: SyncAdapter = {
  * `collaborations`: the rows of the viewer's organizations. `amount_held` is sent only on the
  * viewer's own row and to an OWNER of that organization; elsewhere the key is absent (CM-30).
  * `invited_at` stands for `created_at`, which this table does not have.
+ * The retired public-contact flag is neither selected nor sent (ORG-039).
  */
 export const collaborationsAdapter: SyncAdapter = {
   table: 'collaborations',
@@ -83,7 +82,6 @@ export const collaborationsAdapter: SyncAdapter = {
         organizationId: true,
         role: true,
         status: true,
-        isPublicContact: true,
         invitedAt: true,
         acceptedAt: true,
         amountHeld: true,
@@ -106,7 +104,6 @@ export const collaborationsAdapter: SyncAdapter = {
           organization_id: r.organizationId,
           role: r.role,
           status: r.status,
-          is_public_contact: r.isPublicContact,
           invited_at: toEpoch(r.invitedAt),
           accepted_at: r.acceptedAt ? toEpoch(r.acceptedAt) : null,
           server_updated_at: toEpoch(r.serverUpdatedAt),
