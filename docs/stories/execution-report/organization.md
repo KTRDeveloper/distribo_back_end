@@ -691,19 +691,29 @@ ORG-032 done
 <!-- begin ORG-043 -->
 ## ORG-043 — The public-contact flag column and its database rule are dropped
 
-- Filed: 2026-10-22 04:46 UTC
-- Status: **blocked**: Le preflight doit-il bloquer les flags true des lignes supprimees aussi, ou seulement deleted_at IS NULL (la table scratch imposee ne contient pas deleted_at) ?
+- Filed: 2026-10-22 05:57 UTC
+- Status: **blocked**: May ORG-043 also update lookup-contacts.test.ts and public-contact-removed.test.ts, which still write/read the dropped flag and now cause 19 new failures, plus fix the latter's existing lint error?
 - Risk: high · story: [ORG-043-the-public-contact-flag-column-and-its-database.md](../modules/organization/ORG-043-the-public-contact-flag-column-and-its-database.md)
-- Agent: 42,009 tokens, 17 tool uses, 2 min 14 s
+- Agent: 79,610 tokens, 43 tool uses, 23 min 30 s
 
 ### Agent report
 
-**Summary:** ORG-043 bloquée avant toute modification du code : périmètre du précontrôle ambigu.
+**Summary:** ORG-043 rev2 is implemented and migrated, but blocked by obsolete flag fixtures/assertions in two test files outside its authorized scope.
+
+**Decisions:**
+- Confirmed interrupted migration finished successfully; `prisma migrate deploy` reports no pending migrations and the flag column is absent.
+- Kept migration transaction/locking, registered-person guard, bounded ids-only preflight, and only permitted test updates; no new edits during this resumed validation.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/organization/collaboration-flag-dropped.test.ts` › limits preflight diagnostics to 20 ids when 21 live flags exist: story's max-20 diagnostic bound, red before implementation.
+
+**Evidence:** New story tests 7/7; with collaboration-table 29/29; organization/privacy excluding known-baseline actor-and-read: 522/541; full suite 4713/4733, 20 failures, 18 listed baseline failures no longer reproduced; typecheck clean; lint 1 error, 202 warnings; diff check clean.
+- Full failures: 11 lookup-contacts, 8 public-contact-removed (all unknown `isPublicContact` Prisma argument), 1 quality-gates (existing lint error).
+- Dependency audit at high threshold exits successfully: 0 high/critical, 1 moderate and 1 low; SAST and secret scans remain unrun.
 
 **Follow-ups:**
-- Dans `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/docs/stories/modules/organization/ORG-043-the-public-contact-flag-column-and-its-database.md:24`, « live row » implique un filtrage `deleted_at IS NULL`, mais la table scratch imposée à la ligne 26 ne contient que `id` et `is_public_contact`. Faut-il bloquer aussi les collaborations supprimées logiquement dont le flag vaut `true`, ou seulement les lignes non supprimées ?
-- Seul le statut ORG-043 a été modifié via `set-status`, avec cette question. Aucun fichier de code ou test modifié ; aucun test, typecheck ou lint exécuté.
-- Aucun rapport Markdown écrit conformément à la dernière instruction développeur interdisant les fichiers de rapport ; ce message constitue le rapport à intégrer.
-
+- Authorize updates to `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/organization/lookup-contacts.test.ts:43` and `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/organization/public-contact-removed.test.ts:42` to retire flag fixtures/assertions while preserving scope/security checks; neither file was opened or modified.
+- Existing lint error remains `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/organization/public-contact-removed.test.ts:68`, unsafe any[] return; requires authorization to fix.
+- Full evidence: `/tmp/distribo-implement-stories-resume-20261022-vmCppY/ORG-043-suite.txt`; coordinator owns report/commit; no stash or commit created. STATUS was set blocked with the scope-extension question.
 ORG-043 blocked
 <!-- end ORG-043 -->
