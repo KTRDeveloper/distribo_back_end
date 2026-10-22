@@ -7905,12 +7905,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -8063,12 +8070,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -8349,12 +8363,19 @@
                                       },
                                       "registered": {
                                         "type": "boolean"
+                                      },
+                                      "avatar_url": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
                                       }
                                     },
                                     "required": [
                                       "public_name",
                                       "phone_number",
-                                      "registered"
+                                      "registered",
+                                      "avatar_url"
                                     ]
                                   }
                                 },
@@ -8595,12 +8616,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -8857,12 +8885,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -9106,12 +9141,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -9377,12 +9419,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -9652,12 +9701,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -10069,12 +10125,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -10331,12 +10394,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -10598,12 +10668,19 @@
                                       },
                                       "registered": {
                                         "type": "boolean"
+                                      },
+                                      "avatar_url": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
                                       }
                                     },
                                     "required": [
                                       "public_name",
                                       "phone_number",
-                                      "registered"
+                                      "registered",
+                                      "avatar_url"
                                     ]
                                   }
                                 },
@@ -10819,12 +10896,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -11036,12 +11120,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -11263,12 +11354,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -11513,12 +11611,19 @@
                                       },
                                       "registered": {
                                         "type": "boolean"
+                                      },
+                                      "avatar_url": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
                                       }
                                     },
                                     "required": [
                                       "public_name",
                                       "phone_number",
-                                      "registered"
+                                      "registered",
+                                      "avatar_url"
                                     ]
                                   }
                                 },
@@ -11763,12 +11868,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -11999,12 +12111,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -12245,12 +12364,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -12482,12 +12608,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -12720,12 +12853,19 @@
                                 },
                                 "registered": {
                                   "type": "boolean"
+                                },
+                                "avatar_url": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
                                 }
                               },
                               "required": [
                                 "public_name",
                                 "phone_number",
-                                "registered"
+                                "registered",
+                                "avatar_url"
                               ]
                             }
                           },
@@ -12966,12 +13106,19 @@
                                       },
                                       "registered": {
                                         "type": "boolean"
+                                      },
+                                      "avatar_url": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
                                       }
                                     },
                                     "required": [
                                       "public_name",
                                       "phone_number",
-                                      "registered"
+                                      "registered",
+                                      "avatar_url"
                                     ]
                                   }
                                 },
@@ -13149,12 +13296,19 @@
                                     },
                                     "registered": {
                                       "type": "boolean"
+                                    },
+                                    "avatar_url": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
                                     }
                                   },
                                   "required": [
                                     "public_name",
                                     "phone_number",
-                                    "registered"
+                                    "registered",
+                                    "avatar_url"
                                   ]
                                 }
                               },
@@ -13488,12 +13642,19 @@
                                       },
                                       "registered": {
                                         "type": "boolean"
+                                      },
+                                      "avatar_url": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
                                       }
                                     },
                                     "required": [
                                       "public_name",
                                       "phone_number",
-                                      "registered"
+                                      "registered",
+                                      "avatar_url"
                                     ]
                                   }
                                 },
@@ -13657,12 +13818,19 @@
                                       },
                                       "registered": {
                                         "type": "boolean"
+                                      },
+                                      "avatar_url": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
                                       }
                                     },
                                     "required": [
                                       "public_name",
                                       "phone_number",
-                                      "registered"
+                                      "registered",
+                                      "avatar_url"
                                     ]
                                   }
                                 },

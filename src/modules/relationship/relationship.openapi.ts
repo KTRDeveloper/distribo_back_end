@@ -26,6 +26,7 @@ const publicPersonSchema = z.object({
   public_name: z.string().nullable(),
   phone_number: z.string().nullable(),
   registered: z.boolean(),
+  avatar_url: z.string().nullable(),
 });
 
 /** Supplier-side view: `customer_label` and `supplier_notes` in, `supplier_label` never (CM-19). */
