@@ -6,6 +6,24 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-22 05:58 UTC: `/implement-stories ORG-032,ORG-043`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORG-032 The business email column is dropped | done | f98db35 | 37/37 story tests; suite 4731/4732, random UUID image-copy failure passed on targeted retry (44/44); typecheck clean, lint 0 errors |
+| ORG-043 The public-contact flag column and its database rule are dropped | blocked | 77e02b2 | May ORG-043 also update lookup-contacts.test.ts and public-contact-removed.test.ts, which still write/read the dropped flag and now cause 19 new failures, plus fix the latter's existing lint error? |
+
+Completed the two-story selection; no story skipped.
+Baseline: 18 failing tests before restoration; baseline failures no longer reproduced in final ORG-043 suite.
+Restored ORG-032 partial changes with git stash apply; original stash retained as stash@{1}, On dev: ORG-032 blocked: partial changes; this story is now committed and the retained stash must not be reapplied blindly.
+ORG-032 suite: 4731/4732; unrelated image-copy UUID/date assertion failed, then its file plus story tests passed 44/44 on targeted retry; no image code changed, full suite not rerun for that story.
+ORG-043 temporarily blocked by Prisma advisory lock 72707369 and P1002; targeted process termination initially denied, then explicitly authorized by user; SIGTERM stopped PIDs 2831911, 2832126, 2832206; resumed same agent and validated migration deployment.
+ORG-043 remains blocked: authorize lookup-contacts.test.ts and public-contact-removed.test.ts fixture/assertion updates for the removed flag, preserving scope/security checks, plus repair the latter's existing unsafe-return lint error; final suite 4713/4733 with 19 obsolete fixture failures and 1 quality-gate failure.
+Stash retained: stash@{0}, On dev: ORG-043 blocked: partial changes; set-aside reset the test database.
+Missing report files for both stories reconstructed verbatim from final agent hand-backs; all usage figures from task notifications; ORG-043 figures use the final cumulative notification after authorized resumption.
+Semgrep/Gitleaks not executed; agents reported unavailable tools for ORG-032; ORG-043 SAST/secret scans remain unrun; dependency audit found no high/critical issue, 1 moderate and 1 low remain.
+Next command after authorized ORG-043 test-scope clarification and restoration of its partial changes: /implement-stories ORG-043; then /implement-stories next:10 --include-blocked.
+
 ### Run 2026-10-22 04:47 UTC: `/implement-stories next:10`
 
 | story | status | commit | note |
