@@ -6,6 +6,19 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-22 08:05 UTC: `/implement-stories ORG-043`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORG-043 The public-contact flag column and its database rule are dropped | done | 3680b12 | 565 story tests and 4734 full-suite tests pass; typecheck clean; lint 0 errors; changed-file security scans clean |
+
+Completed the one-story selection.
+Baseline: 106 failing tests before implementation; final full suite passed 4734/4734 across 351 files, with 565/565 story tests passing.
+Agent resumed after its 40-turn limit; final cumulative notification figures recorded, report file provided successfully.
+No stash created by this run; implementation committed as 3680b12.
+Changed-file Semgrep and Gitleaks scans clean; global Semgrep still reports three findings outside ORG-043; dependency audit retains one low and one moderate advisory, no high/critical.
+Next command: /implement-stories next:10 --include-blocked.
+
 ### Run 2026-10-22 05:58 UTC: `/implement-stories ORG-032,ORG-043`
 
 | story | status | commit | note |
