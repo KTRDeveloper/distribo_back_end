@@ -4818,7 +4818,7 @@
     },
     "ORG-043": {
       "path": "modules/organization/ORG-043-the-public-contact-flag-column-and-its-database.md",
-      "sha256": "a372eeb59d37e3af6f3c599d82c0a4d2eb9075525bed0bf9bf062906fe1abec8"
+      "sha256": "023be1a72264ef8eb912048b24bc52b22f4afce747a267333f121ae361d9ade4"
     },
     "ORG-044": {
       "path": "modules/organization/ORG-044-billing-finds-a-business-by-its-payment-code.md",

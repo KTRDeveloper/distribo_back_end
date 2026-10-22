@@ -3,7 +3,7 @@ id: ORG-043
 title: The public-contact flag column and its database rule are dropped
 module: organization
 kind: migration
-rev: 2
+rev: 3
 amends: [ORG-003, ORG-011]
 size: M
 risk: high
@@ -20,9 +20,9 @@ asvs: [v5.0.0-15.3.1]
 Technical story: drop unused `collaborations.is_public_contact`, its rule and supporting trigger.
 
 ## Context
-- ORG-003: trigger/function `collaborations_check_row` requires ACTIVE rows to reference registered people, and flagged rows to be ACTIVE with a current number. Trigger `people_clear_public_contact` runs on `people`; ORG-031, ORG-029 and ORG-039 retired flag usage.
-- Migration `<timestamp>_org_043_drop_collaboration_public_contact`, ordered: (1) preflight `DO`: reject live (`deleted_at IS NULL`) flagged (`is_public_contact` true) rows, reporting their ids only (max 20); (2) replace `collaborations_check_row()` with registered-person rule only; (3) drop trigger/function `people_clear_public_contact`; (4) drop flag column. Soft-deleted flagged rows pass; their flags are discarded. Never create contacts.
-- Remove five `isPublicContact: false` writes in `organization.repository.ts` and one in `privacy.repository.ts`; remove the Prisma field and public-contact bullet from the `//` comment above `Collaboration`.
+- ORG-003: `collaborations_check_row()` requires ACTIVE collaborations to reference registered people, and flagged members ACTIVE with a number. `people_clear_public_contact` runs on `people`. ORG-031/029/039 retired flag usage.
+- Migration `<timestamp>_org_043_drop_collaboration_public_contact`: (1) preflight `DO` rejects `deleted_at IS NULL AND is_public_contact`, ids only (max 20); (2) keep only the registered-person rule in `collaborations_check_row()`; (3) drop trigger/function `people_clear_public_contact`; (4) drop flag column. Deleted flags do not block and are discarded. Never create contacts.
+- Remove five flag-false writes in `organization.repository.ts`, one in `privacy.repository.ts`, the Prisma field and its bullet above `Collaboration`.
 - Preflight test: scratch table `collaborations(id uuid, is_public_contact boolean, deleted_at timestamptz)` first in `search_path`, transaction/rollback as in ORG-032.
 - `C-05`: `Collaboration` is unique per (`person_id`, `organization_id`); an ACTIVE collaboration needs a registered person; every organization has exactly one ACTIVE OWNER at the end of each transaction.
 - `C-35`: Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows.
@@ -92,7 +92,9 @@ Command: `npx vitest run tests/integration/organization tests/integration/privac
 | tests/integration/organization/create.test.ts | OWNER flag-false assertion | remove flag only |
 | tests/integration/organization/team-list.test.ts | seeds flag | seed without flag |
 | tests/integration/privacy/anonymize.test.ts | seeds flag/asserts false | remove flag only |
-| tests/integration/sync/pull-identity-removed-fields.test.ts | three `isPublicContact: true` seeds | remove only these seeds; keep all non-disclosure/scope assertions unchanged |
+| tests/integration/sync/pull-identity-removed-fields.test.ts | three flag seeds | remove only these fields; keep non-disclosure/scope assertions |
+| tests/integration/organization/lookup-contacts.test.ts | flag seeds/assertions | remove flag usage only; keep access/scope/privacy checks |
+| tests/integration/organization/public-contact-removed.test.ts | flag usage; unsafe array return | remove flag usage, type return explicitly; keep access/scope/privacy checks and lint rules |
 
 ## Out of scope
 - Converting flagged numbers to contacts: owner's decision, unresolved.

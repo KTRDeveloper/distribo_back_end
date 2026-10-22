@@ -4986,14 +4986,14 @@
         "ORG-039"
       ],
       "id": "ORG-032",
-      "implementable": true,
+      "implementable": false,
       "kind": "migration",
       "module": "organization",
       "order": 303,
       "path": "modules/organization/ORG-032-the-business-email-column-is-dropped.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The business email column is dropped"
     },
     {
