@@ -6,6 +6,34 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-22 04:47 UTC: `/implement-stories next:10`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORG-039 The identity pull stops sending the removed fields | done | 89c9b7a | Removed retired identity pull fields; 25 story tests and 4724 full-suite tests pass; typecheck clean; lint 0 errors; SAST and secrets clean |
+| ORG-032 The business email column is dropped | blocked | adf8cd3 | May tests/integration/sync/pull-identity-removed-fields.test.ts be added to Tests to update so its obsolete email seed can be removed (6 suite failures)? |
+| ORG-043 The public-contact flag column and its database rule are dropped | blocked | f44fea8 | Le preflight doit-il bloquer les flags true des lignes supprimees aussi, ou seulement deleted_at IS NULL (la table scratch imposee ne contient pas deleted_at) ? |
+
+Not run: ORG-034.
+Also in this run: billing.
+
+Selection executed with --include-blocked, as requested, in addition to next:10.
+Completed examination of all 10 PLAN entries: 3 stories ran; 7 were skipped because dependencies are not done.
+Skipped ORG-034: needs ORG-043 (blocked).
+Skipped BIL-005: needs ORG-034 (todo).
+Skipped BIL-002: needs BIL-005 (todo).
+Skipped BIL-004: needs BIL-002 (todo).
+Skipped BIL-006: needs BIL-005 (todo).
+Skipped BIL-032: needs BIL-002 (todo).
+Skipped BIL-011: needs BIL-002, BIL-004 and BIL-032 (todo).
+Stash retained: stash@{0}, On dev: ORG-032 blocked: partial changes; test database reset by set-aside.
+ORG-043 has no partial-code stash; set-aside returned NO CHANGES.
+ORG-032 needs authorization to add tests/integration/sync/pull-identity-removed-fields.test.ts to Tests to update and remove its obsolete email seed; six full-suite failures, 30/30 story tests pass.
+ORG-043 needs clarification: should its preflight include soft-deleted collaborations, or only deleted_at IS NULL, given that its prescribed scratch table lacks deleted_at?
+Missing report files for ORG-039, ORG-032 and ORG-043 were reconstructed verbatim from the agents' hand-backs; all reported usage figures came from task notifications.
+ORG-032 agent reported semgrep and gitleaks executables unavailable, while ORG-039 reported clean SAST and secret scans; ORG-043 did not run tests or scans because the ambiguity was found before code changes.
+Next command after resolving both blockers and restoring the ORG-032 partial changes: /implement-stories ORG-032,ORG-043; then /implement-stories next:10 --include-blocked.
+
 ### Run 2026-10-19 21:51 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
