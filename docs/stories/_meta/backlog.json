@@ -198,14 +198,14 @@
         "FND-005"
       ],
       "id": "FND-013",
-      "implementable": true,
+      "implementable": false,
       "kind": "technical",
       "module": "foundation",
       "order": 14,
       "path": "modules/foundation/FND-013-image-keys-and-public-image-addresses.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Image keys and public image addresses"
     },
     {
@@ -213,14 +213,14 @@
         "FND-003"
       ],
       "id": "FND-014",
-      "implementable": true,
+      "implementable": false,
       "kind": "technical",
       "module": "foundation",
       "order": 15,
       "path": "modules/foundation/FND-014-plan-grid-and-business-payment-codes.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Plan grid and business payment codes"
     },
     {
@@ -370,14 +370,14 @@
         "PER-003"
       ],
       "id": "PER-010",
-      "implementable": true,
+      "implementable": false,
       "kind": "migration",
       "module": "person",
       "order": 25,
       "path": "modules/person/PER-010-profile-photo-key-on-the-person.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Profile photo key on the person"
     },
     {
@@ -393,7 +393,7 @@
       "path": "modules/person/PER-011-the-public-view-of-a-person-carries-the-photo.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The public view of a person carries the photo address"
     },
     {
@@ -409,7 +409,7 @@
       "path": "modules/person/PER-012-own-profile-shows-the-photo-address.md",
       "risk": "low",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Own profile shows the photo address"
     },
     {
@@ -426,7 +426,7 @@
       "path": "modules/person/PER-013-server-side-writer-of-the-profile-photo-key.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Server-side writer of the profile photo key"
     },
     {
@@ -434,14 +434,14 @@
         "PER-005"
       ],
       "id": "PER-014",
-      "implementable": true,
+      "implementable": false,
       "kind": "technical",
       "module": "person",
       "order": 29,
       "path": "modules/person/PER-014-handlers-called-when-a-phone-number-is-released.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Handlers called when a phone number is released"
     },
     {
@@ -558,14 +558,14 @@
         "ACC-005"
       ],
       "id": "ACC-008",
-      "implementable": true,
+      "implementable": false,
       "kind": "change",
       "module": "access",
       "order": 37,
       "path": "modules/access/ACC-008-availability-values-say-who-may-act-offline.md",
       "risk": "high",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Availability values say who may act offline"
     },
     {
@@ -1075,14 +1075,14 @@
         "AUTH-001"
       ],
       "id": "AUTH-027",
-      "implementable": true,
+      "implementable": false,
       "kind": "migration",
       "module": "auth",
       "order": 68,
       "path": "modules/auth/AUTH-027-two-new-purposes-for-one-time-codes.md",
       "risk": "high",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Two new purposes for one-time codes"
     },
     {
@@ -1090,14 +1090,14 @@
         "AUTH-013"
       ],
       "id": "AUTH-028",
-      "implementable": true,
+      "implementable": false,
       "kind": "change",
       "module": "auth",
       "order": 69,
       "path": "modules/auth/AUTH-028-sign-in-tells-the-person-what-to-do.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Sign-in tells the person what to do"
     },
     {
@@ -1113,7 +1113,7 @@
       "path": "modules/auth/AUTH-029-a-registered-number-gets-no-registration-code.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A registered number gets no registration code"
     },
     {
@@ -1121,14 +1121,14 @@
         "AUTH-010"
       ],
       "id": "AUTH-030",
-      "implementable": true,
+      "implementable": false,
       "kind": "change",
       "module": "auth",
       "order": 71,
       "path": "modules/auth/AUTH-030-registration-saves-the-interface-language.md",
       "risk": "high",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Registration saves the interface language"
     },
     {
@@ -1145,7 +1145,7 @@
       "path": "modules/auth/AUTH-031-a-recycled-number-can-be-claimed-after-six-idle.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "A recycled number can be claimed after six idle months"
     },
     {
@@ -1163,7 +1163,7 @@
       "path": "modules/auth/AUTH-032-registering-on-a-recycled-number-re-checks-the.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Registering on a recycled number re-checks the old holder"
     },
     {
@@ -1179,7 +1179,7 @@
       "path": "modules/auth/AUTH-033-the-reset-code-comes-by-sms-only.md",
       "risk": "high",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "The reset code comes by SMS only"
     },
     {
@@ -1196,7 +1196,7 @@
       "path": "modules/auth/AUTH-034-the-new-password-opens-the-session-on-this-phone.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The new password opens the session on this phone"
     },
     {
@@ -1213,7 +1213,7 @@
       "path": "modules/auth/AUTH-036-sign-in-no-longer-uses-the-email.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Sign-in no longer uses the email"
     },
     {
@@ -1228,7 +1228,7 @@
       "path": "modules/auth/AUTH-035-remove-the-verified-email-lookup.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Remove the verified-email lookup"
     },
     {
@@ -1244,7 +1244,7 @@
       "path": "modules/auth/AUTH-037-the-active-holder-is-told-someone-claimed-their.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The active holder is told someone claimed their number"
     },
     {
@@ -1253,14 +1253,14 @@
         "PER-003"
       ],
       "id": "AUTH-038",
-      "implementable": true,
+      "implementable": false,
       "kind": "test",
       "module": "auth",
       "order": 79,
       "path": "modules/auth/AUTH-038-a-verified-email-is-unique-whatever-the-letter.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "A verified email is unique whatever the letter case"
     },
     {
@@ -1268,14 +1268,14 @@
         "FND-003"
       ],
       "id": "BIL-008",
-      "implementable": true,
+      "implementable": false,
       "kind": "technical",
       "module": "billing",
       "order": 80,
       "path": "modules/billing/BIL-008-payment-aggregator-port-with-a-fake-adapter.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Payment aggregator port with a fake adapter"
     },
     {
@@ -1290,7 +1290,7 @@
       "path": "modules/billing/BIL-010-plan-arithmetic-for-upgrades-queues-and-grace.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Plan arithmetic for upgrades, queues and grace"
     },
     {
@@ -1305,7 +1305,7 @@
       "path": "modules/images/IMG-001-registry-of-copied-photos.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Registry of copied photos"
     },
     {
@@ -1348,14 +1348,14 @@
         "CAT-001"
       ],
       "id": "CAT-012",
-      "implementable": true,
+      "implementable": false,
       "kind": "migration",
       "module": "catalog",
       "order": 85,
       "path": "modules/catalog/CAT-012-product-variants-table.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Product variants table"
     },
     {
@@ -1370,7 +1370,7 @@
       "path": "modules/catalog/CAT-013-every-existing-product-gets-its-variant.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Every existing product gets its variant"
     },
     {
@@ -1385,7 +1385,7 @@
       "path": "modules/catalog/CAT-014-products-carry-photos-and-a-pause-date-and-old.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Products carry photos and a pause date, and old-style writes reach the variants"
     },
     {
@@ -1400,7 +1400,7 @@
       "path": "modules/catalog/CAT-015-negotiated-prices-point-at-a-variant.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Negotiated prices point at a variant"
     },
     {
@@ -1415,7 +1415,7 @@
       "path": "modules/catalog/CAT-018-two-variants-of-a-product-never-share-a-name.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Two variants of a product never share a name and a unit"
     },
     {
@@ -1430,7 +1430,7 @@
       "path": "modules/catalog/CAT-016-variant-label-and-comparison-text-shared-by-the.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Variant label and comparison text shared by the app and the server"
     },
     {
@@ -1446,7 +1446,7 @@
       "path": "modules/catalog/CAT-021-a-variant-change-also-moves-its-product-s.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A variant change also moves its product's server date"
     },
     {
@@ -1463,7 +1463,7 @@
       "path": "modules/catalog/CAT-032-the-server-writes-the-photo-keys-of-a-product.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The server writes the photo keys of a product or a variant"
     },
     {
@@ -1480,7 +1480,7 @@
       "path": "modules/catalog/CAT-033-a-product-sent-by-a-phone-is-applied-without.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A product sent by a phone is applied without failing the batch"
     },
     {
@@ -1498,7 +1498,7 @@
       "path": "modules/catalog/CAT-034-a-variant-sent-by-a-phone-is-created-or-edited.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "A variant sent by a phone is created or edited without failing the batch"
     },
     {
@@ -1513,7 +1513,7 @@
       "path": "modules/catalog/CAT-035-a-variant-created-twice-is-folded-into-the-first.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A variant created twice is folded into the first"
     },
     {
@@ -1528,7 +1528,7 @@
       "path": "modules/catalog/CAT-044-the-server-reads-the-photo-keys-of-a-product-or.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The server reads the photo keys of a product or a variant under a lock"
     },
     {
@@ -1543,7 +1543,7 @@
       "path": "modules/catalog/CAT-046-the-server-empties-the-photo-keys-of-deleted.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The server empties the photo keys of deleted products and variants"
     },
     {
@@ -1931,7 +1931,7 @@
       "path": "modules/organization/ORG-020-plan-fields-and-logo-key-on-the-organization.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Plan fields and logo key on the organization"
     },
     {
@@ -1946,7 +1946,7 @@
       "path": "modules/billing/BIL-001-table-of-subscription-payments.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Table of subscription payments"
     },
     {
@@ -1961,7 +1961,7 @@
       "path": "modules/billing/BIL-003-table-of-subscription-receipts-with-gap-free.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Table of subscription receipts with gap-free numbers"
     },
     {
@@ -1977,7 +1977,7 @@
       "path": "modules/billing/BIL-012-receipts-with-vat-and-a-gap-free-number.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Receipts with VAT and a gap-free number"
     },
     {
@@ -1986,14 +1986,14 @@
         "PER-003"
       ],
       "id": "ORG-021",
-      "implementable": true,
+      "implementable": false,
       "kind": "migration",
       "module": "organization",
       "order": 125,
       "path": "modules/organization/ORG-021-organization-contacts-table.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Organization contacts table"
     },
     {
@@ -2001,14 +2001,14 @@
         "ORG-003"
       ],
       "id": "ORG-022",
-      "implementable": true,
+      "implementable": false,
       "kind": "migration",
       "module": "organization",
       "order": 126,
       "path": "modules/organization/ORG-022-a-collaboration-can-be-paused.md",
       "risk": "high",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "A collaboration can be paused"
     },
     {
@@ -2024,7 +2024,7 @@
       "path": "modules/organization/ORG-023-a-one-time-code-can-be-tied-to-a-business.md",
       "risk": "high",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "A one-time code can be tied to a business contact"
     },
     {
@@ -2042,7 +2042,7 @@
       "path": "modules/organization/ORG-028-a-new-business-gets-its-payment-code-and-the.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A new business gets its payment code and the free plan"
     },
     {
@@ -2059,7 +2059,7 @@
       "path": "modules/organization/ORG-030-an-invitation-respects-the-collaborator-limit.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "An invitation respects the collaborator limit of the plan"
     },
     {
@@ -2076,7 +2076,7 @@
       "path": "modules/organization/ORG-035-the-organization-lets-billing-write-the-plan.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The organization lets billing write the plan and pause seats"
     },
     {
@@ -2092,7 +2092,7 @@
       "path": "modules/organization/ORG-038-server-side-writer-of-the-business-logo-key.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Server-side writer of the business logo key"
     },
     {
@@ -2109,7 +2109,7 @@
       "path": "modules/images/IMG-002-storage-and-photo-processing-ports-with-fake.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Storage and photo-processing ports with fake adapters"
     },
     {
@@ -2124,7 +2124,7 @@
       "path": "modules/images/IMG-003-receive-a-photo-check-it-and-store-a-clean-copy.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Receive a photo, check it and store a clean copy"
     },
     {
@@ -2141,7 +2141,7 @@
       "path": "modules/images/IMG-004-a-person-adds-replaces-or-removes-their-profile.md",
       "risk": "medium",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "A person adds, replaces or removes their profile photo"
     },
     {
@@ -2158,7 +2158,7 @@
       "path": "modules/images/IMG-005-the-owner-adds-replaces-or-removes-the-business.md",
       "risk": "medium",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "The owner adds, replaces or removes the business logo"
     },
     {
@@ -2174,7 +2174,7 @@
       "path": "modules/images/IMG-006-copy-a-photo-under-a-new-key-and-record-the-copy.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Copy a photo under a new key and record the copy"
     },
     {
@@ -2189,7 +2189,7 @@
       "path": "modules/images/IMG-007-nightly-cleanup-of-photo-files-that-no-card.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Nightly cleanup of photo files that no card cites"
     },
     {
@@ -2206,7 +2206,7 @@
       "path": "modules/images/IMG-008-a-manager-adds-or-replaces-a-photo-of-a-product.md",
       "risk": "medium",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "A manager adds or replaces a photo of a product"
     },
     {
@@ -2221,7 +2221,7 @@
       "path": "modules/images/IMG-009-a-manager-removes-a-photo-of-a-product.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A manager removes a photo of a product"
     },
     {
@@ -2237,7 +2237,7 @@
       "path": "modules/images/IMG-010-a-manager-adds-replaces-or-removes-the-photos.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A manager adds, replaces or removes the photos of a variant"
     },
     {
@@ -2254,7 +2254,7 @@
       "path": "modules/images/IMG-011-a-manager-takes-a-photo-from-another-variant-of.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A manager takes a photo from another variant of the same product"
     },
     {
@@ -2270,7 +2270,7 @@
       "path": "modules/images/IMG-012-the-nightly-cleanup-releases-the-photos-of.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The nightly cleanup releases the photos of deleted products and variants"
     },
     {
@@ -2288,7 +2288,7 @@
       "path": "modules/organization/ORG-040-the-owner-rules-for-the-team-and-the-contacts.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The owner rules for the team and the contacts are written out"
     },
     {
@@ -2304,7 +2304,7 @@
       "path": "modules/organization/ORG-041-a-contact-code-names-the-business-and-serves.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A contact code names the business and serves one contact"
     },
     {
@@ -2320,7 +2320,7 @@
       "path": "modules/admin/ADM-018-the-access-restore-code-has-its-fixed-text.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "The access-restore code has its fixed text"
     },
     {
@@ -2338,7 +2338,7 @@
       "path": "modules/organization/ORG-024-the-owner-adds-a-public-phone-number-to-the.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "The owner adds a public phone number to the business"
     },
     {
@@ -2353,7 +2353,7 @@
       "path": "modules/organization/ORG-025-the-owner-confirms-a-contact-with-its-code.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The owner confirms a contact with its code"
     },
     {
@@ -2368,7 +2368,7 @@
       "path": "modules/organization/ORG-026-the-owner-asks-for-a-contact-code-again.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "The owner asks for a contact code again"
     },
     {
@@ -2383,7 +2383,7 @@
       "path": "modules/organization/ORG-027-the-owner-deletes-a-public-contact.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The owner deletes a public contact"
     },
     {
@@ -2400,7 +2400,7 @@
       "path": "modules/organization/ORG-033-a-new-owner-is-asked-to-review-the-public.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A new owner is asked to review the public contacts"
     },
     {
@@ -2417,7 +2417,7 @@
       "path": "modules/organization/ORG-037-a-contact-whose-number-changed-holder-goes-back.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A contact whose number changed holder goes back to pending"
     },
     {
@@ -2434,7 +2434,7 @@
       "path": "modules/organization/ORG-029-a-business-is-found-by-its-verified-public.md",
       "risk": "high",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "A business is found by its verified public contacts"
     },
     {
@@ -2451,7 +2451,7 @@
       "path": "modules/organization/ORG-031-stop-using-the-public-contact-flag-of-a.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Stop using the public-contact flag of a collaborator"
     },
     {
@@ -2466,7 +2466,7 @@
       "path": "modules/organization/ORG-042-the-owner-adds-a-public-email-to-the-business.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The owner adds a public email to the business"
     },
     {
@@ -2482,7 +2482,7 @@
       "path": "modules/organization/ORG-044-billing-finds-a-business-by-its-payment-code.md",
       "risk": "low",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Billing finds a business by its payment code and its owner"
     },
     {
@@ -2498,7 +2498,7 @@
       "path": "modules/billing/BIL-007-a-payer-checks-the-business-name-from-its.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A payer checks the business name from its payment code"
     },
     {
@@ -2517,7 +2517,7 @@
       "path": "modules/billing/BIL-009-a-payer-starts-a-payment-for-a-business.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "A payer starts a payment for a business"
     },
     {
@@ -2532,7 +2532,7 @@
       "path": "modules/organization/ORG-045-billing-reads-the-plan-fields-and-lists.md",
       "risk": "low",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Billing reads the plan fields and lists businesses by plan date"
     },
     {
@@ -2548,7 +2548,7 @@
       "path": "modules/catalog/CAT-038-the-plan-s-product-limit-is-checked-in-one-place.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The plan's product limit is checked in one place"
     },
     {
@@ -2787,14 +2787,14 @@
         "ORD-002"
       ],
       "id": "ORD-022",
-      "implementable": true,
+      "implementable": false,
       "kind": "migration",
       "module": "order",
       "order": 174,
       "path": "modules/order/ORD-022-orders-carry-the-date-they-were-accepted.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Orders carry the date they were accepted"
     },
     {
@@ -2810,7 +2810,7 @@
       "path": "modules/order/ORD-024-order-lines-can-name-a-variant.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Order lines can name a variant"
     },
     {
@@ -2825,7 +2825,7 @@
       "path": "modules/order/ORD-025-every-order-line-names-its-variant.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Every order line names its variant"
     },
     {
@@ -2841,7 +2841,7 @@
       "path": "modules/order/ORD-026-order-line-rules-read-the-variant.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Order line rules read the variant"
     },
     {
@@ -2856,7 +2856,7 @@
       "path": "modules/order/ORD-029-a-supplier-s-orders-are-counted-by-variant-over.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "A supplier's orders are counted by variant over a period"
     },
     {
@@ -2871,7 +2871,7 @@
       "path": "modules/order/ORD-030-the-order-module-says-which-variants-order.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "The order module says which variants order lines cite"
     },
     {
@@ -2996,14 +2996,14 @@
         "DLV-004"
       ],
       "id": "DLV-013",
-      "implementable": true,
+      "implementable": false,
       "kind": "change",
       "module": "delivery",
       "order": 187,
       "path": "modules/delivery/DLV-013-an-order-assigned-to-a-driver-leaves-the-pool.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "An order assigned to a driver leaves the pool of the other drivers"
     },
     {
@@ -3122,7 +3122,7 @@
       "path": "modules/catalog/CAT-017-reference-price-is-read-by-variant.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Reference price is read by variant"
     },
     {
@@ -3138,7 +3138,7 @@
       "path": "modules/catalog/CAT-019-an-active-variant-is-read-with-its-product-name.md",
       "risk": "high",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "An active variant is read with its product name"
     },
     {
@@ -3154,7 +3154,7 @@
       "path": "modules/catalog/CAT-020-the-server-can-count-list-and-pause-the.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The server can count, list and pause the products on sale"
     },
     {
@@ -3176,7 +3176,7 @@
       "path": "modules/catalog/CAT-022-manager-creates-a-product-with-its-variants.md",
       "risk": "medium",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Manager creates a product with its variants"
     },
     {
@@ -3192,7 +3192,7 @@
       "path": "modules/catalog/CAT-023-manager-edits-a-product-s-name-description-and.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Manager edits a product's name, description and category"
     },
     {
@@ -3209,7 +3209,7 @@
       "path": "modules/catalog/CAT-024-manager-adds-a-variant-to-a-product.md",
       "risk": "medium",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Manager adds a variant to a product"
     },
     {
@@ -3226,7 +3226,7 @@
       "path": "modules/catalog/CAT-025-manager-changes-a-variant-s-price-unit-or.md",
       "risk": "medium",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Manager changes a variant's price, unit or availability"
     },
     {
@@ -3242,7 +3242,7 @@
       "path": "modules/catalog/CAT-026-manager-deletes-a-variant-or-a-whole-product.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Manager deletes a variant or a whole product"
     },
     {
@@ -3258,7 +3258,7 @@
       "path": "modules/catalog/CAT-027-seller-lists-the-catalog-with-its-variants.md",
       "risk": "low",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Seller lists the catalog with its variants"
     },
     {
@@ -3275,7 +3275,7 @@
       "path": "modules/catalog/CAT-028-customer-browses-a-supplier-s-catalog-by.md",
       "risk": "medium",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Customer browses a supplier's catalog by product and variant"
     },
     {
@@ -3292,7 +3292,7 @@
       "path": "modules/catalog/CAT-036-a-deletion-sent-by-a-phone-retires-what-was.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "A deletion sent by a phone retires what was sold instead"
     },
     {
@@ -3307,7 +3307,7 @@
       "path": "modules/catalog/CAT-037-a-sale-sent-for-a-deleted-or-merged-variant.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A sale sent for a deleted or merged variant finds its variant again"
     },
     {
@@ -3325,7 +3325,7 @@
       "path": "modules/order/ORD-027-order-lines-are-priced-from-the-variant.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Order lines are priced from the variant"
     },
     {
@@ -3341,7 +3341,7 @@
       "path": "modules/delivery/DLV-014-the-rest-of-a-delivery-and-a-counter-sale-keep.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "The rest of a delivery and a counter sale keep the variant of each line"
     },
     {
@@ -3356,7 +3356,7 @@
       "path": "modules/order/ORD-028-order-lines-name-their-variant-in-requests-and.md",
       "risk": "medium",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Order lines name their variant in requests and answers"
     },
     {
@@ -3518,7 +3518,7 @@
       "path": "modules/order/ORD-023-accepting-an-order-records-its-date.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Accepting an order records its date"
     },
     {
@@ -3622,7 +3622,7 @@
       "path": "modules/catalog/CAT-029-negotiated-prices-are-set-and-copied-by-variant.md",
       "risk": "medium",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Negotiated prices are set and copied by variant"
     },
     {
@@ -3638,7 +3638,7 @@
       "path": "modules/catalog/CAT-030-negotiated-prices-are-listed-and-removed-by.md",
       "risk": "low",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Negotiated prices are listed and removed by variant"
     },
     {
@@ -3654,7 +3654,7 @@
       "path": "modules/catalog/CAT-039-a-negotiated-price-sent-or-removed-by-a-phone.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "A negotiated price sent or removed by a phone is applied without failing the batch"
     },
     {
@@ -4037,14 +4037,14 @@
         "ADM-002"
       ],
       "id": "ADM-016",
-      "implementable": true,
+      "implementable": false,
       "kind": "migration",
       "module": "admin",
       "order": 248,
       "path": "modules/admin/ADM-016-the-journal-accepts-five-more-actions.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "The journal accepts five more actions"
     },
     {
@@ -4061,7 +4061,7 @@
       "path": "modules/admin/ADM-017-support-releases-the-number-of-a-person.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Support releases the number of a person"
     },
     {
@@ -4078,7 +4078,7 @@
       "path": "modules/admin/ADM-019-support-sends-the-two-codes-to-restore-an-access.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Support sends the two codes to restore an access"
     },
     {
@@ -4094,7 +4094,7 @@
       "path": "modules/admin/ADM-020-support-gives-the-account-back-on-the-new-number.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Support gives the account back on the new number"
     },
     {
@@ -4205,7 +4205,7 @@
       "path": "modules/catalog/CAT-031-reseller-copies-purchased-variants-into-their.md",
       "risk": "medium",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Reseller copies purchased variants into their catalog"
     },
     {
@@ -4222,7 +4222,7 @@
       "path": "modules/catalog/CAT-040-catalog-tests-seed-products-through-one-helper.md",
       "risk": "low",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Catalog tests seed products through one helper"
     },
     {
@@ -4240,7 +4240,7 @@
       "path": "modules/catalog/CAT-042-price-tests-name-the-variant-of-a-negotiated.md",
       "risk": "low",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Price tests name the variant of a negotiated price"
     },
     {
@@ -4258,7 +4258,7 @@
       "path": "modules/catalog/CAT-045-copied-variants-and-new-products-take-copies-of.md",
       "risk": "high",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Copied variants and new products take copies of the photos"
     },
     {
@@ -4274,7 +4274,7 @@
       "path": "modules/delivery/DLV-016-delivery-and-finance-tests-seed-products.md",
       "risk": "low",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "Delivery and finance tests seed products through the catalog helper"
     },
     {
@@ -4290,7 +4290,7 @@
       "path": "modules/order/ORD-031-order-tests-seed-products-through-the-catalog.md",
       "risk": "low",
       "size": "M",
-      "status": "todo",
+      "status": "done",
       "title": "Order tests seed products through the catalog helper"
     },
     {
@@ -4307,7 +4307,7 @@
       "path": "modules/order/ORD-032-an-order-line-may-be-saved-without-its-product.md",
       "risk": "high",
       "size": "S",
-      "status": "todo",
+      "status": "done",
       "title": "An order line may be saved without its product"
     },
     {
@@ -4837,14 +4837,14 @@
         "DLV-012"
       ],
       "id": "DLV-015",
-      "implementable": true,
+      "implementable": false,
       "kind": "technical",
       "module": "delivery",
       "order": 294,
       "path": "modules/delivery/DLV-015-find-the-drivers-who-still-have-deliveries-on.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Find the drivers who still have deliveries on the road"
     },
     {
@@ -4879,7 +4879,7 @@
       "path": "modules/finance/FIN-021-expenses-and-handovers-accept-a-paused-member.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Expenses and handovers accept a paused member"
     },
     {
@@ -4887,14 +4887,14 @@
         "FIN-016"
       ],
       "id": "FIN-022",
-      "implementable": true,
+      "implementable": false,
       "kind": "change",
       "module": "finance",
       "order": 297,
       "path": "modules/finance/FIN-022-the-dispute-notice-says-versement.md",
       "risk": "low",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "The dispute notice says versement"
     },
     {
@@ -4911,7 +4911,7 @@
       "path": "modules/relationship/REL-026-relationship-answers-document-the-photo-of-a.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "Relationship answers document the photo of a person"
     },
     {
@@ -4977,7 +4977,7 @@
       "path": "modules/organization/ORG-039-the-identity-pull-stops-sending-the-removed.md",
       "risk": "medium",
       "size": "XS",
-      "status": "todo",
+      "status": "done",
       "title": "The identity pull stops sending the removed fields"
     },
     {
@@ -4986,7 +4986,7 @@
         "ORG-039"
       ],
       "id": "ORG-032",
-      "implementable": false,
+      "implementable": true,
       "kind": "migration",
       "module": "organization",
       "order": 303,
@@ -5002,7 +5002,7 @@
         "ORG-039"
       ],
       "id": "ORG-043",
-      "implementable": false,
+      "implementable": true,
       "kind": "migration",
       "module": "organization",
       "order": 304,
@@ -5935,7 +5935,7 @@
         "FND-013"
       ],
       "id": "SYNC-024",
-      "implementable": false,
+      "implementable": true,
       "kind": "change",
       "module": "sync",
       "order": 359,
@@ -5982,7 +5982,7 @@
         "ORD-028"
       ],
       "id": "SYNC-027",
-      "implementable": false,
+      "implementable": true,
       "kind": "change",
       "module": "sync",
       "order": 362,
@@ -6000,7 +6000,7 @@
         "ORD-025"
       ],
       "id": "SYNC-028",
-      "implementable": false,
+      "implementable": true,
       "kind": "technical",
       "module": "sync",
       "order": 363,
@@ -6017,7 +6017,7 @@
         "ORD-026"
       ],
       "id": "SYNC-029",
-      "implementable": false,
+      "implementable": true,
       "kind": "change",
       "module": "sync",
       "order": 364,
@@ -6223,7 +6223,7 @@
         "DLV-013"
       ],
       "id": "SYNC-040",
-      "implementable": false,
+      "implementable": true,
       "kind": "change",
       "module": "sync",
       "order": 376,
@@ -6402,7 +6402,7 @@
         "IMG-002"
       ],
       "id": "PRIV-004",
-      "implementable": false,
+      "implementable": true,
       "kind": "change",
       "module": "privacy",
       "order": 386,
@@ -6418,7 +6418,7 @@
         "BIL-001"
       ],
       "id": "PRIV-005",
-      "implementable": false,
+      "implementable": true,
       "kind": "change",
       "module": "privacy",
       "order": 387,

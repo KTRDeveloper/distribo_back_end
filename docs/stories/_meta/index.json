@@ -3854,7 +3854,7 @@
     },
     "AUTH-028": {
       "path": "modules/auth/AUTH-028-sign-in-tells-the-person-what-to-do.md",
-      "sha256": "e8aadf2c71eba2ead1b5e7fc28e7b93de2b98d8844a64025886545e92342d611"
+      "sha256": "a1756e1b77821c00ce9dd9be91563a5147cc9594d9a8cf3b8b2207e62fa33da6"
     },
     "AUTH-029": {
       "path": "modules/auth/AUTH-029-a-registered-number-gets-no-registration-code.md",
@@ -3870,7 +3870,7 @@
     },
     "AUTH-032": {
       "path": "modules/auth/AUTH-032-registering-on-a-recycled-number-re-checks-the.md",
-      "sha256": "a24bb6ad307c20944fcbb976806bbc0ee5958b4c479e1a95ced07ac522d7586c"
+      "sha256": "ab3b843f3ebaed85f4069ef9a5651a2f26eeb9a171fd602eca0d83f72e3f78a2"
     },
     "AUTH-033": {
       "path": "modules/auth/AUTH-033-the-reset-code-comes-by-sms-only.md",
@@ -3890,7 +3890,7 @@
     },
     "AUTH-037": {
       "path": "modules/auth/AUTH-037-the-active-holder-is-told-someone-claimed-their.md",
-      "sha256": "81c5d5425373de4688ad89419ee2353c5f8db9a4e48a2e68c538fd929999a190"
+      "sha256": "134e9bf448f7b88a46946fad62f4f38db1cd6fa7af3f59e5d9bb2f3efc2d62d6"
     },
     "AUTH-038": {
       "path": "modules/auth/AUTH-038-a-verified-email-is-unique-whatever-the-letter.md",
@@ -4774,7 +4774,7 @@
     },
     "ORG-032": {
       "path": "modules/organization/ORG-032-the-business-email-column-is-dropped.md",
-      "sha256": "be45cbd13483629c3c4dfb70de8307ca29fc0f718ce3583ccb4af592c7aafc87"
+      "sha256": "2e2f7cee5a190ab96cd759c6251984de3ca75dfdade9fb10cfa93d0d01f4048d"
     },
     "ORG-033": {
       "path": "modules/organization/ORG-033-a-new-owner-is-asked-to-review-the-public.md",
@@ -4818,7 +4818,7 @@
     },
     "ORG-043": {
       "path": "modules/organization/ORG-043-the-public-contact-flag-column-and-its-database.md",
-      "sha256": "bcff3b5739ddfbf54e8fa7b5999155762b520bc086150f400c391beda4177f1d"
+      "sha256": "a372eeb59d37e3af6f3c599d82c0a4d2eb9075525bed0bf9bf062906fe1abec8"
     },
     "ORG-044": {
       "path": "modules/organization/ORG-044-billing-finds-a-business-by-its-payment-code.md",
@@ -4890,7 +4890,7 @@
     },
     "PRIV-002": {
       "path": "modules/privacy/PRIV-002-person-deletes-their-account-by-anonymization.md",
-      "sha256": "7d3a5f08e1e92a346b200fb2476711e1dc5b29a317dfd43870aa61f5a887198f"
+      "sha256": "8dfa7af9270224af285aedcd9cb14994e243b7e781a7a32c05043b319727a9e7"
     },
     "PRIV-003": {
       "path": "modules/privacy/PRIV-003-daily-purge-of-expired-data.md",

@@ -3,7 +3,7 @@ id: ORG-032
 title: The business email column is dropped
 module: organization
 kind: migration
-rev: 1
+rev: 2
 amends: [ORG-001]
 size: S
 risk: high
@@ -70,13 +70,14 @@ Scenario: AB-1 A stored address vanishes without a decision (repudiation)
 | create and read | integration | AC-4 | creation and reading still work |
 | no silent loss | security | AB-1, CWE-778 | stored email → migration text stops before the DROP |
 
-Command: `npx vitest run tests/integration/organization/organization-email-dropped.test.ts tests/integration/organization/organization-table.test.ts tests/integration/organization/actor-and-read.test.ts`
+Command: `npx vitest run tests/integration/organization/organization-email-dropped.test.ts tests/integration/organization/organization-table.test.ts tests/integration/organization/actor-and-read.test.ts tests/integration/sync/pull-identity-removed-fields.test.ts`
 
 ### Tests to update
 | existing test | reason | new expectation |
 |---|---|---|
 | tests/integration/organization/organization-table.test.ts | selects `email` and lists it among the nullable columns | no `email` in the select, the object and the loop |
 | tests/integration/organization/actor-and-read.test.ts | the seed writes `email: 'org@example.cm'` and the `Detail` type has it | seed and type without `email` |
+| tests/integration/sync/pull-identity-removed-fields.test.ts | the organization seed still writes the retired `email` field | remove only the obsolete organization `email` seed field; keep all non-disclosure assertions unchanged |
 
 ## Out of scope
 - Turning a stored address into a contact: an owner's decision, open question.
