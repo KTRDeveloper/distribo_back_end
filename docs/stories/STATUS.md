@@ -330,7 +330,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | FIN-022 | done | | French disputed-handover notice uses versement; finance 334/334, full suite 4693/4693; typecheck clean, lint 0 errors. |
 | REL-026 | done | | Validated existing photo schema; 14 photo tests and 4718 suite tests pass; scoped SAST/secrets clean; audit no high vulnerabilities |
 | ORG-039 | done | | Removed retired identity pull fields; 25 story tests and 4724 full-suite tests pass; typecheck clean; lint 0 errors; SAST and secrets clean |
-| ORG-032 | todo | | User approved adding the sync regression test to Tests to update; resume preserved partial changes after clarification. |
+| ORG-032 | done | | 37/37 story tests; suite 4731/4732, random UUID image-copy failure passed on targeted retry (44/44); typecheck clean, lint 0 errors |
 | ORG-043 | todo | | User confirmed live means deleted_at IS NULL; clarify scratch table and test deleted rows before resuming. |
 | ORG-034 | todo | | |
 | BIL-005 | todo | | |

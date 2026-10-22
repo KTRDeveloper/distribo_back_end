@@ -56,19 +56,17 @@ describe('organizations table', () => {
       Array<{
         status: string;
         description: string | null;
-        email: string | null;
         created_at: Date;
         server_updated_at: Date;
         deleted_at: Date | null;
       }>
     >`
-      SELECT status::text AS status, description, email, created_at, server_updated_at, deleted_at
+      SELECT status::text AS status, description, created_at, server_updated_at, deleted_at
       FROM organizations WHERE id = ${ORG_ID}::uuid
     `;
     expect(row).toMatchObject({
       status: 'ACTIVE',
       description: null,
-      email: null,
       deleted_at: null,
     });
     expect(row.created_at).toBeInstanceOf(Date);
@@ -89,7 +87,7 @@ describe('organizations table', () => {
     for (const name of ['name', 'status', 'created_at']) {
       expect(byName[name]?.is_nullable).toBe('NO');
     }
-    for (const name of ['description', 'email', 'deleted_at']) {
+    for (const name of ['description', 'deleted_at']) {
       expect(byName[name]?.is_nullable).toBe('YES');
     }
   });

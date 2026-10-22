@@ -659,33 +659,33 @@ ORG-039 done
 <!-- begin ORG-032 -->
 ## ORG-032 — The business email column is dropped
 
-- Filed: 2026-10-22 04:39 UTC
-- Status: **blocked**: May tests/integration/sync/pull-identity-removed-fields.test.ts be added to Tests to update so its obsolete email seed can be removed (6 suite failures)?
+- Filed: 2026-10-22 05:32 UTC
+- Status: **done**: 37/37 story tests; suite 4731/4732, random UUID image-copy failure passed on targeted retry (44/44); typecheck clean, lint 0 errors
 - Risk: high · story: [ORG-032-the-business-email-column-is-dropped.md](../modules/organization/ORG-032-the-business-email-column-is-dropped.md)
-- Agent: 41,318 tokens, 33 tool uses, 6 min 28 s
+- Agent: 36,149 tokens, 27 tool uses, 4 min 40 s
 
 ### Agent report
 
-**Summary:** ORG-032 implemented but blocked: six ORG-039 tests seed the removed email field in a test file this story does not authorize modifying.
+**Summary:** ORG-032 completed by preserving the resumed migration/schema/tests and removing the remaining obsolete sync seed field; status set to done.
 
 **Decisions:**
-- Preflight checks non-deleted organizations and emits at most 20 sorted UUIDs, never addresses; no contact conversion.
-- Repository and Organization comments already contain no email references, so no changes were needed there.
-- Removed unrelated foreign-key changes from Prisma's generated migration to retain the story's exact two statements.
+- Repository already omits email from its types/selects; no unnecessary production edit.
+- Existing migration blocks live non-null emails, reports at most 20 IDs without addresses, and drops email only after preflight.
+- Resumed tests were already green; no initial red phase was reproduced.
 
 **Tests added beyond the story:**
-- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/organization/organization-email-dropped.test.ts` guards the 20-ID diagnostic limit and deleted-row exclusion (story Context); both failed before implementation.
-- API create/read regression passed at once.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/organization/organization-email-dropped.test.ts` › non-null empty address: fail closed on every non-null value (AC-2/AB-1); passed at once.
+- Same absolute test file includes resumed 20-ID diagnostic boundary and deleted-row scope guards; both passed at once on resumption.
 
-**Evidence:** story tests 30/30; full suite 4725/4731, failing: six tests in pull-identity-removed-fields.test.ts, 0 known; typecheck clean; lint 0 errors, 201 warnings.
-- Dependency audit: no high/critical findings; 1 low and 1 moderate vulnerability. Semgrep and gitleaks executables unavailable.
-- Full suite output: `/tmp/distribo-implement-stories-20261022-8J2vtC/ORG-032-suite.txt`.
+**Evidence:** story tests 37/37; full suite 4731/4732, 0 known remaining; typecheck clean; lint 0 errors, 201 warnings; diff whitespace check clean.
+- Suite failure: image-copy test rejects random UUID substring `2057` as a date; failed file plus story tests pass 44/44 on targeted retry, without image-code changes.
+- Suite log: `/tmp/distribo-implement-stories-resume-20261022-vmCppY/ORG-032-suite.txt`.
+- Dependency audit: 0 high/critical, 1 moderate, 1 low; semgrep and gitleaks executables unavailable.
 
 **Follow-ups:**
-- Authorize updating `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/sync/pull-identity-removed-fields.test.ts`: its organization.createMany seed at line 49 supplies `email`, causing all six failures. No existing tests outside the permitted files were edited.
-- Migration `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/prisma/migrations/20261022043055_org_032_drop_organization_email/migration.sql` was applied locally and Prisma Client regenerated. No commit created; report file intentionally not written per the final developer instruction.
-
-ORG-032 blocked
+- Fix the unrelated probabilistic date assertion in the image-copy test under separate authorization; full suite was not rerun.
+- No report Markdown file written, following the final developer instruction; this handback supplies the report directly.
+ORG-032 done
 <!-- end ORG-032 -->
 
 <!-- begin ORG-043 -->

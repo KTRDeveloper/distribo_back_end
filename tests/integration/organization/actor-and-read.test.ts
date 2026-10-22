@@ -77,7 +77,6 @@ async function seedOrg(opts: {
         id: opts.id,
         name: opts.name,
         description: 'About ' + opts.name,
-        email: 'org@example.cm',
         status: opts.status ?? 'ACTIVE',
         createdAt: new Date(opts.createdAt),
       },

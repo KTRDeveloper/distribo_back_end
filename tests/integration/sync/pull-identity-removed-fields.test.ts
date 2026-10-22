@@ -52,7 +52,6 @@ describe('identity pull without removed organization fields (ORG-039)', () => {
           id: ORGANIZATION,
           name: 'Organization',
           description: 'Organization description',
-          email: 'a@b.cm',
           createdAt: LONG_AGO,
         },
         { id: OTHER_ORGANIZATION, name: 'Other organization', createdAt: LONG_AGO },

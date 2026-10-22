@@ -457,7 +457,6 @@ model Organization {
   id               String             @id @db.Uuid
   name             String
   description      String?            @db.Text
-  email            String?
   status           OrganizationStatus @default(ACTIVE)
   logoKey          String?            @unique @map("logo_key")
   paymentCode      String             @unique @default(dbgenerated("organization_payment_code()")) @map("payment_code")
