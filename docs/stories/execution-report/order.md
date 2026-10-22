@@ -6,6 +6,28 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-22 03:26 UTC: `/implement-stories next:10`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORD-031 Order tests seed products through the catalog helper | done | c3c49b6 | Fixtures catalogue migrees; tests cibles 481/481, suite 4653/4653; typecheck OK; lint 0 erreur. |
+| ORD-032 An order line may be saved without its product | done | afe3185 | Produit facultatif, controles et reliquats par variante; 4671/4671 tests, typecheck propre, lint 0 erreur (199 avertissements). |
+
+Also in this run: catalog, delivery, finance, relationship.
+
+- Nine selected stories completed; REL-026 implemented but remains blocked. Run paused on security gates, not on application tests.
+- CAT-040 resumed from its stash after approval to preserve legacy fixtures only for getActiveProduct pending CAT-041; CAT-045 resumed after a turn limit and approval to update the incompatible photo assertion.
+- CAT-042 resumed with an approved temporary negotiated-price fixture helper and variant-only sync contract; ORD-032 nullable-product consumers were corrected without fabricated product IDs.
+- Missing agent report files were recovered from inline hand-backs; final hand-back usage figures were recorded without estimating aggregate usage.
+- Approved maintenance committed separately as 89090c9: exact dependency targets, native Node watch scripts, OpenTelemetry resource API, isolated SMTP/OTel/HTTP tests, and tooling-only type corrections. No unplanned direct dependency version changed; Vite 7.3.7 is constrained through npm overrides.
+- Final dependency tree is valid; full suite 4717/4717 across 348 files; typecheck and lint pass (199 existing warnings); ESM/DTS build passes with an 8 GiB heap after an initial out-of-memory failure. Earlier random OTP/requestId false matches and the intermediate lint failure were not hidden or weakened.
+- Dependency audit unavailable after repeated registry timeouts: final vulnerability counts are unknown. Node 22 is unavailable locally; three-entry watch lifecycle validation remains unperformed. Maintenance is not a declaration of clean security gates.
+- Pinned local Semgrep scan: 12 existing findings (hook regexp, mutable CI action tags, Compose hardening, GCM tag-length warning) and partial Dockerfile parsing; no rule disabled or finding suppressed.
+- Pinned local Gitleaks: 36 historical detections over 452 commits, including an old API-key assignment in settings whose authenticity is unverified; worktree scan reports 16 detections including fixtures and ignored local environment values. No secret values were displayed, no environment file read, no exclusions added, and no history rewritten. Further triage/rotation decisions are outside the approved dependency patch.
+- Two maintenance/triage agents stopped on an API usage limit; coordinator continued directly without new agents. A denied lockfile diff was not retried; npm ls was used instead. Docker report mounting under /tmp failed because that path is not shared; redacted metadata was extracted through stdout instead.
+- Stash retained unchanged: On dev: CAT-040 blocked: partial changes (already applied). Older stashes also retained. REL-026 changes remain in the working tree, not stashed or reverted, as required by the approved preservation plan; blocked status/report committed as fe1cdeb.
+- Next: triage pre-existing SAST/secrets without suppressions, validate audits when the registry is reachable and Node22/watch in an approved runtime; then resume /implement-stories REL-026 with effort high. Do not mark done until gates pass.
+
 ### Run 2026-10-19 21:51 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |

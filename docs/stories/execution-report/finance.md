@@ -6,6 +6,28 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-22 03:26 UTC: `/implement-stories next:10`
+
+| story | status | commit | note |
+|---|---|---|---|
+| FIN-021 Expenses and handovers accept a paused member | done | e077f15 | Finance 332/332; suite 4690/4691 then OTP+finance 335/335 (random OTP substring); typecheck clean; lint 0 errors, 199 warnings; existing dependency audit findings |
+| FIN-022 The dispute notice says versement | done | 40885fc | French disputed-handover notice uses versement; finance 334/334, full suite 4693/4693; typecheck clean, lint 0 errors. |
+
+Also in this run: catalog, delivery, order, relationship.
+
+- Nine selected stories completed; REL-026 implemented but remains blocked. Run paused on security gates, not on application tests.
+- CAT-040 resumed from its stash after approval to preserve legacy fixtures only for getActiveProduct pending CAT-041; CAT-045 resumed after a turn limit and approval to update the incompatible photo assertion.
+- CAT-042 resumed with an approved temporary negotiated-price fixture helper and variant-only sync contract; ORD-032 nullable-product consumers were corrected without fabricated product IDs.
+- Missing agent report files were recovered from inline hand-backs; final hand-back usage figures were recorded without estimating aggregate usage.
+- Approved maintenance committed separately as 89090c9: exact dependency targets, native Node watch scripts, OpenTelemetry resource API, isolated SMTP/OTel/HTTP tests, and tooling-only type corrections. No unplanned direct dependency version changed; Vite 7.3.7 is constrained through npm overrides.
+- Final dependency tree is valid; full suite 4717/4717 across 348 files; typecheck and lint pass (199 existing warnings); ESM/DTS build passes with an 8 GiB heap after an initial out-of-memory failure. Earlier random OTP/requestId false matches and the intermediate lint failure were not hidden or weakened.
+- Dependency audit unavailable after repeated registry timeouts: final vulnerability counts are unknown. Node 22 is unavailable locally; three-entry watch lifecycle validation remains unperformed. Maintenance is not a declaration of clean security gates.
+- Pinned local Semgrep scan: 12 existing findings (hook regexp, mutable CI action tags, Compose hardening, GCM tag-length warning) and partial Dockerfile parsing; no rule disabled or finding suppressed.
+- Pinned local Gitleaks: 36 historical detections over 452 commits, including an old API-key assignment in settings whose authenticity is unverified; worktree scan reports 16 detections including fixtures and ignored local environment values. No secret values were displayed, no environment file read, no exclusions added, and no history rewritten. Further triage/rotation decisions are outside the approved dependency patch.
+- Two maintenance/triage agents stopped on an API usage limit; coordinator continued directly without new agents. A denied lockfile diff was not retried; npm ls was used instead. Docker report mounting under /tmp failed because that path is not shared; redacted metadata was extracted through stdout instead.
+- Stash retained unchanged: On dev: CAT-040 blocked: partial changes (already applied). Older stashes also retained. REL-026 changes remain in the working tree, not stashed or reverted, as required by the approved preservation plan; blocked status/report committed as fe1cdeb.
+- Next: triage pre-existing SAST/secrets without suppressions, validate audits when the registry is reachable and Node22/watch in an approved runtime; then resume /implement-stories REL-026 with effort high. Do not mark done until gates pass.
+
 ### Run 2026-10-04 21:00 UTC: `/implement-stories FIN-002`
 
 | story | status | commit | note |
