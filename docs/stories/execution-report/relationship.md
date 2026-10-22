@@ -949,3 +949,35 @@ Also in this run: admin, catalog, order, finance, delivery.
 **Follow-ups:**
 - normalizeE164 only accepts Cameroon mobiles, so a duplicate typed number in another country never matches and is refused.
 <!-- end REL-025 -->
+
+<!-- begin REL-026 -->
+## REL-026 — Relationship answers document the photo of a person
+
+- Filed: 2026-10-22 03:26 UTC
+- Status: **blocked**: Maintenance 89090c9: 4717 tests pass; audit unavailable after timeouts; SAST 12 findings; Gitleaks 36 historical detections; Node22/watch unverified. Security triage required.
+- Risk: medium · story: [REL-026-relationship-answers-document-the-photo-of-a.md](../modules/relationship/REL-026-relationship-answers-document-the-photo-of-a.md)
+- Agent: 45,508 tokens, 41 tool uses, 8 min 25 s
+
+### Agent report
+
+**Summary:** REL-026 is implemented but marked blocked because dependency scans violate the required security gates and permitted versions cannot be changed without clarification.
+
+**Decisions:**
+- Document nullable addresses using the existing OpenAPI 3.1 representation, `type: ['string', 'null']`.
+- Production change is only `avatar_url: z.string().nullable()` in `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/relationship/relationship.openapi.ts`.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/relationship/person-photo.test.ts` › another supplier cannot read invitation customer photos: session scope regression guard (ASVS deny-by-default); passed at once after valid photo fixtures.
+
+**Evidence:** New tests 13/13; story command 454/454; full suite 4705/4706, 0 known; typecheck clean; lint 0 errors, 199 warnings.
+- TDD confirmed three missing-avatar documentation failures before implementation; existing response and privacy behavior already passed.
+- Full-suite catalog failure asserted the complete JSON lacked `2700`, but random requestId was `efaf721c-81b7-4bd6-a5d7-9905d2700bf2`; failed file and story rerun passed 465/465 without code changes.
+- Suite output: `/tmp/distribo-next10-BPwRch6e/REL-026-suite.txt`.
+
+**Follow-ups:**
+- `npm audit`: 94 findings (53 moderate, 35 high, 6 critical); Semgrep and Gitleaks executables unavailable. No dependencies changed.
+- Targeted API-doc tests regenerated `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/openapi/openapi.json`; it remains modified. Permission explicitly denied reading its HEAD contents to restore it; do not bypass that restriction.
+- Requested report `/tmp/distribo-next10-BPwRch6e/REL-026-report.md` was not written because the latest developer instruction prohibits report Markdown files; this handback is the report.
+
+REL-026 blocked
+<!-- end REL-026 -->

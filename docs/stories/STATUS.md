@@ -328,7 +328,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-015 | done | | 9 story tests and all 4680 suite tests pass; typecheck clean; lint 0 errors, 199 warnings; dependency audit reports existing vulnerabilities |
 | FIN-021 | done | | Finance 332/332; suite 4690/4691 then OTP+finance 335/335 (random OTP substring); typecheck clean; lint 0 errors, 199 warnings; existing dependency audit findings |
 | FIN-022 | done | | French disputed-handover notice uses versement; finance 334/334, full suite 4693/4693; typecheck clean, lint 0 errors. |
-| REL-026 | todo | | |
+| REL-026 | blocked | | Maintenance 89090c9: 4717 tests pass; audit unavailable after timeouts; SAST 12 findings; Gitleaks 36 historical detections; Node22/watch unverified. Security triage required. |
 | ORG-039 | todo | | |
 | ORG-032 | todo | | |
 | ORG-043 | todo | | |
