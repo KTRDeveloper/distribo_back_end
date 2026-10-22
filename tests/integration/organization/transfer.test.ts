@@ -46,7 +46,7 @@ async function seedCollaboration(
   organizationId: string,
   role: 'OWNER' | 'MANAGER' | 'SELLER' | 'DRIVER',
   status: 'ACTIVE' | 'INVITED' | 'REVOKED',
-  extra: { isPublicContact?: boolean; amountHeld?: bigint } = {}
+  extra: { amountHeld?: bigint } = {}
 ) {
   await prisma.collaboration.create({
     data: {
@@ -90,10 +90,8 @@ beforeEach(async () => {
   await seedPerson(REVOKED_PERSON, '+237600150007');
   await prisma.organization.create({ data: { id: ORG_A, name: 'Org A' } });
   await prisma.organization.create({ data: { id: ORG_B, name: 'Org B' } });
-  await seedCollaboration(OWNER_ROW, OWNER, ORG_A, 'OWNER', 'ACTIVE', { isPublicContact: true });
-  await seedCollaboration(MANAGER_ROW, MANAGER, ORG_A, 'MANAGER', 'ACTIVE', {
-    isPublicContact: false,
-  });
+  await seedCollaboration(OWNER_ROW, OWNER, ORG_A, 'OWNER', 'ACTIVE');
+  await seedCollaboration(MANAGER_ROW, MANAGER, ORG_A, 'MANAGER', 'ACTIVE');
   await seedCollaboration(SELLER_ROW, SELLER, ORG_A, 'SELLER', 'ACTIVE');
   await seedCollaboration(INVITED_ROW, INVITED_PERSON, ORG_A, 'SELLER', 'INVITED');
   await seedCollaboration(REVOKED_ROW, REVOKED_PERSON, ORG_A, 'SELLER', 'REVOKED');
@@ -117,13 +115,6 @@ describe('POST /api/v1/organizations/:organizationId/transfer-ownership', () => 
     const owners = await activeOwners(ORG_A);
     expect(owners).toHaveLength(1);
     expect(owners[0]?.id).toBe(MANAGER_ROW);
-  });
-
-  it('AC-1 leaves is_public_contact unchanged on both rows', async () => {
-    await transfer(ORG_A, { id: GESTURE, collaboration_id: MANAGER_ROW });
-
-    expect((await rowOf(MANAGER_ROW)).isPublicContact).toBe(false);
-    expect((await rowOf(OWNER_ROW)).isPublicContact).toBe(true);
   });
 
   it('AC-2 both scope_version +1 and one unread ownership.received for the new owner', async () => {

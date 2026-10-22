@@ -72,7 +72,6 @@ async function seedCollaboration(
       acceptedAt: REG,
       invitedAt,
       amountHeld,
-      isPublicContact: role === 'OWNER',
     },
   });
 }

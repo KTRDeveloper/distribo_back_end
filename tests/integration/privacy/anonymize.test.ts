@@ -164,7 +164,7 @@ describe('DELETE /api/v1/users/me', () => {
     expect(await taskCount()).toBe(0);
   });
 
-  it('AC-3: collaborations are REVOKED with the flag false, history still points to the person', async () => {
+  it('AC-3: collaborations are REVOKED and history still points to the person', async () => {
     const collab = await prisma.collaboration.create({
       data: {
         id: newId(),
@@ -172,7 +172,6 @@ describe('DELETE /api/v1/users/me', () => {
         organizationId: SUPPLIER_ORG,
         role: 'MANAGER',
         status: 'ACTIVE',
-        isPublicContact: true,
         acceptedAt: REG,
         amountHeld: 7000n,
       },
@@ -214,11 +213,11 @@ describe('DELETE /api/v1/users/me', () => {
     expect((await del({ password: PASSWORD })).status).toBe(204);
 
     const after = await prisma.collaboration.findUniqueOrThrow({ where: { id: collab.id } });
-    expect(after).toMatchObject({ status: 'REVOKED', isPublicContact: false, amountHeld: 7000n });
+    expect(after).toMatchObject({ status: 'REVOKED', amountHeld: 7000n });
     const invitedAfter = await prisma.collaboration.findUniqueOrThrow({
       where: { id: invited.id },
     });
-    expect(invitedAfter).toMatchObject({ status: 'REVOKED', isPublicContact: false });
+    expect(invitedAfter).toMatchObject({ status: 'REVOKED' });
     const kept = await prisma.customerRelationship.findUniqueOrThrow({ where: { id: rel.id } });
     expect(kept.customerPersonId).toBe(personId);
   });

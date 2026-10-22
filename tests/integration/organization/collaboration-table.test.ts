@@ -54,16 +54,14 @@ async function insertCollaboration(
     personId: string;
     role: string;
     status: string;
-    isPublicContact?: boolean;
   }
 ): Promise<number> {
   return tx.$executeRaw`
-    INSERT INTO collaborations (id, person_id, organization_id, role, status, is_public_contact)
+    INSERT INTO collaborations (id, person_id, organization_id, role, status)
     VALUES (
       ${values.id}::uuid, ${values.personId}::uuid, ${ORG_ID}::uuid,
       ${values.role}::text::public."CollaborationRole",
-      ${values.status}::text::public."CollaborationStatus",
-      ${values.isPublicContact ?? false}
+      ${values.status}::text::public."CollaborationStatus"
     )
   `;
 }
@@ -75,7 +73,6 @@ const insertActiveOwner = (tx: Tx) =>
     role: 'OWNER',
     status: 'ACTIVE',
   });
-
 
 beforeEach(async () => {
   const registered = {
@@ -162,53 +159,6 @@ describe('collaborations table rules', () => {
       prisma.$executeRaw`
         UPDATE collaborations SET status = 'ACTIVE' WHERE id = ${MEMBER_COLLAB_ID}::uuid
       `
-    );
-    expect(code).toBe('23514');
-  });
-
-  it('rejects is_public_contact true while INVITED with 23514', async () => {
-    const code = await captureSqlCode(
-      prisma.$transaction(async (tx) => {
-        await insertActiveOwner(tx);
-        await insertCollaboration(tx, {
-          id: MEMBER_COLLAB_ID,
-          personId: MEMBER_ID,
-          role: 'SELLER',
-          status: 'INVITED',
-          isPublicContact: true,
-        });
-      })
-    );
-    expect(code).toBe('23514');
-  });
-
-  it('accepts is_public_contact true for an ACTIVE person with an active number', async () => {
-    await expect(
-      prisma.$transaction(async (tx) => {
-        await insertActiveOwner(tx);
-        return insertCollaboration(tx, {
-          id: MEMBER_COLLAB_ID,
-          personId: MEMBER_ID,
-          role: 'MANAGER',
-          status: 'ACTIVE',
-          isPublicContact: true,
-        });
-      })
-    ).resolves.toBe(1);
-  });
-
-  it('rejects is_public_contact true for a person without a number with 23514', async () => {
-    const code = await captureSqlCode(
-      prisma.$transaction(async (tx) => {
-        await insertActiveOwner(tx);
-        await insertCollaboration(tx, {
-          id: MEMBER_COLLAB_ID,
-          personId: NO_NUMBER_ID,
-          role: 'MANAGER',
-          status: 'ACTIVE',
-          isPublicContact: true,
-        });
-      })
     );
     expect(code).toBe('23514');
   });
@@ -436,61 +386,6 @@ describe('ownership swap', () => {
   });
 });
 
-describe('number released', () => {
-  it('clears is_public_contact when the person phone_number becomes null', async () => {
-    await prisma.$transaction(async (tx) => {
-      await insertActiveOwner(tx);
-      await insertCollaboration(tx, {
-        id: MEMBER_COLLAB_ID,
-        personId: MEMBER_ID,
-        role: 'MANAGER',
-        status: 'ACTIVE',
-        isPublicContact: true,
-      });
-    });
-
-    await prisma.$executeRaw`
-      UPDATE people
-      SET phone_number = NULL, released_phone_number = '+2250700003012', phone_verified_at = NULL
-      WHERE id = ${MEMBER_ID}::uuid
-    `;
-
-    const rows = await prisma.$queryRaw<Array<{ id: string; is_public_contact: boolean }>>`
-      SELECT id::text AS id, is_public_contact FROM collaborations
-      WHERE organization_id = ${ORG_ID}::uuid ORDER BY id
-    `;
-    expect(rows).toEqual([
-      { id: OWNER_COLLAB_ID, is_public_contact: false },
-      { id: MEMBER_COLLAB_ID, is_public_contact: false },
-    ]);
-  });
-
-  it('leaves other people flags untouched', async () => {
-    await prisma.$transaction(async (tx) => {
-      await insertActiveOwner(tx);
-      await tx.$executeRaw`UPDATE collaborations SET is_public_contact = true WHERE id = ${OWNER_COLLAB_ID}::uuid`;
-      await insertCollaboration(tx, {
-        id: MEMBER_COLLAB_ID,
-        personId: MEMBER_ID,
-        role: 'MANAGER',
-        status: 'ACTIVE',
-        isPublicContact: true,
-      });
-    });
-
-    await prisma.$executeRaw`
-      UPDATE people
-      SET phone_number = NULL, released_phone_number = '+2250700003012', phone_verified_at = NULL
-      WHERE id = ${MEMBER_ID}::uuid
-    `;
-
-    const [owner] = await prisma.$queryRaw<Array<{ is_public_contact: boolean }>>`
-      SELECT is_public_contact FROM collaborations WHERE id = ${OWNER_COLLAB_ID}::uuid
-    `;
-    expect(owner.is_public_contact).toBe(true);
-  });
-});
-
 describe('column types and defaults', () => {
   it('uses the expected types and defaults', async () => {
     await expectColumnType('collaborations', 'id', 'uuid');
@@ -505,18 +400,16 @@ describe('column types and defaults', () => {
     const [row] = await prisma.$queryRaw<
       Array<{
         amount_held: bigint;
-        is_public_contact: boolean;
         invited_at: Date;
         accepted_at: Date | null;
         server_updated_at: Date;
         deleted_at: Date | null;
       }>
     >`
-      SELECT amount_held, is_public_contact, invited_at, accepted_at, server_updated_at, deleted_at
+      SELECT amount_held, invited_at, accepted_at, server_updated_at, deleted_at
       FROM collaborations WHERE id = ${OWNER_COLLAB_ID}::uuid
     `;
     expect(row.amount_held).toBe(0n);
-    expect(row.is_public_contact).toBe(false);
     expect(row.invited_at).toBeInstanceOf(Date);
     expect(row.server_updated_at).toBeInstanceOf(Date);
     expect(row.accepted_at).toBeNull();
@@ -532,7 +425,6 @@ describe('column types and defaults', () => {
       'organization_id',
       'role',
       'status',
-      'is_public_contact',
       'invited_at',
       'amount_held',
     ]) {
@@ -583,4 +475,3 @@ describe('crafted owner removal (AB-1)', () => {
     expect(code).toBeDefined();
   });
 });
-

@@ -332,7 +332,7 @@ export function findCollaboration(
 }
 
 /**
- * Inserts an INVITED collaboration that is not a public contact (C-05).
+ * Inserts an INVITED collaboration (C-05).
  *
  * A concurrent insert for the same person and organization breaks the database uniqueness rule;
  * it is mapped to the same `ALREADY_MEMBER` answer as a sequential repeat.
@@ -350,7 +350,7 @@ export async function insertInvitation(
 ): Promise<Collaboration> {
   try {
     return await tx.collaboration.create({
-      data: { ...data, status: 'INVITED', isPublicContact: false },
+      data: { ...data, status: 'INVITED' },
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -379,7 +379,6 @@ export async function reinviteRevoked(
       role,
       invitedAt: new Date(),
       acceptedAt: null,
-      isPublicContact: false,
     },
   });
   const row = updated[0];
@@ -601,8 +600,8 @@ export async function updateRole(
 }
 
 /**
- * Turns a non-OWNER, non-REVOKED collaboration of the organization into REVOKED and clears its
- * public-contact flag. `amount_held` is not written: the money stays visible (CM-09). The filter
+ * Turns a non-OWNER, non-REVOKED collaboration of the organization into REVOKED.
+ * `amount_held` is not written: the money stays visible (CM-09). The filter
  * repeats the service checks, so a concurrent revocation or ownership change is never overwritten.
  *
  * @returns The updated row, or null when nothing matched.
@@ -620,7 +619,7 @@ export async function revokeCollaboration(
       status: { in: ['ACTIVE', 'INVITED'] },
       role: { not: 'OWNER' },
     },
-    data: { status: 'REVOKED', isPublicContact: false },
+    data: { status: 'REVOKED' },
   });
   return updated[0] ?? null;
 }
@@ -628,7 +627,7 @@ export async function revokeCollaboration(
 /**
  * Turns the person's own ACTIVE OWNER collaboration into MANAGER. Run first in a transfer: the
  * partial unique index allows one ACTIVE OWNER at every statement, while the deferred check needs
- * exactly one only at commit. The flag `is_public_contact` is not written (ORG-015).
+ * exactly one only at commit (ORG-015).
  *
  * @returns True when the row was still the ACTIVE OWNER and was demoted.
  */
@@ -758,8 +757,8 @@ export async function reopenClosedOrganization(organizationId: string): Promise<
 }
 
 /**
- * Turns every non-OWNER ACTIVE or INVITED collaboration of the organization into REVOKED and clears
- * its public-contact flag; `amount_held` is not written (CM-09, CM-10). ACTIVE rows are revoked in
+ * Turns every non-OWNER ACTIVE or INVITED collaboration of the organization into REVOKED;
+ * `amount_held` is not written (CM-09, CM-10). ACTIVE rows are revoked in
  * their own statement so the caller knows whose rights ended (scope bump and notification).
  *
  * @returns The person ids whose ACTIVE collaboration was revoked, with the collaboration id.
@@ -770,12 +769,12 @@ export async function revokeNonOwnerCollaborations(
 ): Promise<{ id: string; personId: string }[]> {
   const revoked = await tx.collaboration.updateManyAndReturn({
     where: { organizationId, deletedAt: null, status: 'ACTIVE', role: { not: 'OWNER' } },
-    data: { status: 'REVOKED', isPublicContact: false },
+    data: { status: 'REVOKED' },
     select: { id: true, personId: true },
   });
   await tx.collaboration.updateMany({
     where: { organizationId, deletedAt: null, status: 'INVITED', role: { not: 'OWNER' } },
-    data: { status: 'REVOKED', isPublicContact: false },
+    data: { status: 'REVOKED' },
   });
   return revoked;
 }

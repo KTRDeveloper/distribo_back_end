@@ -331,7 +331,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-026 | done | | Validated existing photo schema; 14 photo tests and 4718 suite tests pass; scoped SAST/secrets clean; audit no high vulnerabilities |
 | ORG-039 | done | | Removed retired identity pull fields; 25 story tests and 4724 full-suite tests pass; typecheck clean; lint 0 errors; SAST and secrets clean |
 | ORG-032 | done | | 37/37 story tests; suite 4731/4732, random UUID image-copy failure passed on targeted retry (44/44); typecheck clean, lint 0 errors |
-| ORG-043 | todo | | User approved lookup-contacts and public-contact-removed test updates, preserving access/privacy assertions and fixing unsafe return typing without disabling lint. |
+| ORG-043 | done | | 565 story tests and 4734 full-suite tests pass; typecheck clean; lint 0 errors; changed-file security scans clean |
 | ORG-034 | todo | | |
 | BIL-005 | todo | | |
 | BIL-002 | todo | | |

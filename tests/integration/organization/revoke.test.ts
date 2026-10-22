@@ -42,7 +42,7 @@ async function seedCollaboration(
   organizationId: string,
   role: 'OWNER' | 'MANAGER' | 'SELLER' | 'DRIVER',
   status: 'ACTIVE' | 'INVITED' | 'REVOKED',
-  extra: { isPublicContact?: boolean; amountHeld?: bigint } = {}
+  extra: { amountHeld?: bigint } = {}
 ) {
   await prisma.collaboration.create({
     data: {
@@ -80,10 +80,9 @@ beforeEach(async () => {
   await seedPerson(REVOKED_PERSON, '+237600010007');
   await prisma.organization.create({ data: { id: ORG_A, name: 'Org A' } });
   await prisma.organization.create({ data: { id: ORG_B, name: 'Org B' } });
-  await seedCollaboration(OWNER_ROW, OWNER, ORG_A, 'OWNER', 'ACTIVE', { isPublicContact: true });
+  await seedCollaboration(OWNER_ROW, OWNER, ORG_A, 'OWNER', 'ACTIVE');
   await seedCollaboration(MANAGER_ROW, MANAGER, ORG_A, 'MANAGER', 'ACTIVE');
   await seedCollaboration(SELLER_ROW, SELLER, ORG_A, 'SELLER', 'ACTIVE', {
-    isPublicContact: true,
     amountHeld: 12500n,
   });
   await seedCollaboration(INVITED_ROW, INVITED_PERSON, ORG_A, 'SELLER', 'INVITED');
@@ -92,7 +91,7 @@ beforeEach(async () => {
 });
 
 describe('DELETE /api/v1/organizations/:organizationId/collaborators/:collaborationId', () => {
-  it('AC-1 revoke: 204, REVOKED, flag false, scope_version +1, collaborator notified', async () => {
+  it('AC-1 revoke: 204, REVOKED, scope_version +1, collaborator notified', async () => {
     const before = await scopeVersionOf(SELLER);
 
     const response = await revoke(ORG_A, SELLER_ROW);
@@ -101,7 +100,6 @@ describe('DELETE /api/v1/organizations/:organizationId/collaborators/:collaborat
     expect(response.text).toBe('');
     const row = await rowOf(SELLER_ROW);
     expect(row.status).toBe('REVOKED');
-    expect(row.isPublicContact).toBe(false);
     expect(await scopeVersionOf(SELLER)).toBe(before + 1);
     const notes = await prisma.notification.findMany({ where: { recipientId: SELLER } });
     expect(notes).toHaveLength(1);
@@ -152,7 +150,6 @@ describe('DELETE /api/v1/organizations/:organizationId/collaborators/:collaborat
     expect(bodyOf<ErrorBody>(response).error.code).toBe('OWNER_PROTECTED');
     const row = await rowOf(OWNER_ROW);
     expect(row.status).toBe('ACTIVE');
-    expect(row.isPublicContact).toBe(true);
     expect(await scopeVersionOf(OWNER)).toBe(before);
     expect(await prisma.notification.count()).toBe(0);
   });

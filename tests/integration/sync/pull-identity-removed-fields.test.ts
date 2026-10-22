@@ -65,7 +65,6 @@ describe('identity pull without removed organization fields (ORG-039)', () => {
           organizationId: ORGANIZATION,
           role: 'OWNER',
           status: 'ACTIVE',
-          isPublicContact: true,
           invitedAt: LONG_AGO,
           acceptedAt: LONG_AGO,
           amountHeld: 5000n,
@@ -76,7 +75,6 @@ describe('identity pull without removed organization fields (ORG-039)', () => {
           organizationId: ORGANIZATION,
           role: 'SELLER',
           status: 'ACTIVE',
-          isPublicContact: true,
           invitedAt: LONG_AGO,
           acceptedAt: LONG_AGO,
           amountHeld: 1200n,
@@ -87,7 +85,6 @@ describe('identity pull without removed organization fields (ORG-039)', () => {
           organizationId: OTHER_ORGANIZATION,
           role: 'OWNER',
           status: 'ACTIVE',
-          isPublicContact: true,
           invitedAt: LONG_AGO,
           acceptedAt: LONG_AGO,
           amountHeld: 9999n,
@@ -102,7 +99,7 @@ describe('identity pull without removed organization fields (ORG-039)', () => {
     expect(changes['organizations']?.created[0]).not.toHaveProperty('email');
   });
 
-  it('does not send a stored true flag in collaboration rows (AC-2)', async () => {
+  it('does not send the removed flag in collaboration rows (AC-2)', async () => {
     const { changes } = await pull(SELLER);
     expect(changes['collaborations']?.created).toHaveLength(2);
     for (const row of changes['collaborations']?.created ?? []) {

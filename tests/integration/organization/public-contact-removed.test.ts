@@ -1,3 +1,4 @@
+import type { Collaboration } from '@prisma/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { newId } from '../../../src/shared/ids.js';
@@ -38,8 +39,7 @@ async function seedPerson(id: string, phone: string) {
 async function seedCollaboration(
   id: string,
   personId: string,
-  role: 'OWNER' | 'MANAGER' | 'SELLER' | 'DRIVER',
-  isPublicContact = false
+  role: 'OWNER' | 'MANAGER' | 'SELLER' | 'DRIVER'
 ) {
   await prisma.collaboration.create({
     data: {
@@ -49,7 +49,6 @@ async function seedCollaboration(
       role,
       status: 'ACTIVE',
       acceptedAt: REG,
-      isPublicContact,
     },
   });
 }
@@ -60,12 +59,12 @@ function patchMe(personId: string, body: unknown = { is_public_contact: true }) 
     .send(body as object);
 }
 
-async function flags() {
+async function collaborations(): Promise<Collaboration[]> {
   const rows = await prisma.collaboration.findMany({
     where: { organizationId: ORG_A },
     orderBy: { id: 'asc' },
   });
-  return rows.map((r) => [r.id, r.isPublicContact]);
+  return rows;
 }
 
 beforeEach(async () => {
@@ -83,26 +82,26 @@ beforeEach(async () => {
 
 describe('collaborators/me is gone (ORG-031)', () => {
   it('AC-1 the OWNER gets 400 VALIDATION_ERROR and no row changes', async () => {
-    const before = await flags();
+    const before = await collaborations();
 
     const response = await patchMe(OWNER);
 
     expect(response.status).toBe(400);
     expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
-    expect(await flags()).toEqual(before);
+    expect(await collaborations()).toEqual(before);
   });
 
   it('AC-1 a MANAGER gets 403 FORBIDDEN and no row changes', async () => {
-    const before = await flags();
+    const before = await collaborations();
 
     const response = await patchMe(MANAGER);
 
     expect(response.status).toBe(403);
     expect(bodyOf<ErrorBody>(response).error.code).toBe('FORBIDDEN');
-    expect(await flags()).toEqual(before);
+    expect(await collaborations()).toEqual(before);
   });
 
-  it('AC-2 a new business has an OWNER collaboration with the flag false', async () => {
+  it('AC-2 a new business has an OWNER collaboration without the removed flag', async () => {
     const id = newId();
     const response = await createAuthenticatedRequest(app, CREATOR)
       .post('/api/v1/organizations')
@@ -112,7 +111,8 @@ describe('collaborators/me is gone (ORG-031)', () => {
     const owner = await prisma.collaboration.findFirstOrThrow({
       where: { organizationId: id, role: 'OWNER' },
     });
-    expect(owner.isPublicContact).toBe(false);
+    expect(owner).toMatchObject({ personId: CREATOR, role: 'OWNER', status: 'ACTIVE' });
+    expect(owner).not.toHaveProperty('isPublicContact');
   });
 
   it('AC-3 no team item carries an is_public_contact key', async () => {
@@ -126,12 +126,7 @@ describe('collaborators/me is gone (ORG-031)', () => {
     for (const item of page.items) expect(item).not.toHaveProperty('is_public_contact');
   });
 
-  it('AC-4 revoking an ACTIVE collaborator whose stored flag is true clears it', async () => {
-    await prisma.collaboration.update({
-      where: { id: SELLER_ROW },
-      data: { isPublicContact: true },
-    });
-
+  it('AC-4 revoking an ACTIVE collaborator still works without the flag', async () => {
     const response = await createAuthenticatedRequest(app, OWNER).delete(
       `/api/v1/organizations/${ORG_A}/collaborators/${SELLER_ROW}`
     );
@@ -139,18 +134,18 @@ describe('collaborators/me is gone (ORG-031)', () => {
     expect(response.status).toBe(204);
     const row = await prisma.collaboration.findUniqueOrThrow({ where: { id: SELLER_ROW } });
     expect(row.status).toBe('REVOKED');
-    expect(row.isPublicContact).toBe(false);
   });
 
   it.each([
     ['MANAGER', MANAGER],
     ['SELLER', SELLER],
     ['DRIVER', DRIVER],
-  ])('AB-1 a %s cannot publish their own number: 403, flag stays false', async (_role, personId) => {
+  ])('AB-1 a %s cannot publish their own number: 403, rows unchanged', async (_role, personId) => {
+    const before = await collaborations();
     const response = await patchMe(personId);
 
     expect(response.status).toBe(403);
     expect(bodyOf<ErrorBody>(response).error.code).toBe('FORBIDDEN');
-    expect((await flags()).every(([, flag]) => flag === false)).toBe(true);
+    expect(await collaborations()).toEqual(before);
   });
 });

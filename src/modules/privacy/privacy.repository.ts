@@ -62,7 +62,7 @@ export async function findDeletionIdentity(
 /**
  * Erases the person's personal columns and dependent rows inside the caller's transaction
  * (CM-01, C-02, C-03). Relationships, orders, ledger entries and journals are not touched.
- * Collaborations are ended (REVOKED, no public contact); their held amount stays.
+ * Collaborations are ended (REVOKED); their held amount stays.
  *
  * @returns false when the person is absent or already anonymized (nothing was changed).
  */
@@ -79,7 +79,7 @@ export async function anonymizeRows(
   const now = new Date();
   await tx.collaboration.updateMany({
     where: { personId, status: { in: ['ACTIVE', 'INVITED'] } },
-    data: { status: 'REVOKED', isPublicContact: false },
+    data: { status: 'REVOKED' },
   });
   await tx.notification.deleteMany({ where: { recipientId: personId } });
   const targets = [person.phoneNumber, person.releasedPhoneNumber, person.email].filter(

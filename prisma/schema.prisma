@@ -647,10 +647,10 @@ model SubscriptionReceipt {
 //   count. This is checked when the transaction is saved, so the owner must be
 //   added in the same transaction as the organization's first membership, and
 //   a change of owner must happen within a single transaction.
-// - Only a registered person can have an active membership.
-// - A member can be the organization's public contact only while their
-//   membership is active and they have a current phone number. If they lose
-//   their phone number, they stop being the public contact automatically.
+// - Only a registered person can have an active membership. This cross-table
+//   rule cannot be declared in Prisma; its trigger was retained by migration
+//   20261022074908_org_043_drop_collaboration_public_contact when the retired
+//   public-contact flag was removed.
 // - server_updated_at is set by the database on every change.
 // - A paused member keeps their place in the team but has no access. The owner
 //   is never paused: the database refuses it. Only the server sets this status.
@@ -661,7 +661,6 @@ model Collaboration {
   organizationId  String              @map("organization_id") @db.Uuid
   role            CollaborationRole
   status          CollaborationStatus
-  isPublicContact Boolean             @default(false) @map("is_public_contact")
   invitedAt       DateTime            @default(now()) @map("invited_at") @db.Timestamptz
   acceptedAt      DateTime?           @map("accepted_at") @db.Timestamptz
   amountHeld      BigInt              @default(0) @map("amount_held")

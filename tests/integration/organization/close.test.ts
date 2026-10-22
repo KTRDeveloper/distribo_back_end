@@ -48,8 +48,7 @@ async function seedCollaboration(
   personId: string,
   organizationId: string,
   role: 'OWNER' | 'MANAGER' | 'SELLER' | 'DRIVER',
-  status: 'ACTIVE' | 'INVITED' | 'REVOKED',
-  isPublicContact = false
+  status: 'ACTIVE' | 'INVITED' | 'REVOKED'
 ) {
   await prisma.collaboration.create({
     data: {
@@ -58,7 +57,6 @@ async function seedCollaboration(
       organizationId,
       role,
       status,
-      isPublicContact,
       acceptedAt: status === 'ACTIVE' ? REG : null,
     },
   });
@@ -91,12 +89,12 @@ beforeEach(async () => {
   await seedPerson(REVOKED_PERSON, '+237600160007');
   await prisma.organization.create({ data: { id: ORG_A, name: 'Org A' } });
   await prisma.organization.create({ data: { id: ORG_B, name: 'Org B' } });
-  await seedCollaboration(OWNER_ROW, OWNER, ORG_A, 'OWNER', 'ACTIVE', true);
-  await seedCollaboration(MANAGER_ROW, MANAGER, ORG_A, 'MANAGER', 'ACTIVE', true);
+  await seedCollaboration(OWNER_ROW, OWNER, ORG_A, 'OWNER', 'ACTIVE');
+  await seedCollaboration(MANAGER_ROW, MANAGER, ORG_A, 'MANAGER', 'ACTIVE');
   await seedCollaboration(SELLER_ROW, SELLER, ORG_A, 'SELLER', 'ACTIVE');
   await seedCollaboration(INVITED_ROW, INVITED_PERSON, ORG_A, 'SELLER', 'INVITED');
   await seedCollaboration(REVOKED_ROW, REVOKED_PERSON, ORG_A, 'SELLER', 'REVOKED');
-  await seedCollaboration(OTHER_OWNER_ROW, OTHER_OWNER, ORG_B, 'OWNER', 'ACTIVE', true);
+  await seedCollaboration(OTHER_OWNER_ROW, OTHER_OWNER, ORG_B, 'OWNER', 'ACTIVE');
   await prisma.subscription.create({
     data: {
       id: SUB_A,
@@ -128,13 +126,12 @@ describe('POST /api/v1/organizations/:organizationId/close', () => {
     expect(await statusOf(ORG_A)).toBe('CLOSED');
   });
 
-  it('AC-2 every non-owner collaboration is REVOKED with the flag false', async () => {
+  it('AC-2 every non-owner collaboration is REVOKED', async () => {
     await close(ORG_A);
 
     for (const id of [MANAGER_ROW, SELLER_ROW, INVITED_ROW]) {
       const row = await rowOf(id);
       expect(row.status).toBe('REVOKED');
-      expect(row.isPublicContact).toBe(false);
     }
     expect((await rowOf(REVOKED_ROW)).status).toBe('REVOKED');
   });
@@ -193,7 +190,6 @@ describe('POST /api/v1/organizations/:organizationId/close', () => {
     const owner = await rowOf(OWNER_ROW);
     expect(owner.status).toBe('ACTIVE');
     expect(owner.role).toBe('OWNER');
-    expect(owner.isPublicContact).toBe(true);
     expect(await scopeVersionOf(OWNER)).toBe(ownerBefore);
     const read = await createAuthenticatedRequest(app, OWNER).get(`/api/v1/organizations/${ORG_A}`);
     expect(read.status).toBe(200);
@@ -239,7 +235,6 @@ describe('POST /api/v1/organizations/:organizationId/close', () => {
 
     expect(await statusOf(ORG_A)).toBe('ACTIVE');
     expect((await rowOf(MANAGER_ROW)).status).toBe('ACTIVE');
-    expect((await rowOf(MANAGER_ROW)).isPublicContact).toBe(true);
     expect((await rowOf(INVITED_ROW)).status).toBe('INVITED');
     expect(await scopeVersionOf(MANAGER)).toBe(managerBefore);
     expect(await prisma.notification.count()).toBe(0);

@@ -140,7 +140,6 @@ describe('POST /api/v1/organizations/:organizationId/collaborators', () => {
       id: GESTURE_1,
       role: 'SELLER',
       status: 'INVITED',
-      isPublicContact: false,
       acceptedAt: null,
     });
     expect(await collaborationCount(ORG_A)).toBe(before + 1);
@@ -204,7 +203,6 @@ describe('POST /api/v1/organizations/:organizationId/collaborators', () => {
       role: 'DRIVER',
       status: 'INVITED',
       acceptedAt: null,
-      isPublicContact: false,
     });
     expect(rows[0]?.invitedAt.getTime()).toBeGreaterThan(oldInvite.getTime());
   });

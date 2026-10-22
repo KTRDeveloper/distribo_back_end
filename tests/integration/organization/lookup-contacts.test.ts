@@ -40,7 +40,7 @@ async function seedOrg(
   name: string,
   status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED' = 'ACTIVE',
   description: string | null = 'About us',
-  extra: { isPublicContact?: boolean; createdAt?: Date } = {}
+  extra: { createdAt?: Date } = {}
 ) {
   return prisma.organization.create({
     data: {
@@ -56,7 +56,6 @@ async function seedOrg(
           role: 'OWNER',
           status: 'ACTIVE',
           acceptedAt: REG,
-          isPublicContact: extra.isPublicContact ?? false,
         },
       },
     },
@@ -112,8 +111,8 @@ describe('lookup by verified organization contacts', () => {
     });
   });
 
-  it('finds the business even when no collaborator holds the number or the flag (C-44)', async () => {
-    const org = await seedOrg('No flag', 'ACTIVE', null, { isPublicContact: false });
+  it('finds the business even when no collaborator holds the number (C-44)', async () => {
+    const org = await seedOrg('No flag', 'ACTIVE', null);
     await seedContact(org.id);
 
     const response = await lookup(NUMBER);
@@ -146,7 +145,7 @@ describe('lookup by verified organization contacts', () => {
   });
 
   it('answers an empty list for an owner whose own number matches (AC-2)', async () => {
-    await seedOrg('Owner number', 'ACTIVE', 'About us', { isPublicContact: true });
+    await seedOrg('Owner number', 'ACTIVE', 'About us');
 
     const response = await lookup('+237600029002');
 
