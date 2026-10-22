@@ -627,3 +627,35 @@ AB-2 (logo_key in the creation body gives 400) passed at once because the existi
 
 ORG-039 done
 <!-- end ORG-039 -->
+
+<!-- begin ORG-032 -->
+## ORG-032 — The business email column is dropped
+
+- Filed: 2026-10-22 04:39 UTC
+- Status: **blocked**: May tests/integration/sync/pull-identity-removed-fields.test.ts be added to Tests to update so its obsolete email seed can be removed (6 suite failures)?
+- Risk: high · story: [ORG-032-the-business-email-column-is-dropped.md](../modules/organization/ORG-032-the-business-email-column-is-dropped.md)
+- Agent: 41,318 tokens, 33 tool uses, 6 min 28 s
+
+### Agent report
+
+**Summary:** ORG-032 implemented but blocked: six ORG-039 tests seed the removed email field in a test file this story does not authorize modifying.
+
+**Decisions:**
+- Preflight checks non-deleted organizations and emits at most 20 sorted UUIDs, never addresses; no contact conversion.
+- Repository and Organization comments already contain no email references, so no changes were needed there.
+- Removed unrelated foreign-key changes from Prisma's generated migration to retain the story's exact two statements.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/organization/organization-email-dropped.test.ts` guards the 20-ID diagnostic limit and deleted-row exclusion (story Context); both failed before implementation.
+- API create/read regression passed at once.
+
+**Evidence:** story tests 30/30; full suite 4725/4731, failing: six tests in pull-identity-removed-fields.test.ts, 0 known; typecheck clean; lint 0 errors, 201 warnings.
+- Dependency audit: no high/critical findings; 1 low and 1 moderate vulnerability. Semgrep and gitleaks executables unavailable.
+- Full suite output: `/tmp/distribo-implement-stories-20261022-8J2vtC/ORG-032-suite.txt`.
+
+**Follow-ups:**
+- Authorize updating `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/sync/pull-identity-removed-fields.test.ts`: its organization.createMany seed at line 49 supplies `email`, causing all six failures. No existing tests outside the permitted files were edited.
+- Migration `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/prisma/migrations/20261022043055_org_032_drop_organization_email/migration.sql` was applied locally and Prisma Client regenerated. No commit created; report file intentionally not written per the final developer instruction.
+
+ORG-032 blocked
+<!-- end ORG-032 -->
