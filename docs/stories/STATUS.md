@@ -331,7 +331,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-026 | done | | Validated existing photo schema; 14 photo tests and 4718 suite tests pass; scoped SAST/secrets clean; audit no high vulnerabilities |
 | ORG-039 | done | | Removed retired identity pull fields; 25 story tests and 4724 full-suite tests pass; typecheck clean; lint 0 errors; SAST and secrets clean |
 | ORG-032 | blocked | | May tests/integration/sync/pull-identity-removed-fields.test.ts be added to Tests to update so its obsolete email seed can be removed (6 suite failures)? |
-| ORG-043 | todo | | |
+| ORG-043 | blocked | | Le preflight doit-il bloquer les flags true des lignes supprimees aussi, ou seulement deleted_at IS NULL (la table scratch imposee ne contient pas deleted_at) ? |
 | ORG-034 | todo | | |
 | BIL-005 | todo | | |
 | BIL-002 | todo | | |

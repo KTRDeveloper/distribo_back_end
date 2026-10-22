@@ -659,3 +659,23 @@ ORG-039 done
 
 ORG-032 blocked
 <!-- end ORG-032 -->
+
+<!-- begin ORG-043 -->
+## ORG-043 — The public-contact flag column and its database rule are dropped
+
+- Filed: 2026-10-22 04:46 UTC
+- Status: **blocked**: Le preflight doit-il bloquer les flags true des lignes supprimees aussi, ou seulement deleted_at IS NULL (la table scratch imposee ne contient pas deleted_at) ?
+- Risk: high · story: [ORG-043-the-public-contact-flag-column-and-its-database.md](../modules/organization/ORG-043-the-public-contact-flag-column-and-its-database.md)
+- Agent: 42,009 tokens, 17 tool uses, 2 min 14 s
+
+### Agent report
+
+**Summary:** ORG-043 bloquée avant toute modification du code : périmètre du précontrôle ambigu.
+
+**Follow-ups:**
+- Dans `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/docs/stories/modules/organization/ORG-043-the-public-contact-flag-column-and-its-database.md:24`, « live row » implique un filtrage `deleted_at IS NULL`, mais la table scratch imposée à la ligne 26 ne contient que `id` et `is_public_contact`. Faut-il bloquer aussi les collaborations supprimées logiquement dont le flag vaut `true`, ou seulement les lignes non supprimées ?
+- Seul le statut ORG-043 a été modifié via `set-status`, avec cette question. Aucun fichier de code ou test modifié ; aucun test, typecheck ou lint exécuté.
+- Aucun rapport Markdown écrit conformément à la dernière instruction développeur interdisant les fichiers de rapport ; ce message constitue le rapport à intégrer.
+
+ORG-043 blocked
+<!-- end ORG-043 -->
