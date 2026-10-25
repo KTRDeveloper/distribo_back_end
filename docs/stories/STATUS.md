@@ -337,7 +337,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-002 | done | | periods table rebuilt; subscription-routes-removed seed amended |
 | BIL-004 | done | | subscription_events table, checks and append-only grant in place |
 | BIL-006 | done | | Subscription rule removed, keep rows added, no manage row |
-| BIL-032 | todo | | |
+| BIL-032 | done | | Database exclusion constraint enforced; 24 targeted and 4792 full-suite tests pass; authorized coexistence fixture dates corrected. |
 | BIL-011 | todo | | |
 | BIL-013 | todo | | |
 | BIL-018 | todo | | |

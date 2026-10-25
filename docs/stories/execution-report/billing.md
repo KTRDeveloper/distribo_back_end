@@ -380,3 +380,29 @@ Also in this run: images, catalog, organization, admin, order, delivery, finance
 **Follow-ups:**
 - The 3 push-deliveries failures in the full suite pass when the file runs alone (19/19): looks flaky under load, unrelated to this change.
 <!-- end BIL-006 -->
+
+<!-- begin BIL-032 -->
+## BIL-032 — Two periods of one business can never overlap
+
+- Filed: 2026-10-25 05:53 UTC
+- Status: **done**: Database exclusion constraint enforced; 24 targeted and 4792 full-suite tests pass; authorized coexistence fixture dates corrected.
+- Risk: high · story: [BIL-032-two-periods-of-one-business-can-never-overlap.md](../modules/billing/BIL-032-two-periods-of-one-business-can-never-overlap.md)
+- Agent: 41,041 tokens, 8 tool uses, 2 min 25 s
+
+### Agent report
+
+**Summary:** BIL-032 terminee : PostgreSQL refuse les chevauchements, y compris concurrents, tout en autorisant les periodes contigues ou vides.
+**Decisions:**
+- Contrainte GiST sur organisation et intervalle semi-ouvert, appliquee a tous les statuts ; documentation Prisma actualisee.
+- Migration generee sur une base temporaire isolee, supprimee ensuite ; changements FK generes hors perimetre retires.
+- Amendement autorise explicitement par l'utilisateur : Tests to update inclut la fixture de coexistence ; seules ses dates ont change, toutes les assertions sont preservees.
+**Tests added beyond the story:**
+- tests/integration/billing/subscription-no-overlap.test.ts > rejects an overlapping update and rolls back all writes in that transaction : protege l'historique termine et l'atomicite (C-52 et convention fail-closed), rouge observe avant implementation.
+**Evidence:** story tests 5/5 ; tests cibles 24/24 ; full suite 4792/4792, failing: none, 0 known ; typecheck clean ; lint 0 errors, 203 warnings ; git diff --check clean.
+- Sortie complete : /tmp/distribo-next29-20261025-yVuA32/BIL-032-suite.txt.
+- Test existant observe rouge avant correction, puis vert ; statut enregistre done.
+**Follow-ups:**
+- Audit des dependances inchangees : 3 vulnerabilites elevees, 1 moderee, 1 faible ; Semgrep et Gitleaks indisponibles localement.
+- Rapport manquant reconstruit a partir du hand-back ; l'agent signale une instruction developpeur interdisant les rapports Markdown.
+BIL-032 done
+<!-- end BIL-032 -->

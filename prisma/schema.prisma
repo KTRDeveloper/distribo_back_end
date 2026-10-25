@@ -567,13 +567,14 @@ model OrganizationContact {
 }
 
 // Rules the database enforces on subscriptions (the prepaid periods of an
-// organization), beyond what this model declares. All come from migration
-// 20261025100000_bil_002_subscription_periods.
+// organization), beyond what this model declares. Unless noted otherwise, they
+// come from migration 20261025100000_bil_002_subscription_periods.
 // - An organization has at most one running (ACTIVE) period. Scheduled and
 //   ended ones stay as history, so several can exist. The exception for the
 //   other statuses is why this rule is not written as @@unique here.
-// - Periods of one organization must not overlap; that rule is added later by
-//   story BIL-032, so until then the writer has to keep periods apart.
+// - Periods of one organization never overlap, even for concurrent writes;
+//   touching periods and empty periods are allowed. The schema cannot express
+//   this exclusion rule (migration 20261025120000_bil_032_subscription_no_overlap).
 // - A payment buys one period: payment_id is unique when set.
 // - A period never ends before it starts, and months is 1, 3, 6 or 12 when set.
 // - A payment and a number of months are set exactly when the period was bought

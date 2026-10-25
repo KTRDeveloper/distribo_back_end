@@ -65,5 +65,10 @@ Scenario: AB-1 Two writers each add the same month (tampering, T3)
 
 Command: `npx vitest run tests/integration/billing/subscription-no-overlap.test.ts`
 
+## Tests to update
+| file | permitted change |
+|---|---|
+| `tests/integration/billing/subscriptions-table.test.ts` | Give the status-coexistence fixture non-overlapping dates; preserve every assertion. |
+
 ## Out of scope
 - Choosing start dates: BIL-010 and BIL-011.

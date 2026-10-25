@@ -282,7 +282,13 @@ describe('wrong rows', () => {
   it('accepts an ACTIVE period of another business and SCHEDULED or ENDED ones beside it', async () => {
     await insertPeriod({ origin: 'GIFT' });
     await insertPeriod({ id: SUB_2, origin: 'GIFT', organizationId: OTHER_ORG_ID });
-    await insertPeriod({ id: SUB_3, origin: 'GIFT', status: 'SCHEDULED' });
+    await insertPeriod({
+      id: SUB_3,
+      origin: 'GIFT',
+      status: 'SCHEDULED',
+      startsAt: '2027-01-01T00:00:00Z',
+      endsAt: '2027-02-01T00:00:00Z',
+    });
     expect(await countPeriods()).toBe(3);
   });
 
