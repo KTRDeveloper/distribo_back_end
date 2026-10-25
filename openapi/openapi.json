@@ -8000,6 +8000,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -8017,6 +8024,7 @@
                     "credit_limit_set_at",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -8165,6 +8173,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -8182,6 +8197,7 @@
                     "credit_limit_set_at",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -8458,6 +8474,13 @@
                               "CUSTOMER"
                             ]
                           },
+                          "contested_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
                           "created_at": {
                             "type": "string",
                             "format": "date-time"
@@ -8475,6 +8498,7 @@
                           "credit_limit_set_at",
                           "balance",
                           "ended_by_party",
+                          "contested_at",
                           "created_at"
                         ]
                       }
@@ -8711,6 +8735,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -8728,6 +8759,7 @@
                     "credit_limit_set_at",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -8980,6 +9012,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -8997,6 +9036,7 @@
                     "credit_limit_set_at",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -9236,6 +9276,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -9253,6 +9300,7 @@
                     "credit_limit_set_at",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -9514,6 +9562,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -9531,6 +9586,7 @@
                     "credit_limit_set_at",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -9796,6 +9852,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -9813,6 +9876,7 @@
                     "credit_limit_set_at",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -10220,6 +10284,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -10237,6 +10308,7 @@
                     "credit_limit_set_at",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -10489,6 +10561,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -10506,6 +10585,7 @@
                     "credit_limit_set_at",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -10570,7 +10650,7 @@
         "tags": [
           "relationship"
         ],
-        "summary": "List my suppliers as a customer, newest first (any signed-in person)",
+        "summary": "List my suppliers as a customer, newest first (any signed-in person); contested records are hidden unless contested=true",
         "security": [
           {
             "bearerAuth": []
@@ -10612,6 +10692,19 @@
             },
             "required": false,
             "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "contested",
             "in": "query"
           }
         ],
@@ -10750,6 +10843,13 @@
                               "CUSTOMER"
                             ]
                           },
+                          "contested_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
                           "created_at": {
                             "type": "string",
                             "format": "date-time"
@@ -10764,6 +10864,7 @@
                           "credit_limit",
                           "balance",
                           "ended_by_party",
+                          "contested_at",
                           "created_at"
                         ]
                       }
@@ -10978,6 +11079,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -10992,6 +11100,7 @@
                     "credit_limit",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -11202,6 +11311,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -11216,6 +11332,7 @@
                     "credit_limit",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -11436,6 +11553,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -11450,6 +11574,7 @@
                     "credit_limit",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -11693,6 +11818,13 @@
                               "CUSTOMER"
                             ]
                           },
+                          "contested_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
                           "created_at": {
                             "type": "string",
                             "format": "date-time"
@@ -11707,6 +11839,7 @@
                           "credit_limit",
                           "balance",
                           "ended_by_party",
+                          "contested_at",
                           "created_at"
                         ]
                       }
@@ -11950,6 +12083,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -11964,6 +12104,7 @@
                     "credit_limit",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -12193,6 +12334,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -12207,6 +12355,7 @@
                     "credit_limit",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -12446,6 +12595,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -12460,6 +12616,7 @@
                     "credit_limit",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -12690,6 +12847,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -12704,6 +12868,7 @@
                     "credit_limit",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -12935,6 +13100,13 @@
                         "CUSTOMER"
                       ]
                     },
+                    "contested_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
                     "created_at": {
                       "type": "string",
                       "format": "date-time"
@@ -12949,6 +13121,7 @@
                     "credit_limit",
                     "balance",
                     "ended_by_party",
+                    "contested_at",
                     "created_at"
                   ]
                 }
@@ -13391,6 +13564,13 @@
                             "CUSTOMER"
                           ]
                         },
+                        "contested_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
                         "created_at": {
                           "type": "string",
                           "format": "date-time"
@@ -13408,6 +13588,7 @@
                         "credit_limit_set_at",
                         "balance",
                         "ended_by_party",
+                        "contested_at",
                         "created_at"
                       ]
                     }
@@ -13724,6 +13905,13 @@
                               "CUSTOMER"
                             ]
                           },
+                          "contested_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
                           "created_at": {
                             "type": "string",
                             "format": "date-time"
@@ -13738,6 +13926,7 @@
                           "credit_limit",
                           "balance",
                           "ended_by_party",
+                          "contested_at",
                           "created_at"
                         ]
                       }

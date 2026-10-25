@@ -17,6 +17,7 @@ import {
   invitationParamsSchema,
   listCustomersQuerySchema,
   listInvitationsQuerySchema,
+  listMySuppliersQuerySchema,
   listSuppliersQuerySchema,
   setCreditLimitSchema,
 } from './relationship.schemas.js';
@@ -48,6 +49,7 @@ const supplierRelationshipViewSchema = z.object({
   credit_limit_set_at: z.string().datetime().nullable(),
   balance: z.number().int(),
   ended_by_party: z.enum(['SUPPLIER', 'CUSTOMER']).nullable(),
+  contested_at: z.string().datetime().nullable(),
   created_at: z.string().datetime(),
 });
 
@@ -70,6 +72,7 @@ const customerRelationshipViewSchema = z.object({
   credit_limit: z.number().int().nullable(),
   balance: z.number().int(),
   ended_by_party: z.enum(['SUPPLIER', 'CUSTOMER']).nullable(),
+  contested_at: z.string().datetime().nullable(),
   created_at: z.string().datetime(),
 });
 
@@ -351,9 +354,10 @@ openApiRegistry.registerPath({
   method: 'get',
   path: '/api/v1/suppliers',
   tags: ['relationship'],
-  summary: 'List my suppliers as a customer, newest first (any signed-in person)',
+  summary:
+    'List my suppliers as a customer, newest first (any signed-in person); contested records are hidden unless contested=true',
   security: [{ bearerAuth: [] }],
-  request: { query: listSuppliersQuerySchema },
+  request: { query: listMySuppliersQuerySchema },
   responses: {
     200: {
       description: 'A page of customer-side relationship views',

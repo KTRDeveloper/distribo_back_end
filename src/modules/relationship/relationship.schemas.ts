@@ -37,14 +37,31 @@ export const listCustomersQuerySchema = paginationQuerySchema
 export type ListCustomersQuery = z.infer<typeof listCustomersQuerySchema>;
 
 /**
- * Strict query of the supplier list: `limit`, `cursor` and a status filter; any other field or
- * value is a 400.
+ * Strict query of an organization's supplier list: `limit`, `cursor` and a status filter; any
+ * other field or value is a 400.
  */
 export const listSuppliersQuerySchema = paginationQuerySchema
   .extend({ status: z.enum(['PENDING', 'ACTIVE', 'ENDED']).optional() })
   .strict();
 
-export type ListSuppliersQuery = z.infer<typeof listSuppliersQuerySchema>;
+export type ListOrganizationSuppliersQuery = z.infer<typeof listSuppliersQuerySchema>;
+
+/**
+ * Strict query of the signed-in person's supplier list: the same fields plus `contested`
+ * (`true` | `false`, default `false`). Without it the contested records are hidden; `true` lists
+ * only them (CM-24, C-57). Any other value is a 400.
+ */
+export const listMySuppliersQuerySchema = paginationQuerySchema
+  .extend({
+    status: z.enum(['PENDING', 'ACTIVE', 'ENDED']).optional(),
+    contested: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+export type ListSuppliersQuery = z.infer<typeof listMySuppliersQuerySchema>;
 
 /**
  * Path of one customer: the relationship id must be a UUIDv7, else 400. Not strict because the

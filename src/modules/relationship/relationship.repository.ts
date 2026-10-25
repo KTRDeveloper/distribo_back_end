@@ -219,16 +219,21 @@ export async function listSupplierRelationships(
  * never match; deleted and merged rows never match either.
  *
  * @param personId - Caller's person id from the session, never from the client.
- * @param query - Page size, opaque cursor and optional status filter.
+ * @param query - Page size, opaque cursor, optional status filter and `contested`: false hides the
+ *   contested records, true returns only the caller's contested (hidden) records (CM-24, C-57).
  * @returns Rows (at most limit) with the supplier parties loaded, and the next cursor or null.
  * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
  */
 export function listCustomerRelationships(
   personId: string,
-  query: { limit: number; cursor?: string; status?: RelationshipStatus }
+  query: { limit: number; cursor?: string; status?: RelationshipStatus; contested: boolean }
 ) {
   return pageOfSuppliers(
-    [visibleRelationsWhere({ personId, organizationIds: [] }), { customerPersonId: personId }],
+    [
+      visibleRelationsWhere({ personId, organizationIds: [] }),
+      { customerPersonId: personId },
+      { contestedAt: query.contested ? { not: null } : null },
+    ],
     query
   );
 }

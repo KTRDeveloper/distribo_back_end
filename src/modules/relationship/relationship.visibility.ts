@@ -30,6 +30,7 @@ export type SupplierRelationshipView = {
   credit_limit_set_at: Date | null;
   balance: number;
   ended_by_party: CustomerRelationship['endedByParty'];
+  contested_at: Date | null;
   created_at: Date;
 };
 
@@ -42,6 +43,7 @@ export type CustomerRelationshipView = {
   credit_limit: number | null;
   balance: number;
   ended_by_party: CustomerRelationship['endedByParty'];
+  contested_at: Date | null;
   created_at: Date;
 };
 
@@ -120,6 +122,7 @@ export function projectForSupplier(row: RelationshipRow): SupplierRelationshipVi
     credit_limit_set_at: row.creditLimitSetAt,
     balance: toNumber(row.balance),
     ended_by_party: row.endedByParty,
+    contested_at: row.contestedAt,
     created_at: row.createdAt,
   };
 }
@@ -138,6 +141,7 @@ export function projectForCustomer(row: RelationshipRow): CustomerRelationshipVi
     credit_limit: row.creditLimit === null ? null : toNumber(row.creditLimit),
     balance: toNumber(row.balance),
     ended_by_party: row.endedByParty,
+    contested_at: row.contestedAt,
     created_at: row.createdAt,
   };
 }

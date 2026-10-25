@@ -20,6 +20,7 @@ import {
   invitationParamsSchema,
   listCustomersQuerySchema,
   listInvitationsQuerySchema,
+  listMySuppliersQuerySchema,
   listSuppliersQuerySchema,
   setCreditLimitSchema,
 } from './relationship.schemas.js';
@@ -323,7 +324,7 @@ export const supplierRoutes = Router();
 // customer; the person comes from the session, never from the request
 supplierRoutes.get('/', authMiddleware, (req, res, next) => {
   Promise.resolve()
-    .then(() => listSuppliersOfPerson(req.user!.id, listSuppliersQuerySchema.parse(req.query)))
+    .then(() => listSuppliersOfPerson(req.user!.id, listMySuppliersQuerySchema.parse(req.query)))
     .then((page) => res.json(page))
     .catch(next);
 });

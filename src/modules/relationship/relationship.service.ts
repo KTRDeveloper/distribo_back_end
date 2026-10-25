@@ -27,6 +27,7 @@ import type {
   InviteSupplierInput,
   ListInvitationsQuery,
   ListCustomersQuery,
+  ListOrganizationSuppliersQuery,
   ListSuppliersQuery,
   SetCreditLimitInput,
 } from './relationship.schemas.js';
@@ -175,7 +176,8 @@ export async function listCustomers(
  * `supplier_notes` are never sent (CM-19, v5.0.0-15.3.1).
  *
  * @param personId - Caller's person id from the session.
- * @param query - Validated page size, cursor and optional status.
+ * @param query - Validated page size, cursor, optional status and `contested` (false hides the
+ *   contested records, true lists only them).
  * @returns A page of customer views and the next cursor, or null on the last page.
  * @throws 400 `VALIDATION_ERROR` for a malformed cursor.
  */
@@ -727,7 +729,7 @@ function assertManagerOrAbove(actor: Actor, action: string): void {
  */
 export async function listSuppliersOfOrganization(
   actor: Actor,
-  query: ListSuppliersQuery
+  query: ListOrganizationSuppliersQuery
 ): Promise<{ items: CustomerRelationshipView[]; next_cursor: string | null }> {
   assertManagerOrAbove(actor, 'list');
 

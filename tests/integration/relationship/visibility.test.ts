@@ -226,6 +226,7 @@ describe('supplier view (AC-2, CM-19, CM-20)', () => {
     expect(Object.keys(view).sort()).toEqual(
       [
         'balance',
+        'contested_at',
         'created_at',
         'credit_limit',
         'credit_limit_set_at',
@@ -309,6 +310,7 @@ describe('customer view (AC-3, CM-19)', () => {
     expect(Object.keys(view).sort()).toEqual(
       [
         'balance',
+        'contested_at',
         'created_at',
         'credit_limit',
         'delivery_address',
