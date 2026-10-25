@@ -20,6 +20,7 @@ import type {
   AddCounterInput,
   AddCustomerInput,
   ContestInput,
+  UncontestInput,
   CorrectNumberInput,
   EditCustomerInput,
   EditSupplierInput,
@@ -56,6 +57,7 @@ import {
   listSupplierRelationships,
   liveRelationshipExists,
   markContested,
+  clearContested,
   lockOrganization,
   managesOrganization,
   transitionRelationship,
@@ -1164,6 +1166,42 @@ export function contestRelationship(
     logger.warn(
       { event: 'relationship_contested', relationshipId: row.id, personId },
       'Relationship contested'
+    );
+  });
+}
+
+/**
+ * The customer says "this is me" about a record they contested (C-57, CM-24): `contested_at` is
+ * cleared. Only the customer can do it: the relationship is selected with the caller as customer
+ * person, so anyone else (the supplier included) gets 404 (ASVS v5.0.0-8.2.2). Nothing else
+ * changes: no notification, no journal row, no `scope_version` bump.
+ *
+ * The check and the clear run in one transaction under a row lock (v5.0.0-2.3.3).
+ *
+ * @param personId - Caller's person id from the session.
+ * @param relationshipId - Validated relationship id from the path.
+ * @param _input - Validated body: the gesture id, read by the idempotency guard.
+ * @throws 404 `NOT_FOUND`; 409 `NOT_CONTESTED` when the mark is already empty.
+ */
+export function uncontestRelationship(
+  personId: string,
+  relationshipId: string,
+  _input: UncontestInput
+): Promise<void> {
+  return runInTransaction(async (tx) => {
+    const row = await findCustomerRelationshipLocked(tx, personId, relationshipId);
+    if (!row) throw httpError(404, 'NOT_FOUND', 'Supplier not found');
+
+    if (row.contestedAt === null || !(await clearContested(tx, row.id))) {
+      logger.warn(
+        { event: 'relationship_uncontest_refused', relationshipId: row.id, personId },
+        'Relationship not contested'
+      );
+      throw httpError(409, 'NOT_CONTESTED', 'This relationship is not contested');
+    }
+    logger.info(
+      { event: 'relationship_uncontested', relationshipId: row.id, personId },
+      'Relationship contestation taken back'
     );
   });
 }

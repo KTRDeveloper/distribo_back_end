@@ -173,6 +173,14 @@ export const contestSchema = z
 export type ContestInput = z.infer<typeof contestSchema>;
 
 /**
+ * Strict body of the "this is me" gesture: only the gesture id. The mark is cleared by the server
+ * (ASVS v5.0.0-15.3.3).
+ */
+export const uncontestSchema = z.object({ id: uuidV7Schema }).strict();
+
+export type UncontestInput = z.infer<typeof uncontestSchema>;
+
+/**
  * Strict body of the correct-number gesture: the gesture id, the right number (E.164, landlines
  * refused), an optional reason and the confirmation that the supplier means the same customer who
  * contested (ASVS v5.0.0-15.3.3). The previous person, the journal columns and the author are set by

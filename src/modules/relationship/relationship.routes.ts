@@ -8,6 +8,7 @@ import {
   acceptInvitationSchema,
   addCounterSchema,
   contestSchema,
+  uncontestSchema,
   correctNumberSchema,
   addCustomerSchema,
   creditLimitChangesQuerySchema,
@@ -27,6 +28,7 @@ import {
   addCounter,
   addCustomer,
   contestRelationship,
+  uncontestRelationship,
   correctCustomerNumber,
   customerEditSupplier,
   customerEndRelationship,
@@ -418,6 +420,35 @@ supplierRoutes.post(
       )
       // `json({})` on a 204 sends no body (HTTP) but lets the idempotency guard store a non-null
       // response to replay; `end()` would leave a replay looking "in progress".
+      .then(() => res.status(204).json({}))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/suppliers/:relationshipId/uncontest - the customer says "this is me"; 204. Clears
+// contested_at. The person comes from the session; 404 outside the caller's scope (the supplier
+// included), 409 when the record is not contested.
+supplierRoutes.post(
+  '/:relationshipId/uncontest',
+  authMiddleware,
+  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
+  (req, _res, next) => {
+    const parsed = uncontestSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    Promise.resolve()
+      .then(() =>
+        uncontestRelationship(
+          req.user!.id,
+          customerParamsSchema.parse(req.params).relationshipId,
+          uncontestSchema.parse(req.body)
+        )
+      )
+      // `json({})` keeps a non-null response for the idempotency guard to replay (see /contest).
       .then(() => res.status(204).json({}))
       .catch(next);
   }

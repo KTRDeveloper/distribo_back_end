@@ -918,6 +918,20 @@ export async function markContested(
 }
 
 /**
+ * Clears `contested_at` on a locked relationship in one conditional update, so the mark is cleared
+ * only if it is still set (ASVS v5.0.0-2.3.3). Nothing else on the row changes.
+ *
+ * @returns True when the mark was cleared, false when it was already empty.
+ */
+export async function clearContested(tx: Prisma.TransactionClient, id: string): Promise<boolean> {
+  const { count } = await tx.customerRelationship.updateMany({
+    where: { id, contestedAt: { not: null } },
+    data: { contestedAt: null },
+  });
+  return count === 1;
+}
+
+/**
  * Points a relationship at another customer person in one conditional update, so the row changes
  * only if the previous person is still the customer (ASVS v5.0.0-2.3.3).
  *
