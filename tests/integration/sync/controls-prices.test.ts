@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
+import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e016-0000-7000-8000-000000000001';
@@ -21,9 +22,9 @@ type PushBody = { accepted: number; rejected: unknown[]; aside: number };
 
 let deviceId = '';
 
-const push = (changes: unknown) =>
+const push = async (changes: unknown) =>
   createAuthenticatedRequest(app, SELLER, deviceId)
-    .post(`/api/v1/sync/push?last_pulled_at=${Date.now()}`)
+    .post(`/api/v1/sync/push?last_pulled_at=${await pulledAtAfterSeeding()}`)
     .send({ changes });
 
 const table = (created: unknown[]) => ({ created, updated: [], deleted: [] });

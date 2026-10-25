@@ -4,6 +4,7 @@ import { organizationsAdapter } from '../../../src/modules/sync/adapters/identit
 import { ordersAdapter } from '../../../src/modules/sync/adapters/order.adapter.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body';
 import { createAuthenticatedRequest, TEST_DEVICE_ID } from '../../helpers/request';
+import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
 import { prisma } from '../../setup.js';
 
 const minVersion = vi.hoisted(() => ({ value: null as string | null }));
@@ -32,11 +33,11 @@ type PushBody = {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const push = (
+const push = async (
   changes: unknown,
   options: { query?: string; headers?: Record<string, string>; personId?: string } = {}
 ) => {
-  const query = options.query ?? `?last_pulled_at=${Date.now()}`;
+  const query = options.query ?? `?last_pulled_at=${await pulledAtAfterSeeding()}`;
   const req = createAuthenticatedRequest(app, options.personId ?? PERSON)
     .post(`/api/v1/sync/push${query}`)
     .set(options.headers ?? {});

@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { deliverOrder } from '../../../src/modules/delivery/delivery.service.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
+import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e014-0000-7000-8000-000000000001';
@@ -39,9 +40,9 @@ type PushBody = {
 
 const devices: Record<string, string> = {};
 
-const push = (personId: string, changes: unknown) =>
+const push = async (personId: string, changes: unknown) =>
   createAuthenticatedRequest(app, personId, devices[personId])
-    .post(`/api/v1/sync/push?last_pulled_at=${Date.now()}`)
+    .post(`/api/v1/sync/push?last_pulled_at=${await pulledAtAfterSeeding()}`)
     .send({ changes });
 
 const table = (part: Partial<{ created: unknown[]; updated: unknown[]; deleted: string[] }>) => ({

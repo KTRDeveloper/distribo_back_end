@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { logger } from '../../../src/lib/logger.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
+import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e018-0000-7000-8000-000000000001';
@@ -31,9 +32,9 @@ type PushBody = {
   resync_required: boolean;
 };
 
-const push = (changes: unknown) =>
+const push = async (changes: unknown) =>
   createAuthenticatedRequest(app, SELLER, DEVICE)
-    .post(`/api/v1/sync/push?last_pulled_at=${Date.now()}`)
+    .post(`/api/v1/sync/push?last_pulled_at=${await pulledAtAfterSeeding()}`)
     .send({ changes });
 
 const table = (part: Partial<{ created: unknown[]; updated: unknown[]; deleted: string[] }>) => ({
