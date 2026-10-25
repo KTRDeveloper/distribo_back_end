@@ -36,6 +36,38 @@ export const keepChoiceResponseSchema = z.object({
 
 export const shopParamsSchema = z.object({ code: paymentCodeSchema }).strict();
 
+/** Status accepts any UUID, but no query fields (ASVS 2.2.1). */
+export const paymentStatusParamsSchema = z.object({ id: z.string().uuid() }).strict();
+export const paymentStatusQuerySchema = z.object({}).strict();
+
+/** The public receipt projection excludes internal ids and provider evidence. */
+export const receiptViewSchema = z.object({
+  number: z.string(),
+  label: z.string(),
+  customer_name: z.string(),
+  customer_tax_id: z.string().nullable(),
+  amount_excl_tax: z.number().int(),
+  vat_rate_bp: z.number().int(),
+  vat_amount: z.number().int(),
+  amount: z.number().int(),
+  issued_at: z.string().datetime(),
+}).strict();
+
+/** Explicit output fields for the public bearer-id status lookup. */
+export const paymentStatusResponseSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['PENDING', 'SUCCEEDED', 'FAILED', 'EXPIRED', 'REFUNDED']),
+  business_name: z.string(),
+  plan: z.enum(['ESSENTIAL', 'PRO', 'ENTERPRISE']),
+  months: z.number().int(),
+  amount: z.number().int(),
+  operator: z.enum(['MTN_MOMO', 'ORANGE_MONEY', 'OTHER']),
+  period: z.object({
+    starts_at: z.string().datetime(), ends_at: z.string().datetime(),
+  }).strict().nullable(),
+  receipt: receiptViewSchema.nullable(),
+}).strict();
+
 /** Documents the shop answer: the name only (ASVS v5.0.0-15.3.1). */
 export const shopResponseSchema = z.object({ name: z.string() }).strict();
 

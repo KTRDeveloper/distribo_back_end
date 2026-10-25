@@ -635,3 +635,36 @@ BIL-027 done
 
 BIL-014 done
 <!-- end BIL-014 -->
+
+<!-- begin BIL-015 -->
+## BIL-015 — A payer follows a payment and gets the receipt
+
+- Filed: 2026-10-25 23:01 UTC
+- Status: **done**: 54 tests ciblés et 4930 tests complets passent; typage propre; audit: 3 vulnérabilités hautes des dépendances installées
+- Risk: medium · story: [BIL-015-a-payer-follows-a-payment-and-gets-the-receipt.md](../modules/billing/BIL-015-a-payer-follows-a-payment-and-gets-the-receipt.md)
+- Agent: 47,891 tokens, 53 tool uses, 9 min 27 s
+
+### Agent report
+
+**Summary:** BIL-015 implémentée : suivi public limité à 120 lectures/heure/IP, réponse filtrée, période achetée et reçu original ; statut done.
+
+**Decisions:**
+- Lecture des relations dans une transaction RepeatableRead pour éviter un mélange d’états pendant une confirmation concurrente.
+- Montants JSON numériques et dates ISO ; période null hors SUCCEEDED, reçu RECEIPT conservé après remboursement.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/payment-status.test.ts` › rejects every query field before looking up a payment : validation stricte avant lecture (contexte, ASVS 2.2.1).
+- Même fichier › fails closed without a lookup when the rate limiter fails : aucune lecture si le contrôle échoue (convention fail-closed).
+- Même fichier › returns the purchased period rather than another period of the business : isolation par paiement (AC-2) ; passé immédiatement après correction mécanique de la fixture.
+
+**Other additions:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/openapi/openapi.json` régénéré automatiquement par les tests de documentation.
+
+**Evidence:** story tests 54/54, dont 12/12 nouveaux tests de suivi ; full suite 4930/4930, failing: none, 0 known ; typecheck clean ; lint 0 errors, 208 warnings ; git diff --check clean.
+
+**Follow-ups:**
+- npm audit : 5 vulnérabilités des dépendances installées (3 high, 1 moderate, 1 low) ; aucune dépendance modifiée. Semgrep et Gitleaks indisponibles localement.
+- Rapport transmis ici uniquement, sans fichier Markdown, conformément à la dernière instruction développeur.
+
+BIL-015 done
+<!-- end BIL-015 -->

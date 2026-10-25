@@ -5,6 +5,9 @@ import {
   keepChoiceParamsSchema,
   keepChoiceResponseSchema,
   paymentResponseSchema,
+  paymentStatusParamsSchema,
+  paymentStatusQuerySchema,
+  paymentStatusResponseSchema,
   shopParamsOpenApiSchema,
   shopResponseSchema,
 } from './billing.schemas.js';
@@ -68,6 +71,33 @@ openApiRegistry.registerPath({
     },
     429: {
       description: 'More than 30 lookups an hour from this address',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/billing/payments/{id}',
+  tags: ['billing'],
+  summary: 'Follow a payment and read its original receipt (public)',
+  security: [],
+  request: { params: paymentStatusParamsSchema, query: paymentStatusQuerySchema },
+  responses: {
+    200: {
+      description: 'Public payment status, purchased period when succeeded, and original receipt',
+      content: { 'application/json': { schema: paymentStatusResponseSchema } },
+    },
+    400: {
+      description: 'Invalid UUID or unexpected query field',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Unknown payment id',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    429: {
+      description: 'More than 120 status reads an hour from this address',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

@@ -29608,6 +29608,193 @@
         }
       }
     },
+    "/api/v1/billing/payments/{id}": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Follow a payment and read its original receipt (public)",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public payment status, purchased period when succeeded, and original receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "SUCCEEDED",
+                        "FAILED",
+                        "EXPIRED",
+                        "REFUNDED"
+                      ]
+                    },
+                    "business_name": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "ESSENTIAL",
+                        "PRO",
+                        "ENTERPRISE"
+                      ]
+                    },
+                    "months": {
+                      "type": "integer"
+                    },
+                    "amount": {
+                      "type": "integer"
+                    },
+                    "operator": {
+                      "type": "string",
+                      "enum": [
+                        "MTN_MOMO",
+                        "ORANGE_MONEY",
+                        "OTHER"
+                      ]
+                    },
+                    "period": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "starts_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "ends_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "starts_at",
+                        "ends_at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "receipt": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "number": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "customer_name": {
+                          "type": "string"
+                        },
+                        "customer_tax_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "amount_excl_tax": {
+                          "type": "integer"
+                        },
+                        "vat_rate_bp": {
+                          "type": "integer"
+                        },
+                        "vat_amount": {
+                          "type": "integer"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        },
+                        "issued_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "number",
+                        "label",
+                        "customer_name",
+                        "customer_tax_id",
+                        "amount_excl_tax",
+                        "vat_rate_bp",
+                        "vat_amount",
+                        "amount",
+                        "issued_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "business_name",
+                    "plan",
+                    "months",
+                    "amount",
+                    "operator",
+                    "period",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid UUID or unexpected query field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown payment id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "More than 120 status reads an hour from this address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/billing/payments": {
       "post": {
         "tags": [

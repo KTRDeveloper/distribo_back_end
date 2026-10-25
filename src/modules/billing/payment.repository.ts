@@ -4,6 +4,31 @@ import { prisma } from '../../lib/db.js';
 
 export type PaymentRow = SubscriptionPayment;
 
+/**
+ * Reads only public status fields and the original RECEIPT, never a refund credit note.
+ * A repeatable snapshot prevents a concurrent confirmation from mixing PENDING with its receipt.
+ * @param id The payment id held by the payer; no organization id is accepted from the caller.
+ * @returns The payment and its purchased period, or null when absent.
+ */
+export function findPaymentView(id: string) {
+  return prisma.$transaction((tx) => tx.subscriptionPayment.findUnique({
+    where: { id },
+    select: {
+      id: true, status: true, plan: true, months: true, amount: true, operator: true,
+      organization: { select: { name: true } },
+      subscription: { select: { startsAt: true, endsAt: true } },
+      receipts: {
+        where: { kind: 'RECEIPT' },
+        take: 1,
+        select: {
+          number: true, label: true, customerName: true, customerTaxId: true,
+          amountExclTax: true, vatRateBp: true, vatAmount: true, amount: true, issuedAt: true,
+        },
+      },
+    },
+  }), { isolationLevel: 'RepeatableRead' });
+}
+
 /** Looks up the unique provider reference before any external status check. */
 export function findPaymentByReference(providerReference: string): Promise<PaymentRow | null> {
   return prisma.subscriptionPayment.findUnique({ where: { providerReference } });

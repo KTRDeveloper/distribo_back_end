@@ -93,6 +93,14 @@ describe('PER-001: Retire the old sign-in module', () => {
       expect(Object.keys(doc.paths[path])).toEqual(expect.arrayContaining(['post']));
     });
 
+    it('lists public payment status with GET (BIL-015)', async () => {
+      const response = await request(app).get('/api/v1/docs/openapi.json');
+      const doc = bodyOf<OpenApiDoc>(response);
+      const path = '/api/v1/billing/payments/{id}';
+      expect(Object.keys(doc.paths)).toContain(path);
+      expect(Object.keys(doc.paths[path])).toEqual(expect.arrayContaining(['get']));
+    });
+
     it('/api/v1/users/me is still listed in OpenAPI', async () => {
       const response = await request(app).get('/api/v1/docs/openapi.json');
       const doc = bodyOf<OpenApiDoc>(response);

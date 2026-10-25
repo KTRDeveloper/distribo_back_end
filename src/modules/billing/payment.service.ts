@@ -8,6 +8,7 @@ import { findOrganizationByPaymentCode } from '../organization/organization.repo
 import { getPaymentAggregator } from './aggregator.js';
 import {
   findPaymentById,
+  findPaymentView,
   inPaymentTransaction,
   insertPendingPayment,
   lockPaymentId,
@@ -41,6 +42,69 @@ export type PaymentView = {
   amount: bigint;
   operator: PaymentRow['operator'];
 };
+
+export type ReceiptView = {
+  number: string;
+  label: string;
+  customer_name: string;
+  customer_tax_id: string | null;
+  amount_excl_tax: number;
+  vat_rate_bp: number;
+  vat_amount: number;
+  amount: number;
+  issued_at: string;
+};
+
+export type PaymentStatusView = Omit<PaymentView, 'amount'> & {
+  business_name: string;
+  amount: number;
+  period: { starts_at: string; ends_at: string } | null;
+  receipt: ReceiptView | null;
+};
+
+/**
+ * Public bearer-id lookup with a hard limit before any database access (ASVS 2.4.1).
+ * Only the explicitly listed payment, period and original receipt fields leave the service;
+ * payer phone, provider evidence and organization identifiers never do (ASVS 15.3.1).
+ * @param id Validated UUID supplied by the payer.
+ * @param ip Caller address, used only as the rate-limit key and never logged.
+ * @returns A JSON-safe payment status and, when available, the original receipt.
+ * @throws 429 RATE_LIMITED or 404 NOT_FOUND; limiter failures propagate and prevent reads.
+ */
+export async function readPayment(id: string, ip: string): Promise<PaymentStatusView> {
+  const limit = await checkAndConsume(`billing:status:${ip}`, 120, WINDOW_SECONDS);
+  if (!limit.allowed) {
+    logger.warn({ event: 'payment_status_rate_limited' }, 'Payment status rate limited');
+    throw httpError(429, 'RATE_LIMITED', 'Too many payment status requests');
+  }
+  const row = await findPaymentView(id);
+  if (!row) throw httpError(404, 'NOT_FOUND', 'Payment not found');
+  const receipt = row.receipts[0];
+  return {
+    id: row.id,
+    status: row.status,
+    business_name: row.organization.name,
+    plan: row.plan,
+    months: row.months,
+    amount: Number(row.amount),
+    operator: row.operator,
+    period: row.status === 'SUCCEEDED' && row.subscription ? {
+      starts_at: row.subscription.startsAt.toISOString(),
+      ends_at: row.subscription.endsAt.toISOString(),
+    } : null,
+    receipt: receipt ? {
+      number: receipt.number,
+      label: receipt.label,
+      customer_name: receipt.customerName,
+      customer_tax_id: receipt.customerTaxId,
+      amount_excl_tax: Number(receipt.amountExclTax),
+      vat_rate_bp: receipt.vatRateBp,
+      vat_amount: Number(receipt.vatAmount),
+      amount: Number(receipt.amount),
+      issued_at: receipt.issuedAt.toISOString(),
+    } : null,
+  };
+}
 
 /** Builds the answer from an explicit list of fields: no number, reference or tax id leaves. */
 function toView(row: PaymentRow): PaymentView {
