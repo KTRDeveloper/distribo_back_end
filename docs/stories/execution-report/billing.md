@@ -6,6 +6,22 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-25 04:58 UTC: `/implement-stories BIL-005,BIL-002,BIL-004,BIL-006 (resume)`
+
+| story | status | commit | note |
+|---|---|---|---|
+| BIL-005 The owner can no longer write a subscription | done | 236c826 | subscription routes and code removed; lifecycle-hooks case rewritten |
+| BIL-002 The subscriptions table holds prepaid periods | done | e5f3cb8 | periods table rebuilt; subscription-routes-removed seed amended |
+| BIL-004 Table of subscription events | done | fa5eb44 | subscription_events table, checks and append-only grant in place |
+| BIL-006 The rules table has no subscription row and gains the keep rows | done | fda7faa | Subscription rule removed, keep rows added, no manage row |
+
+- Resumed run (user asked to resolve the blocks and continue); the first run's BIL-005 stash was popped, its remaining PLAN lines then ran: all four ended done.
+- Story files amended by the orchestrator at the user's request (the skill otherwise forbids it): BIL-005 and BIL-002, a row added to "Tests to update" each (lifecycle-hooks.test.ts AC-1; subscription-routes-removed.test.ts seed). Both stories were set back to in_progress and rerun with their partial changes.
+- No stash left for this run (BIL-005's was popped).
+- Flaky: `tests/integration/sync/push-deliveries.test.ts` (SYNC-013 AC-4, AB-1, AB-2) failed once in BIL-006's full-suite run; it passes 19/19 alone. Worth a look.
+- Baseline: 0 failing (file reused from the first run).
+- Next command: `/implement-stories next:10`.
+
 ### Run 2026-10-25 04:36 UTC: `/implement-stories next:10`
 
 | story | status | commit | note |
