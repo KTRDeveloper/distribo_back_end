@@ -7,6 +7,54 @@ import type { ExpiredPeriod } from './rights.service.js';
 export type PeriodRow = Subscription;
 
 /**
+ * Reads only this organization's latest owner choice; stale or foreign seat ids are
+ * resolved against the tenant-scoped team list by the caller (ASVS 8.2.2).
+ * @param tx Transaction shared with seat enforcement.
+ * @param organizationId Organization selected by trusted server code.
+ * @returns The explicit ordered choices, or null when no choice was recorded.
+ */
+export async function findLatestKeepChoice(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+): Promise<{ collaborationIds: string[]; productIds: string[] } | null> {
+  const [row] = await tx.$queryRaw<Array<{
+    details: { collaboration_ids: string[]; product_ids: string[] };
+  }>>`
+    SELECT details FROM subscription_events
+    WHERE organization_id = ${organizationId}::uuid AND kind = 'KEEP_CHOICE'
+    ORDER BY occurred_at DESC, id DESC
+    LIMIT 1
+  `;
+  return row ? {
+    collaborationIds: row.details.collaboration_ids,
+    productIds: row.details.product_ids,
+  } : null;
+}
+
+/**
+ * Journals a server-decided seat transition in the caller's transaction (BIL-019).
+ * @param tx Transaction shared by the seat change and its notice.
+ * @param organizationId Tenant whose scoped seat was changed.
+ * @param collaborationId Changed seat; details deliberately contain ids only.
+ * @param kind Successful transition, never a deferred or unchanged seat.
+ * @param now Effective time supplied by the caller.
+ */
+export async function insertSeatEvent(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  collaborationId: string,
+  kind: 'PAUSED' | 'RESUMED',
+  now: Date,
+): Promise<void> {
+  const details = JSON.stringify({ collaboration_id: collaborationId });
+  await tx.$executeRaw`
+    INSERT INTO subscription_events (id, organization_id, kind, actor, details, occurred_at)
+    VALUES (${uuidv7()}::uuid, ${organizationId}::uuid,
+            ${kind}::"SubscriptionEventKind", 'SYSTEM', ${details}::jsonb, ${now})
+  `;
+}
+
+/**
  * Appends an owner's choice without altering previous choices or current plan rights (BIL-018).
  * C-55: only the authenticated owner's person id is set; no payer or administrator references.
  * @param tx Transaction shared with the tenant-scoped eligibility checks.

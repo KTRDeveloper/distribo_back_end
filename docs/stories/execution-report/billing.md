@@ -502,3 +502,36 @@ BIL-013 done
 - `customer-catalog-variants.test.ts` line 401 asserts the body lacks "2700" but the requestId is random, so it fails sometimes.
 - Earlier block was about the npm audit baseline (3 high); not re-run here.
 <!-- end BIL-018 -->
+
+<!-- begin BIL-019 -->
+## BIL-019 — Collaborators beyond the plan are paused and come back when it allows
+
+- Filed: 2026-10-25 22:29 UTC
+- Status: **done**: 12 story tests and 4875 suite tests pass; typecheck clean; existing dependency audit findings remain
+- Risk: high · story: [BIL-019-collaborators-beyond-the-plan-are-paused-and.md](../modules/billing/BIL-019-collaborators-beyond-the-plan-are-paused-and.md)
+- Agent: 40,210 tokens, 42 tool uses, 8 min 37 s
+
+### Agent report
+
+**Summary:** BIL-019 implemented and marked done: tenant-scoped seat enforcement, ordered owner choices, driver deferral, transactional SYSTEM events and localized notices.
+
+**Decisions:**
+- Accepted seats rank by acceptance time; pending seats by invitation time, with deterministic id ties.
+- Reuse the subscription advisory lock to serialize enforcement and prevent duplicate effects from concurrent repeats.
+- Journal details use `collaboration_id`; effective timestamps use the supplied `now`.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/seat-limit.test.ts` › rollback: seats, scope versions, journal and notices roll back together (ASVS 2.3.3).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/seat-limit.test.ts` › acceptance age: acceptance order wins over invitation order (story ranking rule).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/seat-limit.test.ts` › concurrent repeats: exactly one event and notice (project idempotency rule); passed at once.
+
+**Other additions:**
+- `insertSeatEvent` keeps all subscription SQL in the repository; no schema or dependency changes.
+
+**Evidence:** story tests 12/12; full suite 4875/4875 across 362 files, failing: none, 0 known; typecheck clean; lint 0 errors, 207 warnings; diff check clean. Suite output: `/tmp/distribo-next25-20261025/BIL-019-suite.txt`.
+
+**Follow-ups:**
+- Existing dependency audit reports 5 vulnerabilities (3 high, 1 moderate, 1 low); semgrep and gitleaks are unavailable locally. No dependency fixes attempted outside this story.
+- Report delivered inline, not written to `/tmp/distribo-next25-20261025/BIL-019-report.md`, following the explicit instruction not to write report Markdown files.
+BIL-019 done
+<!-- end BIL-019 -->
