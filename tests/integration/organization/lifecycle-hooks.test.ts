@@ -258,6 +258,7 @@ describe('registerLifecycleHook', () => {
   });
 
   it('AC-6 a removed hook no longer runs; the others still do', async () => {
+    await seedOrganization('ACTIVE');
     const removed = vi.fn(() => Promise.resolve());
     const kept = vi.fn(() => Promise.resolve());
     const remove = track({ onClose: removed, onReopen: removed });
@@ -275,6 +276,7 @@ describe('registerLifecycleHook', () => {
   });
 
   it('AC-6 hooks with only one function are skipped for the other event', async () => {
+    await seedOrganization('ACTIVE');
     const onClose = vi.fn(() => Promise.resolve());
     track({ onClose });
 

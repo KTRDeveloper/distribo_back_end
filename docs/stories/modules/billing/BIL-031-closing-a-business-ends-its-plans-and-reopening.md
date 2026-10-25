@@ -89,5 +89,10 @@ Scenario: AB-1 Closing one business touches another (broken access control)
 
 Command: `npx vitest run tests/integration/billing/lifecycle.test.ts`
 
+### Tests to update
+| file | change |
+|---|---|
+| `tests/integration/organization/lifecycle-hooks.test.ts` | Seed a real active organization in the two direct registry-call tests now that the billing hook is registered at startup; preserve all existing assertions. |
+
 ## Out of scope
 - The close and reopen operations and their routes: ORG. Refunds: BIL-025.

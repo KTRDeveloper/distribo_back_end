@@ -831,3 +831,33 @@ BIL-029 done
 - Semgrep and Gitleaks are unavailable locally; those scans remain for CI. No commit created.
 BIL-030 done
 <!-- end BIL-030 -->
+
+<!-- begin BIL-031 -->
+## BIL-031 — Closing a business ends its plans and reopening restarts from free
+
+- Filed: 2026-10-25 23:57 UTC
+- Status: **done**: Hooks transactionnels close/reopen ; fixtures du registre corrigées sans modifier les assertions ; 5024/5024 tests, typecheck clean, lint 0 erreur.
+- Risk: high · story: [BIL-031-closing-a-business-ends-its-plans-and-reopening.md](../modules/billing/BIL-031-closing-a-business-ends-its-plans-and-reopening.md)
+- Agent: 50,631 tokens, 8 tool uses, 2 min 33 s
+
+### Agent report
+
+**Summary:** BIL-031 terminée : hook close/reopen transactionnel enregistré une fois au démarrage ; suite complète verte après correction de deux fixtures du registre.
+**Decisions:**
+- Réutilisation de `insertSystemEvent` pour les événements SYSTEM, plutôt que `insertEvent`, réservé aux achats.
+- Cause vérifiée des deux échecs : appels directs du registre avec ORG inexistant ; ajout de `seedOrganization('ACTIVE')` dans les deux tests, sans changer leurs assertions ni isoler le hook de production.
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/lifecycle.test.ts` › stale ACTIVE : ne prolonge pas une période déjà échue (règle close).
+- Même fichier › close does not pause products : aucune pause à la fermeture (contexte) ; passé immédiatement.
+- Même fichier › reopen rolls back : droits, pauses et événements annulés ensemble (ASVS 2.3.3).
+- Même fichier › repeated close and reopen : aucun droit payé restauré ni événement de fin dupliqué (AC-4).
+**Other additions:**
+- Fixtures corrigées dans `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/organization/lifecycle-hooks.test.ts` ; aucun contrôle fail-closed modifié.
+**Evidence:** story tests 12/12; targeted tests 24/24; full suite 5024/5024, failing: none, 0 known; typecheck clean; lint 0 errors, 215 warnings.
+- Sortie complète : `/tmp/distribo-next25-20261025/BIL-031-suite.txt` ; `git diff --check` clean ; statut done enregistré.
+**Follow-ups:**
+- Audit des dépendances installées : 3 high, 1 moderate, 1 low ; aucune dépendance modifiée. Semgrep et gitleaks indisponibles.
+- La ligne « Tests to update » demandée pour `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/docs/stories/modules/billing/BIL-031-closing-a-business-ends-its-plans-and-reopening.md` reste à ajouter par le coordinateur : l’interdiction de modifier les stories dans mes instructions développeur est restée applicable.
+- Aucun fichier rapport Markdown écrit conformément à l’instruction finale ; ce rapport est livré directement au coordinateur.
+BIL-031 done
+<!-- end BIL-031 -->

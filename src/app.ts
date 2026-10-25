@@ -114,6 +114,7 @@ import { reportRoutes } from './modules/admin/report.routes.js';
 import { billingRoutes } from './modules/billing/billing.routes.js';
 import { billingOwnerRoutes } from './modules/billing/billing.owner.routes.js';
 import { apiDocsRoutes } from './modules/api-docs/api-docs.routes.js';
+import { registerBillingLifecycleHooks } from './modules/billing/lifecycle.service.js';
 
 // Register every module's OpenAPI paths/schemas on the shared registry
 // (src/lib/openapi/registry.ts) before api-docs.routes.js generates the
@@ -131,6 +132,8 @@ import './modules/images/images.openapi.js';
 import './modules/billing/billing.openapi.js';
 // Attaches the organization's handler to the phone-released registry (PER-014).
 import './modules/organization/phone-released.handler.js';
+
+registerBillingLifecycleHooks();
 
 const v1Router = express.Router();
 

@@ -351,7 +351,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-028 | done | | 12 story tests and 4973 suite tests pass; typecheck clean; lint 0 errors; existing audit findings and unavailable scanners reported |
 | BIL-029 | done | | Owner seat swap atomic and tenant-scoped; 4997 tests pass, typecheck clean, lint 0 errors; dependency audit findings and unavailable SAST/secret scanners reported. |
 | BIL-030 | done | | Product swap implemented; 58 targeted and 5012 full-suite tests pass; dependency audit findings reported |
-| BIL-031 | todo | | |
+| BIL-031 | done | | Hooks transactionnels close/reopen ; fixtures du registre corrigées sans modifier les assertions ; 5024/5024 tests, typecheck clean, lint 0 erreur. |
 | BIL-033 | todo | | |
 | BIL-016 | todo | | |
 | BIL-017 | todo | | |
