@@ -264,27 +264,22 @@ Also in this run: images, catalog, organization, admin, order, delivery, finance
 <!-- begin BIL-005 -->
 ## BIL-005 — The owner can no longer write a subscription
 
-- Filed: 2026-10-25 04:36 UTC
-- Status: **blocked**: lifecycle-hooks.test.ts 'AC-1 the close hooks run after the old subscription is ended' expects EXPIRED; contradicts the story and is not in Tests to update: add it (delete or rewrite)?
+- Filed: 2026-10-25 04:46 UTC
+- Status: **done**: subscription routes and code removed; lifecycle-hooks case rewritten
 - Risk: medium · story: [BIL-005-the-owner-can-no-longer-write-a-subscription.md](../modules/billing/BIL-005-the-owner-can-no-longer-write-a-subscription.md)
-- Agent: 52,077 tokens, 15 tool uses, 1 min 26 s
+- Agent: 33,929 tokens, 10 tool uses, 2 min 1 s
 
 ### Agent report
 
-**Summary:** Blocked: code and listed tests done, but one unlisted existing test now fails because of the story's own removal.
+**Summary:** Removed the three subscription routes, their service, repository, schema and OpenAPI code, and the close-time subscription end; the new test file covers AC-1 to AC-3 and AB-1.
 
 **Decisions:**
-- Left the work in the tree (not reverted) so the fix is only the test question below.
+- lifecycle-hooks.test.ts AC-1 rewrite: the hook now reads the organization and a manager collaboration through `tx` (CLOSED, REVOKED) and through `prisma` outside the transaction (still ACTIVE). This shows the hook runs last, in the same uncommitted transaction.
+- The same file's SUB seed, SUB and DAY_MS constants and the AC-2 subscription assertion were dropped, as the story says "without any subscription seed".
+- The "docs touched by the story" were updated: the `closeOrganization` and `reopenOrganization` JSDoc, and `openapi/openapi.json` regenerated.
 
-**Tests added beyond the story:**
-- none
-
-**Other additions:**
-- none
-
-**Evidence:** story command: 550/551 passed (organization, api-docs, per-001); the one failure is tests/integration/organization/lifecycle-hooks.test.ts > close hooks > "AC-1 the close hooks run after the old subscription is ended" (expects subscription EXPIRED when onClose runs). Full suite not run; typecheck clean; lint 0 errors.
+**Evidence:** story tests 551/551 (45 files); full suite 4747/4747, failing: none, 0 known; typecheck clean; lint 0 errors, 202 warnings
 
 **Follow-ups:**
-- Story BIL-005 removes `endActiveSubscription` from closeOrganization, so that lifecycle-hooks test cannot pass, and it is not in "Tests to update" (only close.test.ts is). Question: may it be deleted or rewritten (e.g. assert the hooks run inside the transaction without touching subscriptions)? Amend the story's Tests to update list.
-- Done: routes/service/repository/schemas/openapi removed; subscription-start/end tests deleted; close.test.ts and catalog.test.ts updated; subscription-routes-removed.test.ts created.
+- The `Subscription` Prisma model and the `manage Subscription` rule row stay, as the story says (BIL-002 and BIL-006).
 <!-- end BIL-005 -->

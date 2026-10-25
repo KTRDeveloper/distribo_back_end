@@ -16,10 +16,8 @@ const ORG = '0199c034-0000-7000-8000-0000000000a1';
 const OWNER_ROW = '0199c034-0000-7000-8000-0000000000a9';
 const MANAGER_ROW = '0199c034-0000-7000-8000-0000000000a2';
 const SELLER_ROW = '0199c034-0000-7000-8000-0000000000a3';
-const SUB = '0199c034-0000-7000-8000-0000000000d1';
 const GESTURE = '0199c034-0000-7000-8000-0000000000c1';
 const REG = new Date('2026-01-01T00:00:00.000Z');
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const removers: Array<() => void> = [];
 
@@ -112,16 +110,6 @@ describe('close hooks', () => {
   beforeEach(async () => {
     await seedOrganization('ACTIVE');
     await seedTeam();
-    await prisma.subscription.create({
-      data: {
-        id: SUB,
-        organizationId: ORG,
-        plan: 'BASIC',
-        status: 'ACTIVE',
-        startsAt: new Date(Date.now() - DAY_MS),
-        endsAt: new Date(Date.now() + 30 * DAY_MS),
-      },
-    });
   });
 
   it('AC-1 both onClose run in order with the transaction, the organization id and the time', async () => {
@@ -143,18 +131,23 @@ describe('close hooks', () => {
     expect(calls[1].args[2]).toBe(now);
   });
 
-  it('AC-1 the close hooks run after the old subscription is ended', async () => {
-    let subscriptionStatus: string | undefined;
+  it('AC-1 the close hooks run last, in the same transaction, after the close is written', async () => {
+    let seen: { org: string; manager: string; outside: string } | undefined;
     track({
       onClose: async (tx, organizationId) => {
-        subscriptionStatus = (await tx.subscription.findFirstOrThrow({ where: { organizationId } }))
-          .status;
+        seen = {
+          org: (await tx.organization.findUniqueOrThrow({ where: { id: organizationId } })).status,
+          manager: (await tx.collaboration.findUniqueOrThrow({ where: { id: MANAGER_ROW } }))
+            .status,
+          outside: (await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }))
+            .status,
+        };
       },
     });
 
     await close();
 
-    expect(subscriptionStatus).toBe('EXPIRED');
+    expect(seen).toEqual({ org: 'CLOSED', manager: 'REVOKED', outside: 'ACTIVE' });
   });
 
   it('AC-2 a failing onClose answers 500 and undoes the whole close', async () => {
@@ -167,9 +160,6 @@ describe('close hooks', () => {
     expect(await statusOf()).toBe('ACTIVE');
     expect((await rowOf(MANAGER_ROW)).status).toBe('ACTIVE');
     expect((await rowOf(SELLER_ROW)).status).toBe('PAUSED');
-    expect((await prisma.subscription.findUniqueOrThrow({ where: { id: SUB } })).status).toBe(
-      'ACTIVE'
-    );
     expect(await scopeVersionOf(MANAGER)).toBe(managerBefore);
     expect(await prisma.notification.count()).toBe(0);
   });

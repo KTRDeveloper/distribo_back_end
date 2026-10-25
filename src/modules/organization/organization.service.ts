@@ -20,9 +20,6 @@ import {
   closeActiveOrganization,
   reopenClosedOrganization,
   demoteOwner,
-  endActiveSubscription,
-  expireLapsedSubscriptions,
-  findActiveSubscription,
   findActiveOwnerId,
   findCollaboration,
   findCollaborationWithPerson,
@@ -31,7 +28,6 @@ import {
   findOrganizationsByPublicNumber,
   insertInvitation,
   insertOrganizationWithOwner,
-  insertSubscription,
   countTeamSeats,
   isPaymentCodeCollision,
   lockOrganizationSeats,
@@ -60,8 +56,6 @@ import type {
   MyOrganizationItem,
   OrganizationLookupItem,
   OrganizationView,
-  StartSubscriptionInput,
-  SubscriptionView,
   TransferOwnershipInput,
   TransferOwnershipView,
 } from './organization.schemas.js';
@@ -587,8 +581,7 @@ const ORDER_REFUSED_CONTENT = {
  * The owner closes the business (CM-10). In one transaction (ASVS v5.0.0-2.3.3) the organization
  * becomes CLOSED (only from ACTIVE), every non-owner ACTIVE or INVITED collaboration becomes
  * REVOKED (PAUSED ones too, silently) with `is_public_contact` false, ACTIVE ones get a scope version bump (CM-03) and an
- * `organization.closed` notification, and the ACTIVE subscription becomes EXPIRED with `ends_at`
- * = now. The registered close hooks run last, in the same transaction, and a failing hook undoes
+ * `organization.closed` notification. The registered close hooks run last, in the same transaction, and a failing hook undoes
  * the whole close. Every PENDING order of the business is refused with the reason "Commerce fermé" (ORD-018)
  * and each registered customer gets an `order.status_changed` notification; CONFIRMED and later
  * orders are untouched. The owner's own collaboration, relations, balances and history are untouched. The
@@ -659,7 +652,6 @@ export async function closeOrganization(
       );
     }
 
-    await endActiveSubscription(actor.organizationId, now, tx);
     await runCloseHooks(tx, actor.organizationId, now);
   });
 
@@ -672,8 +664,8 @@ export async function closeOrganization(
 
 /**
  * The owner reopens a closed business (CM-10). Only CLOSED becomes ACTIVE, in one conditional
- * update: a moderation suspension is never lifted here. The revoked team and the expired
- * subscription are not restored; the owner invites and subscribes again. The organization comes
+ * update: a moderation suspension is never lifted here. The revoked team and the plans ended by
+ * the close hooks are not restored; the owner invites and pays again. The organization comes
  * from the loaded actor, never from the body (ASVS v5.0.0-8.2.1).
  *
  * The update and the registered reopen hooks share one transaction, so a failing hook leaves the
@@ -703,81 +695,6 @@ export async function reopenOrganization(actor: Actor): Promise<{ status: 'ACTIV
     'Organization reopened'
   );
   return { status: 'ACTIVE' };
-}
-
-type StoredSubscription = {
-  id: string;
-  plan: string;
-  startsAt: Date | null;
-  endsAt: Date | null;
-};
-
-function toSubscriptionView(row: StoredSubscription): SubscriptionView {
-  return {
-    id: row.id,
-    plan: row.plan,
-    status: 'ACTIVE',
-    starts_at: row.startsAt?.toISOString() ?? null,
-    ends_at: row.endsAt?.toISOString() ?? null,
-  };
-}
-
-/**
- * Records an ACTIVE subscription for the actor's organization. No payment is taken and no feature
- * is limited (Q-011).
- *
- * The organization comes from the loaded actor and `starts_at` is the server clock; status is
- * never writable (ASVS v5.0.0-8.2.1, v5.0.0-15.3.3). A lapsed ACTIVE row is set to EXPIRED first,
- * in the same transaction; a live one is a conflict (C-31).
- *
- * @param actor - Owner loaded from the path and checked for `manage Subscription`.
- * @param input - Validated body: gesture id, plan and future end.
- * @returns The closed subscription view.
- * @throws 409 `SUBSCRIPTION_EXISTS` when a live ACTIVE subscription exists.
- */
-export async function startSubscription(
-  actor: Actor,
-  input: StartSubscriptionInput
-): Promise<SubscriptionView> {
-  const row = await runInTransaction(async (tx) => {
-    const now = new Date();
-    await expireLapsedSubscriptions(tx, actor.organizationId, now);
-    return insertSubscription(tx, {
-      id: input.id,
-      organizationId: actor.organizationId,
-      plan: input.plan,
-      startsAt: now,
-      endsAt: new Date(input.ends_at),
-    });
-  });
-  return toSubscriptionView(row);
-}
-
-/**
- * Ends the organization's ACTIVE subscription so it falls back to the free plan. The row becomes
- * EXPIRED with `ends_at` = now and stays as history.
- *
- * The organization comes from the loaded actor (ASVS v5.0.0-8.2.1); the owner check is done by the
- * route's `manage Subscription` guard.
- *
- * @param actor - Owner loaded from the path.
- * @throws 404 `NOT_FOUND` when no ACTIVE subscription exists.
- */
-export async function endSubscription(actor: Actor): Promise<void> {
-  const ended = await endActiveSubscription(actor.organizationId, new Date());
-  if (!ended) throw httpError(404, 'NOT_FOUND', 'Not found');
-}
-
-/**
- * Returns the organization's current ACTIVE subscription to any member.
- *
- * @param actor - Member loaded from the path.
- * @throws 404 `NOT_FOUND` when the organization has none.
- */
-export async function getSubscription(actor: Actor): Promise<SubscriptionView> {
-  const row = await findActiveSubscription(actor.organizationId);
-  if (!row) throw httpError(404, 'NOT_FOUND', 'Not found');
-  return toSubscriptionView(row);
 }
 
 /**

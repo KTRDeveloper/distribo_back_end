@@ -18,7 +18,6 @@ import {
   listOrganizationsQuerySchema,
   lookupOrganizationsQuerySchema,
   organizationIdParamsSchema,
-  startSubscriptionSchema,
   transferOwnershipSchema,
 } from './organization.schemas.js';
 
@@ -38,14 +37,6 @@ const organizationViewSchema = z.object({
   grace_ends_at: z.string().datetime().nullable(),
   max_collaborators: z.number().int().nullable(),
   max_products: z.number().int().nullable(),
-});
-
-const subscriptionViewSchema = z.object({
-  id: z.string().uuid(),
-  plan: z.string(),
-  status: z.literal('ACTIVE'),
-  starts_at: z.string().datetime().nullable(),
-  ends_at: z.string().datetime().nullable(),
 });
 
 const errorContent = { 'application/json': { schema: errorResponseSchema } };
@@ -418,69 +409,6 @@ openApiRegistry.registerPath({
     403: { description: 'Caller is not the owner', content: errorContent },
     404: { description: 'Not found, already REVOKED or not a member', content: errorContent },
     409: { description: 'OWNER_PROTECTED', content: errorContent },
-  },
-});
-
-openApiRegistry.registerPath({
-  method: 'post',
-  path: '/api/v1/organizations/{organizationId}/subscription',
-  tags: ['organization'],
-  summary: 'The owner starts a subscription',
-  security: [{ bearerAuth: [] }],
-  request: {
-    params: organizationIdParamsSchema,
-    body: { content: { 'application/json': { schema: startSubscriptionSchema } } },
-  },
-  responses: {
-    201: {
-      description: 'The new ACTIVE subscription',
-      content: { 'application/json': { schema: subscriptionViewSchema } },
-    },
-    400: { description: 'Malformed id or invalid body', content: errorContent },
-    401: { description: 'Missing or invalid token', content: errorContent },
-    403: { description: 'Caller is not the owner', content: errorContent },
-    404: { description: 'Not found or not a member', content: errorContent },
-    409: { description: 'SUBSCRIPTION_EXISTS', content: errorContent },
-  },
-});
-
-openApiRegistry.registerPath({
-  method: 'get',
-  path: '/api/v1/organizations/{organizationId}/subscription',
-  tags: ['organization'],
-  summary: 'Read the current ACTIVE subscription',
-  security: [{ bearerAuth: [] }],
-  request: { params: organizationIdParamsSchema },
-  responses: {
-    200: {
-      description: 'The ACTIVE subscription',
-      content: { 'application/json': { schema: subscriptionViewSchema } },
-    },
-    400: { description: 'Malformed id', content: errorContent },
-    401: { description: 'Missing or invalid token', content: errorContent },
-    404: {
-      description: 'No ACTIVE subscription, not found or not a member',
-      content: errorContent,
-    },
-  },
-});
-
-openApiRegistry.registerPath({
-  method: 'delete',
-  path: '/api/v1/organizations/{organizationId}/subscription',
-  tags: ['organization'],
-  summary: 'The owner ends the ACTIVE subscription',
-  security: [{ bearerAuth: [] }],
-  request: { params: organizationIdParamsSchema },
-  responses: {
-    204: { description: 'Ended (EXPIRED, ends_at now); no body' },
-    400: { description: 'Malformed id', content: errorContent },
-    401: { description: 'Missing or invalid token', content: errorContent },
-    403: { description: 'Caller is not the owner', content: errorContent },
-    404: {
-      description: 'No ACTIVE subscription, not found or not a member',
-      content: errorContent,
-    },
   },
 });
 

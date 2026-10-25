@@ -15,7 +15,6 @@ import {
   listInvitationsQuerySchema,
   listOrganizationsQuerySchema,
   lookupOrganizationsQuerySchema,
-  startSubscriptionSchema,
   transferOwnershipSchema,
 } from './organization.schemas.js';
 import {
@@ -26,15 +25,12 @@ import {
   createOrganization,
   declineInvitation,
   getOrganizationDetails,
-  endSubscription,
-  getSubscription,
   inviteCollaborator,
   listCollaborators,
   listMyInvitations,
   listMyOrganizations,
   lookupOrganizations,
   revokeCollaborator,
-  startSubscription,
   transferOwnership,
 } from './organization.service.js';
 import {
@@ -244,46 +240,6 @@ organizationRoutes.delete(
         const { collaborationId } = collaboratorParamsSchema.parse(req.params);
         return revokeCollaborator(req.actor!, collaborationId);
       })
-      .then(() => res.status(204).end())
-      .catch(next);
-  }
-);
-
-// POST /api/v1/organizations/:organizationId/subscription - the owner records a subscription
-organizationRoutes.post(
-  '/:organizationId/subscription',
-  loadActor,
-  requireAbility('manage', 'Subscription'),
-  // Strict validation before the idempotency key is reserved, so a bad body never reserves it.
-  (req, _res, next) => {
-    const parsed = startSubscriptionSchema.safeParse(req.body);
-    if (!parsed.success) return next(parsed.error);
-    req.body = parsed.data;
-    return next();
-  },
-  idempotent(),
-  (req, res, next) => {
-    startSubscription(req.actor!, startSubscriptionSchema.parse(req.body))
-      .then((view) => res.status(201).json(view))
-      .catch(next);
-  }
-);
-
-// GET /api/v1/organizations/:organizationId/subscription - any member reads the ACTIVE one
-organizationRoutes.get('/:organizationId/subscription', loadActor, (req, res, next) => {
-  getSubscription(req.actor!)
-    .then((view) => res.json(view))
-    .catch(next);
-});
-
-// DELETE /api/v1/organizations/:organizationId/subscription - the owner ends the ACTIVE one; the
-// body is never read
-organizationRoutes.delete(
-  '/:organizationId/subscription',
-  loadActor,
-  requireAbility('manage', 'Subscription'),
-  (req, res, next) => {
-    endSubscription(req.actor!)
       .then(() => res.status(204).end())
       .catch(next);
   }

@@ -22,13 +22,9 @@ const INVITED_ROW = '0199c016-0000-7000-8000-0000000000a5';
 const REVOKED_ROW = '0199c016-0000-7000-8000-0000000000a7';
 const OTHER_OWNER_ROW = '0199c016-0000-7000-8000-0000000000b9';
 
-const SUB_A = '0199c016-0000-7000-8000-0000000000d1';
-const SUB_B = '0199c016-0000-7000-8000-0000000000d2';
-
 const GESTURE = '0199c016-0000-7000-8000-0000000000c1';
 
 const REG = new Date('2026-01-01T00:00:00.000Z');
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function seedPerson(id: string, phone: string, registered = true) {
   await prisma.person.create({
@@ -95,26 +91,6 @@ beforeEach(async () => {
   await seedCollaboration(INVITED_ROW, INVITED_PERSON, ORG_A, 'SELLER', 'INVITED');
   await seedCollaboration(REVOKED_ROW, REVOKED_PERSON, ORG_A, 'SELLER', 'REVOKED');
   await seedCollaboration(OTHER_OWNER_ROW, OTHER_OWNER, ORG_B, 'OWNER', 'ACTIVE');
-  await prisma.subscription.create({
-    data: {
-      id: SUB_A,
-      organizationId: ORG_A,
-      plan: 'BASIC',
-      status: 'ACTIVE',
-      startsAt: new Date(Date.now() - DAY_MS),
-      endsAt: new Date(Date.now() + 30 * DAY_MS),
-    },
-  });
-  await prisma.subscription.create({
-    data: {
-      id: SUB_B,
-      organizationId: ORG_B,
-      plan: 'BASIC',
-      status: 'ACTIVE',
-      startsAt: new Date(Date.now() - DAY_MS),
-      endsAt: null,
-    },
-  });
 });
 
 describe('POST /api/v1/organizations/:organizationId/close', () => {
@@ -157,31 +133,6 @@ describe('POST /api/v1/organizations/:organizationId/close', () => {
     }
   });
 
-  it('AC-2 the ACTIVE subscription is EXPIRED with ends_at = now; another business is untouched', async () => {
-    const before = Date.now();
-
-    await close(ORG_A);
-
-    const sub = await prisma.subscription.findUniqueOrThrow({ where: { id: SUB_A } });
-    expect(sub.status).toBe('EXPIRED');
-    expect(sub.endsAt!.getTime()).toBeGreaterThanOrEqual(before - 1000);
-    expect(sub.endsAt!.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
-    expect((await prisma.subscription.findUniqueOrThrow({ where: { id: SUB_B } })).status).toBe(
-      'ACTIVE'
-    );
-    expect(await statusOf(ORG_B)).toBe('ACTIVE');
-    expect((await rowOf(OTHER_OWNER_ROW)).status).toBe('ACTIVE');
-  });
-
-  it('AC-1 closes an organization that has no subscription', async () => {
-    await prisma.subscription.delete({ where: { id: SUB_A } });
-
-    const response = await close(ORG_A);
-
-    expect(response.status).toBe(200);
-    expect(await statusOf(ORG_A)).toBe('CLOSED');
-  });
-
   it('AC-3 the owner collaboration stays ACTIVE and the organization stays readable', async () => {
     const ownerBefore = await scopeVersionOf(OWNER);
 
@@ -206,38 +157,9 @@ describe('POST /api/v1/organizations/:organizationId/close', () => {
       expect(bodyOf<ErrorBody>(response).error.code).toBe('ORGANIZATION_NOT_ACTIVE');
       expect(await statusOf(ORG_A)).toBe(status);
       expect((await rowOf(MANAGER_ROW)).status).toBe('ACTIVE');
-      expect((await prisma.subscription.findUniqueOrThrow({ where: { id: SUB_A } })).status).toBe(
-        'ACTIVE'
-      );
       expect(await prisma.notification.count()).toBe(0);
       await prisma.organization.update({ where: { id: ORG_A }, data: { status: 'ACTIVE' } });
     }
-  });
-
-  it('AC-5 atomic: a failure on the subscription step leaves everything unchanged', async () => {
-    await prisma.$executeRawUnsafe(`
-      CREATE OR REPLACE FUNCTION test_org016_fail() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        RAISE EXCEPTION 'forced failure';
-      END; $$`);
-    await prisma.$executeRawUnsafe(`
-      CREATE TRIGGER test_org016_fail BEFORE UPDATE ON subscriptions
-      FOR EACH ROW EXECUTE FUNCTION test_org016_fail()`);
-    const managerBefore = await scopeVersionOf(MANAGER);
-
-    try {
-      const response = await close(ORG_A);
-      expect(response.status).toBe(500);
-    } finally {
-      await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS test_org016_fail ON subscriptions');
-      await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS test_org016_fail()');
-    }
-
-    expect(await statusOf(ORG_A)).toBe('ACTIVE');
-    expect((await rowOf(MANAGER_ROW)).status).toBe('ACTIVE');
-    expect((await rowOf(INVITED_ROW)).status).toBe('INVITED');
-    expect(await scopeVersionOf(MANAGER)).toBe(managerBefore);
-    expect(await prisma.notification.count()).toBe(0);
   });
 
   it.each([

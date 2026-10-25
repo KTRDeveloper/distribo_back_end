@@ -132,36 +132,6 @@ export type CloseOrganizationInput = z.infer<typeof closeOrganizationSchema>;
 /** Closed response of the close-organization gesture. */
 export type CloseOrganizationView = { status: 'CLOSED' };
 
-/** Longest accepted plan name; mirrors the other short-name limits. */
-export const PLAN_MAX = 100;
-
-/**
- * Strict body of the start-subscription gesture: exactly three writable fields (ASVS
- * v5.0.0-15.3.3). Status, organization and `starts_at` are never accepted: the server sets them.
- * `ends_at` must be a future ISO 8601 instant.
- */
-export const startSubscriptionSchema = z
-  .object({
-    id: uuidV7Schema,
-    plan: z.string().trim().min(1).max(PLAN_MAX),
-    ends_at: z
-      .string()
-      .datetime({ offset: true })
-      .refine((value) => Date.parse(value) > Date.now()),
-  })
-  .strict();
-
-export type StartSubscriptionInput = z.infer<typeof startSubscriptionSchema>;
-
-/** Closed response of the subscription routes. */
-export type SubscriptionView = {
-  id: string;
-  plan: string;
-  status: 'ACTIVE';
-  starts_at: string | null;
-  ends_at: string | null;
-};
-
 /** Strict query of the public-number lookup: one phone number, normalized to E.164. */
 export const lookupOrganizationsQuerySchema = z.object({ phone: phoneNumberSchema }).strict();
 

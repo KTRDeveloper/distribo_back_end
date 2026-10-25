@@ -72,6 +72,7 @@ Command: `npx vitest run tests/integration/organization tests/integration/api-do
 | tests/integration/organization/subscription-start.test.ts | every case calls the removed POST route | file deleted; subscription-routes-removed.test.ts covers the refused route |
 | tests/integration/organization/subscription-end.test.ts | every case calls the removed DELETE and GET routes | file deleted; subscription-routes-removed.test.ts covers the refused routes |
 | tests/integration/organization/close.test.ts | AC-2 expects the ACTIVE subscription to become EXPIRED and AC-5 expects a failing trigger on `subscriptions` to undo the close | both cases and the seeds of `subscriptions` are dropped; a failing close hook is covered by lifecycle-hooks.test.ts (ORG-034) |
+| tests/integration/organization/lifecycle-hooks.test.ts | the case "AC-1 the close hooks run after the old subscription is ended" expects the subscription to be EXPIRED when `onClose` runs, but closing no longer touches `subscriptions` | the case is rewritten: the close hooks still run last and in the same transaction, without any subscription seed or EXPIRED check |
 | tests/integration/api-docs/catalog.test.ts | lists the path `/api/v1/organizations/{organizationId}/subscription` | the path is removed from the list and checked absent |
 
 ## Out of scope

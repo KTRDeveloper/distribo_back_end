@@ -1,4 +1,4 @@
-import { Prisma, type Collaboration, type Person, type Subscription } from '@prisma/client';
+import { Prisma, type Collaboration, type Person } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { httpError } from '../../lib/http-error.js';
 import { imageKeySchema } from '../../lib/image-keys.js';
@@ -668,64 +668,6 @@ export async function promoteToOwner(
 }
 
 /**
- * Sets to EXPIRED every ACTIVE subscription of the organization whose end has passed, so a lapsed
- * row never blocks a new one (C-31). A row without an end date never lapses.
- *
- * @param tx - Transaction client of the gesture.
- * @param organizationId - Organization from the loaded actor.
- * @param now - Instant used for the comparison.
- */
-export async function expireLapsedSubscriptions(
-  tx: Prisma.TransactionClient,
-  organizationId: string,
-  now: Date
-): Promise<void> {
-  await tx.subscription.updateMany({
-    where: { organizationId, status: 'ACTIVE', endsAt: { lte: now } },
-    data: { status: 'EXPIRED' },
-  });
-}
-
-/**
- * Inserts an ACTIVE subscription starting at `startsAt`. The partial unique index (C-31) arbitrates
- * a concurrent start.
- *
- * @throws 409 `SUBSCRIPTION_EXISTS` when the organization already has an ACTIVE subscription.
- */
-export async function insertSubscription(
-  tx: Prisma.TransactionClient,
-  data: { id: string; organizationId: string; plan: string; startsAt: Date; endsAt: Date }
-): Promise<Subscription> {
-  try {
-    return await tx.subscription.create({ data: { ...data, status: 'ACTIVE' } });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw httpError(409, 'SUBSCRIPTION_EXISTS', 'The organization already has a subscription');
-    }
-    throw error;
-  }
-}
-
-/**
- * Ends the organization's ACTIVE subscription: status EXPIRED and `ends_at` = `now`. The row is
- * kept as history. One conditional update, so two concurrent ends cannot both succeed. Pass `tx`
- * to run inside a larger gesture (ORG-016).
- *
- * @returns true when a row was ended, false when none was ACTIVE.
- */
-export async function endActiveSubscription(
-  organizationId: string,
-  now: Date,
-  tx?: Prisma.TransactionClient
-): Promise<boolean> {
-  const result = await (tx ?? prisma).subscription.updateMany({
-    where: { organizationId, status: 'ACTIVE' },
-    data: { status: 'EXPIRED', endsAt: now },
-  });
-  return result.count > 0;
-}
-
-/**
  * Moves an ACTIVE, non-deleted organization to CLOSED. One conditional update, so two concurrent
  * closes cannot both succeed and a SUSPENDED or CLOSED organization matches nothing (CM-10).
  *
@@ -786,11 +728,6 @@ export async function revokeNonOwnerCollaborations(
     data: { status: 'REVOKED' },
   });
   return revoked;
-}
-
-/** Reads the organization's ACTIVE subscription, or null. */
-export async function findActiveSubscription(organizationId: string): Promise<Subscription | null> {
-  return prisma.subscription.findFirst({ where: { organizationId, status: 'ACTIVE' } });
 }
 
 /** Most businesses one number can return; a person is a public contact of few organizations. */
