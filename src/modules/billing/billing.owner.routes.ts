@@ -3,11 +3,34 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import { idempotent } from '../../middleware/idempotent.js';
-import { keepChoiceBodySchema, keepChoiceParamsSchema } from './billing.schemas.js';
+import { keepChoiceBodySchema, keepChoiceParamsSchema, swapSeatBodySchema } from './billing.schemas.js';
 import { saveKeepChoice } from './keep-choice.service.js';
+import { swapSeat } from './swap.service.js';
 
 /** Owner-only billing gestures, scoped by the authenticated organization's membership. */
 export const billingOwnerRoutes = Router({ mergeParams: true });
+
+billingOwnerRoutes.post(
+  '/swap-seat',
+  authMiddleware,
+  loadActor,
+  requireAbility('keep', 'Collaboration'),
+  (req, _res, next) => {
+    keepChoiceParamsSchema.parse(req.params);
+    req.body = swapSeatBodySchema.parse(req.body);
+    next();
+  },
+  idempotent(),
+  async (req, res) => {
+    const input = swapSeatBodySchema.parse(req.body);
+    const view = await swapSeat(req.actor!, {
+      id: input.id,
+      pauseCollaborationId: input.pause_collaboration_id,
+      resumeCollaborationId: input.resume_collaboration_id,
+    }, new Date());
+    res.status(201).json(view);
+  },
+);
 
 billingOwnerRoutes.post(
   '/keep-choice',

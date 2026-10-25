@@ -29,6 +29,21 @@ export const keepChoiceBodySchema = z.object({
 
 export const keepChoiceParamsSchema = z.object({ organizationId: uuidV7Schema }).strict();
 
+/** Owner swap fields only; UUID casing cannot bypass the distinct-seat rule. */
+export const swapSeatBodySchema = z.object({
+  id: uuidV7Schema,
+  pause_collaboration_id: z.string().uuid(),
+  resume_collaboration_id: z.string().uuid(),
+}).strict().refine(
+  (body) => body.pause_collaboration_id.toLowerCase() !== body.resume_collaboration_id.toLowerCase(),
+  { message: 'Seats must be distinct', path: ['resume_collaboration_id'] },
+);
+
+export const swapSeatResponseSchema = z.object({
+  paused_collaboration_id: z.string().uuid(),
+  resumed_collaboration_id: z.string().uuid(),
+}).strict();
+
 export const keepChoiceResponseSchema = z.object({
   collaboration_ids: z.array(z.string().uuid()).max(100),
   product_ids: z.array(z.string().uuid()).max(100),

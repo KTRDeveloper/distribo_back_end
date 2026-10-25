@@ -10,7 +10,47 @@ import {
   paymentStatusResponseSchema,
   shopParamsOpenApiSchema,
   shopResponseSchema,
+  swapSeatBodySchema,
+  swapSeatResponseSchema,
 } from './billing.schemas.js';
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/billing/swap-seat',
+  tags: ['billing'],
+  summary: 'Swap a paused team seat with an active or invited seat (owner only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: keepChoiceParamsSchema,
+    body: { content: { 'application/json': { schema: swapSeatBodySchema } } },
+  },
+  responses: {
+    201: {
+      description: 'Seats swapped with owner events, notices and a current keep choice',
+      content: { 'application/json': { schema: swapSeatResponseSchema } },
+    },
+    400: {
+      description: 'Invalid body, UUID or identical seat ids',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Authentication required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'Only the owner may swap seats',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Organization outside caller scope or seat absent, foreign or owner',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'SEAT_STATE, DRIVER_ON_DELIVERY or REQUEST_IN_PROGRESS',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: 'post',

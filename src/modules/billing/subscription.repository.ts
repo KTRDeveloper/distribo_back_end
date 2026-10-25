@@ -55,6 +55,33 @@ export async function insertSeatEvent(
 }
 
 /**
+ * Appends an owner-initiated seat transition without changing SYSTEM enforcement attribution.
+ * C-55: the trusted owner's person id is the only actor reference; failures roll back the swap.
+ * @param tx Transaction shared with both seat updates and notices (ASVS 2.3.3).
+ * @param organizationId Organization from the loaded owner membership.
+ * @param personId Authenticated owner who requested the swap.
+ * @param collaborationId Tenant-scoped seat that actually changed.
+ * @param kind Successful transition, never an attempted or unchanged seat.
+ * @param now Effective time supplied by the caller.
+ */
+export async function insertOwnerSeatEvent(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  personId: string,
+  collaborationId: string,
+  kind: 'PAUSED' | 'RESUMED',
+  now: Date,
+): Promise<void> {
+  const details = JSON.stringify({ collaboration_id: collaborationId });
+  await tx.$executeRaw`
+    INSERT INTO subscription_events
+      (id, organization_id, kind, actor, person_id, details, occurred_at)
+    VALUES (${uuidv7()}::uuid, ${organizationId}::uuid,
+            ${kind}::"SubscriptionEventKind", 'OWNER', ${personId}::uuid, ${details}::jsonb, ${now})
+  `;
+}
+
+/**
  * Appends an owner's choice without altering previous choices or current plan rights (BIL-018).
  * C-55: only the authenticated owner's person id is set; no payer or administrator references.
  * @param tx Transaction shared with the tenant-scoped eligibility checks.

@@ -764,3 +764,36 @@ BIL-022 done
 - Full suite evidence: `/tmp/distribo-next25-20261025/BIL-028-suite.txt`. Report delivered inline rather than written, following the instruction prohibiting report Markdown files.
 BIL-028 done
 <!-- end BIL-028 -->
+
+<!-- begin BIL-029 -->
+## BIL-029 — The owner swaps a paused collaborator with an active one
+
+- Filed: 2026-10-25 23:35 UTC
+- Status: **done**: Owner seat swap atomic and tenant-scoped; 4997 tests pass, typecheck clean, lint 0 errors; dependency audit findings and unavailable SAST/secret scanners reported.
+- Risk: medium · story: [BIL-029-the-owner-swaps-a-paused-collaborator-with-an.md](../modules/billing/BIL-029-the-owner-swaps-a-paused-collaborator-with-an.md)
+- Agent: 59,404 tokens, 65 tool uses, 10 min 43 s
+
+### Agent report
+
+**Summary:** BIL-029 done: owner-only, tenant-scoped seat swap commits both seats, owner events, localized notices and the current keep choice atomically.
+
+**Decisions:**
+- Resolved the mechanical blocker with a dedicated OWNER event helper in `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/subscription.repository.ts`; existing SYSTEM helpers remain unchanged and the service never calls Prisma.
+- Conditional-update failures abort the transaction; pause happens before resume to preserve occupied seat count.
+- Resuming an unaccepted seat preserves INVITED, following the existing setSeatPaused contract.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/swap-seat.test.ts` › second-notice failure: seats, scope versions, events and notices roll back (ASVS 2.3.3); failed before implementation.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/swap-seat.test.ts` › competing swaps: exactly one succeeds for a shared resume seat (subscription locking, C-42); failed before implementation.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/swap-seat.test.ts` › invited-seat swap: no unaccepted invitation becomes ACTIVE (setSeatPaused contract); failed before implementation.
+
+**Other additions:**
+- Regenerated stale local Prisma client and generated OpenAPI; no package or schema changes.
+
+**Evidence:** story tests 23/23; story command 66/66; full suite 4997/4997, failing: none, 0 known; typecheck clean; lint 0 errors, 212 warnings; diff check clean.
+
+**Follow-ups:**
+- Dependency audit reports 5 vulnerabilities (3 high, 1 moderate, 1 low) in unchanged dependencies; Semgrep/Gitleaks unavailable locally. Dependency versions/security configuration were not altered.
+- `/tmp/distribo-next25-20261025/BIL-029-suite.txt` contains full-suite evidence. `/tmp/distribo-next25-20261025/BIL-029-report.md` intentionally unwritten per the latest developer prohibition on Markdown reports; coordinator should file this handback.
+BIL-029 done
+<!-- end BIL-029 -->
