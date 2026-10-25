@@ -6,6 +6,19 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-25 22:15 UTC: `/implement-stories BIL-018`
+
+| story | status | commit | note |
+|---|---|---|---|
+| BIL-018 The owner chooses who and what to keep when a plan ends | done | 9c6d87e | 16 story tests (65 with api-docs, per-001) pass; full suite 4862/4863, one flaky unrelated test passes on rerun; typecheck clean; lint 0 errors |
+
+- Run completed; BIL-018 was the only story.
+- Docker Desktop was stopped, so I started it (`systemctl --user start docker-desktop`) and then the test database (`npm run test:db:up`). Baseline: 1 failing.
+- The tree held BIL-018's partial changes (in_progress); the agent resumed and kept them.
+- Full suite 4862/4863: `customer-catalog-variants` AC-4 is flaky (random requestId contained "2700"), passes on rerun, not in the baseline. It deserves a fix in its own story.
+- The agent did not re-run `npm audit`. An earlier block mentioned 3 high findings in the audit baseline.
+- No stash. Next command: `node .claude/skills/implement-stories/scripts/select.mjs next:5 --plan`.
+
 ### Run 2026-10-25 04:58 UTC: `/implement-stories BIL-005,BIL-002,BIL-004,BIL-006 (resume)`
 
 | story | status | commit | note |
