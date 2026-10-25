@@ -335,7 +335,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-034 | done | | Lifecycle hooks on close/reopen, PAUSED revoked on close |
 | BIL-005 | done | | subscription routes and code removed; lifecycle-hooks case rewritten |
 | BIL-002 | done | | periods table rebuilt; subscription-routes-removed seed amended |
-| BIL-004 | todo | | |
+| BIL-004 | done | | subscription_events table, checks and append-only grant in place |
 | BIL-006 | todo | | |
 | BIL-032 | todo | | |
 | BIL-011 | todo | | |

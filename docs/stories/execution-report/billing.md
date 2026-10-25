@@ -314,3 +314,29 @@ Also in this run: images, catalog, organization, admin, order, delivery, finance
 **Follow-ups:**
 - After pulling this change, run `npx prisma generate`: a stale client made the first full-suite run fail 4 tests in subscription-routes-removed.
 <!-- end BIL-002 -->
+
+<!-- begin BIL-004 -->
+## BIL-004 — Table of subscription events
+
+- Filed: 2026-10-25 04:55 UTC
+- Status: **done**: subscription_events table, checks and append-only grant in place
+- Risk: high · story: [BIL-004-table-of-subscription-events.md](../modules/billing/BIL-004-table-of-subscription-events.md)
+- Agent: 50,772 tokens, 16 tool uses, 2 min 51 s
+
+### Agent report
+
+**Summary:** Added migration bil_004_subscription_events (enums, table, checks, FKs, index, SELECT/INSERT-only grant), the Prisma model with its plain-words comment, and the table test.
+
+**Decisions:**
+- Grant: `REVOKE ALL` then `GRANT SELECT, INSERT` to distribo_app, so no other privilege (REFERENCES, TRIGGER) is left.
+- Administrator rule: both `administrator_id` and `admin_action_id` must be set exactly when actor is ADMINISTRATOR (two-way), as C-55 says.
+- Details check uses `jsonb_typeof = 'object'`, so JSON null is refused as well as a list.
+- `prisma format` realigned some existing schema lines (whitespace only).
+
+**Tests added beyond the story:**
+- `subscription-events-table.test.ts` › wrong rows (ADMINISTRATOR without administrator, OWNER with an administrator, details JSON null): the exactly-when rule in both directions (C-55); passed at once only because the migration was written with them
+- `subscription-events-table.test.ts` › events: every one of the 8 kinds stored with a subscription link; unknown person refused 23503; missing organization refused 23502 (FK and required rules)
+- `subscription-events-table.test.ts` › immutable: the app account can still read (C-39)
+
+**Evidence:** story tests 21/21; full suite 4779/4779, failing: none, 0 known; typecheck clean; lint 0 errors, 203 warnings
+<!-- end BIL-004 -->

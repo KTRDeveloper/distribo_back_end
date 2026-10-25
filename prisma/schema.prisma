@@ -163,6 +163,24 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum SubscriptionEventKind {
+  PAYMENT
+  FORFAIT_ADDED
+  FORFAIT_ENDED
+  PLAN_CHANGED
+  REMINDER
+  KEEP_CHOICE
+  PAUSED
+  RESUMED
+}
+
+enum SubscriptionEventActor {
+  PAYER
+  OWNER
+  SYSTEM
+  ADMINISTRATOR
+}
+
 enum ReceiptKind {
   RECEIPT
   CREDIT_NOTE
@@ -410,6 +428,8 @@ model Person {
 
   adminActionsAsTarget AdminAction[] @relation("AdminActionTargetPerson")
 
+  subscriptionEvents SubscriptionEvent[]
+
   reportsFiled          Report[] @relation("ReportReporter")
   reportsAsTargetPerson Report[] @relation("ReportTargetPerson")
 
@@ -489,6 +509,7 @@ model Organization {
 
   subscriptionPayments SubscriptionPayment[]
   subscriptionReceipts SubscriptionReceipt[]
+  subscriptionEvents   SubscriptionEvent[]
 
   contacts OrganizationContact[]
 
@@ -578,6 +599,7 @@ model Subscription {
 
   organization Organization         @relation(fields: [organizationId], references: [id])
   payment      SubscriptionPayment? @relation(fields: [paymentId], references: [id])
+  events       SubscriptionEvent[]
 
   @@index([organizationId])
   @@map("subscriptions")
@@ -619,6 +641,7 @@ model SubscriptionPayment {
   organization Organization          @relation(fields: [organizationId], references: [id])
   receipts     SubscriptionReceipt[]
   subscription Subscription?
+  events       SubscriptionEvent[]
 
   @@index([organizationId, createdAt])
   @@index([status, createdAt])
@@ -667,6 +690,42 @@ model SubscriptionReceipt {
   @@index([organizationId, issuedAt])
   @@index([paymentId])
   @@map("subscription_receipts")
+}
+
+// Rules the database enforces on the journal of subscription events (everything
+// that happens to a plan), beyond what this model declares. All come from
+// migration 20261025110000_bil_004_subscription_events.
+// - The journal can only grow: the application account can add and read events
+//   but never change, delete or empty them. A mistake is corrected by a new event.
+// - Each event carries the reference of whoever caused it. A person is set
+//   exactly when the owner caused it. An administrator and the admin action
+//   that recorded it are both set exactly when an administrator caused it. A
+//   payment is always set when the payer caused it. A system event has no
+//   person, administrator or admin action.
+// - The details are always a JSON object (empty by default), never a list.
+// Events are not synchronized to phones.
+model SubscriptionEvent {
+  id              String                 @id @db.Uuid
+  organizationId  String                 @map("organization_id") @db.Uuid
+  kind            SubscriptionEventKind
+  actor           SubscriptionEventActor
+  personId        String?                @map("person_id") @db.Uuid
+  administratorId String?                @map("administrator_id") @db.Uuid
+  adminActionId   String?                @map("admin_action_id") @db.Uuid
+  subscriptionId  String?                @map("subscription_id") @db.Uuid
+  paymentId       String?                @map("payment_id") @db.Uuid
+  details         Json                   @default("{}")
+  occurredAt      DateTime               @default(now()) @map("occurred_at") @db.Timestamptz
+
+  organization  Organization         @relation(fields: [organizationId], references: [id])
+  person        Person?              @relation(fields: [personId], references: [id])
+  administrator Administrator?       @relation(fields: [administratorId], references: [id])
+  adminAction   AdminAction?         @relation(fields: [adminActionId], references: [id])
+  subscription  Subscription?        @relation(fields: [subscriptionId], references: [id])
+  payment       SubscriptionPayment? @relation(fields: [paymentId], references: [id])
+
+  @@index([organizationId, occurredAt])
+  @@map("subscription_events")
 }
 
 // Rules the database enforces on collaborations (a person's membership in an
@@ -993,8 +1052,9 @@ model Administrator {
 
   person Person @relation(fields: [personId], references: [id])
 
-  actions         AdminAction[]
-  resolvedReports Report[]
+  actions            AdminAction[]
+  resolvedReports    Report[]
+  subscriptionEvents SubscriptionEvent[]
 
   @@index([personId])
   @@map("administrators")
@@ -1033,11 +1093,12 @@ model AdminAction {
   occurredAt           DateTime        @default(now()) @map("occurred_at") @db.Timestamptz
   serverUpdatedAt      DateTime        @default(now()) @map("server_updated_at") @db.Timestamptz
 
-  administrator      Administrator @relation(fields: [administratorId], references: [id])
-  report             Report?       @relation(fields: [reportId], references: [id])
-  syncArchive        SyncArchive?  @relation(fields: [syncArchiveId], references: [id])
-  targetPerson       Person?       @relation("AdminActionTargetPerson", fields: [targetPersonId], references: [id])
-  targetOrganization Organization? @relation("AdminActionTargetOrganization", fields: [targetOrganizationId], references: [id])
+  administrator      Administrator       @relation(fields: [administratorId], references: [id])
+  report             Report?             @relation(fields: [reportId], references: [id])
+  syncArchive        SyncArchive?        @relation(fields: [syncArchiveId], references: [id])
+  subscriptionEvents SubscriptionEvent[]
+  targetPerson       Person?             @relation("AdminActionTargetPerson", fields: [targetPersonId], references: [id])
+  targetOrganization Organization?       @relation("AdminActionTargetOrganization", fields: [targetOrganizationId], references: [id])
 
   @@index([administratorId])
   @@index([targetPersonId])
