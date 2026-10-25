@@ -112,6 +112,7 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { reportRoutes } from './modules/admin/report.routes.js';
 import { billingRoutes } from './modules/billing/billing.routes.js';
+import { billingOwnerRoutes } from './modules/billing/billing.owner.routes.js';
 import { apiDocsRoutes } from './modules/api-docs/api-docs.routes.js';
 
 // Register every module's OpenAPI paths/schemas on the shared registry
@@ -170,6 +171,7 @@ v1Router.use('/supplier-invitations', supplierInvitationRoutes);
 v1Router.use('/collaborations', collaborationRoutes);
 v1Router.use('/auth', authRoutes);
 v1Router.use('/billing', billingRoutes);
+v1Router.use('/organizations/:organizationId/billing', billingOwnerRoutes);
 v1Router.use('/admin/sync-archives', syncArchiveRoutes);
 v1Router.use('/admin', adminRoutes);
 v1Router.use('/reports', reportRoutes);

@@ -7,6 +7,28 @@ import type { ExpiredPeriod } from './rights.service.js';
 export type PeriodRow = Subscription;
 
 /**
+ * Appends an owner's choice without altering previous choices or current plan rights (BIL-018).
+ * C-55: only the authenticated owner's person id is set; no payer or administrator references.
+ * @param tx Transaction shared with the tenant-scoped eligibility checks.
+ * @param organizationId Organization from the server-loaded actor.
+ * @param personId Authenticated owner recording the choice.
+ * @param details Explicitly selected lists, never a raw request body.
+ */
+export async function insertKeepChoiceEvent(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  personId: string,
+  details: { collaboration_ids: string[]; product_ids: string[] }
+): Promise<void> {
+  const json = JSON.stringify(details);
+  await tx.$executeRaw`
+    INSERT INTO subscription_events (id, organization_id, kind, actor, person_id, details)
+    VALUES (${uuidv7()}::uuid, ${organizationId}::uuid, 'KEEP_CHOICE', 'OWNER',
+            ${personId}::uuid, ${json}::jsonb)
+  `;
+}
+
+/**
  * Runs subscription work atomically on the shared client.
  * @param work Work that must use the supplied transaction for every read and write.
  * @returns The callback result after a successful commit.

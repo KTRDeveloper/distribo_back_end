@@ -15,6 +15,25 @@ export const paymentCodeSchema = z
   .transform((value) => value.trim().toUpperCase())
   .pipe(z.string().regex(PAYMENT_CODE_PATTERN));
 
+const keepIdsSchema = z.array(z.string().uuid()).max(100).refine(
+  (ids) => new Set(ids.map((id) => id.toLowerCase())).size === ids.length,
+  { message: 'Ids must be distinct' }
+);
+
+/** Only these owner-chosen fields may enter the immutable KEEP_CHOICE details. */
+export const keepChoiceBodySchema = z.object({
+  id: uuidV7Schema,
+  collaboration_ids: keepIdsSchema,
+  product_ids: keepIdsSchema,
+}).strict();
+
+export const keepChoiceParamsSchema = z.object({ organizationId: uuidV7Schema }).strict();
+
+export const keepChoiceResponseSchema = z.object({
+  collaboration_ids: z.array(z.string().uuid()).max(100),
+  product_ids: z.array(z.string().uuid()).max(100),
+}).strict();
+
 export const shopParamsSchema = z.object({ code: paymentCodeSchema }).strict();
 
 /** Documents the shop answer: the name only (ASVS v5.0.0-15.3.1). */

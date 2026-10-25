@@ -76,6 +76,14 @@ describe('PER-001: Retire the old sign-in module', () => {
       expect(Object.keys(doc.paths[path])).toEqual(expect.arrayContaining(['get']));
     });
 
+    it('lists the owner keep-choice route with POST (BIL-018)', async () => {
+      const response = await request(app).get('/api/v1/docs/openapi.json');
+      const doc = bodyOf<OpenApiDoc>(response);
+      const path = '/api/v1/organizations/{organizationId}/billing/keep-choice';
+      expect(Object.keys(doc.paths)).toContain(path);
+      expect(Object.keys(doc.paths[path])).toEqual(expect.arrayContaining(['post']));
+    });
+
     it('/api/v1/billing/payments is listed in OpenAPI with POST (BIL-009)', async () => {
       const response = await request(app).get('/api/v1/docs/openapi.json');
       const doc = bodyOf<OpenApiDoc>(response);

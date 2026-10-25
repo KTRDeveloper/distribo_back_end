@@ -1,10 +1,51 @@
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
   createPaymentBodyOpenApiSchema,
+  keepChoiceBodySchema,
+  keepChoiceParamsSchema,
+  keepChoiceResponseSchema,
   paymentResponseSchema,
   shopParamsOpenApiSchema,
   shopResponseSchema,
 } from './billing.schemas.js';
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/billing/keep-choice',
+  tags: ['billing'],
+  summary: 'Record the owner choice of seats and products to keep when a plan ends',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: keepChoiceParamsSchema,
+    body: { content: { 'application/json': { schema: keepChoiceBodySchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The two lists recorded in one immutable KEEP_CHOICE event',
+      content: { 'application/json': { schema: keepChoiceResponseSchema } },
+    },
+    400: {
+      description: 'Invalid body, duplicate ids, or more than 100 ids in either list',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Authentication required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'Only the owner may choose',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Organization outside caller scope or any ineligible selected id',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'A request with this gesture id is already in progress',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: 'get',
