@@ -344,7 +344,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-019 | done | | 12 story tests and 4875 suite tests pass; typecheck clean; existing dependency audit findings remain |
 | BIL-020 | done | | 28 story/dependency tests and 4891 full-suite tests pass; typecheck clean; lint 0 errors; existing dependency advisories and unavailable scan tools noted |
 | BIL-027 | done | | 27 targeted and 4904 full-suite tests pass; typecheck clean, lint 0 errors; existing dependency audit alerts remain |
-| BIL-014 | todo | | |
+| BIL-014 | done | | 13 confirmation tests and 4917 full-suite tests pass; typecheck clean; lint 0 errors (207 warnings); existing dependency audit alerts need follow-up |
 | BIL-015 | todo | | |
 | BIL-021 | todo | | |
 | BIL-022 | todo | | |

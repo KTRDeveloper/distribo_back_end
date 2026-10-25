@@ -602,3 +602,36 @@ BIL-020 done
 
 BIL-027 done
 <!-- end BIL-027 -->
+
+<!-- begin BIL-014 -->
+## BIL-014 — A confirmed payment activates one period and its receipt
+
+- Filed: 2026-10-25 22:51 UTC
+- Status: **done**: 13 confirmation tests and 4917 full-suite tests pass; typecheck clean; lint 0 errors (207 warnings); existing dependency audit alerts need follow-up
+- Risk: high · story: [BIL-014-a-confirmed-payment-activates-one-period-and.md](../modules/billing/BIL-014-a-confirmed-payment-activates-one-period-and.md)
+- Agent: 43,876 tokens, 36 tool uses, 5 min 49 s
+
+### Agent report
+
+**Summary:** BIL-014 implemented and marked done: provider-verified confirmation atomically activates a period, receipt, payment journal, rights and limits.
+
+**Decisions:**
+- Resolved the documentary reading blocker using the clarified targeted dependency scope; no business rules or dependencies changed.
+- Locked and rechecked PENDING for FAILED/EXPIRED as well as successful results, preventing delayed provider responses from overwriting activation.
+- Persisted checked bigint amounts as decimal strings and dates as ISO strings in JSON provider evidence.
+- Used a dedicated PAYMENT event helper in the listed payment repository: the existing insertEvent emits FORFAIT_ADDED and cannot emit PAYMENT.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/confirm-payment.test.ts` › delayed FAILED/EXPIRED results: preserve successful activation (C-53, AB-2).
+- Same test file › limit-enforcement failure: rolls back payment, period, receipt, events and rights (ASVS 2.3.3).
+- Same test file › missing local payment: returns 404 without querying provider (service contract).
+
+**Evidence:** story tests 13/13; full suite 4917/4917, failing: none, 0 known; typecheck clean; lint 0 errors, 207 existing warnings; diff whitespace clean. TDD first failed on missing service, then fixture registration was corrected before all 13 passed.
+
+**Follow-ups:**
+- Dependency audit reports 5 existing vulnerabilities (3 high, 1 moderate, 1 low); no dependency changes made. Semgrep/Gitleaks executables unavailable.
+- Implementation: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/confirmation.service.ts`; repository: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/payment.repository.ts`.
+- Full-suite output: `/tmp/distribo-next25-20261025/BIL-014-suite.txt`. Report supplied inline rather than writing `/tmp/distribo-next25-20261025/BIL-014-report.md`, as instructed by the prohibition on report Markdown files.
+
+BIL-014 done
+<!-- end BIL-014 -->

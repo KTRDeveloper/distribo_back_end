@@ -1,7 +1,59 @@
 import type { Prisma, SubscriptionPayment } from '@prisma/client';
+import { v7 as uuidv7 } from 'uuid';
 import { prisma } from '../../lib/db.js';
 
 export type PaymentRow = SubscriptionPayment;
+
+/** Looks up the unique provider reference before any external status check. */
+export function findPaymentByReference(providerReference: string): Promise<PaymentRow | null> {
+  return prisma.subscriptionPayment.findUnique({ where: { providerReference } });
+}
+
+/**
+ * Locks the payment until commit; callers must recheck PENDING after acquiring it.
+ * This serializes both activation and late failure callbacks (ASVS 2.3.3).
+ * @param tx Transaction owning all confirmation writes.
+ * @param id Payment id loaded by the server from its provider reference.
+ * @returns The locked payment, or null if absent.
+ */
+export async function lockPayment(tx: Prisma.TransactionClient, id: string): Promise<PaymentRow | null> {
+  await tx.$queryRaw`SELECT id FROM subscription_payments WHERE id = ${id}::uuid FOR UPDATE`;
+  return tx.subscriptionPayment.findUnique({ where: { id } });
+}
+
+/**
+ * Records a terminal outcome only after the caller locks and rechecks the payment.
+ * The confirmation timestamp is set only for success, as required by C-53.
+ * @param tx Transaction shared with periods, receipts, rights and limits.
+ * @param id Locked payment id.
+ * @param outcome Server-checked terminal status and JSON-safe provider evidence.
+ */
+export async function setPaymentOutcome(
+  tx: Prisma.TransactionClient,
+  id: string,
+  outcome: { status: 'SUCCEEDED' | 'FAILED' | 'EXPIRED'; now: Date; payload: Prisma.InputJsonObject },
+): Promise<void> {
+  await tx.subscriptionPayment.update({ where: { id }, data: {
+    status: outcome.status,
+    confirmedAt: outcome.status === 'SUCCEEDED' ? outcome.now : null,
+    providerPayload: outcome.payload,
+  } });
+}
+
+/** Appends the PAYER payment event atomically with its purchased period and receipt. */
+export async function insertPaymentEvent(
+  tx: Prisma.TransactionClient,
+  payment: PaymentRow,
+  subscriptionId: string,
+  now: Date,
+): Promise<void> {
+  await tx.$executeRaw`
+    INSERT INTO subscription_events
+      (id, organization_id, kind, actor, payment_id, subscription_id, occurred_at)
+    VALUES (${uuidv7()}::uuid, ${payment.organizationId}::uuid, 'PAYMENT', 'PAYER',
+            ${payment.id}::uuid, ${subscriptionId}::uuid, ${now})
+  `;
+}
 
 export type NewPayment = {
   id: string;
