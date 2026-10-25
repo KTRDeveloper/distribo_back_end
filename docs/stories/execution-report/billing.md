@@ -461,3 +461,28 @@ BIL-011 done
 - Missing Markdown report reconstructed from hand-back per agent's developer restriction.
 BIL-013 done
 <!-- end BIL-013 -->
+
+<!-- begin BIL-018 -->
+## BIL-018 — The owner chooses who and what to keep when a plan ends
+
+- Filed: 2026-10-25 06:59 UTC
+- Status: **blocked**: Pre-existing security baseline: scanners executed with findings; audit has 3 high, and remediation requires changes outside permitted dependency versions.
+- Risk: medium · story: [BIL-018-the-owner-chooses-who-and-what-to-keep-when-a.md](../modules/billing/BIL-018-the-owner-chooses-who-and-what-to-keep-when-a.md)
+- Agent: 54,116 tokens, 2 tool uses, 22 s
+
+### Agent report
+
+**Summary:** BIL-018 is functionally complete; STATUS remains blocked on the pre-existing security baseline and permitted dependency versions, not scanner availability.
+**Decisions:**
+- Strict validation precedes idempotency reservation; tenant-scoped contract lists and event insertion share one transaction.
+- Dedicated owner-event insert preserves C-55; existing payment-specific insertEvent unchanged.
+**Tests added beyond the story:**
+- tests/integration/billing/keep-choice.test.ts: mixed valid/foreign IDs reject atomically (AB-1); invited/paused seats accepted (contract); exactly 100 products accepted (boundary). All failed before implementation.
+**Evidence:** targeted tests 65/65 (24 keep-choice); full suite 4863/4863, failing none, 0 known; typecheck clean; lint 0 errors, 206 warnings; diff whitespace check clean. Unchanged suite not rerun.
+**Follow-ups:**
+- Coordinator executed Docker CI scanners without disabling checks: SAST 12 alerts; Gitleaks 36 historical detections, including an unqualified historical settings alert. Baseline findings require separate resolution.
+- Audit: 3 high, 1 moderate, 1 low; Zod remediation requires Zod 4 and zod-to-openapi 9, outside permitted versions and story scope. No dependency/config changes or suppressed checks; no commit.
+- Logs: /tmp/distribo-next29-20261025-yVuA32/security-semgrep.txt, security-gitleaks-redacted.json, BIL-018-audit.txt, BIL-018-suite.txt in the same directory.
+- No mechanical assertion correction remains. Missing Markdown report reconstructed from hand-back, per agent's developer instruction.
+BIL-018 blocked
+<!-- end BIL-018 -->

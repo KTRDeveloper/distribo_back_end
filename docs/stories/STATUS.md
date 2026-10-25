@@ -340,7 +340,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-032 | done | | Database exclusion constraint enforced; 24 targeted and 4792 full-suite tests pass; authorized coexistence fixture dates corrected. |
 | BIL-011 | done | | 23 story tests and 4815 full-suite tests pass; typecheck clean, lint 0 errors; existing dependency audit findings reported |
 | BIL-013 | done | | 23 rights tests and 4838 full-suite tests pass; typecheck clean; lint 0 errors/205 warnings; dependency audit findings and unavailable scan tools reported. |
-| BIL-018 | todo | | |
+| BIL-018 | blocked | | Pre-existing security baseline: scanners executed with findings; audit has 3 high, and remediation requires changes outside permitted dependency versions. |
 | BIL-019 | todo | | |
 | BIL-020 | todo | | |
 | BIL-027 | todo | | |
