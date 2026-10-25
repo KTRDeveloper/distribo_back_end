@@ -29,10 +29,17 @@ type PushBody = {
 
 const devices: Record<string, string> = {};
 
-const push = (personId: string, changes: unknown) =>
-  createAuthenticatedRequest(app, personId, devices[personId])
+/**
+ * The database stamps `server_updated_at` to the microsecond, the phone's `last_pulled_at` is in
+ * whole milliseconds. A push sent in the same millisecond as the seeding would see the seeded row
+ * as changed after the last pull (409 SYNC_CONFLICT). Waiting 2 ms puts the pull time after it.
+ */
+const push = async (personId: string, changes: unknown) => {
+  await new Promise((resolve) => setTimeout(resolve, 2));
+  return createAuthenticatedRequest(app, personId, devices[personId])
     .post(`/api/v1/sync/push?last_pulled_at=${Date.now()}`)
     .send({ changes });
+};
 
 const table = (part: Partial<{ created: unknown[]; updated: unknown[]; deleted: string[] }>) => ({
   created: [],
