@@ -714,6 +714,9 @@ model Collaboration {
 //   Setting the same value again changes nothing and writes nothing. The
 //   default of 0 is also applied by the database on insert; an insert that
 //   supplies a limit directly is not journaled (it is creation, not a change).
+// - A counter (no customer person and no customer organization) is never
+//   marked as contested: contested_at stays empty for it. Migration
+//   20261025090000_rel_027_contested_at holds this rule.
 model CustomerRelationship {
   id                     String             @id @db.Uuid
   supplierOrganizationId String?            @map("supplier_organization_id") @db.Uuid
@@ -736,6 +739,7 @@ model CustomerRelationship {
   mergedIntoId           String?            @map("merged_into_id") @db.Uuid
   serverUpdatedAt        DateTime           @default(now()) @map("server_updated_at") @db.Timestamptz
   deletedAt              DateTime?          @map("deleted_at") @db.Timestamptz
+  contestedAt            DateTime?          @map("contested_at") @db.Timestamptz
 
   supplierOrganization Organization?                      @relation("RelationshipSupplierOrganization", fields: [supplierOrganizationId], references: [id])
   supplierPerson       Person?                            @relation("RelationshipSupplierPerson", fields: [supplierPersonId], references: [id])
@@ -790,11 +794,11 @@ model CreditLimitChange {
 //   never change, delete or empty them.
 // - The person who made the change must be a registered person, never a guest.
 //   This is checked when the transaction is saved, not row by row.
-// - A contestation is an entry where the person who made the change is the
-//   previous person themselves. A relationship accepts only one contestation
-//   per previous person; corrections by anyone else are not limited. This is a
-//   partial unique index that Prisma cannot express, so code must not rely on a
-//   Prisma unique lookup; catch the unique violation (23505) instead.
+// - The journal now holds only supplier corrections. A contestation by the
+//   customer no longer writes an entry (it sets contested_at on the
+//   relationship), and the old rule of one contestation per relationship and
+//   previous person was dropped by migration 20261025090000_rel_027_contested_at.
+//   Past contestation entries stay, since the journal is never modified.
 // - server_updated_at is set by the database on every change.
 // The rule that the new person has no relationship with the same supplier is
 // checked by the code that writes entries (REL-023, REL-024), not here.

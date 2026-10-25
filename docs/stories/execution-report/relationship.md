@@ -1011,3 +1011,29 @@ Also in this run: admin, catalog, order, finance, delivery.
 - No report file written: the final developer instruction forbids report Markdown files; this handback contains the report for the orchestrator.
 REL-026 done
 <!-- end REL-026 -->
+
+<!-- begin REL-027 -->
+## REL-027 — The contested mark column and the end of the one-contestation rule
+
+- Filed: 2026-10-25 04:18 UTC
+- Status: **done**: contested_at column, counter CHECK, one-contestation index dropped
+- Risk: high · story: [REL-027-the-contested-mark-column-and-the-end-of-the.md](../modules/relationship/REL-027-the-contested-mark-column-and-the-end-of-the.md)
+- Agent: 39,028 tokens, 12 tool uses, 2 min 16 s
+
+### Agent report
+
+**Summary:** Migration rel_027_contested_at adds contested_at, the counter CHECK, and drops the one-contestation index; schema comments updated.
+
+**Decisions:**
+- Migration folder `20261025090000_rel_027_contested_at`; CHECK named `customer_relationships_counter_not_contested_check`.
+- CHECK allows NULL or exactly one customer (person or organization), same counter test as REL-004.
+
+**Tests added beyond the story:**
+- `contested-at-column.test.ts` › refuses a counter inserted already marked: the CHECK also covers INSERT (C-57); passed once the migration existed
+- `contested-at-column.test.ts` › can be set on a customer organization: only counters are refused (C-57)
+
+**Evidence:** story tests 19/19; full suite 4741/4741, failing: none, 0 known; typecheck clean; lint 0 errors, 202 warnings
+
+**Follow-ups:**
+- `relationship.service.ts` still throws ALREADY_CONTESTED in code and moves the relationship on contest; REL-028/REL-029 are meant to replace that.
+<!-- end REL-027 -->

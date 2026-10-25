@@ -185,13 +185,13 @@ describe('customer_relationship_reassignments immutability (AC-2, AB-1, C-32, C-
   });
 });
 
-describe('customer_relationship_reassignments contestation rule (AC-3, C-12)', () => {
-  it('rejects a second contestation by the same previous person with 23505', async () => {
+describe('customer_relationship_reassignments self-authored entries (AC-3, C-12, REL-027)', () => {
+  it('accepts a second self-authored entry for the same relationship and person', async () => {
     await insertReassignment({ by: PREVIOUS_ID });
 
-    expect(
-      await captureSqlCode(insertReassignment({ id: SECOND_ID, by: PREVIOUS_ID, next: OWNER_ID }))
-    ).toBe('23505');
+    await expect(
+      insertReassignment({ id: SECOND_ID, by: PREVIOUS_ID, next: OWNER_ID })
+    ).resolves.toBe(1);
   });
 
   it('accepts a correction after a contestation', async () => {
@@ -212,7 +212,7 @@ describe('customer_relationship_reassignments contestation rule (AC-3, C-12)', (
     await expect(insertReassignment({ id: SECOND_ID, by: PREVIOUS_ID })).resolves.toBe(1);
   });
 
-  it('allows one contestation per relationship and per previous person', async () => {
+  it('accepts self-authored entries on other relationships and for other previous persons', async () => {
     await insertReassignment({ by: PREVIOUS_ID });
 
     await expect(
