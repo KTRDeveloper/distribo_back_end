@@ -748,8 +748,11 @@ export async function closeActiveOrganization(
  *
  * @returns true when the organization was CLOSED and is now ACTIVE.
  */
-export async function reopenClosedOrganization(organizationId: string): Promise<boolean> {
-  const result = await prisma.organization.updateMany({
+export async function reopenClosedOrganization(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<boolean> {
+  const result = await tx.organization.updateMany({
     where: { id: organizationId, status: 'CLOSED', deletedAt: null },
     data: { status: 'ACTIVE' },
   });
@@ -757,9 +760,10 @@ export async function reopenClosedOrganization(organizationId: string): Promise<
 }
 
 /**
- * Turns every non-OWNER ACTIVE or INVITED collaboration of the organization into REVOKED;
+ * Turns every non-OWNER ACTIVE, INVITED or PAUSED collaboration of the organization into REVOKED;
  * `amount_held` is not written (CM-09, CM-10). ACTIVE rows are revoked in
  * their own statement so the caller knows whose rights ended (scope bump and notification).
+ * INVITED and PAUSED rows have no access, so they are revoked without being reported.
  *
  * @returns The person ids whose ACTIVE collaboration was revoked, with the collaboration id.
  */
@@ -773,7 +777,12 @@ export async function revokeNonOwnerCollaborations(
     select: { id: true, personId: true },
   });
   await tx.collaboration.updateMany({
-    where: { organizationId, deletedAt: null, status: 'INVITED', role: { not: 'OWNER' } },
+    where: {
+      organizationId,
+      deletedAt: null,
+      status: { in: ['INVITED', 'PAUSED'] },
+      role: { not: 'OWNER' },
+    },
     data: { status: 'REVOKED' },
   });
   return revoked;

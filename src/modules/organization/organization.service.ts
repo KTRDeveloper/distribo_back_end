@@ -48,6 +48,7 @@ import {
 } from './organization.repository.js';
 import type { CreatedOrganization } from './organization.repository.js';
 import { listLiveContacts } from './organization-contact.repository.js';
+import { runCloseHooks, runReopenHooks } from './lifecycle-hooks.js';
 import type {
   CloseOrganizationInput,
   CloseOrganizationView,
@@ -585,9 +586,10 @@ const ORDER_REFUSED_CONTENT = {
 /**
  * The owner closes the business (CM-10). In one transaction (ASVS v5.0.0-2.3.3) the organization
  * becomes CLOSED (only from ACTIVE), every non-owner ACTIVE or INVITED collaboration becomes
- * REVOKED with `is_public_contact` false, ACTIVE ones get a scope version bump (CM-03) and an
+ * REVOKED (PAUSED ones too, silently) with `is_public_contact` false, ACTIVE ones get a scope version bump (CM-03) and an
  * `organization.closed` notification, and the ACTIVE subscription becomes EXPIRED with `ends_at`
- * = now. Every PENDING order of the business is refused with the reason "Commerce fermé" (ORD-018)
+ * = now. The registered close hooks run last, in the same transaction, and a failing hook undoes
+ * the whole close. Every PENDING order of the business is refused with the reason "Commerce fermé" (ORD-018)
  * and each registered customer gets an `order.status_changed` notification; CONFIRMED and later
  * orders are untouched. The owner's own collaboration, relations, balances and history are untouched. The
  * organization comes from the loaded actor, never from the body (ASVS v5.0.0-8.2.1).
@@ -658,6 +660,7 @@ export async function closeOrganization(
     }
 
     await endActiveSubscription(actor.organizationId, now, tx);
+    await runCloseHooks(tx, actor.organizationId, now);
   });
 
   logger.warn(
@@ -673,16 +676,23 @@ export async function closeOrganization(
  * subscription are not restored; the owner invites and subscribes again. The organization comes
  * from the loaded actor, never from the body (ASVS v5.0.0-8.2.1).
  *
+ * The update and the registered reopen hooks share one transaction, so a failing hook leaves the
+ * business CLOSED (ASVS v5.0.0-2.3.3); a refused call runs no hook.
+ *
  * @param actor - Owner loaded from the path and checked for `reopen Organization`.
  * @returns The new status.
  * @throws 409 `ORGANIZATION_NOT_CLOSED` when ACTIVE or SUSPENDED; 404 `NOT_FOUND` when absent.
  */
 export async function reopenOrganization(actor: Actor): Promise<{ status: 'ACTIVE' }> {
-  if (!(await reopenClosedOrganization(actor.organizationId))) {
-    const status = await findOrganizationStatus(actor.organizationId);
-    if (status === null) throw httpError(404, 'NOT_FOUND', 'Not found');
-    throw httpError(409, 'ORGANIZATION_NOT_CLOSED', 'Organization is not closed');
-  }
+  const now = new Date();
+  await runInTransaction(async (tx) => {
+    if (!(await reopenClosedOrganization(tx, actor.organizationId))) {
+      const status = await findOrganizationStatus(actor.organizationId, tx);
+      if (status === null) throw httpError(404, 'NOT_FOUND', 'Not found');
+      throw httpError(409, 'ORGANIZATION_NOT_CLOSED', 'Organization is not closed');
+    }
+    await runReopenHooks(tx, actor.organizationId, now);
+  });
 
   logger.warn(
     {

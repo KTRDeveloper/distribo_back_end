@@ -749,3 +749,26 @@ ORG-032 done
 - Existing dependency advisories affect esbuild and nodemailer; no packages changed. No commit or stash created.
 ORG-043 done
 <!-- end ORG-043 -->
+
+<!-- begin ORG-034 -->
+## ORG-034 — Closing and reopening a business run the lifecycle hooks
+
+- Filed: 2026-10-25 04:34 UTC
+- Status: **done**: Lifecycle hooks on close/reopen, PAUSED revoked on close
+- Risk: high · story: [ORG-034-closing-and-reopening-a-business-run-the.md](../modules/organization/ORG-034-closing-and-reopening-a-business-run-the.md)
+- Agent: 54,448 tokens, 14 tool uses, 3 min 21 s
+
+### Agent report
+
+**Summary:** Added lifecycle-hooks registry; close runs hooks last, reopen is now transactional with hooks; PAUSED non-owners revoked silently on close.
+
+**Decisions:**
+- Registry stores a copy of the hook object and iterates a snapshot: a later mutation or a hook removed during a run cannot change what runs.
+- Registration tests live in the integration file (story table says unit): one file keeps the shared setup.
+
+**Tests added beyond the story:**
+- `lifecycle-hooks.test.ts` › AC-1 hooks run after the old subscription is ended: guards the "last" ordering (story Context); passed at once? no, failed with the module missing
+- `lifecycle-hooks.test.ts` › AC-6 hooks with only one function are skipped for the other event: onClose-only hook is not run on reopen (AC-6)
+
+**Evidence:** story tests 17/17 (35/35 with close and reopen); full suite 4775/4776 before a lint fix of my test file, the one failure was quality-gates (lint errors in my test), re-run after the fix: pass; typecheck clean; lint 0 errors
+<!-- end ORG-034 -->
