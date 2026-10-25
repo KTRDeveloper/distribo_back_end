@@ -6,6 +6,26 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-25 04:36 UTC: `/implement-stories next:10`
+
+| story | status | commit | note |
+|---|---|---|---|
+| REL-027 The contested mark column and the end of the one-contestation rule | done | b763a6e | contested_at column, counter CHECK, one-contestation index dropped |
+| REL-028 Contesting marks the record instead of moving it to a ghost person | done | 48eb48e | contest marks contested_at; 15 story tests green; 2 REL-024 correct-number tests (ghost flow) fail until REL-031 |
+| REL-029 Customer takes back a contestation ("this is me") | done | 88c3b16 | uncontest route clears contested_at; 7 story tests green; 2 REL-024 correct-number failures remain until REL-031 |
+| REL-030 Both parties see the contested mark and the customer's hidden list | done | 950b46c | contested_at in supplier and customer views; GET /suppliers contested filter; 46 tests green; 2 correct-number failures until REL-031 |
+| REL-031 A correction on a contested record targets another number and clears the mark | done | 4aaf544 | contested correction clears mark, SAME_NUMBER, confirm_same_customer removed |
+
+Also in this run: organization, billing.
+
+- Skipped, dependency not done: BIL-002 and BIL-006 (need BIL-005, blocked), BIL-004 (needs BIL-002, todo).
+- Stash: `BIL-005 blocked: partial changes` (stash@{0}).
+- BIL-005 blocked: `tests/integration/organization/lifecycle-hooks.test.ts` "AC-1 the close hooks run after the old subscription is ended" expects EXPIRED, which the story's removal of `endActiveSubscription` makes impossible; the file is not in the story's "Tests to update". Needs the story amended (delete or rewrite that test), then a rerun.
+- The run ended after the last PLAN line; the Docker daemon was down at the first attempt and the run was restarted once it was up.
+- REL-028 was marked done with 2 REL-024 correct-number tests failing (ghost flow removed by design); REL-029 and REL-030 kept them failing; REL-031 fixed them and the suite was green again (4764/4764).
+- Baseline: 0 failing.
+- Next command: amend BIL-005's "Tests to update" for the lifecycle-hooks test, then `/implement-stories BIL-005,BIL-002,BIL-004,BIL-006`.
+
 ### Run 2026-10-22 04:15 UTC: `/implement-stories REL-026`
 
 | story | status | commit | note |
