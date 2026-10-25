@@ -406,3 +406,31 @@ Also in this run: images, catalog, organization, admin, order, delivery, finance
 - Rapport manquant reconstruit a partir du hand-back ; l'agent signale une instruction developpeur interdisant les rapports Markdown.
 BIL-032 done
 <!-- end BIL-032 -->
+
+<!-- begin BIL-011 -->
+## BIL-011 — A purchased period starts at once or joins the queue
+
+- Filed: 2026-10-25 06:02 UTC
+- Status: **done**: 23 story tests and 4815 full-suite tests pass; typecheck clean, lint 0 errors; existing dependency audit findings reported
+- Risk: high · story: [BIL-011-a-purchased-period-starts-at-once-or-joins-the.md](../modules/billing/BIL-011-a-purchased-period-starts-at-once-or-joins-the.md)
+- Agent: 41,286 tokens, 34 tool uses, 7 min 59 s
+
+### Agent report
+
+**Summary:** BIL-011 implemented and marked done: pure placement, transaction-scoped queue locking, payment periods and atomic actor-aware journal entries.
+**Decisions:**
+- Organization-scoped advisory lock uses a namespaced hash and remains held until the caller commits or rolls back.
+- Subscription events use parameterized SQL because the generated Prisma client exposes no SubscriptionEvent model.
+**Tests added beyond the story:**
+- tests/unit/billing/place-purchase.test.ts > strict grace boundary: seven days minus 1 ms backdates; exactly seven days does not (story's less than 7 days).
+- tests/integration/billing/forfait-queue.test.ts > caller rollback and journal failure: neither leaves a period or event (ASVS 2.3.3).
+- Same integration file > tenant isolation and latest natural expiry: another organization's data and older expiry cannot affect placement (scope conventions and repository contract).
+- Same integration file > administrator journal identifiers: preserves administrator/action attribution (ForfaitActor contract); passed once fixtures were valid.
+**Evidence:** story tests 23/23; full suite 4815/4815 across 359 files, failing: none, 0 known; typecheck clean; lint 0 errors, 203 warnings; git diff check clean.
+**Follow-ups:**
+- Dependency audit reports 5 existing vulnerabilities (3 high, 1 moderate, 1 low); no dependencies changed.
+- Semgrep and Gitleaks executables unavailable; dedicated SAST/secret scans remain unverified.
+- Full-suite output: /tmp/distribo-next29-20261025-yVuA32/BIL-011-suite.txt.
+- Report Markdown missing: reconstructed from hand-back; agent cites a developer instruction prohibiting report files.
+BIL-011 done
+<!-- end BIL-011 -->
