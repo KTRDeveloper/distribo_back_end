@@ -340,3 +340,27 @@ Also in this run: images, catalog, organization, admin, order, delivery, finance
 
 **Evidence:** story tests 21/21; full suite 4779/4779, failing: none, 0 known; typecheck clean; lint 0 errors, 203 warnings
 <!-- end BIL-004 -->
+
+<!-- begin BIL-006 -->
+## BIL-006 — The rules table has no subscription row and gains the keep rows
+
+- Filed: 2026-10-25 04:58 UTC
+- Status: **done**: Subscription rule removed, keep rows added, no manage row
+- Risk: medium · story: [BIL-006-the-rules-table-has-no-subscription-row-and.md](../modules/billing/BIL-006-the-rules-table-has-no-subscription-row-and.md)
+- Agent: 30,986 tokens, 15 tool uses, 2 min 4 s
+
+### Agent report
+
+**Summary:** Removed the OWNER manage:Subscription row, added OWNER keep rows on Collaboration and Product, added the no-manage test.
+
+**Decisions:**
+- Updated ability.test.ts team-rule list: manage:Subscription replaced by keep:Collaboration and keep:Product, count 8 to 9 (as listed in Tests to update).
+
+**Tests added beyond the story:**
+- `tests/unit/access/no-manage-rule.test.ts` › keep rows carry no field: keep rows are OWNER, ONLINE_FOR_ALL, no fields (Context, Security v5.0.0-15.3.3); fails before? no, passed at once after the rows were added
+
+**Evidence:** story tests 130/130 (tests/unit/access); full suite 4784/4787, failing: 3 in tests/integration/sync/push-deliveries.test.ts (SYNC-013), 0 known; typecheck clean; lint 0 errors, 203 warnings
+
+**Follow-ups:**
+- The 3 push-deliveries failures in the full suite pass when the file runs alone (19/19): looks flaky under load, unrelated to this change.
+<!-- end BIL-006 -->

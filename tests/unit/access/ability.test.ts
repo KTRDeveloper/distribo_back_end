@@ -385,7 +385,8 @@ describe('team, subscription and organization rules', () => {
       [
         'create:Collaboration',
         'update:Collaboration',
-        'manage:Subscription',
+        'keep:Collaboration',
+        'keep:Product',
         'transfer_ownership:Organization',
         'close:Organization',
         'reopen:Organization',
@@ -394,7 +395,7 @@ describe('team, subscription and organization rules', () => {
       ].includes(`${rule.action}:${rule.subject}`)
     );
 
-    expect(teamRules).toHaveLength(8);
+    expect(teamRules).toHaveLength(9);
     for (const role of roles) {
       for (const context of contexts) {
         const ability = abilityFor(role, context);

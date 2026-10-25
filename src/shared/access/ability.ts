@@ -305,11 +305,21 @@ export const RULES: AccessRule[] = [
     subject: 'OrganizationContact',
     fields: ['kind', 'slot', 'value'],
   },
+  // No rule for the subscription: it is paid on a website and only the server writes it; the owner
+  // reads it through an OWNER check in billing. No row may use the action `manage`.
+  // `keep`: the owner chooses who and what to keep when the plan drops (the server writes the
+  // pause). No field: the route lists what its body may name (ASVS v5.0.0-8.2.1, v5.0.0-15.3.3).
   {
     who: 'OWNER',
     where: 'ONLINE_FOR_ALL',
-    action: 'manage',
-    subject: 'Subscription',
+    action: 'keep',
+    subject: 'Collaboration',
+  },
+  {
+    who: 'OWNER',
+    where: 'ONLINE_FOR_ALL',
+    action: 'keep',
+    subject: 'Product',
   },
   {
     who: 'OWNER',
