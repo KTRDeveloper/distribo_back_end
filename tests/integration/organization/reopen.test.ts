@@ -16,8 +16,6 @@ const OWNER_ROW = '0199c017-0000-7000-8000-0000000000a9';
 const MANAGER_ROW = '0199c017-0000-7000-8000-0000000000a2';
 const OTHER_OWNER_ROW = '0199c017-0000-7000-8000-0000000000b9';
 
-const SUB_A = '0199c017-0000-7000-8000-0000000000d1';
-
 const GESTURE = '0199c017-0000-7000-8000-0000000000c1';
 
 const REG = new Date('2026-01-01T00:00:00.000Z');
@@ -77,20 +75,10 @@ beforeEach(async () => {
   await seedCollaboration(OWNER_ROW, OWNER, ORG_A, 'OWNER', 'ACTIVE');
   await seedCollaboration(MANAGER_ROW, MANAGER, ORG_A, 'MANAGER', 'REVOKED');
   await seedCollaboration(OTHER_OWNER_ROW, OTHER_OWNER, ORG_B, 'OWNER', 'ACTIVE');
-  await prisma.subscription.create({
-    data: {
-      id: SUB_A,
-      organizationId: ORG_A,
-      plan: 'BASIC',
-      status: 'EXPIRED',
-      startsAt: new Date('2026-02-01T00:00:00.000Z'),
-      endsAt: new Date('2026-03-01T00:00:00.000Z'),
-    },
-  });
 });
 
 describe('POST /api/v1/organizations/:organizationId/reopen', () => {
-  it('AC-1 reopen: 200, ACTIVE, revoked collaborators and the subscription stay as they were', async () => {
+  it('AC-1 reopen: 200, ACTIVE, revoked collaborators stay as they were', async () => {
     const response = await reopen(ORG_A);
 
     expect(response.status).toBe(200);
@@ -98,9 +86,6 @@ describe('POST /api/v1/organizations/:organizationId/reopen', () => {
     expect(await statusOf(ORG_A)).toBe('ACTIVE');
     expect((await rowOf(MANAGER_ROW)).status).toBe('REVOKED');
     expect((await rowOf(OWNER_ROW)).status).toBe('ACTIVE');
-    expect((await prisma.subscription.findUniqueOrThrow({ where: { id: SUB_A } })).status).toBe(
-      'EXPIRED'
-    );
     expect(await statusOf(ORG_B)).toBe('CLOSED');
   });
 

@@ -334,7 +334,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-043 | done | | 565 story tests and 4734 full-suite tests pass; typecheck clean; lint 0 errors; changed-file security scans clean |
 | ORG-034 | done | | Lifecycle hooks on close/reopen, PAUSED revoked on close |
 | BIL-005 | done | | subscription routes and code removed; lifecycle-hooks case rewritten |
-| BIL-002 | todo | | |
+| BIL-002 | done | | periods table rebuilt; subscription-routes-removed seed amended |
 | BIL-004 | todo | | |
 | BIL-006 | todo | | |
 | BIL-032 | todo | | |

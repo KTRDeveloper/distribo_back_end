@@ -283,3 +283,34 @@ Also in this run: images, catalog, organization, admin, order, delivery, finance
 **Follow-ups:**
 - The `Subscription` Prisma model and the `manage Subscription` rule row stay, as the story says (BIL-002 and BIL-006).
 <!-- end BIL-005 -->
+
+<!-- begin BIL-002 -->
+## BIL-002 — The subscriptions table holds prepaid periods
+
+- Filed: 2026-10-25 04:52 UTC
+- Status: **done**: periods table rebuilt; subscription-routes-removed seed amended
+- Risk: high · story: [BIL-002-the-subscriptions-table-holds-prepaid-periods.md](../modules/billing/BIL-002-the-subscriptions-table-holds-prepaid-periods.md)
+- Agent: 28,289 tokens, 11 tool uses, 2 min 49 s
+
+### Agent report
+
+**Summary:** Resumed after the Tests to update amendment: migration, schema and tests were already in the tree; I updated the subscription-routes-removed seed, regenerated the Prisma client and ran the full suite green.
+
+**Decisions:**
+- Reused `PaidPlan` (BIL-001) for `subscriptions.plan`; same three values as the story.
+- No-overlap exclusion constraint not added (BIL-032); the schema comment says so.
+- Plain unique on `payment_id` (nulls stay distinct) instead of a partial index.
+
+**Tests added beyond the story:**
+- `subscriptions-table.test.ts` › preflight caps at 20 ids but counts all: limit boundary (Context step 1); passed at once
+- `subscriptions-table.test.ts` › months 0/2, end_reason on a non-ended period, payment/months on non-PAYMENT, null dates, unknown payment/business refused: the C-52 "exactly when" rules both ways; passed at once
+- `subscriptions-table.test.ts` › update allowed for the app role; two concurrent inserts with one payment store one period: GRANT and race (AB-1)
+
+**Other additions:**
+- `reopen.test.ts` seed dropped, `subscription-table.test.ts` deleted, `subscription-routes-removed.test.ts` seed changed to PRO/GIFT/0/ACTIVE (all listed under Tests to update).
+
+**Evidence:** story tests 522/522; full suite 4758/4758, failing: none, 0 known; typecheck clean; lint 0 errors, 203 warnings
+
+**Follow-ups:**
+- After pulling this change, run `npx prisma generate`: a stale client made the first full-suite run fail 4 tests in subscription-routes-removed.
+<!-- end BIL-002 -->

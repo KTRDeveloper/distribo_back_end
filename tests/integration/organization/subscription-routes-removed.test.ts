@@ -48,7 +48,9 @@ beforeEach(async () => {
     data: {
       id: SUB,
       organizationId: ORG,
-      plan: 'BASIC',
+      plan: 'PRO',
+      origin: 'GIFT',
+      price: 0,
       status: 'ACTIVE',
       startsAt: new Date(Date.now() - DAY_MS),
       endsAt: new Date(Date.now() + 30 * DAY_MS),

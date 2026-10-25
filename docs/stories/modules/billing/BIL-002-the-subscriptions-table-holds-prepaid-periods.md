@@ -89,6 +89,7 @@ Command: `npx vitest run tests/integration/billing/subscriptions-table.test.ts t
 |---|---|---|
 | tests/integration/organization/subscription-table.test.ts | inserts the old shape (plan text, status ACTIVE or EXPIRED, nullable dates) | file deleted; subscriptions-table.test.ts covers the new shape |
 | tests/integration/organization/reopen.test.ts | seeds a `subscriptions` row of the old shape (plan 'BASIC', status EXPIRED) and expects it unchanged after reopening | the seed is dropped with the assertion on it |
+| tests/integration/organization/subscription-routes-removed.test.ts | its `beforeEach` seeds a `subscriptions` row of the old shape (plan 'BASIC'), which the new plan enum rejects | the seed becomes plan 'PRO', origin 'GIFT', price 0, status 'ACTIVE'; the assertions stay unchanged |
 
 ## Out of scope
 - Writing periods: BIL-011, BIL-014, BIL-023. The no-overlap rule: BIL-032.
