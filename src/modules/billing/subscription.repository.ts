@@ -105,11 +105,11 @@ export async function lockSubscriptions(
 export async function listQueue(
   tx: Prisma.TransactionClient,
   organizationId: string,
-): Promise<QueuedPeriod[]> {
+): Promise<Array<QueuedPeriod & { id: string }>> {
   const rows = await tx.subscription.findMany({
     where: { organizationId, status: { in: ['ACTIVE', 'SCHEDULED'] } },
     orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
-    select: { plan: true, status: true, startsAt: true, endsAt: true },
+    select: { id: true, plan: true, status: true, startsAt: true, endsAt: true },
   });
   return rows.map((row) => ({
     ...row,
@@ -173,6 +173,35 @@ export async function insertPeriod(
 }
 
 /**
+ * Ends a locked, tenant-scoped queue period before inserting its replacement (C-52).
+ * @param tx Transaction shared with the replacement periods and journal.
+ * @param id Period id obtained from the organization's locked queue, never a request id.
+ * @param endsAt Effective end, or the scheduled start for an absorbed future period.
+ * @param reason Server-decided ending reason, required exactly for ENDED periods.
+ */
+export async function endPeriod(
+  tx: Prisma.TransactionClient,
+  id: string,
+  endsAt: Date,
+  reason: 'EXPIRED' | 'UPGRADED' | 'CLOSED' | 'REFUNDED',
+): Promise<void> {
+  await tx.subscription.update({ where: { id }, data: { status: 'ENDED', endsAt, endReason: reason } });
+}
+
+/** Inserts the zero-price converted days after the purchased period, without payment or months. */
+export async function insertConversionPeriod(
+  tx: Prisma.TransactionClient,
+  purchase: ForfaitPurchase,
+  startsAt: Date,
+  endsAt: Date,
+): Promise<PeriodRow> {
+  return tx.subscription.create({ data: {
+    id: uuidv7(), organizationId: purchase.organizationId, plan: purchase.plan,
+    origin: 'CONVERSION', status: 'SCHEDULED', price: 0n, startsAt, endsAt,
+  } });
+}
+
+/**
  * Appends the payment's journal entry in the same transaction as its period.
  * Actor identifiers come from the trusted caller; payer entries never inherit admin ids.
  * @param tx The caller's transaction; an insert failure must roll back the period.
@@ -184,18 +213,39 @@ export async function insertEvent(
   purchase: ForfaitPurchase,
   period: PeriodRow,
 ): Promise<void> {
+  await insertPurchaseEvent(tx, purchase, 'FORFAIT_ADDED', period.id, {
+    plan: period.plan, months: period.months, status: period.status,
+  });
+}
+
+/**
+ * Appends an upgrade or purchase event with the trusted payment's actor and timestamp.
+ * All events share the caller's transaction so a journal failure aborts the whole upgrade.
+ * @param tx Transaction holding the organization's subscription lock.
+ * @param purchase Trusted purchase context, including payer or administrator provenance.
+ * @param kind Server-decided journal event.
+ * @param subscriptionId Period being added or ended, or null for an organization plan change.
+ * @param details Explicit event fields; never raw request input.
+ */
+export async function insertPurchaseEvent(
+  tx: Prisma.TransactionClient,
+  purchase: ForfaitPurchase,
+  kind: 'FORFAIT_ADDED' | 'FORFAIT_ENDED' | 'PLAN_CHANGED',
+  subscriptionId: string | null,
+  details: Prisma.InputJsonObject,
+): Promise<void> {
   const actor = purchase.actor;
   const administratorId = actor.actor === 'ADMINISTRATOR' ? actor.administratorId : null;
   const adminActionId = actor.actor === 'ADMINISTRATOR' ? actor.adminActionId : null;
-  const details = JSON.stringify({ plan: period.plan, months: period.months, status: period.status });
+  const json = JSON.stringify(details);
   await tx.$executeRaw`
     INSERT INTO subscription_events
       (id, organization_id, kind, actor, administrator_id, admin_action_id,
        subscription_id, payment_id, details, occurred_at)
     VALUES
-      (${uuidv7()}::uuid, ${purchase.organizationId}::uuid, 'FORFAIT_ADDED',
+      (${uuidv7()}::uuid, ${purchase.organizationId}::uuid, ${kind}::"SubscriptionEventKind",
        ${actor.actor}::"SubscriptionEventActor", ${administratorId}::uuid,
-       ${adminActionId}::uuid, ${period.id}::uuid, ${purchase.paymentId}::uuid,
-       ${details}::jsonb, ${purchase.now})
+       ${adminActionId}::uuid, ${subscriptionId}::uuid, ${purchase.paymentId}::uuid,
+       ${json}::jsonb, ${purchase.now})
   `;
 }

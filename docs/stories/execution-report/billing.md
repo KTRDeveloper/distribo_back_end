@@ -568,3 +568,37 @@ BIL-019 done
 - No report Markdown written, following the final developer instruction to return the report directly; requested report path remains unwritten. No commit created.
 BIL-020 done
 <!-- end BIL-020 -->
+
+<!-- begin BIL-027 -->
+## BIL-027 — A higher plan starts at once and converts the days left
+
+- Filed: 2026-10-25 22:43 UTC
+- Status: **done**: 27 targeted and 4904 full-suite tests pass; typecheck clean, lint 0 errors; existing dependency audit alerts remain
+- Risk: high · story: [BIL-027-a-higher-plan-starts-at-once-and-converts-the.md](../modules/billing/BIL-027-a-higher-plan-starts-at-once-and-converts-the.md)
+- Agent: 30,060 tokens, 29 tool uses, 5 min 8 s
+
+### Agent report
+
+**Summary:** Implemented BIL-027; paid upgrades immediately replace and convert the queue atomically, with complete journaling and replay protection.
+
+**Decisions:**
+- Reuse existing placement/grace logic for non-upgrades and retain the trusted purchase actor/payment on all upgrade events.
+- Compute conversion before writes; unsupported conversion states propagate failure without changing periods.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/upgrade.test.ts` › caller rollback and administrator journal failure: restore absorbed periods and events (ASVS 2.3.3).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/upgrade.test.ts` › tenant isolation: never absorb foreign periods (ASVS 8.2.2).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/upgrade.test.ts` › concurrent upgrades: serialize purchases without losing converted days (C-52).
+
+**Other additions:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/subscription.repository.ts`: reusable conversion/event inserts and queue ids support the new service.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/upgrade.service.ts`: documented transaction-owned purchase entry point.
+
+**Evidence:** story tests 27/27 (13 new, 14 existing); full suite 4904/4904, failing: none, 0 known; typecheck clean; lint 0 errors, 207 warnings; diff check clean. Initial targeted run failed on the missing service before implementation.
+
+**Follow-ups:**
+- Dependency audit reports 5 installed vulnerabilities (3 high, 1 moderate, 1 low); no dependencies changed. Semgrep/Gitleaks unavailable.
+- Report returned inline, not written to `/tmp/distribo-next25-20261025/BIL-027-report.md`, following the final instruction prohibiting report-file writes. Suite evidence: `/tmp/distribo-next25-20261025/BIL-027-suite.txt`.
+
+BIL-027 done
+<!-- end BIL-027 -->
