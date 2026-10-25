@@ -392,3 +392,9 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-034 | todo | | |
 | PRIV-004 | todo | | |
 | PRIV-005 | todo | | |
+| REL-027 | todo | | |
+| REL-028 | todo | | |
+| REL-029 | todo | | |
+| REL-030 | todo | | |
+| REL-031 | todo | | |
+| SYNC-044 | todo | | |

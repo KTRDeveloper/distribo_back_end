@@ -38,7 +38,7 @@
     "ACC-008": {
       "rev": 1,
       "sha256": "86e11eeb5507ca5708568ea7b93e53b324d4456adaeb37ab1011c99849bee16c",
-      "status": "todo"
+      "status": "done"
     },
     "ADM-001": {
       "rev": 1,
@@ -118,27 +118,27 @@
     "ADM-016": {
       "rev": 1,
       "sha256": "e1a3efb6c11cf62793a89888fb2ea13e719c11341b0fe8410b695f7dd3dd5f01",
-      "status": "todo"
+      "status": "done"
     },
     "ADM-017": {
       "rev": 1,
       "sha256": "69f94658c6091e383f58bc622b66eb3c2bc2c9d1fcb1e18d235c664f071131f3",
-      "status": "todo"
+      "status": "done"
     },
     "ADM-018": {
       "rev": 1,
       "sha256": "eadd4b95edff4bfbe23b1008a12b1d7da25bbab250f215aaa80b3f9594fcbb77",
-      "status": "todo"
+      "status": "done"
     },
     "ADM-019": {
       "rev": 1,
       "sha256": "f98d151cde7ee6feab316ca1aa36bf513bb35f45b136deb1570d4f4a5f2a29a9",
-      "status": "todo"
+      "status": "done"
     },
     "ADM-020": {
       "rev": 1,
       "sha256": "3a3754945f86514cb9bf6f3110b8b037d95867c32c92f831da215c04daed4c7e",
-      "status": "todo"
+      "status": "done"
     },
     "AUTH-001": {
       "rev": 1,
@@ -273,67 +273,67 @@
     "AUTH-027": {
       "rev": 1,
       "sha256": "2623a04027a867d1310bd9db5be2273814a9b04dbb7f0c9f7e8f2ac37113ee68",
-      "status": "todo"
+      "status": "done"
     },
     "AUTH-028": {
       "rev": 1,
-      "sha256": "e8aadf2c71eba2ead1b5e7fc28e7b93de2b98d8844a64025886545e92342d611",
-      "status": "todo"
+      "sha256": "a1756e1b77821c00ce9dd9be91563a5147cc9594d9a8cf3b8b2207e62fa33da6",
+      "status": "done"
     },
     "AUTH-029": {
       "rev": 1,
       "sha256": "bc8015c446c3625dbded1f3cf8965fcac8ee4e854a250962a27c3821106ed543",
-      "status": "todo"
+      "status": "done"
     },
     "AUTH-030": {
       "rev": 1,
       "sha256": "59cdabb59b85ed61aeacda0647eb14f9532fd44d05650e23f479c85c69be0f17",
-      "status": "todo"
+      "status": "done"
     },
     "AUTH-031": {
       "rev": 1,
       "sha256": "086eee15bfd6236ee929ebbcf08494c1acb0e76dc4bb1ca95c634a13feca0cc6",
-      "status": "todo"
+      "status": "done"
     },
     "AUTH-032": {
       "rev": 1,
-      "sha256": "a24bb6ad307c20944fcbb976806bbc0ee5958b4c479e1a95ced07ac522d7586c",
-      "status": "todo"
+      "sha256": "ab3b843f3ebaed85f4069ef9a5651a2f26eeb9a171fd602eca0d83f72e3f78a2",
+      "status": "done"
     },
     "AUTH-033": {
       "rev": 1,
       "sha256": "4b4c3096a31aafa5f715164d12d437beaa29ddc21b73cc5637ef5b84fb2a6658",
-      "status": "todo"
+      "status": "done"
     },
     "AUTH-034": {
       "rev": 1,
       "sha256": "78fd325e27a27e0518a8009b1e2803050e1e50290007bc5a64b8a8a4585f1a36",
-      "status": "todo"
+      "status": "done"
     },
     "AUTH-035": {
       "rev": 1,
       "sha256": "13444ae0d2468b623380b5ff621591ab572e5eac8d793b11721e7e4d7278d78e",
-      "status": "todo"
+      "status": "done"
     },
     "AUTH-036": {
       "rev": 1,
       "sha256": "3ba42e67b60d73af49482dff69edbb8a2d1c49184670e849316e37e340c64934",
-      "status": "todo"
+      "status": "done"
     },
     "AUTH-037": {
       "rev": 1,
-      "sha256": "81c5d5425373de4688ad89419ee2353c5f8db9a4e48a2e68c538fd929999a190",
-      "status": "todo"
+      "sha256": "134e9bf448f7b88a46946fad62f4f38db1cd6fa7af3f59e5d9bb2f3efc2d62d6",
+      "status": "done"
     },
     "AUTH-038": {
       "rev": 1,
       "sha256": "b7b87fbdb31062c769f4b42b0948394e0d3d875824e2f47d26652999ed9abe28",
-      "status": "todo"
+      "status": "done"
     },
     "BIL-001": {
       "rev": 1,
       "sha256": "a34c6ced428e99fb0e76827fd55adc8de6c3fb7287f2559a97d024749b493932",
-      "status": "todo"
+      "status": "done"
     },
     "BIL-002": {
       "rev": 1,
@@ -343,7 +343,7 @@
     "BIL-003": {
       "rev": 1,
       "sha256": "d08610a91cec1237d780d1bf34378809a626db27e08905fc8331f71e6347d85e",
-      "status": "todo"
+      "status": "done"
     },
     "BIL-004": {
       "rev": 1,
@@ -363,22 +363,22 @@
     "BIL-007": {
       "rev": 1,
       "sha256": "6b5e66f4f45cd79800f0bb94ceb3ecdc3241f807acddfbd5499125e48952f29c",
-      "status": "todo"
+      "status": "done"
     },
     "BIL-008": {
       "rev": 1,
       "sha256": "db84e15169bbefb55d49bf352e0e2b5cc6ce9e7bcb76ae7bf6940d556c6dce43",
-      "status": "todo"
+      "status": "done"
     },
     "BIL-009": {
       "rev": 1,
       "sha256": "32915d8e883fa77b93bc24d00de0c06a61efe50de51c937f67a8ffe692730c70",
-      "status": "todo"
+      "status": "done"
     },
     "BIL-010": {
       "rev": 1,
       "sha256": "1b647e05484d9b4ca99f1b67cf93dd3c152fd182ab7ff09795f51f1481493037",
-      "status": "todo"
+      "status": "done"
     },
     "BIL-011": {
       "rev": 1,
@@ -388,7 +388,7 @@
     "BIL-012": {
       "rev": 1,
       "sha256": "e9400ebf226dd0d912589b0129cb1d9f8169fba78d3d612690d60912c649fd9f",
-      "status": "todo"
+      "status": "done"
     },
     "BIL-013": {
       "rev": 1,
@@ -583,147 +583,147 @@
     "CAT-012": {
       "rev": 1,
       "sha256": "8f92d0b45d2a96b12cf1995b05d9ce8e37d0e9e04f73de50e2f6d2a49f303ab1",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-013": {
       "rev": 1,
       "sha256": "9721ec18e24fc17e2c98b5e1042a24ee8fd13bbedb5d5d6ad7263b807f25b859",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-014": {
       "rev": 1,
       "sha256": "dc63b81c05b5f2a6df5dd47406cdc216070473d91c4163c99bde9d0072a91412",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-015": {
       "rev": 1,
       "sha256": "ca90e564bdc17c1497937bc694bc36d1babd4a91962f5b6799d8c36bcb56c2c8",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-016": {
       "rev": 1,
       "sha256": "9677772bda358d1adb586566aabf06bab36ce3aa4d9583bc7ea68980425c353a",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-017": {
       "rev": 1,
       "sha256": "411648b8aa97d84f877a02fd04c12cb6f8d8652fafd7469e4549ee503ef48cbe",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-018": {
       "rev": 1,
       "sha256": "de8ce358190f774187204d82b3a50a3647f3c2ae5ed4e3d8ed663b6c9713ea8b",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-019": {
       "rev": 1,
       "sha256": "b900c9917f9840f0b4e6f0e7182aea271cb59c16abf529ea8148086cd9782c55",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-020": {
       "rev": 1,
       "sha256": "67839f5c574750f5f214d5d7d4981eaaf783ab96eb772616b530c9654e70927d",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-021": {
       "rev": 1,
       "sha256": "55052fd3e6b6ebdb988a03f76871777147af7f50c76fddbf2c9d91de6315a3e9",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-022": {
       "rev": 1,
       "sha256": "02e1e2fc4cc2ab79bc86b3da3307aa8e5f64d8f103874f2311e3be166929dc24",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-023": {
       "rev": 1,
       "sha256": "40a209a4687f3667b4c8587b710c797b415ff81c4872bf3330c63fd968c78b04",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-024": {
       "rev": 1,
       "sha256": "6888e903a830af8f74e0e16a32254701fac41243bcd15a52f1c5c06c57df7674",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-025": {
       "rev": 1,
       "sha256": "f6ff90711eba042063f6085841ce9723ff5d3b89e4110a769081f994b3caa93d",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-026": {
       "rev": 1,
       "sha256": "fedf303b055356754cb95c746b5b37c90db18fc3415fbec8c24f49b739287762",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-027": {
       "rev": 1,
       "sha256": "5977e5ad18aaabf2f0ddabdf2f2baa49978fab4e568f47a01afb7341c38ec256",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-028": {
       "rev": 1,
       "sha256": "45991c1c18b6988d6b03b65e72dc626f81d9a8cf677f9dd6747dd83ecea8bb46",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-029": {
       "rev": 1,
       "sha256": "919fa707ce6b70902ec95ebf0b140c05098016f49382782d37b5ccdd358e40c5",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-030": {
       "rev": 1,
       "sha256": "89cd216ef86c49fbc61b2de772cf88a63b5a94b1540a5452a1719fe1e85c04d0",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-031": {
       "rev": 1,
       "sha256": "cacd1317121f2abc1cbb91739b887a9188da038bbb464172cdb85dcfe3579e1f",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-032": {
       "rev": 1,
       "sha256": "088e507cfc718e3da16e46757ecef0269dc24c9ef859bff817ede29b94987533",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-033": {
       "rev": 1,
       "sha256": "2f4a4e4069a3ee2112e0ff02314a1473c97de87079afac53f8632b8c5bbeae42",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-034": {
       "rev": 1,
       "sha256": "575838f3f617583609eb95db49c0e11b99c74c7d31233f31fe10e3cfc5755586",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-035": {
       "rev": 1,
       "sha256": "391a3b4a4f9f0fb131d77f2674a419858e4545cd8ccfa05f9c4889ec51d838bc",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-036": {
       "rev": 1,
       "sha256": "eddb14d35f19b1d5b40d4e8640cfdfc6d4001979aaf697533768ae985139b411",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-037": {
       "rev": 1,
       "sha256": "18afac40ae953dcbb9e401318d5a86a8354a31f0b15627cecf4b77d3e6b7f941",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-038": {
       "rev": 1,
       "sha256": "b172738237234e0a79457a2f64c2f4b5c495b852c38f759a3dd8a08c54475d72",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-039": {
       "rev": 1,
       "sha256": "9486a0e73792f823c94613d8fbad932e785d7f37a178f78eab9b99c69e5a7368",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-040": {
       "rev": 1,
       "sha256": "7ab65181033b0fdd2163c0194a1958c2c57a1dc8008a42f84de69f25b8b45175",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-041": {
       "rev": 1,
@@ -733,7 +733,7 @@
     "CAT-042": {
       "rev": 1,
       "sha256": "54e9d93571dc18f68bef2ff69b9808a6deb943dd656c6f080771d13f0675f9d2",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-043": {
       "rev": 1,
@@ -743,17 +743,17 @@
     "CAT-044": {
       "rev": 1,
       "sha256": "fa0bebe481e77943ad05bc32227140ca1033443654dcd543ed850804011482e1",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-045": {
       "rev": 1,
       "sha256": "9b641d2ae819b598ed1b1c7616a51c6ed5e2a4237ec4454f56b8250ff464c893",
-      "status": "todo"
+      "status": "done"
     },
     "CAT-046": {
       "rev": 1,
       "sha256": "a449e84399c3e93d2afa8c844e0dc80df6f8167a1878d1b7ca2c4f69cf65ad52",
-      "status": "todo"
+      "status": "done"
     },
     "DLV-001": {
       "rev": 1,
@@ -818,22 +818,22 @@
     "DLV-013": {
       "rev": 1,
       "sha256": "c89d0b6266e1c1edb9d1eef6c49c16872c9c93503ccd1b6df33dd51006f3507a",
-      "status": "todo"
+      "status": "done"
     },
     "DLV-014": {
       "rev": 1,
       "sha256": "ab1d98fec252c7506fdff07d017063aa178873fb2c1442afc5be0792b2b2fdd8",
-      "status": "todo"
+      "status": "done"
     },
     "DLV-015": {
       "rev": 1,
       "sha256": "182f88a0f99592dcd33c3b1b4e55b698ee8d34bb8ec08e02e565036b6ff5dc6a",
-      "status": "todo"
+      "status": "done"
     },
     "DLV-016": {
       "rev": 1,
       "sha256": "46db4873298db089c699511da7afbaead17455c869cab33b37a7a30199c36614",
-      "status": "todo"
+      "status": "done"
     },
     "FIN-001": {
       "rev": 1,
@@ -938,12 +938,12 @@
     "FIN-021": {
       "rev": 1,
       "sha256": "e58c66412243937c80b4fb964e8e1f2c48e997e4d7c26c5948ff6d21fd0af92b",
-      "status": "todo"
+      "status": "done"
     },
     "FIN-022": {
       "rev": 1,
       "sha256": "846babeada851bbd3f9544931102801813efe9739c4da29101e340beff3b19e7",
-      "status": "todo"
+      "status": "done"
     },
     "FND-000": {
       "rev": 1,
@@ -1013,72 +1013,72 @@
     "FND-013": {
       "rev": 1,
       "sha256": "4c28634261d3f0a33a4a5328931e3d3cb1fd62013d930b207df8efc961c37c1f",
-      "status": "todo"
+      "status": "done"
     },
     "FND-014": {
       "rev": 1,
       "sha256": "3e6a2fa9b3374a5b92b58893f92ef5a2965b698e3358b2407f8d1d2b11d768c9",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-001": {
       "rev": 1,
       "sha256": "bbe67213ad54ea087e75a748337b649e0cd79f87d8252c7a313f3765a6e74aff",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-002": {
       "rev": 1,
       "sha256": "8b52e335d976e7f95d6bd737035c0ffb746b58d3806e66b284c8a5edd475ab8c",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-003": {
       "rev": 1,
       "sha256": "8bf2c6439c4119ad531ed55f17651372fb47f1c75e5a7bbef76a76fa277fc934",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-004": {
       "rev": 1,
       "sha256": "6dbd9b4028b20c0fe1815c90b7b164e00a1cc5aeb2e730514eb710b1a0ac8075",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-005": {
       "rev": 1,
       "sha256": "059364a90a348b3e3d684c1775f16cd47c2867374f73851128999f743be3dace",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-006": {
       "rev": 1,
       "sha256": "0d6e4d9dbe92381b4a46228229274cccfa7415c501b6b2daea87b2b01a9ceb37",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-007": {
       "rev": 1,
       "sha256": "ca724795be3320791003c8338877cbe369f744a00d5ea4ec201c885308739c4a",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-008": {
       "rev": 1,
       "sha256": "1149b81a02eb0854361e4cc87ff98855ba794d564762b1746c3861ff1b8beddb",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-009": {
       "rev": 1,
       "sha256": "0032ccfc143cd6b0784c354cd0a59d4fd2279a40c84ad17311e139928c4208f4",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-010": {
       "rev": 1,
       "sha256": "8285547558abde6e9a922209fd3459a4be2e6c78f12a41959764dc0f23dc75da",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-011": {
       "rev": 1,
       "sha256": "ccd320ff39639c87794f05625d9a3bc9bf9f8cde11dd71256e50d9695d5b4ea7",
-      "status": "todo"
+      "status": "done"
     },
     "IMG-012": {
       "rev": 1,
       "sha256": "44e5e0b57cd8ed619a463cf89a1c5074fe96daa7416354fda89b08e51c091331",
-      "status": "todo"
+      "status": "done"
     },
     "NTF-001": {
       "rev": 1,
@@ -1208,57 +1208,57 @@
     "ORD-022": {
       "rev": 1,
       "sha256": "355779b656310d5f8734cf27a662937d53df3e90c59ba066d042c436c2997368",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-023": {
       "rev": 1,
       "sha256": "1b5fcbba0faef8cae2719cd6914c6fafa5c4b289924d45a93e92472f6396c3fd",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-024": {
       "rev": 1,
       "sha256": "161d0741fb5cce2b9cf98a91bf3469ccd37cb97cf987a4b5cd4597a0cc116754",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-025": {
       "rev": 1,
       "sha256": "175faaa535acc7467723f93c4af26afb978d65e94f0cd24e592d3e034f3a2d38",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-026": {
       "rev": 1,
       "sha256": "9042f5ec937c91846868f5e7accffd99c6c2b19beb021b3e8715701fe3c353ba",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-027": {
       "rev": 1,
       "sha256": "813b98d65f02ab1b86fe64f66325efaccb857cc9363e81fec504b017c22e4623",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-028": {
       "rev": 1,
       "sha256": "554b29fbf9dc1b2bb1753ae2e6d39094e7aa32116a8218429da9bbf028bfeacb",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-029": {
       "rev": 1,
       "sha256": "da893dd24eee3315cfbe01b4d34b9eecb82041231d2ebe408e84ac3e1e95e5e5",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-030": {
       "rev": 1,
       "sha256": "e446d342d7101a8c7afb0fe2620f2e4cafdf868bd11cdbe9af95bb5a711b724c",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-031": {
       "rev": 1,
       "sha256": "3d4e1cc0e0fabda85f6d465d9d8a5ebdfcf15e3b0f1d7794b22793b2e3876ca4",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-032": {
       "rev": 1,
       "sha256": "009eb0442ca8f66b013dcbb0aabd89c0c5b85ac26c5faf1816e5b1c70d7387d0",
-      "status": "todo"
+      "status": "done"
     },
     "ORD-033": {
       "rev": 1,
@@ -1368,72 +1368,72 @@
     "ORG-020": {
       "rev": 1,
       "sha256": "94cf62ee22216d2e2aed890a4f5535c3a9ebf697309676b40ad512515f575e37",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-021": {
       "rev": 1,
       "sha256": "f82ee1997bafa5971340f6182d12bc560ca05df9cff64ac6ef6878e2a9ef0a13",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-022": {
       "rev": 1,
       "sha256": "6d53a68dd2769d0833493312da3c147972f9af863ccf269d8ff04a3de7a6c8fa",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-023": {
       "rev": 1,
       "sha256": "bbd403c9d71a1faddb3ba4929dc29b12c61364b04185914c8b4fc39474c981dc",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-024": {
       "rev": 1,
       "sha256": "99172e65497f9a99d66037ad1e3fb28b65534f6eb67a99eb954071133e763213",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-025": {
       "rev": 1,
       "sha256": "6ca85f36fb772ffee3c79b6e19759c6fc83ec3141d13e367ada6c900f4121d32",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-026": {
       "rev": 1,
       "sha256": "956b53637f1e12e08ebc1736ce5aec240f9597a7b872ad19e9b182bdc5972ef4",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-027": {
       "rev": 1,
       "sha256": "2cb42b658241e5947b743a8b2ba2cd6e3e1fc86c85c5bd64fbcbc8a40ef2049b",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-028": {
       "rev": 1,
       "sha256": "afc6e5ad26a9c9585fe6838902e4772c04096b750c2de5c7d06c99c9f1408c20",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-029": {
       "rev": 1,
       "sha256": "85444ac9749f45ff78a07837f9361440dfef162d50f420a467630e3a6cb2c816",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-030": {
       "rev": 1,
       "sha256": "32004fcd98fa6702b47125b18a76a4fbeefb245b225a4f698ddcab7419eeecef",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-031": {
       "rev": 1,
       "sha256": "96604508a9a8d6b3e9aab7bbee2c6429e2c99bbd0a30801444f4912f5fd2ff37",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-032": {
-      "rev": 1,
-      "sha256": "be45cbd13483629c3c4dfb70de8307ca29fc0f718ce3583ccb4af592c7aafc87",
-      "status": "todo"
+      "rev": 2,
+      "sha256": "2e2f7cee5a190ab96cd759c6251984de3ca75dfdade9fb10cfa93d0d01f4048d",
+      "status": "done"
     },
     "ORG-033": {
       "rev": 1,
       "sha256": "872fdc3ccbeb627c4f3e15ff726db494c1a4b996bca1165411359bd8e84f3ce7",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-034": {
       "rev": 1,
@@ -1443,7 +1443,7 @@
     "ORG-035": {
       "rev": 1,
       "sha256": "46e067c6eae6cf69b61f7ff0d97b84eb0df0f80e8d44d47dc66cbb4e5616e140",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-036": {
       "rev": 1,
@@ -1453,47 +1453,47 @@
     "ORG-037": {
       "rev": 1,
       "sha256": "62f62cf53dcd1324b8b25d29e6030632d89e9229622003290cd142113f807941",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-038": {
       "rev": 1,
       "sha256": "5355a39fd4c1af7a76c84939b5db9216e145c7695d5ab64a9fa507ef8bbccd1a",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-039": {
       "rev": 1,
       "sha256": "4c7541cd42db505bc6143824dc2de7e913d1329259480dcc9a5ae6334548d8d0",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-040": {
       "rev": 1,
       "sha256": "3b7d5e22b4502fadd03d3b95c3e61b1ef15fe23265f0dac8c525a0c2904f3270",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-041": {
       "rev": 1,
       "sha256": "ea7522e8d25747319f162896b6377fa6363b906c40cd6b76b9c062ea4112aa74",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-042": {
       "rev": 1,
       "sha256": "259a0066501b503fae770ee314b416fc488846db3d59a74d4756651ab99a7561",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-043": {
-      "rev": 1,
-      "sha256": "bcff3b5739ddfbf54e8fa7b5999155762b520bc086150f400c391beda4177f1d",
-      "status": "todo"
+      "rev": 3,
+      "sha256": "023be1a72264ef8eb912048b24bc52b22f4afce747a267333f121ae361d9ade4",
+      "status": "done"
     },
     "ORG-044": {
       "rev": 1,
       "sha256": "874f373be0857ded555be87bc16f89324332a6b740f4f772023cd581866ed885",
-      "status": "todo"
+      "status": "done"
     },
     "ORG-045": {
       "rev": 1,
       "sha256": "c61bf483105c1d116f6b82702d5399b2d30384278b92b7ee3156035e23ece596",
-      "status": "todo"
+      "status": "done"
     },
     "PER-001": {
       "rev": 1,
@@ -1543,27 +1543,27 @@
     "PER-010": {
       "rev": 1,
       "sha256": "4c878dcc2f8b828f711604ced203a101684c9086a2f75459752df998cda54fb1",
-      "status": "todo"
+      "status": "done"
     },
     "PER-011": {
       "rev": 1,
       "sha256": "fd9bc873fe744888c9272273e4c36cd2d0b84fd19efc22dbc5fbdc0cf3d3a87f",
-      "status": "todo"
+      "status": "done"
     },
     "PER-012": {
       "rev": 1,
       "sha256": "96b1ae7ca0aeb9f261a04422ce5200fd1c0cf22485fed49dad74b08d95abec45",
-      "status": "todo"
+      "status": "done"
     },
     "PER-013": {
       "rev": 1,
       "sha256": "4b515cf6814a6767a0f13246f8552f0bff48a8f6d409466bc434c3cb6f905add",
-      "status": "todo"
+      "status": "done"
     },
     "PER-014": {
       "rev": 1,
       "sha256": "3724fa3faeb3212e7a220b808e401a354c7fa97526898dc0a9c127e35ecc1df3",
-      "status": "todo"
+      "status": "done"
     },
     "PRIV-001": {
       "rev": 1,
@@ -1572,7 +1572,7 @@
     },
     "PRIV-002": {
       "rev": 1,
-      "sha256": "7d3a5f08e1e92a346b200fb2476711e1dc5b29a317dfd43870aa61f5a887198f",
+      "sha256": "8dfa7af9270224af285aedcd9cb14994e243b7e781a7a32c05043b319727a9e7",
       "status": "done"
     },
     "PRIV-003": {
@@ -1718,6 +1718,31 @@
     "REL-026": {
       "rev": 1,
       "sha256": "fe539d0419bb025b1d224cf5f194c3713616f6ccb26dea8b7b98d3e4d6573b41",
+      "status": "done"
+    },
+    "REL-027": {
+      "rev": 1,
+      "sha256": "96c3ac3088a56930e6208f78695aa92d64a084f49c2106514b4de199ba242ac3",
+      "status": "todo"
+    },
+    "REL-028": {
+      "rev": 1,
+      "sha256": "cc4cd87e3c38ef5e07f75ff9aad8eb084a824501fe171e9f8113924f988519cf",
+      "status": "todo"
+    },
+    "REL-029": {
+      "rev": 1,
+      "sha256": "0be7197c93e197143278be22b5b85af85230b4d239baf9a51517b8be18e69bc3",
+      "status": "todo"
+    },
+    "REL-030": {
+      "rev": 1,
+      "sha256": "5c52e1ba7b829c6ca335d32fdaf5ef594194b0ed90cb1b9794238a02a368669f",
+      "status": "todo"
+    },
+    "REL-031": {
+      "rev": 1,
+      "sha256": "1f44acb512e06dd0e41ccd0fb0269d5345161d78c1ecfd991cad58e80c1a06c0",
       "status": "todo"
     },
     "SYNC-001": {
@@ -1934,6 +1959,11 @@
       "rev": 1,
       "sha256": "6dd52c14c4d624b68f46266552e047227e3de094371ad89feb1fd4528477e993",
       "status": "todo"
+    },
+    "SYNC-044": {
+      "rev": 1,
+      "sha256": "809814241a8da417f978fd0e46d028d01556bbf8d143a033bd886151f1e3d857",
+      "status": "todo"
     }
   },
   "before": {
@@ -1977,6 +2007,12 @@
       "path": "modules/access/ACC-007-idempotency-of-online-gestures.md",
       "rev": 1,
       "sha256": "ee94ed2f8c3a88d4589a79313312e921189a21a3d67d1f70608b0555f74343ff",
+      "status": "done"
+    },
+    "ACC-008": {
+      "path": "modules/access/ACC-008-availability-values-say-who-may-act-offline.md",
+      "rev": 1,
+      "sha256": "86e11eeb5507ca5708568ea7b93e53b324d4456adaeb37ab1011c99849bee16c",
       "status": "done"
     },
     "ADM-001": {
@@ -2067,6 +2103,36 @@
       "path": "modules/admin/ADM-015-administrators-read-the-action-journal.md",
       "rev": 1,
       "sha256": "1600bd28ea4bb5272f68c1a0723a2c500fc5079f89ddbd6e9acc19c52498908e",
+      "status": "done"
+    },
+    "ADM-016": {
+      "path": "modules/admin/ADM-016-the-journal-accepts-five-more-actions.md",
+      "rev": 1,
+      "sha256": "e1a3efb6c11cf62793a89888fb2ea13e719c11341b0fe8410b695f7dd3dd5f01",
+      "status": "done"
+    },
+    "ADM-017": {
+      "path": "modules/admin/ADM-017-support-releases-the-number-of-a-person.md",
+      "rev": 1,
+      "sha256": "69f94658c6091e383f58bc622b66eb3c2bc2c9d1fcb1e18d235c664f071131f3",
+      "status": "done"
+    },
+    "ADM-018": {
+      "path": "modules/admin/ADM-018-the-access-restore-code-has-its-fixed-text.md",
+      "rev": 1,
+      "sha256": "eadd4b95edff4bfbe23b1008a12b1d7da25bbab250f215aaa80b3f9594fcbb77",
+      "status": "done"
+    },
+    "ADM-019": {
+      "path": "modules/admin/ADM-019-support-sends-the-two-codes-to-restore-an-access.md",
+      "rev": 1,
+      "sha256": "f98d151cde7ee6feab316ca1aa36bf513bb35f45b136deb1570d4f4a5f2a29a9",
+      "status": "done"
+    },
+    "ADM-020": {
+      "path": "modules/admin/ADM-020-support-gives-the-account-back-on-the-new-number.md",
+      "rev": 1,
+      "sha256": "3a3754945f86514cb9bf6f3110b8b037d95867c32c92f831da215c04daed4c7e",
       "status": "done"
     },
     "AUTH-001": {
@@ -2225,6 +2291,312 @@
       "sha256": "b6c40853dd39a051206dc4abc43fbde7805e26491fe19be8377e58ea23057ed1",
       "status": "done"
     },
+    "AUTH-027": {
+      "path": "modules/auth/AUTH-027-two-new-purposes-for-one-time-codes.md",
+      "rev": 1,
+      "sha256": "2623a04027a867d1310bd9db5be2273814a9b04dbb7f0c9f7e8f2ac37113ee68",
+      "status": "done"
+    },
+    "AUTH-028": {
+      "path": "modules/auth/AUTH-028-sign-in-tells-the-person-what-to-do.md",
+      "rev": 1,
+      "sha256": "a1756e1b77821c00ce9dd9be91563a5147cc9594d9a8cf3b8b2207e62fa33da6",
+      "status": "done"
+    },
+    "AUTH-029": {
+      "path": "modules/auth/AUTH-029-a-registered-number-gets-no-registration-code.md",
+      "rev": 1,
+      "sha256": "bc8015c446c3625dbded1f3cf8965fcac8ee4e854a250962a27c3821106ed543",
+      "status": "done"
+    },
+    "AUTH-030": {
+      "path": "modules/auth/AUTH-030-registration-saves-the-interface-language.md",
+      "rev": 1,
+      "sha256": "59cdabb59b85ed61aeacda0647eb14f9532fd44d05650e23f479c85c69be0f17",
+      "status": "done"
+    },
+    "AUTH-031": {
+      "path": "modules/auth/AUTH-031-a-recycled-number-can-be-claimed-after-six-idle.md",
+      "rev": 1,
+      "sha256": "086eee15bfd6236ee929ebbcf08494c1acb0e76dc4bb1ca95c634a13feca0cc6",
+      "status": "done"
+    },
+    "AUTH-032": {
+      "path": "modules/auth/AUTH-032-registering-on-a-recycled-number-re-checks-the.md",
+      "rev": 1,
+      "sha256": "ab3b843f3ebaed85f4069ef9a5651a2f26eeb9a171fd602eca0d83f72e3f78a2",
+      "status": "done"
+    },
+    "AUTH-033": {
+      "path": "modules/auth/AUTH-033-the-reset-code-comes-by-sms-only.md",
+      "rev": 1,
+      "sha256": "4b4c3096a31aafa5f715164d12d437beaa29ddc21b73cc5637ef5b84fb2a6658",
+      "status": "done"
+    },
+    "AUTH-034": {
+      "path": "modules/auth/AUTH-034-the-new-password-opens-the-session-on-this-phone.md",
+      "rev": 1,
+      "sha256": "78fd325e27a27e0518a8009b1e2803050e1e50290007bc5a64b8a8a4585f1a36",
+      "status": "done"
+    },
+    "AUTH-035": {
+      "path": "modules/auth/AUTH-035-remove-the-verified-email-lookup.md",
+      "rev": 1,
+      "sha256": "13444ae0d2468b623380b5ff621591ab572e5eac8d793b11721e7e4d7278d78e",
+      "status": "done"
+    },
+    "AUTH-036": {
+      "path": "modules/auth/AUTH-036-sign-in-no-longer-uses-the-email.md",
+      "rev": 1,
+      "sha256": "3ba42e67b60d73af49482dff69edbb8a2d1c49184670e849316e37e340c64934",
+      "status": "done"
+    },
+    "AUTH-037": {
+      "path": "modules/auth/AUTH-037-the-active-holder-is-told-someone-claimed-their.md",
+      "rev": 1,
+      "sha256": "134e9bf448f7b88a46946fad62f4f38db1cd6fa7af3f59e5d9bb2f3efc2d62d6",
+      "status": "done"
+    },
+    "AUTH-038": {
+      "path": "modules/auth/AUTH-038-a-verified-email-is-unique-whatever-the-letter.md",
+      "rev": 1,
+      "sha256": "b7b87fbdb31062c769f4b42b0948394e0d3d875824e2f47d26652999ed9abe28",
+      "status": "done"
+    },
+    "BIL-001": {
+      "path": "modules/billing/BIL-001-table-of-subscription-payments.md",
+      "rev": 1,
+      "sha256": "a34c6ced428e99fb0e76827fd55adc8de6c3fb7287f2559a97d024749b493932",
+      "status": "done"
+    },
+    "BIL-002": {
+      "path": "modules/billing/BIL-002-the-subscriptions-table-holds-prepaid-periods.md",
+      "rev": 1,
+      "sha256": "37bd0d73851b3d1bbb41c1393fce1b2db0db51c1a7e99d4bf9aeb3820418e336",
+      "status": "todo"
+    },
+    "BIL-003": {
+      "path": "modules/billing/BIL-003-table-of-subscription-receipts-with-gap-free.md",
+      "rev": 1,
+      "sha256": "d08610a91cec1237d780d1bf34378809a626db27e08905fc8331f71e6347d85e",
+      "status": "done"
+    },
+    "BIL-004": {
+      "path": "modules/billing/BIL-004-table-of-subscription-events.md",
+      "rev": 1,
+      "sha256": "27d8ada5d73e6f677e0b199cea6168ff7932f9a747af604329d4e7837e90ae52",
+      "status": "todo"
+    },
+    "BIL-005": {
+      "path": "modules/billing/BIL-005-the-owner-can-no-longer-write-a-subscription.md",
+      "rev": 1,
+      "sha256": "fda9a77559976a961179d2567b0c819bcf4efc35dacdec14f146c37b58ac3f0f",
+      "status": "todo"
+    },
+    "BIL-006": {
+      "path": "modules/billing/BIL-006-the-rules-table-has-no-subscription-row-and.md",
+      "rev": 1,
+      "sha256": "4442866c3dcec87b0054479d298630892defb19111e4799662215503ba57ab76",
+      "status": "todo"
+    },
+    "BIL-007": {
+      "path": "modules/billing/BIL-007-a-payer-checks-the-business-name-from-its.md",
+      "rev": 1,
+      "sha256": "6b5e66f4f45cd79800f0bb94ceb3ecdc3241f807acddfbd5499125e48952f29c",
+      "status": "done"
+    },
+    "BIL-008": {
+      "path": "modules/billing/BIL-008-payment-aggregator-port-with-a-fake-adapter.md",
+      "rev": 1,
+      "sha256": "db84e15169bbefb55d49bf352e0e2b5cc6ce9e7bcb76ae7bf6940d556c6dce43",
+      "status": "done"
+    },
+    "BIL-009": {
+      "path": "modules/billing/BIL-009-a-payer-starts-a-payment-for-a-business.md",
+      "rev": 1,
+      "sha256": "32915d8e883fa77b93bc24d00de0c06a61efe50de51c937f67a8ffe692730c70",
+      "status": "done"
+    },
+    "BIL-010": {
+      "path": "modules/billing/BIL-010-plan-arithmetic-for-upgrades-queues-and-grace.md",
+      "rev": 1,
+      "sha256": "1b647e05484d9b4ca99f1b67cf93dd3c152fd182ab7ff09795f51f1481493037",
+      "status": "done"
+    },
+    "BIL-011": {
+      "path": "modules/billing/BIL-011-a-purchased-period-starts-at-once-or-joins-the.md",
+      "rev": 1,
+      "sha256": "ab6d983e3880aa252cfcfe1ffcf3b95c2e830902cf2a9b51cfc7af483597a283",
+      "status": "todo"
+    },
+    "BIL-012": {
+      "path": "modules/billing/BIL-012-receipts-with-vat-and-a-gap-free-number.md",
+      "rev": 1,
+      "sha256": "e9400ebf226dd0d912589b0129cb1d9f8169fba78d3d612690d60912c649fd9f",
+      "status": "done"
+    },
+    "BIL-013": {
+      "path": "modules/billing/BIL-013-the-server-computes-the-rights-of-a-business.md",
+      "rev": 1,
+      "sha256": "5d8bf7505fd1d4fa7fb36e0bf10ff1cf074bffeaf40899959c94f6c975e4c10e",
+      "status": "todo"
+    },
+    "BIL-014": {
+      "path": "modules/billing/BIL-014-a-confirmed-payment-activates-one-period-and.md",
+      "rev": 1,
+      "sha256": "934ce4e0cbc5a50607053d15ccf5b29ea87cfb9dd056fb4caf88844ea9fe3216",
+      "status": "todo"
+    },
+    "BIL-015": {
+      "path": "modules/billing/BIL-015-a-payer-follows-a-payment-and-gets-the-receipt.md",
+      "rev": 1,
+      "sha256": "b3d7940b9c8e79c319f931177e42d1d9a23d35428ccfeca3968eab906811020d",
+      "status": "todo"
+    },
+    "BIL-016": {
+      "path": "modules/billing/BIL-016-the-owner-reads-the-subscription-screen.md",
+      "rev": 1,
+      "sha256": "29d7d61fe6c5d09110ceaacfd4421325d45fb08eb73bb82b3582c32be81feb1a",
+      "status": "todo"
+    },
+    "BIL-017": {
+      "path": "modules/billing/BIL-017-the-owner-lists-the-receipts.md",
+      "rev": 1,
+      "sha256": "8718c9e27b9098c6f1537c54435ffe9a8676033b18bdafee5d2a66091bc7340f",
+      "status": "todo"
+    },
+    "BIL-018": {
+      "path": "modules/billing/BIL-018-the-owner-chooses-who-and-what-to-keep-when-a.md",
+      "rev": 1,
+      "sha256": "18f4899fbe737a2c2930afadfb70fc7651e5c123bba87c37c355cc6f641f79e2",
+      "status": "todo"
+    },
+    "BIL-019": {
+      "path": "modules/billing/BIL-019-collaborators-beyond-the-plan-are-paused-and.md",
+      "rev": 1,
+      "sha256": "c7de6df5e28a394897f05ddd8f8b434c9fe631b551d48b37873cd2c890424c38",
+      "status": "todo"
+    },
+    "BIL-020": {
+      "path": "modules/billing/BIL-020-products-beyond-the-plan-are-paused-and-come.md",
+      "rev": 1,
+      "sha256": "cc64369c6eff517a42aa657db5a21a82151c8fa524ffab6ddba43afd7dd6079a",
+      "status": "todo"
+    },
+    "BIL-021": {
+      "path": "modules/billing/BIL-021-old-pending-payments-are-settled-with-the.md",
+      "rev": 1,
+      "sha256": "3e4116b50be4f4b9ed03cb9eae0bff8c9b2a6e066a9e25020478e40cda1be401",
+      "status": "todo"
+    },
+    "BIL-022": {
+      "path": "modules/billing/BIL-022-the-nightly-check-compares-payments-with-the.md",
+      "rev": 1,
+      "sha256": "6b27849499a36be8b04c9548e0464a6790efd33d15f1d0759c2de2e5f57d592f",
+      "status": "todo"
+    },
+    "BIL-023": {
+      "path": "modules/billing/BIL-023-a-super-administrator-gives-days-of-a-plan-to-a.md",
+      "rev": 1,
+      "sha256": "c86990f37baf6725caca559c569fc004a28883b0ca4990de859defeb49ec9edf",
+      "status": "todo"
+    },
+    "BIL-024": {
+      "path": "modules/billing/BIL-024-a-super-administrator-records-a-payment-made.md",
+      "rev": 1,
+      "sha256": "bf168e1cb9095a3a72dd8b1f2d498aa7d863733c07cc80bf892638640baf7dc5",
+      "status": "todo"
+    },
+    "BIL-025": {
+      "path": "modules/billing/BIL-025-a-super-administrator-refunds-a-payment-after.md",
+      "rev": 1,
+      "sha256": "d61ee5ed230ed88211ae352a5b269324517477267f96f5630fb31ca27002fc22",
+      "status": "todo"
+    },
+    "BIL-026": {
+      "path": "modules/billing/BIL-026-the-owner-is-reminded-before-the-plan-ends.md",
+      "rev": 1,
+      "sha256": "b79be2f8b8a42063e819a900a909b78e53998c9b25803e827a1fab90b32a65f3",
+      "status": "todo"
+    },
+    "BIL-027": {
+      "path": "modules/billing/BIL-027-a-higher-plan-starts-at-once-and-converts-the.md",
+      "rev": 1,
+      "sha256": "fe994c769b80b6a45d0a98369bd4b9e2e0c26ff6c55b30bacb37d6d14ad006a1",
+      "status": "todo"
+    },
+    "BIL-028": {
+      "path": "modules/billing/BIL-028-a-business-s-periods-and-rights-follow-the-clock.md",
+      "rev": 1,
+      "sha256": "b7a6e43881a5c1caa8ed321f1699c16e181f44c95b2792dd9f5489e42aa31e72",
+      "status": "todo"
+    },
+    "BIL-029": {
+      "path": "modules/billing/BIL-029-the-owner-swaps-a-paused-collaborator-with-an.md",
+      "rev": 1,
+      "sha256": "ac8e2f567166f36aa696053db27eb6af2690ef7c562c819ddb8e1a13691e2cce",
+      "status": "todo"
+    },
+    "BIL-030": {
+      "path": "modules/billing/BIL-030-the-owner-swaps-a-paused-product-with-one-on.md",
+      "rev": 1,
+      "sha256": "fd01d0cff69ac25285fb657151fceaf67d886a0d304f6a0dcbf0f7dbbb75244c",
+      "status": "todo"
+    },
+    "BIL-031": {
+      "path": "modules/billing/BIL-031-closing-a-business-ends-its-plans-and-reopening.md",
+      "rev": 1,
+      "sha256": "81d72ab0f34475011cc416acfb8aed3763e6296e2804e0689ab286867771ff7f",
+      "status": "todo"
+    },
+    "BIL-032": {
+      "path": "modules/billing/BIL-032-two-periods-of-one-business-can-never-overlap.md",
+      "rev": 1,
+      "sha256": "301ed90f385bb22935cc312f1535953afe9594c0de36a14fddc4d4d8e3568068",
+      "status": "todo"
+    },
+    "BIL-033": {
+      "path": "modules/billing/BIL-033-a-payer-sees-the-price-and-the-start-date.md",
+      "rev": 1,
+      "sha256": "7fd3a1668b24077a4b6ec755d014451752db5ae8deb06403876a9a1a029a561e",
+      "status": "todo"
+    },
+    "BIL-034": {
+      "path": "modules/billing/BIL-034-the-aggregator-confirms-a-payment-through-a.md",
+      "rev": 1,
+      "sha256": "5de02af7156d7efbee2c3bed843e641e3bb57258e4f128ceaaccffc749c467da",
+      "status": "todo"
+    },
+    "BIL-035": {
+      "path": "modules/billing/BIL-035-the-owner-is-told-when-a-payment-is-confirmed.md",
+      "rev": 1,
+      "sha256": "f9f1e1e449c4db6dea394d6b96f0d7397d0f73604e07db979f93b8afd35e49a8",
+      "status": "todo"
+    },
+    "BIL-036": {
+      "path": "modules/billing/BIL-036-the-owner-is-told-when-an-administrator-changes.md",
+      "rev": 1,
+      "sha256": "05eacfea35ef0f86fe3a37eaa712baa53c087f03647d7393c5057ec54ddbe492",
+      "status": "todo"
+    },
+    "BIL-037": {
+      "path": "modules/billing/BIL-037-a-gift-period-is-placed-behind-the-paid-ones.md",
+      "rev": 1,
+      "sha256": "e45b6e91e18c4f51f63dffd39204a07b209b103b16a340747ef711818a2a9563",
+      "status": "todo"
+    },
+    "BIL-038": {
+      "path": "modules/billing/BIL-038-a-refund-cancels-the-receipt-and-ends-the.md",
+      "rev": 1,
+      "sha256": "40221d8c8b3abd2e49f9555a081a1838eff3fef9fa2a03a8b47fd8a9b92b7f09",
+      "status": "todo"
+    },
+    "BIL-039": {
+      "path": "modules/billing/BIL-039-a-daily-job-advances-every-business-that-needs.md",
+      "rev": 1,
+      "sha256": "c1459a2ce0c093f26bccd682c9fb0646335b0a784d22c053f3aeb402af495b5c",
+      "status": "todo"
+    },
     "CAT-001": {
       "path": "modules/catalog/CAT-001-products-table.md",
       "rev": 1,
@@ -2289,6 +2661,216 @@
       "path": "modules/catalog/CAT-011-reseller-copies-a-purchased-article-into-their.md",
       "rev": 1,
       "sha256": "5f8ed9fdc4e7f791e6822e2341b014243ceb69c414aeaed26e48e3a5d712ad38",
+      "status": "done"
+    },
+    "CAT-012": {
+      "path": "modules/catalog/CAT-012-product-variants-table.md",
+      "rev": 1,
+      "sha256": "8f92d0b45d2a96b12cf1995b05d9ce8e37d0e9e04f73de50e2f6d2a49f303ab1",
+      "status": "done"
+    },
+    "CAT-013": {
+      "path": "modules/catalog/CAT-013-every-existing-product-gets-its-variant.md",
+      "rev": 1,
+      "sha256": "9721ec18e24fc17e2c98b5e1042a24ee8fd13bbedb5d5d6ad7263b807f25b859",
+      "status": "done"
+    },
+    "CAT-014": {
+      "path": "modules/catalog/CAT-014-products-carry-photos-and-a-pause-date-and-old.md",
+      "rev": 1,
+      "sha256": "dc63b81c05b5f2a6df5dd47406cdc216070473d91c4163c99bde9d0072a91412",
+      "status": "done"
+    },
+    "CAT-015": {
+      "path": "modules/catalog/CAT-015-negotiated-prices-point-at-a-variant.md",
+      "rev": 1,
+      "sha256": "ca90e564bdc17c1497937bc694bc36d1babd4a91962f5b6799d8c36bcb56c2c8",
+      "status": "done"
+    },
+    "CAT-016": {
+      "path": "modules/catalog/CAT-016-variant-label-and-comparison-text-shared-by-the.md",
+      "rev": 1,
+      "sha256": "9677772bda358d1adb586566aabf06bab36ce3aa4d9583bc7ea68980425c353a",
+      "status": "done"
+    },
+    "CAT-017": {
+      "path": "modules/catalog/CAT-017-reference-price-is-read-by-variant.md",
+      "rev": 1,
+      "sha256": "411648b8aa97d84f877a02fd04c12cb6f8d8652fafd7469e4549ee503ef48cbe",
+      "status": "done"
+    },
+    "CAT-018": {
+      "path": "modules/catalog/CAT-018-two-variants-of-a-product-never-share-a-name.md",
+      "rev": 1,
+      "sha256": "de8ce358190f774187204d82b3a50a3647f3c2ae5ed4e3d8ed663b6c9713ea8b",
+      "status": "done"
+    },
+    "CAT-019": {
+      "path": "modules/catalog/CAT-019-an-active-variant-is-read-with-its-product-name.md",
+      "rev": 1,
+      "sha256": "b900c9917f9840f0b4e6f0e7182aea271cb59c16abf529ea8148086cd9782c55",
+      "status": "done"
+    },
+    "CAT-020": {
+      "path": "modules/catalog/CAT-020-the-server-can-count-list-and-pause-the.md",
+      "rev": 1,
+      "sha256": "67839f5c574750f5f214d5d7d4981eaaf783ab96eb772616b530c9654e70927d",
+      "status": "done"
+    },
+    "CAT-021": {
+      "path": "modules/catalog/CAT-021-a-variant-change-also-moves-its-product-s.md",
+      "rev": 1,
+      "sha256": "55052fd3e6b6ebdb988a03f76871777147af7f50c76fddbf2c9d91de6315a3e9",
+      "status": "done"
+    },
+    "CAT-022": {
+      "path": "modules/catalog/CAT-022-manager-creates-a-product-with-its-variants.md",
+      "rev": 1,
+      "sha256": "02e1e2fc4cc2ab79bc86b3da3307aa8e5f64d8f103874f2311e3be166929dc24",
+      "status": "done"
+    },
+    "CAT-023": {
+      "path": "modules/catalog/CAT-023-manager-edits-a-product-s-name-description-and.md",
+      "rev": 1,
+      "sha256": "40a209a4687f3667b4c8587b710c797b415ff81c4872bf3330c63fd968c78b04",
+      "status": "done"
+    },
+    "CAT-024": {
+      "path": "modules/catalog/CAT-024-manager-adds-a-variant-to-a-product.md",
+      "rev": 1,
+      "sha256": "6888e903a830af8f74e0e16a32254701fac41243bcd15a52f1c5c06c57df7674",
+      "status": "done"
+    },
+    "CAT-025": {
+      "path": "modules/catalog/CAT-025-manager-changes-a-variant-s-price-unit-or.md",
+      "rev": 1,
+      "sha256": "f6ff90711eba042063f6085841ce9723ff5d3b89e4110a769081f994b3caa93d",
+      "status": "done"
+    },
+    "CAT-026": {
+      "path": "modules/catalog/CAT-026-manager-deletes-a-variant-or-a-whole-product.md",
+      "rev": 1,
+      "sha256": "fedf303b055356754cb95c746b5b37c90db18fc3415fbec8c24f49b739287762",
+      "status": "done"
+    },
+    "CAT-027": {
+      "path": "modules/catalog/CAT-027-seller-lists-the-catalog-with-its-variants.md",
+      "rev": 1,
+      "sha256": "5977e5ad18aaabf2f0ddabdf2f2baa49978fab4e568f47a01afb7341c38ec256",
+      "status": "done"
+    },
+    "CAT-028": {
+      "path": "modules/catalog/CAT-028-customer-browses-a-supplier-s-catalog-by.md",
+      "rev": 1,
+      "sha256": "45991c1c18b6988d6b03b65e72dc626f81d9a8cf677f9dd6747dd83ecea8bb46",
+      "status": "done"
+    },
+    "CAT-029": {
+      "path": "modules/catalog/CAT-029-negotiated-prices-are-set-and-copied-by-variant.md",
+      "rev": 1,
+      "sha256": "919fa707ce6b70902ec95ebf0b140c05098016f49382782d37b5ccdd358e40c5",
+      "status": "done"
+    },
+    "CAT-030": {
+      "path": "modules/catalog/CAT-030-negotiated-prices-are-listed-and-removed-by.md",
+      "rev": 1,
+      "sha256": "89cd216ef86c49fbc61b2de772cf88a63b5a94b1540a5452a1719fe1e85c04d0",
+      "status": "done"
+    },
+    "CAT-031": {
+      "path": "modules/catalog/CAT-031-reseller-copies-purchased-variants-into-their.md",
+      "rev": 1,
+      "sha256": "cacd1317121f2abc1cbb91739b887a9188da038bbb464172cdb85dcfe3579e1f",
+      "status": "done"
+    },
+    "CAT-032": {
+      "path": "modules/catalog/CAT-032-the-server-writes-the-photo-keys-of-a-product.md",
+      "rev": 1,
+      "sha256": "088e507cfc718e3da16e46757ecef0269dc24c9ef859bff817ede29b94987533",
+      "status": "done"
+    },
+    "CAT-033": {
+      "path": "modules/catalog/CAT-033-a-product-sent-by-a-phone-is-applied-without.md",
+      "rev": 1,
+      "sha256": "2f4a4e4069a3ee2112e0ff02314a1473c97de87079afac53f8632b8c5bbeae42",
+      "status": "done"
+    },
+    "CAT-034": {
+      "path": "modules/catalog/CAT-034-a-variant-sent-by-a-phone-is-created-or-edited.md",
+      "rev": 1,
+      "sha256": "575838f3f617583609eb95db49c0e11b99c74c7d31233f31fe10e3cfc5755586",
+      "status": "done"
+    },
+    "CAT-035": {
+      "path": "modules/catalog/CAT-035-a-variant-created-twice-is-folded-into-the-first.md",
+      "rev": 1,
+      "sha256": "391a3b4a4f9f0fb131d77f2674a419858e4545cd8ccfa05f9c4889ec51d838bc",
+      "status": "done"
+    },
+    "CAT-036": {
+      "path": "modules/catalog/CAT-036-a-deletion-sent-by-a-phone-retires-what-was.md",
+      "rev": 1,
+      "sha256": "eddb14d35f19b1d5b40d4e8640cfdfc6d4001979aaf697533768ae985139b411",
+      "status": "done"
+    },
+    "CAT-037": {
+      "path": "modules/catalog/CAT-037-a-sale-sent-for-a-deleted-or-merged-variant.md",
+      "rev": 1,
+      "sha256": "18afac40ae953dcbb9e401318d5a86a8354a31f0b15627cecf4b77d3e6b7f941",
+      "status": "done"
+    },
+    "CAT-038": {
+      "path": "modules/catalog/CAT-038-the-plan-s-product-limit-is-checked-in-one-place.md",
+      "rev": 1,
+      "sha256": "b172738237234e0a79457a2f64c2f4b5c495b852c38f759a3dd8a08c54475d72",
+      "status": "done"
+    },
+    "CAT-039": {
+      "path": "modules/catalog/CAT-039-a-negotiated-price-sent-or-removed-by-a-phone.md",
+      "rev": 1,
+      "sha256": "9486a0e73792f823c94613d8fbad932e785d7f37a178f78eab9b99c69e5a7368",
+      "status": "done"
+    },
+    "CAT-040": {
+      "path": "modules/catalog/CAT-040-catalog-tests-seed-products-through-one-helper.md",
+      "rev": 1,
+      "sha256": "7ab65181033b0fdd2163c0194a1958c2c57a1dc8008a42f84de69f25b8b45175",
+      "status": "done"
+    },
+    "CAT-041": {
+      "path": "modules/catalog/CAT-041-products-lose-their-old-price-unit-minimum-and.md",
+      "rev": 1,
+      "sha256": "25b6dcab2e95ba33263e2b5f8718cf186cf3e243a2e5d8dfcbd104166597fac2",
+      "status": "todo"
+    },
+    "CAT-042": {
+      "path": "modules/catalog/CAT-042-price-tests-name-the-variant-of-a-negotiated.md",
+      "rev": 1,
+      "sha256": "54e9d93571dc18f68bef2ff69b9808a6deb943dd656c6f080771d13f0675f9d2",
+      "status": "done"
+    },
+    "CAT-043": {
+      "path": "modules/catalog/CAT-043-negotiated-prices-lose-their-product-column.md",
+      "rev": 1,
+      "sha256": "6fc8baff46806c3f70416aab987111b80e89e76f840c4f9fcba35caed787018d",
+      "status": "todo"
+    },
+    "CAT-044": {
+      "path": "modules/catalog/CAT-044-the-server-reads-the-photo-keys-of-a-product-or.md",
+      "rev": 1,
+      "sha256": "fa0bebe481e77943ad05bc32227140ca1033443654dcd543ed850804011482e1",
+      "status": "done"
+    },
+    "CAT-045": {
+      "path": "modules/catalog/CAT-045-copied-variants-and-new-products-take-copies-of.md",
+      "rev": 1,
+      "sha256": "9b641d2ae819b598ed1b1c7616a51c6ed5e2a4237ec4454f56b8250ff464c893",
+      "status": "done"
+    },
+    "CAT-046": {
+      "path": "modules/catalog/CAT-046-the-server-empties-the-photo-keys-of-deleted.md",
+      "rev": 1,
+      "sha256": "a449e84399c3e93d2afa8c844e0dc80df6f8167a1878d1b7ca2c4f69cf65ad52",
       "status": "done"
     },
     "DLV-001": {
@@ -2361,6 +2943,30 @@
       "path": "modules/delivery/DLV-012-abandoned-rests-join-the-owner-s-money.md",
       "rev": 2,
       "sha256": "8a95505e1269bfb77b8efa499c77482f967dd97eea3c8f854cc1fc63474383fa",
+      "status": "done"
+    },
+    "DLV-013": {
+      "path": "modules/delivery/DLV-013-an-order-assigned-to-a-driver-leaves-the-pool.md",
+      "rev": 1,
+      "sha256": "c89d0b6266e1c1edb9d1eef6c49c16872c9c93503ccd1b6df33dd51006f3507a",
+      "status": "done"
+    },
+    "DLV-014": {
+      "path": "modules/delivery/DLV-014-the-rest-of-a-delivery-and-a-counter-sale-keep.md",
+      "rev": 1,
+      "sha256": "ab1d98fec252c7506fdff07d017063aa178873fb2c1442afc5be0792b2b2fdd8",
+      "status": "done"
+    },
+    "DLV-015": {
+      "path": "modules/delivery/DLV-015-find-the-drivers-who-still-have-deliveries-on.md",
+      "rev": 1,
+      "sha256": "182f88a0f99592dcd33c3b1b4e55b698ee8d34bb8ec08e02e565036b6ff5dc6a",
+      "status": "done"
+    },
+    "DLV-016": {
+      "path": "modules/delivery/DLV-016-delivery-and-finance-tests-seed-products.md",
+      "rev": 1,
+      "sha256": "46db4873298db089c699511da7afbaead17455c869cab33b37a7a30199c36614",
       "status": "done"
     },
     "FIN-001": {
@@ -2483,6 +3089,18 @@
       "sha256": "0b9786f188d96f3a718aeca64b3f3fb99d9f07181314c0a7de6f617b5feb602b",
       "status": "done"
     },
+    "FIN-021": {
+      "path": "modules/finance/FIN-021-expenses-and-handovers-accept-a-paused-member.md",
+      "rev": 1,
+      "sha256": "e58c66412243937c80b4fb964e8e1f2c48e997e4d7c26c5948ff6d21fd0af92b",
+      "status": "done"
+    },
+    "FIN-022": {
+      "path": "modules/finance/FIN-022-the-dispute-notice-says-versement.md",
+      "rev": 1,
+      "sha256": "846babeada851bbd3f9544931102801813efe9739c4da29101e340beff3b19e7",
+      "status": "done"
+    },
     "FND-000": {
       "path": "modules/foundation/FND-000-add-the-missing-quality-gates-and-load-the.md",
       "rev": 1,
@@ -2559,6 +3177,90 @@
       "path": "modules/foundation/FND-012-validation-errors-without-input-values.md",
       "rev": 1,
       "sha256": "ea331ae7973f94897058ec774b65d42c1151f615e50071b07873c1c315cad49e",
+      "status": "done"
+    },
+    "FND-013": {
+      "path": "modules/foundation/FND-013-image-keys-and-public-image-addresses.md",
+      "rev": 1,
+      "sha256": "4c28634261d3f0a33a4a5328931e3d3cb1fd62013d930b207df8efc961c37c1f",
+      "status": "done"
+    },
+    "FND-014": {
+      "path": "modules/foundation/FND-014-plan-grid-and-business-payment-codes.md",
+      "rev": 1,
+      "sha256": "3e6a2fa9b3374a5b92b58893f92ef5a2965b698e3358b2407f8d1d2b11d768c9",
+      "status": "done"
+    },
+    "IMG-001": {
+      "path": "modules/images/IMG-001-registry-of-copied-photos.md",
+      "rev": 1,
+      "sha256": "bbe67213ad54ea087e75a748337b649e0cd79f87d8252c7a313f3765a6e74aff",
+      "status": "done"
+    },
+    "IMG-002": {
+      "path": "modules/images/IMG-002-storage-and-photo-processing-ports-with-fake.md",
+      "rev": 1,
+      "sha256": "8b52e335d976e7f95d6bd737035c0ffb746b58d3806e66b284c8a5edd475ab8c",
+      "status": "done"
+    },
+    "IMG-003": {
+      "path": "modules/images/IMG-003-receive-a-photo-check-it-and-store-a-clean-copy.md",
+      "rev": 1,
+      "sha256": "8bf2c6439c4119ad531ed55f17651372fb47f1c75e5a7bbef76a76fa277fc934",
+      "status": "done"
+    },
+    "IMG-004": {
+      "path": "modules/images/IMG-004-a-person-adds-replaces-or-removes-their-profile.md",
+      "rev": 1,
+      "sha256": "6dbd9b4028b20c0fe1815c90b7b164e00a1cc5aeb2e730514eb710b1a0ac8075",
+      "status": "done"
+    },
+    "IMG-005": {
+      "path": "modules/images/IMG-005-the-owner-adds-replaces-or-removes-the-business.md",
+      "rev": 1,
+      "sha256": "059364a90a348b3e3d684c1775f16cd47c2867374f73851128999f743be3dace",
+      "status": "done"
+    },
+    "IMG-006": {
+      "path": "modules/images/IMG-006-copy-a-photo-under-a-new-key-and-record-the-copy.md",
+      "rev": 1,
+      "sha256": "0d6e4d9dbe92381b4a46228229274cccfa7415c501b6b2daea87b2b01a9ceb37",
+      "status": "done"
+    },
+    "IMG-007": {
+      "path": "modules/images/IMG-007-nightly-cleanup-of-photo-files-that-no-card.md",
+      "rev": 1,
+      "sha256": "ca724795be3320791003c8338877cbe369f744a00d5ea4ec201c885308739c4a",
+      "status": "done"
+    },
+    "IMG-008": {
+      "path": "modules/images/IMG-008-a-manager-adds-or-replaces-a-photo-of-a-product.md",
+      "rev": 1,
+      "sha256": "1149b81a02eb0854361e4cc87ff98855ba794d564762b1746c3861ff1b8beddb",
+      "status": "done"
+    },
+    "IMG-009": {
+      "path": "modules/images/IMG-009-a-manager-removes-a-photo-of-a-product.md",
+      "rev": 1,
+      "sha256": "0032ccfc143cd6b0784c354cd0a59d4fd2279a40c84ad17311e139928c4208f4",
+      "status": "done"
+    },
+    "IMG-010": {
+      "path": "modules/images/IMG-010-a-manager-adds-replaces-or-removes-the-photos.md",
+      "rev": 1,
+      "sha256": "8285547558abde6e9a922209fd3459a4be2e6c78f12a41959764dc0f23dc75da",
+      "status": "done"
+    },
+    "IMG-011": {
+      "path": "modules/images/IMG-011-a-manager-takes-a-photo-from-another-variant-of.md",
+      "rev": 1,
+      "sha256": "ccd320ff39639c87794f05625d9a3bc9bf9f8cde11dd71256e50d9695d5b4ea7",
+      "status": "done"
+    },
+    "IMG-012": {
+      "path": "modules/images/IMG-012-the-nightly-cleanup-releases-the-photos-of.md",
+      "rev": 1,
+      "sha256": "44e5e0b57cd8ed619a463cf89a1c5074fe96daa7416354fda89b08e51c091331",
       "status": "done"
     },
     "NTF-001": {
@@ -2711,6 +3413,84 @@
       "sha256": "ff4d189d69bf96854a9c628a8c8238beadd140bb110e9908f65fa033f33aa41d",
       "status": "done"
     },
+    "ORD-022": {
+      "path": "modules/order/ORD-022-orders-carry-the-date-they-were-accepted.md",
+      "rev": 1,
+      "sha256": "355779b656310d5f8734cf27a662937d53df3e90c59ba066d042c436c2997368",
+      "status": "done"
+    },
+    "ORD-023": {
+      "path": "modules/order/ORD-023-accepting-an-order-records-its-date.md",
+      "rev": 1,
+      "sha256": "1b5fcbba0faef8cae2719cd6914c6fafa5c4b289924d45a93e92472f6396c3fd",
+      "status": "done"
+    },
+    "ORD-024": {
+      "path": "modules/order/ORD-024-order-lines-can-name-a-variant.md",
+      "rev": 1,
+      "sha256": "161d0741fb5cce2b9cf98a91bf3469ccd37cb97cf987a4b5cd4597a0cc116754",
+      "status": "done"
+    },
+    "ORD-025": {
+      "path": "modules/order/ORD-025-every-order-line-names-its-variant.md",
+      "rev": 1,
+      "sha256": "175faaa535acc7467723f93c4af26afb978d65e94f0cd24e592d3e034f3a2d38",
+      "status": "done"
+    },
+    "ORD-026": {
+      "path": "modules/order/ORD-026-order-line-rules-read-the-variant.md",
+      "rev": 1,
+      "sha256": "9042f5ec937c91846868f5e7accffd99c6c2b19beb021b3e8715701fe3c353ba",
+      "status": "done"
+    },
+    "ORD-027": {
+      "path": "modules/order/ORD-027-order-lines-are-priced-from-the-variant.md",
+      "rev": 1,
+      "sha256": "813b98d65f02ab1b86fe64f66325efaccb857cc9363e81fec504b017c22e4623",
+      "status": "done"
+    },
+    "ORD-028": {
+      "path": "modules/order/ORD-028-order-lines-name-their-variant-in-requests-and.md",
+      "rev": 1,
+      "sha256": "554b29fbf9dc1b2bb1753ae2e6d39094e7aa32116a8218429da9bbf028bfeacb",
+      "status": "done"
+    },
+    "ORD-029": {
+      "path": "modules/order/ORD-029-a-supplier-s-orders-are-counted-by-variant-over.md",
+      "rev": 1,
+      "sha256": "da893dd24eee3315cfbe01b4d34b9eecb82041231d2ebe408e84ac3e1e95e5e5",
+      "status": "done"
+    },
+    "ORD-030": {
+      "path": "modules/order/ORD-030-the-order-module-says-which-variants-order.md",
+      "rev": 1,
+      "sha256": "e446d342d7101a8c7afb0fe2620f2e4cafdf868bd11cdbe9af95bb5a711b724c",
+      "status": "done"
+    },
+    "ORD-031": {
+      "path": "modules/order/ORD-031-order-tests-seed-products-through-the-catalog.md",
+      "rev": 1,
+      "sha256": "3d4e1cc0e0fabda85f6d465d9d8a5ebdfcf15e3b0f1d7794b22793b2e3876ca4",
+      "status": "done"
+    },
+    "ORD-032": {
+      "path": "modules/order/ORD-032-an-order-line-may-be-saved-without-its-product.md",
+      "rev": 1,
+      "sha256": "009eb0442ca8f66b013dcbb0aabd89c0c5b85ac26c5faf1816e5b1c70d7387d0",
+      "status": "done"
+    },
+    "ORD-033": {
+      "path": "modules/order/ORD-033-orders-rests-and-synced-lines-are-saved-without.md",
+      "rev": 1,
+      "sha256": "00dbe0abe220c65a2625f83dbf6b19d95cc8db6aa31aa08a6ba89f3bbfc48309",
+      "status": "todo"
+    },
+    "ORD-034": {
+      "path": "modules/order/ORD-034-order-lines-lose-their-product-column.md",
+      "rev": 1,
+      "sha256": "3c25855c66d7d24c2f7eabb284ccbcc6285c8157805f6e8552d26418cee03871",
+      "status": "todo"
+    },
     "ORG-001": {
       "path": "modules/organization/ORG-001-organizations-table.md",
       "rev": 1,
@@ -2825,6 +3605,162 @@
       "sha256": "f34b7a7639998cec2645d51ed9338026cc152f636b2176958a0d1b8e636ea215",
       "status": "done"
     },
+    "ORG-020": {
+      "path": "modules/organization/ORG-020-plan-fields-and-logo-key-on-the-organization.md",
+      "rev": 1,
+      "sha256": "94cf62ee22216d2e2aed890a4f5535c3a9ebf697309676b40ad512515f575e37",
+      "status": "done"
+    },
+    "ORG-021": {
+      "path": "modules/organization/ORG-021-organization-contacts-table.md",
+      "rev": 1,
+      "sha256": "f82ee1997bafa5971340f6182d12bc560ca05df9cff64ac6ef6878e2a9ef0a13",
+      "status": "done"
+    },
+    "ORG-022": {
+      "path": "modules/organization/ORG-022-a-collaboration-can-be-paused.md",
+      "rev": 1,
+      "sha256": "6d53a68dd2769d0833493312da3c147972f9af863ccf269d8ff04a3de7a6c8fa",
+      "status": "done"
+    },
+    "ORG-023": {
+      "path": "modules/organization/ORG-023-a-one-time-code-can-be-tied-to-a-business.md",
+      "rev": 1,
+      "sha256": "bbd403c9d71a1faddb3ba4929dc29b12c61364b04185914c8b4fc39474c981dc",
+      "status": "done"
+    },
+    "ORG-024": {
+      "path": "modules/organization/ORG-024-the-owner-adds-a-public-phone-number-to-the.md",
+      "rev": 1,
+      "sha256": "99172e65497f9a99d66037ad1e3fb28b65534f6eb67a99eb954071133e763213",
+      "status": "done"
+    },
+    "ORG-025": {
+      "path": "modules/organization/ORG-025-the-owner-confirms-a-contact-with-its-code.md",
+      "rev": 1,
+      "sha256": "6ca85f36fb772ffee3c79b6e19759c6fc83ec3141d13e367ada6c900f4121d32",
+      "status": "done"
+    },
+    "ORG-026": {
+      "path": "modules/organization/ORG-026-the-owner-asks-for-a-contact-code-again.md",
+      "rev": 1,
+      "sha256": "956b53637f1e12e08ebc1736ce5aec240f9597a7b872ad19e9b182bdc5972ef4",
+      "status": "done"
+    },
+    "ORG-027": {
+      "path": "modules/organization/ORG-027-the-owner-deletes-a-public-contact.md",
+      "rev": 1,
+      "sha256": "2cb42b658241e5947b743a8b2ba2cd6e3e1fc86c85c5bd64fbcbc8a40ef2049b",
+      "status": "done"
+    },
+    "ORG-028": {
+      "path": "modules/organization/ORG-028-a-new-business-gets-its-payment-code-and-the.md",
+      "rev": 1,
+      "sha256": "afc6e5ad26a9c9585fe6838902e4772c04096b750c2de5c7d06c99c9f1408c20",
+      "status": "done"
+    },
+    "ORG-029": {
+      "path": "modules/organization/ORG-029-a-business-is-found-by-its-verified-public.md",
+      "rev": 1,
+      "sha256": "85444ac9749f45ff78a07837f9361440dfef162d50f420a467630e3a6cb2c816",
+      "status": "done"
+    },
+    "ORG-030": {
+      "path": "modules/organization/ORG-030-an-invitation-respects-the-collaborator-limit.md",
+      "rev": 1,
+      "sha256": "32004fcd98fa6702b47125b18a76a4fbeefb245b225a4f698ddcab7419eeecef",
+      "status": "done"
+    },
+    "ORG-031": {
+      "path": "modules/organization/ORG-031-stop-using-the-public-contact-flag-of-a.md",
+      "rev": 1,
+      "sha256": "96604508a9a8d6b3e9aab7bbee2c6429e2c99bbd0a30801444f4912f5fd2ff37",
+      "status": "done"
+    },
+    "ORG-032": {
+      "path": "modules/organization/ORG-032-the-business-email-column-is-dropped.md",
+      "rev": 2,
+      "sha256": "2e2f7cee5a190ab96cd759c6251984de3ca75dfdade9fb10cfa93d0d01f4048d",
+      "status": "done"
+    },
+    "ORG-033": {
+      "path": "modules/organization/ORG-033-a-new-owner-is-asked-to-review-the-public.md",
+      "rev": 1,
+      "sha256": "872fdc3ccbeb627c4f3e15ff726db494c1a4b996bca1165411359bd8e84f3ce7",
+      "status": "done"
+    },
+    "ORG-034": {
+      "path": "modules/organization/ORG-034-closing-and-reopening-a-business-run-the.md",
+      "rev": 1,
+      "sha256": "430337b30995fbda35f28fc990304bc58150da297f37ab13efe879cb3f9d390a",
+      "status": "todo"
+    },
+    "ORG-035": {
+      "path": "modules/organization/ORG-035-the-organization-lets-billing-write-the-plan.md",
+      "rev": 1,
+      "sha256": "46e067c6eae6cf69b61f7ff0d97b84eb0df0f80e8d44d47dc66cbb4e5616e140",
+      "status": "done"
+    },
+    "ORG-036": {
+      "path": "modules/organization/ORG-036-a-paused-team-member-is-listed-can-be-changed.md",
+      "rev": 1,
+      "sha256": "9278cf7b6fc26603c58cbc74ca1ba2980d4c0610acf723895362a86e3386c068",
+      "status": "todo"
+    },
+    "ORG-037": {
+      "path": "modules/organization/ORG-037-a-contact-whose-number-changed-holder-goes-back.md",
+      "rev": 1,
+      "sha256": "62f62cf53dcd1324b8b25d29e6030632d89e9229622003290cd142113f807941",
+      "status": "done"
+    },
+    "ORG-038": {
+      "path": "modules/organization/ORG-038-server-side-writer-of-the-business-logo-key.md",
+      "rev": 1,
+      "sha256": "5355a39fd4c1af7a76c84939b5db9216e145c7695d5ab64a9fa507ef8bbccd1a",
+      "status": "done"
+    },
+    "ORG-039": {
+      "path": "modules/organization/ORG-039-the-identity-pull-stops-sending-the-removed.md",
+      "rev": 1,
+      "sha256": "4c7541cd42db505bc6143824dc2de7e913d1329259480dcc9a5ae6334548d8d0",
+      "status": "done"
+    },
+    "ORG-040": {
+      "path": "modules/organization/ORG-040-the-owner-rules-for-the-team-and-the-contacts.md",
+      "rev": 1,
+      "sha256": "3b7d5e22b4502fadd03d3b95c3e61b1ef15fe23265f0dac8c525a0c2904f3270",
+      "status": "done"
+    },
+    "ORG-041": {
+      "path": "modules/organization/ORG-041-a-contact-code-names-the-business-and-serves.md",
+      "rev": 1,
+      "sha256": "ea7522e8d25747319f162896b6377fa6363b906c40cd6b76b9c062ea4112aa74",
+      "status": "done"
+    },
+    "ORG-042": {
+      "path": "modules/organization/ORG-042-the-owner-adds-a-public-email-to-the-business.md",
+      "rev": 1,
+      "sha256": "259a0066501b503fae770ee314b416fc488846db3d59a74d4756651ab99a7561",
+      "status": "done"
+    },
+    "ORG-043": {
+      "path": "modules/organization/ORG-043-the-public-contact-flag-column-and-its-database.md",
+      "rev": 3,
+      "sha256": "023be1a72264ef8eb912048b24bc52b22f4afce747a267333f121ae361d9ade4",
+      "status": "done"
+    },
+    "ORG-044": {
+      "path": "modules/organization/ORG-044-billing-finds-a-business-by-its-payment-code.md",
+      "rev": 1,
+      "sha256": "874f373be0857ded555be87bc16f89324332a6b740f4f772023cd581866ed885",
+      "status": "done"
+    },
+    "ORG-045": {
+      "path": "modules/organization/ORG-045-billing-reads-the-plan-fields-and-lists.md",
+      "rev": 1,
+      "sha256": "c61bf483105c1d116f6b82702d5399b2d30384278b92b7ee3156035e23ece596",
+      "status": "done"
+    },
     "PER-001": {
       "path": "modules/person/PER-001-retire-the-old-sign-in-module.md",
       "rev": 1,
@@ -2879,6 +3815,36 @@
       "sha256": "4f4cebae210022d52356aac4b2a62dd789bdd36bf90916115fa6c8b71fd67299",
       "status": "done"
     },
+    "PER-010": {
+      "path": "modules/person/PER-010-profile-photo-key-on-the-person.md",
+      "rev": 1,
+      "sha256": "4c878dcc2f8b828f711604ced203a101684c9086a2f75459752df998cda54fb1",
+      "status": "done"
+    },
+    "PER-011": {
+      "path": "modules/person/PER-011-the-public-view-of-a-person-carries-the-photo.md",
+      "rev": 1,
+      "sha256": "fd9bc873fe744888c9272273e4c36cd2d0b84fd19efc22dbc5fbdc0cf3d3a87f",
+      "status": "done"
+    },
+    "PER-012": {
+      "path": "modules/person/PER-012-own-profile-shows-the-photo-address.md",
+      "rev": 1,
+      "sha256": "96b1ae7ca0aeb9f261a04422ce5200fd1c0cf22485fed49dad74b08d95abec45",
+      "status": "done"
+    },
+    "PER-013": {
+      "path": "modules/person/PER-013-server-side-writer-of-the-profile-photo-key.md",
+      "rev": 1,
+      "sha256": "4b515cf6814a6767a0f13246f8552f0bff48a8f6d409466bc434c3cb6f905add",
+      "status": "done"
+    },
+    "PER-014": {
+      "path": "modules/person/PER-014-handlers-called-when-a-phone-number-is-released.md",
+      "rev": 1,
+      "sha256": "3724fa3faeb3212e7a220b808e401a354c7fa97526898dc0a9c127e35ecc1df3",
+      "status": "done"
+    },
     "PRIV-001": {
       "path": "modules/privacy/PRIV-001-person-checks-whether-they-can-delete-their.md",
       "rev": 1,
@@ -2888,7 +3854,7 @@
     "PRIV-002": {
       "path": "modules/privacy/PRIV-002-person-deletes-their-account-by-anonymization.md",
       "rev": 1,
-      "sha256": "7d3a5f08e1e92a346b200fb2476711e1dc5b29a317dfd43870aa61f5a887198f",
+      "sha256": "8dfa7af9270224af285aedcd9cb14994e243b7e781a7a32c05043b319727a9e7",
       "status": "done"
     },
     "PRIV-003": {
@@ -2896,6 +3862,18 @@
       "rev": 1,
       "sha256": "fc6569e6610944eaf27b55d4dc5893ab932c271630acbd4231115c473453f12c",
       "status": "done"
+    },
+    "PRIV-004": {
+      "path": "modules/privacy/PRIV-004-account-deletion-also-clears-and-removes-the.md",
+      "rev": 1,
+      "sha256": "f72810ac3339889da4a9c8d685a6b9a927f8c08344edb1329f7859d65dbfe991",
+      "status": "todo"
+    },
+    "PRIV-005": {
+      "path": "modules/privacy/PRIV-005-the-purge-deletes-failed-and-expired-payment.md",
+      "rev": 1,
+      "sha256": "a76922e429937f8eb9b091a7b9eaa54a9145668f0af343d7e4c56acd2c347d8c",
+      "status": "todo"
     },
     "REL-001": {
       "path": "modules/relationship/REL-001-relationships-table.md",
@@ -3047,6 +4025,12 @@
       "sha256": "7d8e182a791a4fe739711801849fdef5bed2edf31b658f8bee10994d05bc92a1",
       "status": "done"
     },
+    "REL-026": {
+      "path": "modules/relationship/REL-026-relationship-answers-document-the-photo-of-a.md",
+      "rev": 1,
+      "sha256": "fe539d0419bb025b1d224cf5f194c3713616f6ccb26dea8b7b98d3e4d6573b41",
+      "status": "done"
+    },
     "SYNC-001": {
       "path": "modules/sync/SYNC-001-sync-types-adapter-registry-and-viewer.md",
       "rev": 1,
@@ -3184,50 +4168,140 @@
       "rev": 1,
       "sha256": "d763150362a926b6c90de723ece6a04c65e77df4554b9b73e347fa07c031b6bb",
       "status": "done"
+    },
+    "SYNC-024": {
+      "path": "modules/sync/SYNC-024-the-catalog-pull-speaks-products-and-variants.md",
+      "rev": 1,
+      "sha256": "8c36c57ebae86ada35eb28916e11b8b01e859912e4dcdb74653b150b3e1360a4",
+      "status": "todo"
+    },
+    "SYNC-025": {
+      "path": "modules/sync/SYNC-025-a-driver-pull-names-variants-without-prices.md",
+      "rev": 1,
+      "sha256": "12dbd2c3c69e01314df3387eb57a4e3c7dbb54dd9262edc2ec99b287e9f22630",
+      "status": "todo"
+    },
+    "SYNC-026": {
+      "path": "modules/sync/SYNC-026-a-customer-pull-holds-the-supplier-s-articles.md",
+      "rev": 1,
+      "sha256": "684b99eabebbab0292cff93fcb216265ef3f6155ef59f3863f26773b82995965",
+      "status": "todo"
+    },
+    "SYNC-027": {
+      "path": "modules/sync/SYNC-027-negotiated-prices-and-order-lines-are-pulled-by.md",
+      "rev": 1,
+      "sha256": "e219fb03050c38c2e07138719ce70285c4bde8bc129ed96abcddf7e90f60908f",
+      "status": "todo"
+    },
+    "SYNC-028": {
+      "path": "modules/sync/SYNC-028-controls-on-arrival-and-the-list-to-resolve.md",
+      "rev": 1,
+      "sha256": "8756b4728f93eac2be1799c96d7b6e7805d151824f2c3d5cf72cffa7bd5df90e",
+      "status": "todo"
+    },
+    "SYNC-029": {
+      "path": "modules/sync/SYNC-029-an-order-line-entered-offline-names-a-variant.md",
+      "rev": 1,
+      "sha256": "bea9d0524f8f625e781b42b873410141d8673b2a27be18d0cde5fd1e189b8c36",
+      "status": "todo"
+    },
+    "SYNC-030": {
+      "path": "modules/sync/SYNC-030-the-judge-knows-products-variants-and.md",
+      "rev": 1,
+      "sha256": "16a86c5b99b1aba4780343b3b389615007a0c92bacd249ad24e6ece1daaf187f",
+      "status": "todo"
+    },
+    "SYNC-031": {
+      "path": "modules/sync/SYNC-031-the-owner-s-phone-creates-and-edits-products.md",
+      "rev": 1,
+      "sha256": "04d8b679e3368a85bdacd5d0a52c54eb2bd610fa1d7b5a071629d07900d81d80",
+      "status": "todo"
+    },
+    "SYNC-032": {
+      "path": "modules/sync/SYNC-032-the-owner-s-phone-creates-and-edits-variants.md",
+      "rev": 1,
+      "sha256": "85ffeb687723263e7a888d27665411c6a6a6e2f561fd86c3f9789c14675cf3c2",
+      "status": "todo"
+    },
+    "SYNC-033": {
+      "path": "modules/sync/SYNC-033-the-owner-s-phone-deletes-variants-and-products.md",
+      "rev": 1,
+      "sha256": "3eaf2d3d77864625796cc3d1d05e93a23afe7e66305111dbb10927da8c723018",
+      "status": "todo"
+    },
+    "SYNC-034": {
+      "path": "modules/sync/SYNC-034-the-owner-s-phone-sets-and-removes-negotiated.md",
+      "rev": 1,
+      "sha256": "c0a7f4734e6d1f7ae22fbf93fac924f4f6250b9c795e736fa0f572df4acf42a5",
+      "status": "todo"
+    },
+    "SYNC-035": {
+      "path": "modules/sync/SYNC-035-products-added-beyond-the-plan-are-paused-after.md",
+      "rev": 1,
+      "sha256": "c57c9bc395c3277ed41acc48a431baa2a9c5526139b4239b040fc797bcd8f007",
+      "status": "todo"
+    },
+    "SYNC-036": {
+      "path": "modules/sync/SYNC-036-the-phone-receives-the-contacts-of-its-business.md",
+      "rev": 1,
+      "sha256": "b7e9513ce6e19e0763e5eb09862781e7003c7a350c53939ba837f2613f900b09",
+      "status": "todo"
+    },
+    "SYNC-037": {
+      "path": "modules/sync/SYNC-037-the-team-s-phone-knows-the-plan-its-due-date.md",
+      "rev": 1,
+      "sha256": "88a1a80da9236ac9a61e1c27fd7675bb3d10d9dd8d658886556d2e881abc7ab5",
+      "status": "todo"
+    },
+    "SYNC-038": {
+      "path": "modules/sync/SYNC-038-the-phone-receives-logo-and-profile-photo.md",
+      "rev": 1,
+      "sha256": "ca5954876956807a39c762ae28fe77cb0484db491cb3c99f22388e8d0aa44b50",
+      "status": "todo"
+    },
+    "SYNC-039": {
+      "path": "modules/sync/SYNC-039-a-paused-collaborator-gets-the-grace-of-a.md",
+      "rev": 1,
+      "sha256": "d7c46f76902196d2c96a29c31645a0e7243aa1b5a8fb2dde4dabb7d37879d063",
+      "status": "todo"
+    },
+    "SYNC-040": {
+      "path": "modules/sync/SYNC-040-an-order-given-to-another-driver-leaves-the.md",
+      "rev": 1,
+      "sha256": "8d143430dc01da2264066835467a864c0e32830d8b17465fee70485bf71e668f",
+      "status": "todo"
+    },
+    "SYNC-041": {
+      "path": "modules/sync/SYNC-041-a-phone-cannot-write-the-fields-only-the-server.md",
+      "rev": 1,
+      "sha256": "b9f4b85326aff4c3e60c1fd148dd4d01f5c9f2b5fcf5baff090e6ca77d65496b",
+      "status": "todo"
+    },
+    "SYNC-042": {
+      "path": "modules/sync/SYNC-042-the-driver-receives-the-contacts-of-the-client.md",
+      "rev": 1,
+      "sha256": "6a83c831b47396fc0e334b3c9ee2dfd5a7c14a4d43bcbeac7765bb9cd2838d82",
+      "status": "todo"
+    },
+    "SYNC-043": {
+      "path": "modules/sync/SYNC-043-synchronization-tests-seed-products-through-the.md",
+      "rev": 1,
+      "sha256": "6dd52c14c4d624b68f46266552e047227e3de094371ad89feb1fd4528477e993",
+      "status": "todo"
     }
   },
   "edited": [],
-  "from_sha256": "2dcaae02b638d95d5c9ad80329d53e10d098fec20f5cf5b12182af8f4d03dfd2",
-  "hand_edited": [
-    "ADM-008",
-    "DLV-002",
-    "DLV-012",
-    "FIN-002",
-    "ORD-002",
-    "ORD-006",
-    "REL-002",
-    "REL-004",
-    "SYNC-002",
-    "SYNC-015",
-    "SYNC-018"
-  ],
+  "from_sha256": "035497ce5c79ed3b17c5b0bf41b90fddbedc0250ef16a70d20a72d7ba7d626c2",
+  "hand_edited": [],
   "impacted": {
-    "ACC-001": "done",
     "ACC-002": "done",
     "ACC-003": "done",
     "ACC-004": "done",
     "ACC-005": "done",
-    "ACC-006": "done",
-    "ACC-007": "done",
-    "ADM-001": "done",
-    "ADM-002": "done",
-    "ADM-003": "done",
-    "ADM-004": "done",
-    "ADM-005": "done",
-    "ADM-006": "done",
-    "ADM-007": "done",
-    "ADM-008": "done",
-    "ADM-009": "done",
-    "ADM-010": "done",
-    "ADM-011": "done",
-    "ADM-012": "done",
-    "ADM-013": "done",
-    "ADM-014": "done",
-    "ADM-015": "done",
-    "AUTH-001": "done",
-    "AUTH-002": "done",
-    "AUTH-003": "done",
-    "AUTH-004": "done",
+    "ACC-008": "done",
+    "ADM-017": "done",
+    "ADM-019": "done",
+    "ADM-020": "done",
     "AUTH-005": "done",
     "AUTH-006": "done",
     "AUTH-009": "done",
@@ -3237,8 +4311,6 @@
     "AUTH-013": "done",
     "AUTH-014": "done",
     "AUTH-015": "done",
-    "AUTH-017": "done",
-    "AUTH-018": "done",
     "AUTH-019": "done",
     "AUTH-020": "done",
     "AUTH-021": "done",
@@ -3247,138 +4319,52 @@
     "AUTH-024": "done",
     "AUTH-025": "done",
     "AUTH-026": "done",
-    "CAT-001": "done",
-    "CAT-002": "done",
-    "CAT-003": "done",
-    "CAT-004": "done",
-    "CAT-005": "done",
-    "CAT-006": "done",
-    "CAT-007": "done",
-    "CAT-008": "done",
-    "CAT-009": "done",
-    "CAT-010": "done",
-    "CAT-011": "done",
-    "DLV-001": "done",
-    "DLV-002": "done",
-    "DLV-003": "done",
-    "DLV-004": "done",
-    "DLV-005": "done",
-    "DLV-006": "done",
-    "DLV-007": "done",
-    "DLV-008": "done",
-    "DLV-009": "done",
-    "DLV-010": "done",
-    "DLV-011": "done",
-    "DLV-012": "done",
-    "FIN-001": "done",
-    "FIN-003": "done",
-    "FIN-008": "done",
-    "FIN-011": "done",
-    "FIN-012": "done",
-    "FIN-013": "done",
-    "FIN-014": "done",
-    "FIN-015": "done",
-    "FIN-016": "done",
-    "FIN-017": "done",
-    "FIN-018": "done",
-    "FIN-019": "done",
-    "FIN-020": "done",
+    "AUTH-028": "done",
+    "AUTH-029": "done",
+    "AUTH-030": "done",
+    "AUTH-031": "done",
+    "AUTH-032": "done",
+    "AUTH-033": "done",
+    "AUTH-034": "done",
+    "AUTH-035": "done",
+    "AUTH-036": "done",
+    "AUTH-037": "done",
+    "AUTH-038": "done",
     "FND-000": "done",
-    "FND-002": "done",
     "FND-003": "done",
     "FND-004": "done",
     "FND-005": "done",
     "FND-006": "done",
-    "FND-007": "done",
-    "FND-008": "done",
     "FND-009": "done",
     "FND-010": "done",
     "FND-011": "done",
-    "NTF-001": "done",
-    "NTF-002": "done",
-    "ORD-001": "done",
-    "ORD-002": "done",
-    "ORD-003": "done",
-    "ORD-004": "done",
-    "ORD-005": "done",
-    "ORD-006": "done",
-    "ORD-007": "done",
-    "ORD-008": "done",
-    "ORD-009": "done",
-    "ORD-010": "done",
-    "ORD-011": "done",
-    "ORD-012": "done",
-    "ORD-013": "done",
-    "ORD-014": "done",
-    "ORD-015": "done",
-    "ORD-016": "done",
-    "ORD-017": "done",
-    "ORD-018": "done",
-    "ORD-019": "done",
-    "ORD-020": "done",
-    "ORD-021": "done",
-    "ORG-001": "done",
-    "ORG-003": "done",
-    "ORG-004": "done",
-    "ORG-005": "done",
-    "ORG-006": "done",
-    "ORG-007": "done",
-    "ORG-008": "done",
-    "ORG-009": "done",
-    "ORG-010": "done",
-    "ORG-011": "done",
-    "ORG-012": "done",
-    "ORG-013": "done",
-    "ORG-014": "done",
-    "ORG-015": "done",
-    "ORG-016": "done",
-    "ORG-017": "done",
-    "ORG-018": "done",
-    "ORG-019": "done",
+    "IMG-004": "done",
+    "ORG-037": "done",
+    "ORG-040": "done",
     "PER-001": "done",
     "PER-002": "done",
     "PER-003": "done",
-    "PER-004": "done",
     "PER-005": "done",
     "PER-006": "done",
     "PER-007": "done",
     "PER-008": "done",
     "PER-009": "done",
+    "PER-010": "done",
+    "PER-011": "done",
+    "PER-012": "done",
+    "PER-013": "done",
+    "PER-014": "done",
     "PRIV-001": "done",
     "PRIV-002": "done",
-    "PRIV-003": "done",
-    "REL-003": "done",
+    "PRIV-004": "todo",
+    "REL-001": "done",
     "REL-005": "done",
-    "REL-006": "done",
-    "REL-007": "done",
-    "REL-012": "done",
     "REL-014": "done",
-    "REL-018": "done",
     "REL-022": "done",
     "REL-023": "done",
-    "REL-025": "done",
-    "SYNC-001": "done",
-    "SYNC-002": "done",
-    "SYNC-003": "done",
-    "SYNC-004": "done",
-    "SYNC-005": "done",
-    "SYNC-006": "done",
-    "SYNC-007": "done",
-    "SYNC-008": "done",
-    "SYNC-009": "done",
+    "REL-024": "done",
     "SYNC-010": "done",
-    "SYNC-011": "done",
-    "SYNC-012": "done",
-    "SYNC-013": "done",
-    "SYNC-014": "done",
-    "SYNC-015": "done",
-    "SYNC-016": "done",
-    "SYNC-017": "done",
-    "SYNC-018": "done",
-    "SYNC-019": "done",
-    "SYNC-020": "done",
-    "SYNC-021": "done",
-    "SYNC-022": "done"
+    "SYNC-038": "todo"
   },
   "manual": {},
   "mechanical": {},
@@ -3386,10 +4372,12 @@
     "access",
     "admin",
     "auth",
+    "billing",
     "catalog",
     "delivery",
     "finance",
     "foundation",
+    "images",
     "notification",
     "order",
     "organization",
@@ -3411,20 +4399,26 @@
     "Device": "auth",
     "Expense": "finance",
     "Handover": "finance",
+    "ImageCopy": "images",
     "LedgerEntry": "finance",
     "Notification": "notification",
     "Order": "order",
     "OrderLine": "order",
     "Organization": "organization",
+    "OrganizationContact": "organization",
     "OtpChallenge": "auth",
     "Person": "person",
     "PhoneNumberChangeLog": "person",
     "Product": "catalog",
+    "ProductVariant": "catalog",
     "RefreshToken": "auth",
     "Report": "admin",
-    "Subscription": "organization",
+    "Subscription": "billing",
+    "SubscriptionEvent": "billing",
+    "SubscriptionPayment": "billing",
+    "SubscriptionReceipt": "billing",
     "SyncArchive": "sync"
   },
   "status": "closed",
-  "to_sha256": "035497ce5c79ed3b17c5b0bf41b90fddbedc0250ef16a70d20a72d7ba7d626c2"
+  "to_sha256": "df1d3ad500d8cb837941bafc4c5ca1682ad30c01163efa80a26092c967a18cbb"
 }

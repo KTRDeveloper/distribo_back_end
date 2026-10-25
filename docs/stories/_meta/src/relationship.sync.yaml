@@ -75,3 +75,320 @@ stories:
       - "The response documents of the other modules that show a person: their own stories."
     tests_to_update:
       - "tests/integration/relationship/visibility.test.ts | the person view key lists | already changed by PER-011; this story only documents them"
+---
+kind: stories
+module: relationship
+constraints:
+  C-57: "`contested_at` is set and cleared by the customer alone, through an online route; a supplier correction clears it and must target another number; it is always empty for a counter."
+stories:
+  - id: REL-027
+    title: The contested mark column and the end of the one-contestation rule
+    kind: migration
+    size: S
+    risk: high
+    depends_on: [REL-014, REL-023]
+    amends: [REL-001, REL-014]
+    read_first: [prisma/schema.prisma]
+    design_refs: [relations-commerciales/customerrelationship, relations-commerciales/customerrelationshipreassignment]
+    constraints: [C-57, C-12]
+    asvs: [v5.0.0-15.3.3, v5.0.0-2.3.3]
+    story: As a customer, I want a contestation to leave a mark on the record instead of moving it so that I can take it back myself and the supplier keeps the debt.
+    context: |
+      - Exists: `customer_relationships` (REL-001) and the reassignment journal (REL-014), whose partial unique index allows one contestation per relationship and previous person (an entry whose author is the previous person).
+      - Change, one migration `rel_027_contested_at`: add `contested_at timestamptz NULL` to `customer_relationships` (Prisma field `contestedAt`, `@map("contested_at")`); add a CHECK that `contested_at` is empty when the relationship is a counter (no customer person and no customer organization); drop the partial unique index of the journal, since a contestation no longer writes a journal entry.
+      - Additive and looser: no backfill. Existing rows get `contested_at` NULL. Past contestation entries stay in the journal (it is immutable); relationships already moved to a ghost person are left as they are (Q-049).
+      - `schema.prisma`: add a `//` line above `CustomerRelationship` for the counter rule and its migration; in the comment above `CustomerRelationshipReassignment`, replace the contestation paragraph by one saying the journal now holds only supplier corrections and the one-contestation rule was dropped by this migration.
+      - `C-57`: `contested_at` is set and cleared by the customer alone, through an online route; a supplier correction clears it and must target another number; it is always empty for a counter.
+      - `C-12`: A reassignment has previous and new person set; the new person has no relationship with the same supplier; the journal is never modified.
+    acceptance: |
+      Scenario: AC-1 Column
+        When the migration has run
+        Then `customer_relationships.contested_at` exists, is a nullable timestamptz, and every existing row has it NULL
+      Scenario: AC-2 Counter stays unmarked
+        When `contested_at` is set on a counter
+        Then the database refuses the update with a check violation (23514)
+      Scenario: AC-3 Person customer can be marked
+        When `contested_at` is set on a relationship with a customer person
+        Then the update succeeds
+      Scenario: AC-4 No more one-contestation index
+        When two journal entries are inserted for the same relationship whose author is the previous person
+        Then both are accepted
+    abuse: |
+      Scenario: AB-1 Erasing history (repudiation)
+        When the application account tries to update or delete a journal entry
+        Then it is still refused: the migration keeps the journal insert and select only
+    implementation:
+      create: [prisma/migrations/<timestamp>_rel_027_contested_at/migration.sql, tests/integration/relationship/contested-at-column.test.ts]
+      modify: [prisma/schema.prisma, tests/integration/relationship/reassignment-table.test.ts]
+      pattern: tests/integration/relationship/default-counter.test.ts
+      signatures: []
+      types: []
+      dependencies: ["@prisma/client", "prisma"]
+    security:
+      - "v5.0.0-15.3.3: `contested_at` is a server field; no request schema lists it (REL-028, REL-029 write it)."
+      - "v5.0.0-2.3.3: the column, the CHECK and the index drop are one migration."
+    tests: |
+      column | integration | AC-1, C-57 | information_schema → nullable timestamptz, existing rows NULL
+      counter | integration | AC-2, C-57 | set on a counter → 23514
+      person customer | integration | AC-3 | set on a person relationship → ok
+      index dropped | integration | AC-4, C-12 | two self-authored entries → both inserted
+      immutable | security | AB-1, CWE-284 | update or delete journal entry → refused
+    command: npx vitest run tests/integration/relationship/contested-at-column.test.ts tests/integration/relationship/reassignment-table.test.ts
+    out_of_scope:
+      - "Writing the mark: REL-028 and REL-029; clearing it on correction: REL-031."
+      - "Repairing relationships already moved to a ghost person (Q-049)."
+    tests_to_update:
+      - "tests/integration/relationship/reassignment-table.test.ts | contestation rule (AC-3 of REL-014): the partial unique index is dropped | a second self-authored entry for the same relationship and person is accepted"
+  - id: REL-028
+    title: Contesting marks the record instead of moving it to a ghost person
+    kind: change
+    size: M
+    risk: high
+    depends_on: [REL-027]
+    amends: [REL-023]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts]
+    design_refs: [relations-commerciales/customerrelationshipreassignment/ce-n-est-pas-moi-erreurs-de-saisie-et]
+    constraints: [CM-24]
+    asvs: [v5.0.0-8.2.2, v5.0.0-2.3.3, v5.0.0-16.3.1]
+    story: As a customer, I want "this is not me" to hide the record from me without moving it so that the supplier keeps the debt and I can take the contestation back.
+    context: |
+      - Exists: `POST /api/v1/suppliers/{relationshipId}/contest` `{ id, reason? }`, 204 (REL-023), which moves the record to a ghost person with a journal entry and a scope bump.
+      - Change: same route, body and answer. In one transaction under the row lock: when `contested_at` is already set, 409 `ALREADY_CONTESTED`; otherwise set `contested_at` to the server time and notify the supplier's OWNER and MANAGERs `relationship.contested` as today. `customer_person_id`, balance and history do not change. No ghost person, no journal entry, no `scope_version` bump (the relationship stays in the caller's scope).
+      - The "one contestation per relationship and person" rule is gone: after "this is me" (REL-029), the customer may contest again.
+      - `reason` is still validated but no longer stored, and never logged.
+      - Remove `insertGhostPerson` and `hasContested` from `relationship.repository.ts` and their imports; keep `findCustomerRelationshipLocked`.
+      - `CM-24`: Contestation only sets `contested_at`, with no journal row and no change of customer; the customer then sees the record only among their hidden records, the supplier sees a contested number and is notified; only the customer clears it ('this is me'); the supplier can only correct to another number; a contested invitation is declined.
+    acceptance: |
+      Scenario: AC-1 Contest marks the record
+        When a customer contests an ACTIVE relationship
+        Then the response is 204, `contested_at` is set, `customer_person_id` is still the caller, and no person and no journal entry were created
+      Scenario: AC-2 Notices
+        Then the supplier's owner and managers have one notification `relationship.contested` and the caller's scope_version is unchanged
+      Scenario Outline: AC-3 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                   | status                |
+          | a relationship already contested          | 409 ALREADY_CONTESTED |
+          | a relationship of another person          | 404 NOT_FOUND         |
+          | a PENDING invitation (decline it instead) | 404 NOT_FOUND         |
+      Scenario: AC-4 Contest again after taking it back
+        Given the customer contested, then said "this is me"
+        When they contest again with a new gesture id
+        Then the response is 204 and `contested_at` is set
+    abuse: |
+      Scenario: AB-1 Making a debt disappear (tampering)
+        When an indebted customer contests
+        Then the balance stays on the same relationship, the supplier still sees it, and only the customer's view hides it
+      Scenario: AB-2 Contesting someone else's relationship (horizontal)
+        When person A contests a relationship of person B
+        Then the response is 404 and `contested_at` stays empty
+    implementation:
+      create: []
+      modify: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.schemas.ts, tests/integration/relationship/contest.test.ts]
+      pattern: tests/integration/relationship/default-counter.test.ts
+      signatures:
+        - "contestRelationship(personId: string, relationshipId: string, input: { id: string; reason?: string }): Promise<void>"
+      types: []
+      dependencies: ["@prisma/client", "zod"]
+    security:
+      - "v5.0.0-8.2.2: the relationship is selected with the caller as `customer_person_id`."
+      - "v5.0.0-2.3.3: the check and the mark are one transaction under the row lock, so two concurrent contests give one 204 and one 409."
+      - "v5.0.0-16.3.1: log `warn` event `relationship_contested` with relationship and person ids, never the reason."
+    tests: |
+      contest | integration | AC-1, CM-24 | contest → mark set, same customer, no ghost, no journal entry
+      notices | integration | AC-2 | one notification, scope unchanged
+      refusals | integration | AC-3 | each Examples row → status
+      again | integration | AC-4 | contest, this is me, contest → 204
+      debt kept | security | AB-1, CWE-841 | supplier view still shows the balance
+      other person | security | AB-2, WSTG-ATHZ-04 | 404, mark empty
+    command: npx vitest run tests/integration/relationship/contest.test.ts
+    out_of_scope:
+      - "The hidden list and the views that show the mark: REL-030. Taking the contestation back: REL-029."
+    tests_to_update:
+      - "tests/integration/relationship/contest.test.ts | contest, notices, atomic: no ghost person, no journal entry, no scope bump | same customer, `contested_at` set, scope unchanged; the atomic case is removed"
+      - "tests/integration/relationship/contest.test.ts | refusals, loop: the one-contestation rule is gone | 409 only while `contested_at` is set; loop becomes AB-1 debt kept"
+  - id: REL-029
+    title: Customer takes back a contestation ("this is me")
+    kind: feature
+    size: S
+    risk: medium
+    depends_on: [REL-028]
+    amends: []
+    read_first: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.service.ts]
+    design_refs: [relations-commerciales/customerrelationshipreassignment/ce-n-est-pas-moi-erreurs-de-saisie-et]
+    constraints: [C-57, CM-24]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.3, v5.0.0-2.3.3]
+    story: As a customer, I want to say "this is me" about a record I contested by mistake so that the record comes back to my list without asking anyone.
+    context: |
+      - Exists: the contest route and `contested_at` (REL-028); `idempotent()`; `findCustomerRelationshipLocked`.
+      - Adds: `POST /api/v1/suppliers/{relationshipId}/uncontest` with a strict body `{ id }` (UUIDv7 gesture id), response 204. Online only, for the person who is `customer_person_id`.
+      - One transaction under the row lock: when `contested_at` is empty, 409 `NOT_CONTESTED`; otherwise set it to NULL. No notification (the design names none), no journal entry, no `scope_version` bump.
+      - The supplier has no route to clear the mark; their only way is a correction to another number (REL-031).
+      - Register the path in `relationship.openapi.ts`, and add it to the route lists of `tests/integration/api-docs/catalog.test.ts` and `tests/integration/per-001.test.ts`.
+      - `C-57`: `contested_at` is set and cleared by the customer alone, through an online route; a supplier correction clears it and must target another number; it is always empty for a counter.
+      - `CM-24`: Contestation only sets `contested_at`, with no journal row and no change of customer; the customer then sees the record only among their hidden records, the supplier sees a contested number and is notified; only the customer clears it ('this is me'); the supplier can only correct to another number; a contested invitation is declined.
+    acceptance: |
+      Scenario: AC-1 Take it back
+        Given the customer contested a relationship
+        When they post "this is me"
+        Then the response is 204 and `contested_at` is empty
+      Scenario Outline: AC-2 Refusals
+        When the request has <problem>
+        Then the response is <status> and nothing changes
+        Examples:
+          | problem                                   | status            |
+          | a relationship that is not contested      | 409 NOT_CONTESTED |
+          | a relationship of another person          | 404 NOT_FOUND     |
+          | an unknown body field                     | 400 VALIDATION_ERROR |
+      Scenario: AC-3 Repeat of the same gesture
+        When the same gesture id is sent twice
+        Then the second answer is 204 too and nothing else changes
+    abuse: |
+      Scenario: AB-1 The supplier clears the mark (elevation)
+        Given a relationship contested by its customer
+        When the supplier's owner calls the route
+        Then the response is 404 and `contested_at` stays set
+    implementation:
+      create: [tests/integration/relationship/uncontest.test.ts]
+      modify: [src/modules/relationship/relationship.routes.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.openapi.ts, tests/integration/api-docs/catalog.test.ts, tests/integration/per-001.test.ts]
+      pattern: tests/integration/relationship/default-counter.test.ts
+      signatures:
+        - "uncontestRelationship(personId: string, relationshipId: string, input: { id: string }): Promise<void>"
+      types: []
+      dependencies: ["express", "zod", "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the relationship is selected with the caller as `customer_person_id`; anyone else gets 404."
+      - "v5.0.0-15.3.3: the body holds only `id`; `contested_at` is written by the server."
+      - "v5.0.0-2.3.3: the check and the clear are one transaction under the row lock."
+    tests: |
+      take back | integration | AC-1, C-57, CM-24 | contested → 204, mark empty
+      refusals | integration | AC-2 | each Examples row → status
+      repeat | integration | AC-3 | same id twice → 204, one change
+      supplier | security | AB-1, WSTG-ATHZ-02 | owner calls → 404, mark kept
+    command: npx vitest run tests/integration/relationship/uncontest.test.ts
+    out_of_scope:
+      - "Showing the hidden records: REL-030."
+  - id: REL-030
+    title: Both parties see the contested mark and the customer's hidden list
+    kind: change
+    size: M
+    risk: medium
+    depends_on: [REL-027]
+    amends: [REL-005, REL-008, REL-009, REL-016]
+    read_first: [src/modules/relationship/relationship.visibility.ts, src/modules/relationship/relationship.repository.ts]
+    design_refs: [relations-commerciales/customerrelationship, relations-commerciales/customerrelationshipreassignment/ce-n-est-pas-moi-erreurs-de-saisie-et]
+    constraints: [CM-24, C-57]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.1]
+    story: As a supplier, I want to see that a customer's number is contested, and as a customer, I want contested records out of my list but still reachable, so that each side knows where the record stands.
+    context: |
+      - Exists: `projectForSupplier` and `projectForCustomer` (REL-005); `GET /api/v1/organizations/{organizationId}/customers` (REL-008) and its single read (REL-009); `GET /api/v1/suppliers?limit&cursor&status` (REL-016).
+      - Change: both projections add `contested_at` (ISO timestamp or null); the driver projection does not. Document it in the two view schemas of `relationship.openapi.ts`.
+      - `GET /api/v1/suppliers` excludes contested records by default and takes a new query `contested` (`true` | `false`, default `false`): `contested=true` lists only the caller's contested records (the hidden records), newest first, same paging. `status` still combines with it.
+      - The supplier's list and single read are unchanged apart from the field: the record stays visible with its balance.
+      - `CM-24`: Contestation only sets `contested_at`, with no journal row and no change of customer; the customer then sees the record only among their hidden records, the supplier sees a contested number and is notified; only the customer clears it ('this is me'); the supplier can only correct to another number; a contested invitation is declined.
+      - `C-57`: `contested_at` is set and cleared by the customer alone, through an online route; a supplier correction clears it and must target another number; it is always empty for a counter.
+    acceptance: |
+      Scenario: AC-1 Supplier sees the mark
+        Given a relationship contested by its customer
+        When a seller lists the customers or opens that customer
+        Then the item is present with its balance and `contested_at` set
+      Scenario: AC-2 Customer list hides it
+        When the customer lists their suppliers without `contested`
+        Then the contested record is absent and the others are present with `contested_at` null
+      Scenario: AC-3 Hidden records
+        When the customer lists with `contested=true`
+        Then only the contested records are returned, with `contested_at` set
+      Scenario: AC-4 Driver
+        Then the driver projection has no `contested_at`
+      Scenario: AC-5 Query validation
+        When `contested` is any other value
+        Then the response is 400 `VALIDATION_ERROR`
+    abuse: |
+      Scenario: AB-1 Another person's hidden records (horizontal)
+        When person A lists with `contested=true`
+        Then no record of person B appears
+    implementation:
+      create: [tests/integration/relationship/contested-views.test.ts]
+      modify: [src/modules/relationship/relationship.visibility.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.openapi.ts, tests/integration/relationship/visibility.test.ts]
+      pattern: tests/integration/relationship/default-counter.test.ts
+      signatures:
+        - "listSuppliersOfPerson(personId: string, query: ListSuppliersQuery): Promise<{ items: CustomerRelationshipView[]; next_cursor: string | null }>"
+      types:
+        - "ListSuppliersQuery = { limit: number; cursor?: string; status?: 'PENDING' | 'ACTIVE' | 'ENDED'; contested: boolean }"
+      dependencies: ["zod", "@prisma/client", "@asteasolutions/zod-to-openapi"]
+    security:
+      - "v5.0.0-8.2.2: the hidden list starts from `customer_person_id` = caller, like the main list."
+      - "v5.0.0-15.3.1: the field is added to the explicit projection lists, never by spreading the row."
+    tests: |
+      supplier mark | integration | AC-1, CM-24 | list and single read → present, balance, contested_at set
+      customer list | integration | AC-2 | default → contested record absent
+      hidden list | integration | AC-3, C-57 | contested=true → only contested records
+      driver | integration | AC-4 | driver view keys unchanged
+      query | integration | AC-5 | contested=maybe → 400
+      other person | security | AB-1, WSTG-ATHZ-04 | contested=true → none of B's records
+    command: npx vitest run tests/integration/relationship/contested-views.test.ts tests/integration/relationship/visibility.test.ts tests/integration/relationship/list-suppliers.test.ts
+    out_of_scope:
+      - "Sending the field to phones by synchronization: SYNC-044."
+    tests_to_update:
+      - "tests/integration/relationship/visibility.test.ts | the supplier and customer view key lists | each lists `contested_at`; the driver list is unchanged"
+  - id: REL-031
+    title: A correction on a contested record targets another number and clears the mark
+    kind: change
+    size: S
+    risk: high
+    depends_on: [REL-028]
+    amends: [REL-024]
+    read_first: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.schemas.ts]
+    design_refs: [relations-commerciales/customerrelationshipreassignment/correction-par-le-fournisseur]
+    constraints: [C-57, CM-24, C-12]
+    asvs: [v5.0.0-8.2.1, v5.0.0-2.3.3, v5.0.0-15.3.3]
+    story: As an owner, I want to correct a contested customer's number to the right one so that the record leaves the innocent person and the mark goes away.
+    context: |
+      - Exists: `POST /api/v1/organizations/{organizationId}/customers/{relationshipId}/correct-number` with `{ id, phone_number, reason?, confirm_same_customer? }` (REL-024), including the "C'est bien ce client" flow (`confirm_same_customer`, 409 `CONFIRMATION_REQUIRED`) that brought a contested relationship back from a ghost person.
+      - Change: remove `confirm_same_customer` from the strict body (now an unknown key, 400) and the `CONFIRMATION_REQUIRED` error. On a contested record (`contested_at` set), a number that resolves to the current customer answers 409 `SAME_NUMBER`. A successful correction sets `contested_at` to NULL in the same transaction as the repoint and the journal entry.
+      - Everything else is unchanged: journal entry, scope bumps of both persons, `RELATIONSHIP_EXISTS`, `OWN_RECORD`, `NOT_A_PERSON_CUSTOMER`, roles.
+      - `C-57`: `contested_at` is set and cleared by the customer alone, through an online route; a supplier correction clears it and must target another number; it is always empty for a counter.
+      - `CM-24`: Contestation only sets `contested_at`, with no journal row and no change of customer; the customer then sees the record only among their hidden records, the supplier sees a contested number and is notified; only the customer clears it ('this is me'); the supplier can only correct to another number; a contested invitation is declined.
+      - `C-12`: A reassignment has previous and new person set; the new person has no relationship with the same supplier; the journal is never modified.
+    acceptance: |
+      Scenario: AC-1 Correct a contested record
+        Given a relationship contested by its customer
+        When an OWNER posts another number
+        Then the relationship points to the new person, one journal entry exists, and `contested_at` is empty
+      Scenario: AC-2 Same number refused
+        Given a relationship contested by its customer
+        When an OWNER posts that customer's own number
+        Then the response is 409 `SAME_NUMBER` and nothing changes
+      Scenario: AC-3 Old confirmation field
+        When the body holds `confirm_same_customer`
+        Then the response is 400 `VALIDATION_ERROR`
+    abuse: |
+      Scenario: AB-1 Pushing the debt back on the contester (tampering)
+        Given a relationship contested by its customer
+        When a MANAGER tries the same number with or without any extra field
+        Then the answer is 409 or 400, the mark stays and the record keeps its customer
+    implementation:
+      create: []
+      modify: [src/modules/relationship/relationship.service.ts, src/modules/relationship/relationship.schemas.ts, src/modules/relationship/relationship.repository.ts, src/modules/relationship/relationship.openapi.ts, tests/integration/relationship/correct-number.test.ts]
+      pattern: tests/integration/relationship/default-counter.test.ts
+      signatures:
+        - "correctCustomerNumber(actor: Actor, relationshipId: string, input: CorrectNumberInput): Promise<SupplierRelationshipView>"
+      types:
+        - "CorrectNumberInput = { id: string; phone_number: string; reason?: string }"
+      dependencies: ["zod", "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.1: owner, or manager online, as before."
+      - "v5.0.0-2.3.3: repoint, journal entry, mark clear and scope bumps are one transaction."
+      - "v5.0.0-15.3.3: the strict body no longer lists `confirm_same_customer`."
+    tests: |
+      contested correction | integration | AC-1, C-57, C-12 | another number → repointed, journal entry, mark empty
+      same number | integration | AC-2, CM-24 | own number → 409 SAME_NUMBER
+      old field | integration | AC-3 | confirm_same_customer → 400
+      push back | security | AB-1, CWE-841 | same number → refused, mark kept
+    command: npx vitest run tests/integration/relationship/correct-number.test.ts
+    out_of_scope:
+      - "Clearing the mark without a correction: only the customer can (REL-029)."
+    tests_to_update:
+      - "tests/integration/relationship/correct-number.test.ts | same customer (AC-3 of REL-024): the confirmation flow is gone | own number on a contested record → 409 SAME_NUMBER; confirm_same_customer → 400"
+      - "tests/integration/relationship/correct-number.test.ts | innocent person (AB-1 of REL-024): contestation no longer limited | the moved person can contest, and contest again after taking it back"

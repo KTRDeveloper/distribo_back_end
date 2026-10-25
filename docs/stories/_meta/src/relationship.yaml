@@ -12,11 +12,12 @@ classification:
   - "CustomerRelationship.customer_label, supplier_notes | confidential | supplier party only"
   - "CustomerRelationship.supplier_label | confidential | customer party only"
   - "CustomerRelationship.customer_phone_number | PII | supplier party only until the server resolves the person"
+  - "CustomerRelationship.contested_at | internal | both parties; set and cleared by the customer only"
 threats:
   - "T1 | I | An organization sees relationships it is not a party to | one visibility predicate on every read and write | REL-005 AB-1, REL-008 AB-1"
   - "T2 | I | A party reads the other party's private fields | per-party projections with explicit field lists | REL-005 AB-2, REL-016 AB-2"
   - "T3 | E | A seller or driver grants credit, or a manager grants it to themselves | credit needs OWNER or online MANAGER, never on one's own record | REL-012 AB-1, AB-2"
-  - "T4 | T | A debt moves to another debtor | reassignment only by correction or contestation, journaled and immutable, never to a person with a relation already | REL-023 AB-1, REL-024 AB-1"
+  - "T4 | T | A debt moves to another debtor | reassignment only by a supplier correction, journaled and immutable, never to a person with a relation already; contestation only marks the record | REL-024 AB-1, REL-028 AB-1"
   - "T5 | R | A credit limit changes without a trace | every change writes the immutable journal in the same transaction | REL-004 AB-1"
   - "T6 | S | Guessing numbers to learn who is registered | lookup and invitation limits | REL-020 AB-2"
 constraints:
@@ -25,14 +26,15 @@ constraints:
   C-08: "`status` is PENDING if and only if `supplier_person_id` is set."
   C-09: "`ended_by_party` is set if and only if `status` is ENDED; only that party may reopen the relationship."
   C-10: "`credit_limit` is 0 at creation and always 0 for a counter; `credit_limit_set_by_id` and `credit_limit_set_at` are set together; every change adds one `CreditLimitChange` row in the same transaction."
-  C-12: "A reassignment has previous and new person set; the new person has no relationship with the same supplier; one contestation per relationship and person; the journal is never modified."
+  C-12: "A reassignment has previous and new person set; the new person has no relationship with the same supplier; the journal is never modified."
+  C-57: "`contested_at` is set and cleared by the customer alone, through an online route; a supplier correction clears it and must target another number; it is always empty for a counter."
   C-04: "Author columns (`*_by_id`, `assigned_to_id`, `reporter_id`, `person_id` of an administrator, `to_person_id`) refer to a registered person; `resolved_by_id` and `administrator_id` refer to an Administrator."
   C-32: "Immutable journals are never updated or deleted by the application; only the retention purge removes them."
   C-37: "`CustomerRelationship.balance` and `Collaboration.amount_held` are updated by adding the effect of each operation inside its transaction, always relationship first then collaboration; a nightly check compares each total with the sum of its entries."
   C-39: "The application account has only INSERT and SELECT on the immutable tables."
   CM-03: "`Person.scope_version` is incremented by the server on every rights change."
   CM-19: "`customer_label` and `supplier_notes` are never sent to the customer; `supplier_label` is never sent to the supplier; each party writes only its own fields."
-  CM-24: "Contestation moves the relation to a ghost person holding the number as released number; the supplier confirms 'C'est bien ce client' with a reason to bring it back to the same number, after which the customer can no longer contest; a contested invitation is deleted."
+  CM-24: "Contestation only sets `contested_at`, with no journal row and no change of customer; the customer then sees the record only among their hidden records, the supplier sees a contested number and is notified; only the customer clears it ('this is me'); the supplier can only correct to another number; a contested invitation is declined."
   CM-25: "Supplier invitation: acceptance replaces `supplier_person_id` by `supplier_organization_id` and sets ACTIVE, on behalf of an organization the person manages; refused, cancelled, contested or released-number invitations are deleted."
   C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
   C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
@@ -43,8 +45,8 @@ contracts:
       story: REL-005
       items:
         - "visibleRelationsWhere(viewer: { personId: string; organizationIds: string[] }): Prisma.CustomerRelationshipWhereInput"
-        - "projectForSupplier(row): SupplierRelationshipView — includes customer_label, supplier_notes, credit_limit, balance; never supplier_label"
-        - "projectForCustomer(row): CustomerRelationshipView — includes supplier_label, credit_limit, balance; never customer_label or supplier_notes"
+        - "projectForSupplier(row): SupplierRelationshipView — includes customer_label, supplier_notes, credit_limit, balance, contested_at; never supplier_label"
+        - "projectForCustomer(row): CustomerRelationshipView — includes supplier_label, credit_limit, balance, contested_at; never customer_label or supplier_notes"
         - "projectForDriver(row): DriverRelationshipView — id, customer public name, available_credit only"
       used_by: [catalog, order, finance, delivery, sync]
     - name: RelationshipRepository

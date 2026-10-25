@@ -5,8 +5,8 @@ What this module provides to other modules, and what it consumes from them. A co
 ## Provides
 ### RelationshipVisibility (`src/modules/relationship/relationship.visibility.ts`, created by REL-005)
 - `visibleRelationsWhere(viewer: { personId: string; organizationIds: string[] }): Prisma.CustomerRelationshipWhereInput`
-- `projectForSupplier(row): SupplierRelationshipView`: includes customer_label, supplier_notes, credit_limit, balance; never supplier_label
-- `projectForCustomer(row): CustomerRelationshipView`: includes supplier_label, credit_limit, balance; never customer_label or supplier_notes
+- `projectForSupplier(row): SupplierRelationshipView`: includes customer_label, supplier_notes, credit_limit, balance, contested_at; never supplier_label
+- `projectForCustomer(row): CustomerRelationshipView`: includes supplier_label, credit_limit, balance, contested_at; never customer_label or supplier_notes
 - `projectForDriver(row): DriverRelationshipView`: id, customer public name, available_credit only
 - Used by: `catalog`, `order`, `finance`, `delivery`, `sync`
 ### RelationshipRepository (`src/modules/relationship/relationship.repository.ts`, created by REL-007)
