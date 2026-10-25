@@ -2,6 +2,7 @@ import type { Prisma, Subscription } from '@prisma/client';
 import { v7 as uuidv7 } from 'uuid';
 import { prisma } from '../../lib/db.js';
 import type { ForfaitPurchase, Placement, QueuedPeriod } from './forfait.service.js';
+import type { ExpiredPeriod } from './rights.service.js';
 
 export type PeriodRow = Subscription;
 
@@ -57,6 +58,26 @@ export async function findLastExpired(
     select: { endsAt: true },
   });
   return row?.endsAt ?? null;
+}
+
+/**
+ * Reads the organization's latest ended period for grace, retaining its paid plan.
+ * A newer non-expiry ending suppresses older expiries: upgrades, closure and refunds
+ * must never revive previously paid rights (BIL-013, ASVS 8.2.2).
+ * @param tx The caller's transaction, after taking the subscription lock.
+ * @param organizationId The organization selected by trusted server code.
+ * @returns The latest ending only if it expired naturally, otherwise null.
+ */
+export async function findLastExpiredPeriod(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+): Promise<ExpiredPeriod | null> {
+  const row = await tx.subscription.findFirst({
+    where: { organizationId, status: 'ENDED' },
+    orderBy: [{ endsAt: 'desc' }, { id: 'desc' }],
+    select: { plan: true, endsAt: true, endReason: true },
+  });
+  return row?.endReason === 'EXPIRED' ? { plan: row.plan, endsAt: row.endsAt } : null;
 }
 
 /** Inserts the purchased period using only server-decided placement and status. */

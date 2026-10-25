@@ -434,3 +434,30 @@ BIL-032 done
 - Report Markdown missing: reconstructed from hand-back; agent cites a developer instruction prohibiting report files.
 BIL-011 done
 <!-- end BIL-011 -->
+
+<!-- begin BIL-013 -->
+## BIL-013 — The server computes the rights of a business
+
+- Filed: 2026-10-25 06:38 UTC
+- Status: **done**: 23 rights tests and 4838 full-suite tests pass; typecheck clean; lint 0 errors/205 warnings; dependency audit findings and unavailable scan tools reported.
+- Risk: high · story: [BIL-013-the-server-computes-the-rights-of-a-business.md](../modules/billing/BIL-013-the-server-computes-the-rights-of-a-business.md)
+- Agent: 34,582 tokens, 7 tool uses, 3 min 30 s
+
+### Agent report
+
+**Summary:** Implemented pure rights calculation, tenant-scoped expiry lookup and locked transactional recomputation; BIL-013 marked done.
+**Decisions:**
+- Authorized amendment: expiry includes { plan, endsAt }; existing date-only purchase contract and consumer remain unchanged.
+- Clarified AC-6: all business columns except the five plan fields remain unchanged; explicitly verify automatic serverUpdatedAt advancement.
+- A newer UPGRADED/CLOSED/REFUNDED ending suppresses older expiry grace; running dates, not stale statuses, select the current plan.
+**Tests added beyond the story:**
+- tests/integration/billing/rights.test.ts guards rollback and expiry tenant isolation (ASVS 2.3.3/8.2.2), exact seven-day cutoff, lapsed ACTIVE grace, gaps/future queues, newer non-expiry endings, purchase-read compatibility and enterprise limits; written before implementation, initial run failed on missing module.
+**Evidence:** story tests 23/23; full suite 4838/4838, failing: none, 0 known; typecheck clean; lint 0 errors, 205 warnings; git diff --check clean.
+- Full suite output: /tmp/distribo-next29-20261025-yVuA32/BIL-013-suite.txt.
+**Follow-ups:**
+- Dependency audit: 5 vulnerabilities (3 high, 1 moderate, 1 low), including body-parser and Zod; dependencies unchanged, pinned-package policy preserved.
+- Semgrep and Gitleaks unavailable on PATH; dedicated SAST/secret scans not run. Lint security rules ran.
+- Source: src/modules/billing/rights.service.ts and src/modules/billing/subscription.repository.ts.
+- Missing Markdown report reconstructed from hand-back per agent's developer restriction.
+BIL-013 done
+<!-- end BIL-013 -->

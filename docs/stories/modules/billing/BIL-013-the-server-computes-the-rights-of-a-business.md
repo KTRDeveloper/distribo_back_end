@@ -21,7 +21,8 @@ Technical story: compute the plan, its end, the grace and the limits of a busine
 
 ## Context
 - Exists: the periods and their queue (BIL-011), `PLANS` (FND-014), `writePlanFields` (ORG-035).
-- New `rights.service.ts`. The pure `computeRights(queue, lastExpiredEndsAt, now)` returns `OrganizationRights` (same shape as `PlanFields`); `recomputeRights(tx, organizationId, now)` locks, reads the queue, calls it, writes the result with `writePlanFields` and returns it.
+- New `rights.service.ts`. The pure `computeRights(queue, lastExpiredPeriod, now)` returns `OrganizationRights` (same shape as `PlanFields`); `recomputeRights(tx, organizationId, now)` locks, reads the queue and the last naturally expired period, calls it, writes the result with `writePlanFields` and returns it.
+- `lastExpiredPeriod` includes both the expired plan and its end date, so that grace preserves that plan. Add `findLastExpiredPeriod(tx, organizationId)` to `subscription.repository.ts` for these fields; preserve the existing `findLastExpired` date-only contract and its purchase consumer unchanged.
 - Running period: the one with `starts_at <= now < ends_at`. Its plan is the plan. `plan_ends_at` is the `ends_at` of the last period that follows it without a gap and has the same plan (a lower plan next ends the plan there, with no grace).
 - No running period: if a period ended less than 7 days before `now` by running out (a lapsed ACTIVE one, or ENDED with `end_reason` EXPIRED) and nothing follows, the plan stays, `plan_ends_at` is that `ends_at` and `grace_ends_at` is 7 days later. Periods ended UPGRADED, CLOSED or REFUNDED never give grace. Otherwise FREE with no dates.
 - Limits come from `PLANS[plan]`.
@@ -55,7 +56,8 @@ Scenario Outline: AC-5 After the end
     | PRO, UPGRADED or CLOSED | 2 days  | FREE, no dates                                      |
 Scenario: AC-6 The five columns only
   When rights are recomputed
-  Then the five plan columns hold the result and no other column of the business changes
+  Then the five plan columns hold the result and no other business column changes
+  And the technical serverUpdatedAt timestamp is updated automatically by writePlanFields for synchronization
 ```
 
 ## Abuse cases
@@ -68,12 +70,15 @@ Scenario: AB-1 Another business's periods leak into the rights (information disc
 
 ## Implementation
 - Create: `src/modules/billing/rights.service.ts`, `tests/integration/billing/rights.test.ts`
+- Modify: `src/modules/billing/subscription.repository.ts` (add the organization-scoped expired-period read; preserve the existing purchase contract)
 - Pattern: `tests/integration/organization/amount-held.test.ts`
 - Signatures:
-  - `computeRights(queue: QueuedPeriod[], lastExpiredEndsAt: Date | null, now: Date): OrganizationRights`
+  - `computeRights(queue: QueuedPeriod[], lastExpiredPeriod: ExpiredPeriod | null, now: Date): OrganizationRights`
   - `recomputeRights(tx: Prisma.TransactionClient, organizationId: string, now: Date): Promise<OrganizationRights>`
+  - `findLastExpiredPeriod(tx: Prisma.TransactionClient, organizationId: string): Promise<ExpiredPeriod | null>`
 - Types:
   - `OrganizationRights = PlanFields (ORG-035)`
+  - `ExpiredPeriod = Pick<QueuedPeriod, 'plan' | 'endsAt'>`
 - Dependencies: `@prisma/client`
 
 ## Security
@@ -88,10 +93,15 @@ Scenario: AB-1 Another business's periods leak into the rights (information disc
 | chain | integration | AC-3 | last end |
 | lower next | integration | AC-4 | PRO then ESSENTIAL |
 | after the end | integration | AC-5 | each Examples row → result |
-| five columns | integration | AC-6 | other columns unchanged |
+| five columns | integration | AC-6 | other business columns unchanged; automatic serverUpdatedAt update preserved |
 | other business | security | AB-1, CWE-639 | B is FREE, A untouched |
 
 Command: `npx vitest run tests/integration/billing/rights.test.ts`
+
+## Tests to update
+| file | permitted change |
+|---|---|
+| `tests/integration/billing/rights.test.ts` | In AC-6, assert that the five plan fields have the computed values and every other business column is unchanged; account for and verify the automatic technical `serverUpdatedAt` update required by `writePlanFields`. Preserve all other assertions. |
 
 ## Out of scope
 - Pausing or resuming seats and products: BIL-019 and BIL-020.
