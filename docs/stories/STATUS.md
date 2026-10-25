@@ -333,7 +333,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-032 | done | | 37/37 story tests; suite 4731/4732, random UUID image-copy failure passed on targeted retry (44/44); typecheck clean, lint 0 errors |
 | ORG-043 | done | | 565 story tests and 4734 full-suite tests pass; typecheck clean; lint 0 errors; changed-file security scans clean |
 | ORG-034 | done | | Lifecycle hooks on close/reopen, PAUSED revoked on close |
-| BIL-005 | todo | | |
+| BIL-005 | blocked | | lifecycle-hooks.test.ts 'AC-1 the close hooks run after the old subscription is ended' expects EXPIRED; contradicts the story and is not in Tests to update: add it (delete or rewrite)? |
 | BIL-002 | todo | | |
 | BIL-004 | todo | | |
 | BIL-006 | todo | | |

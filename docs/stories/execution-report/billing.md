@@ -243,3 +243,31 @@ Also in this run: images, catalog, organization, admin, order, delivery, finance
 **Follow-ups:**
 - Limits (10/h per address, 5/h per number) and the terms version are provisional per the story.
 <!-- end BIL-009 -->
+
+<!-- begin BIL-005 -->
+## BIL-005 — The owner can no longer write a subscription
+
+- Filed: 2026-10-25 04:36 UTC
+- Status: **blocked**: lifecycle-hooks.test.ts 'AC-1 the close hooks run after the old subscription is ended' expects EXPIRED; contradicts the story and is not in Tests to update: add it (delete or rewrite)?
+- Risk: medium · story: [BIL-005-the-owner-can-no-longer-write-a-subscription.md](../modules/billing/BIL-005-the-owner-can-no-longer-write-a-subscription.md)
+- Agent: 52,077 tokens, 15 tool uses, 1 min 26 s
+
+### Agent report
+
+**Summary:** Blocked: code and listed tests done, but one unlisted existing test now fails because of the story's own removal.
+
+**Decisions:**
+- Left the work in the tree (not reverted) so the fix is only the test question below.
+
+**Tests added beyond the story:**
+- none
+
+**Other additions:**
+- none
+
+**Evidence:** story command: 550/551 passed (organization, api-docs, per-001); the one failure is tests/integration/organization/lifecycle-hooks.test.ts > close hooks > "AC-1 the close hooks run after the old subscription is ended" (expects subscription EXPIRED when onClose runs). Full suite not run; typecheck clean; lint 0 errors.
+
+**Follow-ups:**
+- Story BIL-005 removes `endActiveSubscription` from closeOrganization, so that lifecycle-hooks test cannot pass, and it is not in "Tests to update" (only close.test.ts is). Question: may it be deleted or rewritten (e.g. assert the hooks run inside the transaction without touching subscriptions)? Amend the story's Tests to update list.
+- Done: routes/service/repository/schemas/openapi removed; subscription-start/end tests deleted; close.test.ts and catalog.test.ts updated; subscription-routes-removed.test.ts created.
+<!-- end BIL-005 -->
