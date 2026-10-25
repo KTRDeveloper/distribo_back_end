@@ -5,6 +5,21 @@ import { prisma } from '../../lib/db.js';
 export type PaymentRow = SubscriptionPayment;
 
 /**
+ * Selects a bounded, oldest-first batch without loading payer data or provider payloads.
+ * @param before Inclusive creation cutoff; only still-PENDING payments are eligible.
+ * @param limit Maximum number of payments to check in this sweep.
+ * @returns Payment ids, unique provider references and creation instants.
+ */
+export function listStalePending(before: Date, limit: number) {
+  return prisma.subscriptionPayment.findMany({
+    where: { status: 'PENDING', createdAt: { lte: before } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    take: limit,
+    select: { id: true, providerReference: true, createdAt: true },
+  });
+}
+
+/**
  * Reads only public status fields and the original RECEIPT, never a refund credit note.
  * A repeatable snapshot prevents a concurrent confirmation from mixing PENDING with its receipt.
  * @param id The payment id held by the payer; no organization id is accepted from the caller.

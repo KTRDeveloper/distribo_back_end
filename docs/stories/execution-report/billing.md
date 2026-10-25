@@ -668,3 +668,35 @@ BIL-014 done
 
 BIL-015 done
 <!-- end BIL-015 -->
+
+<!-- begin BIL-021 -->
+## BIL-021 — Old pending payments are settled with the aggregator
+
+- Filed: 2026-10-25 23:08 UTC
+- Status: **done**: 15 story tests and all 4945 suite tests pass; typecheck clean; lint 0 errors; existing dependency audit findings and unavailable scan tools reported
+- Risk: high · story: [BIL-021-old-pending-payments-are-settled-with-the.md](../modules/billing/BIL-021-old-pending-payments-are-settled-with-the.md)
+- Agent: 27,564 tokens, 35 tool uses, 6 min 15 s
+
+### Agent report
+
+**Summary:** Implemented BIL-021: bounded oldest-first settlement through aggregator-confirmed transactions, anomaly reporting, continued processing after errors, and the runnable job.
+
+**Decisions:**
+- Concurrent `ALREADY_DONE` outcomes count only as checked; payment age warns only when the aggregator still reports PENDING.
+- Exception objects are omitted from logs to avoid leaking provider or payer data; the first unexpected exception is preserved and rethrown.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/settle-payments.test.ts` › exact 15-minute eligibility and strict 24-hour anomaly boundaries: guards inclusive selection and warning-only aging (story context).
+- Same test file › preserves first unexpected error and checks both status/code: guards fail-closed classification (ASVS 16.5.3).
+- Same test file › concurrent sweeps create one period and receipt: guards transactional idempotency (C-53, ASVS 2.3.3).
+
+**Other additions:**
+- No report Markdown file written, following the instruction to deliver reports directly through handback.
+
+**Evidence:** Initial test run failed on the missing service; final story tests 15/15; full suite 4945/4945 across 367 files, failures none, 0 known; typecheck clean; lint 0 errors, 208 warnings; git diff whitespace check clean.
+- Full-suite output: `/tmp/distribo-next25-20261025/BIL-021-suite.txt`.
+
+**Follow-ups:**
+- Dependency audit reports 5 existing vulnerabilities (3 high, 1 moderate, 1 low); no dependencies changed. Semgrep and Gitleaks unavailable, so those scans could not run.
+BIL-021 done
+<!-- end BIL-021 -->
