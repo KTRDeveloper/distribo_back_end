@@ -700,3 +700,35 @@ BIL-015 done
 - Dependency audit reports 5 existing vulnerabilities (3 high, 1 moderate, 1 low); no dependencies changed. Semgrep and Gitleaks unavailable, so those scans could not run.
 BIL-021 done
 <!-- end BIL-021 -->
+
+<!-- begin BIL-022 -->
+## BIL-022 — The nightly check compares payments with the aggregator's statement
+
+- Filed: 2026-10-25 23:15 UTC
+- Status: **done**: 16 story tests and 4961 suite tests pass; typecheck clean; lint 0 errors; pre-existing audit findings and unavailable scanners noted
+- Risk: high · story: [BIL-022-the-nightly-check-compares-payments-with-the.md](../modules/billing/BIL-022-the-nightly-check-compares-payments-with-the.md)
+- Agent: 28,561 tokens, 30 tool uses, 6 min 16 s
+
+### Agent report
+
+**Summary:** BIL-022 implemented: read-only nightly payment reconciliation, ids-only mismatch logs, UTC-day selection, CLI exit codes and package script; status set to done.
+
+**Decisions:**
+- Failed reads propagate; the CLI emits a fixed failure event without provider error payloads and exits 2.
+- Explicit days are validated as real YYYY-MM-DD UTC dates before any provider read.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/reconcile-payments.test.ts` › UTC midnight boundaries: confirmation timestamps select exactly one UTC day (Context).
+- Same test file › unsuccessful statement for confirmed payment: reports plan_without_money (Context).
+- Same test file › failed statement/reference/confirmation reads: rejects instead of reporting clean (ASVS 16.5.3).
+- Same test file › invalid UTC dates: rejects before provider access (boundary validation convention); passed at once.
+- Same test file › repeated reconciliation: payments, organizations, subscriptions, receipts and event ids remain unchanged (AB-1).
+
+**Evidence:** story tests 16/16; full suite 4961/4961 across 368 files, failing: none, 0 known; typecheck clean; lint 0 errors, 209 warnings; git diff --check clean.
+- Full suite output: `/tmp/distribo-next25-20261025/BIL-022-suite.txt`.
+
+**Follow-ups:**
+- Existing dependency audit reports 5 vulnerabilities (3 high, 1 moderate, 1 low); no dependencies changed. Semgrep and Gitleaks executables are unavailable.
+- Report returned here, not written to `/tmp/distribo-next25-20261025/BIL-022-report.md`, following the later instruction prohibiting report files.
+BIL-022 done
+<!-- end BIL-022 -->

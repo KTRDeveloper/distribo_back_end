@@ -4,6 +4,24 @@ import { prisma } from '../../lib/db.js';
 
 export type PaymentRow = SubscriptionPayment;
 
+/** Reads reconciliation fields only, excluding payer data and provider payloads. */
+export function findPaymentsByReferences(references: string[]) {
+  return prisma.subscriptionPayment.findMany({
+    where: { providerReference: { in: references } },
+    select: { id: true, status: true, amount: true, providerReference: true },
+  });
+}
+
+/** Lists successful payments by confirmation time in the half-open UTC day, not creation time. */
+export function listConfirmedOn(day: string) {
+  const start = new Date(`${day}T00:00:00.000Z`);
+  const end = new Date(start.getTime() + 86_400_000);
+  return prisma.subscriptionPayment.findMany({
+    where: { status: 'SUCCEEDED', confirmedAt: { gte: start, lt: end } },
+    select: { id: true, status: true, amount: true, providerReference: true },
+  });
+}
+
 /**
  * Selects a bounded, oldest-first batch without loading payer data or provider payloads.
  * @param before Inclusive creation cutoff; only still-PENDING payments are eligible.
