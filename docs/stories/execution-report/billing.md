@@ -797,3 +797,37 @@ BIL-028 done
 - `/tmp/distribo-next25-20261025/BIL-029-suite.txt` contains full-suite evidence. `/tmp/distribo-next25-20261025/BIL-029-report.md` intentionally unwritten per the latest developer prohibition on Markdown reports; coordinator should file this handback.
 BIL-029 done
 <!-- end BIL-029 -->
+
+<!-- begin BIL-030 -->
+## BIL-030 — The owner swaps a paused product with one on sale
+
+- Filed: 2026-10-25 23:46 UTC
+- Status: **done**: Product swap implemented; 58 targeted and 5012 full-suite tests pass; dependency audit findings reported
+- Risk: medium · story: [BIL-030-the-owner-swaps-a-paused-product-with-one-on.md](../modules/billing/BIL-030-the-owner-swaps-a-paused-product-with-one-on.md)
+- Agent: 53,139 tokens, 53 tool uses, 10 min 34 s
+
+### Agent report
+
+**Summary:** BIL-030 implemented: owner-only product swaps are tenant-scoped, idempotent and transactional, with PAUSED, RESUMED and KEEP_CHOICE events; status is done.
+
+**Decisions:**
+- Added a dedicated owner-product event writer because the existing `insertEvent` handles subscription purchases, not product transitions.
+- Pause before resuming; require each conditional update to change exactly one product, otherwise roll back.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/swap-product.test.ts` › serializes competing swaps so only one resumes the same paused product: guards concurrent exchanges and the product limit (C-46 and ASVS 2.3.3); observed failing before implementation.
+
+**Other additions:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/subscription.repository.ts`: owner-product event writer keeps database calls in the repository and preserves C-55 attribution.
+- Generated OpenAPI artifact updated automatically by documentation tests.
+- Report returned here, not written to `/tmp/distribo-next25-20261025/BIL-030-report.md`, following the final developer instruction prohibiting report files.
+
+**Evidence:** story tests 14/14; targeted tests 58/58; full suite 5012/5012 across 371 files, failing: none, 0 known; typecheck clean; lint 0 errors, 213 warnings; git diff --check clean.
+- TDD evidence: 11 story tests failed on the missing route; both new documentation assertions also failed before implementation.
+- Full-suite output: `/tmp/distribo-next25-20261025/BIL-030-suite.txt`.
+
+**Follow-ups:**
+- Dependency audit reports 5 vulnerabilities (3 high, 1 moderate, 1 low) in unchanged dependencies; versions were not modified. Details: `/tmp/distribo-next25-20261025/BIL-030-audit.txt`.
+- Semgrep and Gitleaks are unavailable locally; those scans remain for CI. No commit created.
+BIL-030 done
+<!-- end BIL-030 -->

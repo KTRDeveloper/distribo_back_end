@@ -10,9 +10,49 @@ import {
   paymentStatusResponseSchema,
   shopParamsOpenApiSchema,
   shopResponseSchema,
+  swapProductBodySchema,
+  swapProductResponseSchema,
   swapSeatBodySchema,
   swapSeatResponseSchema,
 } from './billing.schemas.js';
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/billing/swap-product',
+  tags: ['billing'],
+  summary: 'Swap a paused product with a product on sale (owner only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: keepChoiceParamsSchema,
+    body: { content: { 'application/json': { schema: swapProductBodySchema } } },
+  },
+  responses: {
+    201: {
+      description: 'Products swapped with owner events and a current keep choice',
+      content: { 'application/json': { schema: swapProductResponseSchema } },
+    },
+    400: {
+      description: 'Invalid body, UUID or identical product ids',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Authentication required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'Only the owner may swap products',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Organization outside caller scope or product absent, deleted or foreign',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'PRODUCT_STATE or REQUEST_IN_PROGRESS',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: 'post',

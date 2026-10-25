@@ -3,12 +3,34 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import { idempotent } from '../../middleware/idempotent.js';
-import { keepChoiceBodySchema, keepChoiceParamsSchema, swapSeatBodySchema } from './billing.schemas.js';
+import { keepChoiceBodySchema, keepChoiceParamsSchema, swapProductBodySchema, swapSeatBodySchema } from './billing.schemas.js';
 import { saveKeepChoice } from './keep-choice.service.js';
-import { swapSeat } from './swap.service.js';
+import { swapProduct, swapSeat } from './swap.service.js';
 
 /** Owner-only billing gestures, scoped by the authenticated organization's membership. */
 export const billingOwnerRoutes = Router({ mergeParams: true });
+
+billingOwnerRoutes.post(
+  '/swap-product',
+  authMiddleware,
+  loadActor,
+  requireAbility('keep', 'Product'),
+  (req, _res, next) => {
+    keepChoiceParamsSchema.parse(req.params);
+    req.body = swapProductBodySchema.parse(req.body);
+    next();
+  },
+  idempotent(),
+  async (req, res) => {
+    const input = swapProductBodySchema.parse(req.body);
+    const view = await swapProduct(req.actor!, {
+      id: input.id,
+      pauseProductId: input.pause_product_id,
+      resumeProductId: input.resume_product_id,
+    }, new Date());
+    res.status(201).json(view);
+  },
+);
 
 billingOwnerRoutes.post(
   '/swap-seat',

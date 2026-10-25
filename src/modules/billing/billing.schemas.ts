@@ -44,6 +44,22 @@ export const swapSeatResponseSchema = z.object({
   resumed_collaboration_id: z.string().uuid(),
 }).strict();
 
+/** Strict owner product fields; UUID casing cannot bypass the distinct-product rule. */
+export const swapProductBodySchema = z.object({
+  id: uuidV7Schema,
+  pause_product_id: z.string().uuid(),
+  resume_product_id: z.string().uuid(),
+}).strict().refine(
+  (body) => body.pause_product_id.toLowerCase() !== body.resume_product_id.toLowerCase(),
+  { message: 'Products must be distinct', path: ['resume_product_id'] },
+);
+
+/** Explicit product swap projection, excluding catalog data. */
+export const swapProductResponseSchema = z.object({
+  paused_product_id: z.string().uuid(),
+  resumed_product_id: z.string().uuid(),
+}).strict();
+
 export const keepChoiceResponseSchema = z.object({
   collaboration_ids: z.array(z.string().uuid()).max(100),
   product_ids: z.array(z.string().uuid()).max(100),

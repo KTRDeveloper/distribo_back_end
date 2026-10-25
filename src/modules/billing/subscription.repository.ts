@@ -82,6 +82,32 @@ export async function insertOwnerSeatEvent(
 }
 
 /**
+ * Appends an owner product transition in the swap transaction (C-55, ASVS 2.3.3).
+ * @param tx Transaction holding the subscription lock and both product changes.
+ * @param organizationId Tenant from the authenticated membership.
+ * @param personId Trusted owner; no payer or administrator references are written.
+ * @param productId Tenant-scoped product whose state actually changed.
+ * @param kind Successful transition, not an attempted change.
+ * @param now Effective transition time.
+ */
+export async function insertOwnerProductEvent(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  personId: string,
+  productId: string,
+  kind: 'PAUSED' | 'RESUMED',
+  now: Date,
+): Promise<void> {
+  const details = JSON.stringify({ target: 'PRODUCTS', product_id: productId });
+  await tx.$executeRaw`
+    INSERT INTO subscription_events
+      (id, organization_id, kind, actor, person_id, details, occurred_at)
+    VALUES (${uuidv7()}::uuid, ${organizationId}::uuid,
+            ${kind}::"SubscriptionEventKind", 'OWNER', ${personId}::uuid, ${details}::jsonb, ${now})
+  `;
+}
+
+/**
  * Appends an owner's choice without altering previous choices or current plan rights (BIL-018).
  * C-55: only the authenticated owner's person id is set; no payer or administrator references.
  * @param tx Transaction shared with the tenant-scoped eligibility checks.
