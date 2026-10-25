@@ -394,7 +394,8 @@ customerGestureRoute('/:relationshipId/end', customerEndRelationship);
 customerGestureRoute('/:relationshipId/reopen', customerReopenRelationship);
 
 // POST /api/v1/suppliers/:relationshipId/contest - the customer says "this is not me"; 204. The
-// person comes from the session; 404 outside the caller's scope, 409 on a second contestation.
+// record is only marked (contested_at). The person comes from the session; 404 outside the
+// caller's scope, 409 while the record is already marked.
 supplierRoutes.post(
   '/:relationshipId/contest',
   authMiddleware,

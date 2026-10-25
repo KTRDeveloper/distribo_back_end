@@ -393,7 +393,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | PRIV-004 | todo | | |
 | PRIV-005 | todo | | |
 | REL-027 | done | | contested_at column, counter CHECK, one-contestation index dropped |
-| REL-028 | todo | | |
+| REL-028 | done | | contest marks contested_at; 15 story tests green; 2 REL-024 correct-number tests (ghost flow) fail until REL-031 |
 | REL-029 | todo | | |
 | REL-030 | todo | | |
 | REL-031 | todo | | |

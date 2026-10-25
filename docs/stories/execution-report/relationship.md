@@ -1037,3 +1037,34 @@ REL-026 done
 **Follow-ups:**
 - `relationship.service.ts` still throws ALREADY_CONTESTED in code and moves the relationship on contest; REL-028/REL-029 are meant to replace that.
 <!-- end REL-027 -->
+
+<!-- begin REL-028 -->
+## REL-028 — Contesting marks the record instead of moving it to a ghost person
+
+- Filed: 2026-10-25 04:22 UTC
+- Status: **done**: contest marks contested_at; 15 story tests green; 2 REL-024 correct-number tests (ghost flow) fail until REL-031
+- Risk: high · story: [REL-028-contesting-marks-the-record-instead-of-moving.md](../modules/relationship/REL-028-contesting-marks-the-record-instead-of-moving.md)
+- Agent: 88,403 tokens, 23 tool uses, 4 min 8 s
+
+### Agent report
+
+**Summary:** Contest now only sets `contested_at` under the row lock (409 if set); ghost person, journal row and scope bump removed.
+
+**Decisions:**
+- `hasContested` removal broke `correctCustomerNumber` (REL-024 still called it): I dropped its `CONFIRMATION_REQUIRED` check, since the journal no longer gets contest rows; the schema field `confirm_same_customer` stays until REL-031 removes it.
+- Added `markContested` (conditional update where `contested_at` is null) to the repository; 409 also if it returns false.
+- Removed the now-unused `findActivePhoneNumber`; `insertReassignment`, `repointCustomerPerson` and `bumpScopeVersion` stay (REL-024 uses them).
+
+**Tests added beyond the story:**
+- `contest.test.ts` › two contests at the same time give one 204 and one 409: row lock race (Security, v5.0.0-2.3.3); passed with the lock already in place
+- `contest.test.ts` › stores no reason anywhere: the reason is not persisted (Context, reason never stored)
+
+**Other additions:**
+- OpenAPI 204 description and the schema/route comments updated to the new behavior.
+
+**Evidence:** story tests 15/15; full suite 4739/4742, failing: 2 correct-number (REL-024 ghost flow), 1 quality-gates lint check (a lint error in my test, fixed after; the file passes on rerun); 0 known; typecheck clean; lint 0 errors after the fix
+
+**Follow-ups:**
+- `tests/integration/relationship/correct-number.test.ts` "AC-3 same customer after contestation" and "AB-1 innocent person" fail by design: they rely on the ghost-person flow. REL-031 must update them; I did not touch them (not listed in this story).
+- Until REL-031, a supplier correction no longer asks for confirmation for people with an old (pre-REL-028) contest journal row.
+<!-- end REL-028 -->

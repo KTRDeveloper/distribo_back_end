@@ -13941,7 +13941,7 @@
         },
         "responses": {
           "204": {
-            "description": "Contested; the supplier owner and managers are notified"
+            "description": "Marked as contested (the customer, balance and history do not change); the supplier owner and managers are notified"
           },
           "400": {
             "description": "Invalid body or relationship id",

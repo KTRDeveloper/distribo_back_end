@@ -1,25 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { newId } from '../../../src/shared/ids.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
 import { prisma } from '../../setup.js';
-
-const failure = vi.hoisted(() => ({ journalInsert: false }));
-
-vi.mock('../../../src/modules/relationship/relationship.repository.js', async (importOriginal) => {
-  const original =
-    await importOriginal<
-      typeof import('../../../src/modules/relationship/relationship.repository.js')
-    >();
-  return {
-    ...original,
-    insertReassignment: (...args: Parameters<typeof original.insertReassignment>) => {
-      if (failure.journalInsert) return Promise.reject(new Error('forced journal failure'));
-      return original.insertReassignment(...args);
-    },
-  };
-});
 
 const CALLER = '0199c0c0-0000-7000-8000-000000000101';
 const OTHER = '0199c0c0-0000-7000-8000-000000000102';
@@ -83,7 +67,6 @@ const scope = async (id: string) =>
   (await prisma.person.findUniqueOrThrow({ where: { id } })).scopeVersion;
 
 beforeEach(async () => {
-  failure.journalInsert = false;
   await seedPerson(CALLER, CALLER_PHONE);
   await seedPerson(OTHER, '+237600009502');
   await seedPerson(OWNER, '+237600009503');
@@ -100,59 +83,44 @@ beforeEach(async () => {
 });
 
 describe('POST /api/v1/suppliers/:relationshipId/contest', () => {
-  it('AC-1 moves the relationship to a ghost person and writes one journal row', async () => {
+  it('AC-1 marks the record and keeps the caller as customer, with no ghost and no journal entry', async () => {
     const id = await seedRelationship(CALLER);
+    const people = await prisma.person.count();
+    const before = new Date();
 
     const response = await contest(id, { reason: 'Not my debt' });
 
     expect(response.status).toBe(204);
-    const moved = await row(id);
-    expect(moved.customerPersonId).not.toBe(CALLER);
-    const ghost = await prisma.person.findUniqueOrThrow({ where: { id: moved.customerPersonId! } });
-    expect(ghost.phoneNumber).toBeNull();
-    expect(ghost.releasedPhoneNumber).toBe(CALLER_PHONE);
-    expect(ghost.fullName).toBeNull();
-    expect(ghost.registeredAt).toBeNull();
-    const journal = await prisma.customerRelationshipReassignment.findMany({
-      where: { customerRelationshipId: id },
-    });
-    expect(journal).toHaveLength(1);
-    expect(journal[0]).toMatchObject({
-      previousPersonId: CALLER,
-      newPersonId: ghost.id,
-      reassignedById: CALLER,
-      reason: 'Not my debt',
-    });
-
-    const list = await createAuthenticatedRequest(app, CALLER).get('/api/v1/suppliers');
-    expect(bodyOf<{ items: { id: string }[] }>(list).items.map((item) => item.id)).not.toContain(
-      id
-    );
-    const single = await createAuthenticatedRequest(app, CALLER)
-      .patch(`/api/v1/suppliers/${id}`)
-      .send({ supplier_label: 'x' });
-    expect(single.status).toBe(404);
+    const marked = await row(id);
+    expect(marked.customerPersonId).toBe(CALLER);
+    expect(marked.contestedAt).not.toBeNull();
+    expect(marked.contestedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime() - 1000);
+    expect(await prisma.person.count()).toBe(people);
+    expect(await prisma.customerRelationshipReassignment.count()).toBe(0);
   });
 
-  it('contests an ENDED relationship and stores no reason when none is given', async () => {
+  it('contests an ENDED relationship and stores no reason anywhere', async () => {
     const id = await seedRelationship(CALLER, 'ENDED');
 
-    expect((await contest(id)).status).toBe(204);
+    expect((await contest(id, { reason: 'secret-reason-text' })).status).toBe(204);
 
-    const journal = await prisma.customerRelationshipReassignment.findFirstOrThrow({
-      where: { customerRelationshipId: id },
-    });
-    expect(journal.reason).toBeNull();
-    expect((await row(id)).customerPersonId).toBe(journal.newPersonId);
+    const marked = await row(id);
+    expect(marked.contestedAt).not.toBeNull();
+    expect(JSON.stringify({ ...marked, balance: 0, creditLimit: 0 })).not.toContain(
+      'secret-reason-text'
+    );
+    expect(JSON.stringify(await prisma.notification.findMany())).not.toContain(
+      'secret-reason-text'
+    );
   });
 
-  it('AC-2 bumps the caller scope version and notifies the owner and managers only', async () => {
+  it('AC-2 leaves the caller scope version alone and notifies the owner and managers only', async () => {
     const id = await seedRelationship(CALLER);
     const before = await scope(CALLER);
 
     expect((await contest(id)).status).toBe(204);
 
-    expect(await scope(CALLER)).toBe(before + 1);
+    expect(await scope(CALLER)).toBe(before);
     const notices = await prisma.notification.findMany({
       where: { sourceEvent: 'relationship.contested' },
     });
@@ -161,7 +129,7 @@ describe('POST /api/v1/suppliers/:relationshipId/contest', () => {
     expect(notices.every((notice) => notice.organizationId === ORG)).toBe(true);
   });
 
-  it('AC-3 keeps balance, orders and ledger entries on the same relationship', async () => {
+  it('keeps balance, orders and ledger entries on the same relationship', async () => {
     const id = await seedRelationship(CALLER);
     const orderId = newId();
     await prisma.order.create({
@@ -196,26 +164,21 @@ describe('POST /api/v1/suppliers/:relationshipId/contest', () => {
     expect(await prisma.ledgerEntry.count({ where: { customerRelationshipId: id } })).toBe(1);
   });
 
-  it('AC-4 answers 409 ALREADY_CONTESTED on a second contestation and changes nothing', async () => {
+  it('AC-3 answers 409 ALREADY_CONTESTED while the mark is set and changes nothing', async () => {
     const id = await seedRelationship(CALLER);
     expect((await contest(id)).status).toBe(204);
-    // the supplier brings it back to the same number (REL-024 is not built: simulate it)
-    await prisma.customerRelationship.update({ where: { id }, data: { customerPersonId: CALLER } });
-    const before = await scope(CALLER);
-    const people = await prisma.person.count();
+    const marked = (await row(id)).contestedAt;
 
     const second = await contest(id);
 
     expect(second.status).toBe(409);
     expect(bodyOf<ErrorBody>(second).error.code).toBe('ALREADY_CONTESTED');
+    expect((await row(id)).contestedAt).toEqual(marked);
     expect((await row(id)).customerPersonId).toBe(CALLER);
-    expect(await prisma.customerRelationshipReassignment.count()).toBe(1);
-    expect(await prisma.person.count()).toBe(people);
-    expect(await scope(CALLER)).toBe(before);
     expect(await prisma.notification.count()).toBe(2);
   });
 
-  it('AC-4 answers 404 for the relationship of another person and changes nothing', async () => {
+  it('AC-3 answers 404 for the relationship of another person and changes nothing', async () => {
     const id = await seedRelationship(OTHER);
 
     const response = await contest(id);
@@ -223,11 +186,11 @@ describe('POST /api/v1/suppliers/:relationshipId/contest', () => {
     expect(response.status).toBe(404);
     expect(bodyOf<ErrorBody>(response).error.code).toBe('NOT_FOUND');
     expect((await row(id)).customerPersonId).toBe(OTHER);
-    expect(await prisma.customerRelationshipReassignment.count()).toBe(0);
+    expect((await row(id)).contestedAt).toBeNull();
     expect(await scope(CALLER)).toBe(0);
   });
 
-  it('AC-4 answers 404 for a PENDING invitation and for an absent id', async () => {
+  it('AC-3 answers 404 for a PENDING invitation and for an absent id', async () => {
     const id = newId();
     await prisma.customerRelationship.create({
       data: {
@@ -247,7 +210,28 @@ describe('POST /api/v1/suppliers/:relationshipId/contest', () => {
     expect(pending.status).toBe(404);
     expect(absent.status).toBe(404);
     expect((await row(id)).customerPersonId).toBe(CALLER);
-    expect(await prisma.customerRelationshipReassignment.count()).toBe(0);
+    expect((await row(id)).contestedAt).toBeNull();
+  });
+
+  it('AC-4 contests again with a new gesture id once the mark was cleared', async () => {
+    const id = await seedRelationship(CALLER);
+    expect((await contest(id)).status).toBe(204);
+    // "this is me" (REL-029) is not built yet: simulate it by clearing the mark
+    await prisma.customerRelationship.update({ where: { id }, data: { contestedAt: null } });
+
+    const again = await contest(id);
+
+    expect(again.status).toBe(204);
+    expect((await row(id)).contestedAt).not.toBeNull();
+  });
+
+  it('gives one 204 and one 409 when two contests run at the same time', async () => {
+    const id = await seedRelationship(CALLER);
+
+    const [first, second] = await Promise.all([contest(id), contest(id)]);
+
+    expect([first.status, second.status].sort()).toEqual([204, 409]);
+    expect(await prisma.notification.count()).toBe(2);
   });
 
   it('answers 404 for a relationship where the caller is only the supplier person', async () => {
@@ -281,6 +265,7 @@ describe('POST /api/v1/suppliers/:relationshipId/contest', () => {
     expect(long.status).toBe(400);
     expect(badId.status).toBe(400);
     expect((await row(id)).customerPersonId).toBe(CALLER);
+    expect((await row(id)).contestedAt).toBeNull();
   });
 
   it('requires authentication', async () => {
@@ -294,21 +279,6 @@ describe('POST /api/v1/suppliers/:relationshipId/contest', () => {
     expect(response.status).toBe(401);
   });
 
-  it('AC-5 leaves no ghost person and the relationship unchanged when the journal insert fails', async () => {
-    const id = await seedRelationship(CALLER);
-    const people = await prisma.person.count();
-    const before = await scope(CALLER);
-    failure.journalInsert = true;
-
-    const response = await contest(id);
-
-    expect(response.status).toBe(500);
-    expect(await prisma.person.count()).toBe(people);
-    expect((await row(id)).customerPersonId).toBe(CALLER);
-    expect(await scope(CALLER)).toBe(before);
-    expect(await prisma.notification.count()).toBe(0);
-  });
-
   it('replays the first response when the same gesture id is sent again', async () => {
     const id = await seedRelationship(CALLER);
     const gesture = newId();
@@ -318,21 +288,25 @@ describe('POST /api/v1/suppliers/:relationshipId/contest', () => {
 
     expect(first.status).toBe(204);
     expect(again.status).toBe(204);
-    expect(await prisma.customerRelationshipReassignment.count()).toBe(1);
+    expect(await prisma.notification.count()).toBe(2);
   });
 });
 
 describe('security', () => {
-  it('AB-1 refuses the second contestation after the supplier restored the number', async () => {
+  it('AB-1 keeps the debt on the same relationship, visible to the supplier', async () => {
     const id = await seedRelationship(CALLER);
-    expect((await contest(id)).status).toBe(204);
-    await prisma.customerRelationship.update({ where: { id }, data: { customerPersonId: CALLER } });
+    await prisma.customerRelationship.update({ where: { id }, data: { balance: 7000n } });
 
-    const second = await contest(id, { reason: 'again' });
+    expect((await contest(id, { reason: 'again' })).status).toBe(204);
 
-    expect(second.status).toBe(409);
-    expect(bodyOf<ErrorBody>(second).error.code).toBe('ALREADY_CONTESTED');
-    expect((await row(id)).customerPersonId).toBe(CALLER);
+    const marked = await row(id);
+    expect(marked.balance).toBe(7000n);
+    expect(marked.customerPersonId).toBe(CALLER);
+    const supplierView = await createAuthenticatedRequest(app, OWNER).get(
+      `/api/v1/organizations/${ORG}/customers/${id}`
+    );
+    expect(supplierView.status).toBe(200);
+    expect(bodyOf<{ balance: number }>(supplierView).balance).toBe(7000);
   });
 
   it('AB-2 answers 404 when person A contests a relationship of person B', async () => {
@@ -342,6 +316,6 @@ describe('security', () => {
 
     expect(response.status).toBe(404);
     expect((await row(id)).customerPersonId).toBe(OTHER);
-    expect(await prisma.person.count({ where: { phoneNumber: null } })).toBe(0);
+    expect((await row(id)).contestedAt).toBeNull();
   });
 });

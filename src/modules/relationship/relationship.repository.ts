@@ -900,54 +900,21 @@ export async function deleteInvitationRow(
 }
 
 /**
- * Tells whether the person already contested this relationship: a journal row where the person is
- * both the previous person and the author (C-12, one contestation per relationship and person).
- */
-export async function hasContested(
-  tx: Prisma.TransactionClient,
-  relationshipId: string,
-  personId: string
-): Promise<boolean> {
-  const found = await tx.customerRelationshipReassignment.findFirst({
-    where: {
-      customerRelationshipId: relationshipId,
-      previousPersonId: personId,
-      reassignedById: personId,
-    },
-    select: { id: true },
-  });
-  return found !== null;
-}
-
-/** Reads the active phone number of a person, or null when the person holds none. */
-export async function findActivePhoneNumber(
-  tx: Prisma.TransactionClient,
-  personId: string
-): Promise<string | null> {
-  const person = await tx.person.findUnique({
-    where: { id: personId },
-    select: { phoneNumber: true },
-  });
-  return person?.phoneNumber ?? null;
-}
-
-/**
- * Creates a ghost person: no name, no active number, not registered, holding `releasedPhoneNumber`
- * as its released number (C-02: exactly one of the two numbers is set).
+ * Sets `contested_at` on a locked relationship in one conditional update, so the mark is written
+ * only if it is still empty (ASVS v5.0.0-2.3.3). Nothing else on the row changes.
  *
- * @param tx - Transaction client of the caller.
- * @param releasedPhoneNumber - The contesting person's active number.
- * @returns The id of the new person.
+ * @returns True when the mark was set, false when it was already set.
  */
-export async function insertGhostPerson(
+export async function markContested(
   tx: Prisma.TransactionClient,
-  releasedPhoneNumber: string
-): Promise<string> {
-  const person = await tx.person.create({
-    data: { id: newId(), releasedPhoneNumber },
-    select: { id: true },
+  id: string,
+  at: Date
+): Promise<boolean> {
+  const { count } = await tx.customerRelationship.updateMany({
+    where: { id, contestedAt: null },
+    data: { contestedAt: at },
   });
-  return person.id;
+  return count === 1;
 }
 
 /**

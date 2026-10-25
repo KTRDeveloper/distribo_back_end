@@ -701,7 +701,10 @@ openApiRegistry.registerPath({
     body: { content: { 'application/json': { schema: contestSchema } } },
   },
   responses: {
-    204: { description: 'Contested; the supplier owner and managers are notified' },
+    204: {
+      description:
+        'Marked as contested (the customer, balance and history do not change); the supplier owner and managers are notified',
+    },
     400: { description: 'Invalid body or relationship id', content: errorContent },
     401: { description: 'Missing or invalid token', content: errorContent },
     404: {

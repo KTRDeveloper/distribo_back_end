@@ -43,10 +43,7 @@ import {
   findSupplierRelationship,
   findSupplierRelationshipLocked,
   findWithParties,
-  findActivePhoneNumber,
   findWithSupplier,
-  hasContested,
-  insertGhostPerson,
   insertInvitation,
   insertReassignment,
   listOwnerAndManagerIds,
@@ -58,6 +55,7 @@ import {
   listOrganizationSuppliers,
   listSupplierRelationships,
   liveRelationshipExists,
+  markContested,
   lockOrganization,
   managesOrganization,
   transitionRelationship,
@@ -1115,60 +1113,38 @@ const CONTESTED_CONTENT = {
 } as const;
 
 /**
- * A customer says "this is not me" about a relationship (CM-24, C-12): a ghost person holding the
- * caller's number as released number becomes the customer, one journal row records it, the
- * caller's `scope_version` is bumped (CM-03) and the supplier's owner and managers are notified
- * `relationship.contested`. Balance, orders and ledger entries stay on the same relationship.
+ * A customer says "this is not me" about a relationship (CM-24, C-57): the record is only marked
+ * (`contested_at` is set to the server time). The customer, the balance and the history do not
+ * change, no ghost person and no journal row are created and the caller's `scope_version` is not
+ * bumped; the supplier's owner and managers are notified `relationship.contested`.
  *
  * The relationship is selected by id and the caller as customer person (404 otherwise, v5.0.0-8.2.2);
  * only ACTIVE and ENDED rows can be contested, a PENDING invitation answers 404 (decline it
- * instead). A second contestation by the same person answers 409 `ALREADY_CONTESTED`, even after
- * the supplier restored the number. Everything runs in one transaction under a row lock
- * (v5.0.0-2.3.3), so a failure leaves no ghost behind.
+ * instead). While the mark is set, a new contestation answers 409 `ALREADY_CONTESTED`. The check
+ * and the mark run in one transaction under a row lock (v5.0.0-2.3.3), so two concurrent contests
+ * give one 204 and one 409. The reason is validated at the boundary but neither stored nor logged.
  *
  * @param personId - Caller's person id from the session.
  * @param relationshipId - Validated relationship id from the path.
- * @param input - Validated body: the gesture id (read by the idempotency guard) and the reason.
+ * @param _input - Validated body: the gesture id (read by the idempotency guard) and the reason.
  * @throws 404 `NOT_FOUND`; 409 `ALREADY_CONTESTED`.
  */
 export function contestRelationship(
   personId: string,
   relationshipId: string,
-  input: ContestInput
+  _input: ContestInput
 ): Promise<void> {
   return runInTransaction(async (tx) => {
     const row = await findCustomerRelationshipLocked(tx, personId, relationshipId);
     if (!row || row.status === 'PENDING') throw httpError(404, 'NOT_FOUND', 'Supplier not found');
 
-    if (await hasContested(tx, row.id, personId)) {
+    if (row.contestedAt !== null || !(await markContested(tx, row.id, new Date()))) {
       logger.warn(
         { event: 'relationship_contest_refused', relationshipId: row.id, personId },
-        'Relationship already contested by this person'
+        'Relationship already contested'
       );
       throw httpError(409, 'ALREADY_CONTESTED', 'This relationship was already contested');
     }
-
-    const phoneNumber = await findActivePhoneNumber(tx, personId);
-    if (phoneNumber === null) throw new Error('Contesting person holds no active number');
-
-    const ghostId = await insertGhostPerson(tx, phoneNumber);
-    if (
-      (await repointCustomerPerson(tx, {
-        id: row.id,
-        fromPersonId: personId,
-        toPersonId: ghostId,
-      })) !== 'moved'
-    ) {
-      throw httpError(404, 'NOT_FOUND', 'Supplier not found');
-    }
-    await insertReassignment(tx, {
-      relationshipId: row.id,
-      previousPersonId: personId,
-      newPersonId: ghostId,
-      reassignedById: personId,
-      reason: input.reason ?? null,
-    });
-    await bumpScopeVersion(personId, tx);
 
     if (row.supplierOrganizationId !== null) {
       for (const recipientId of await listOwnerAndManagerIds(tx, row.supplierOrganizationId)) {
@@ -1254,16 +1230,6 @@ export async function correctCustomerNumber(
       })
     ) {
       taken();
-    }
-    if (
-      (await hasContested(tx, row.id, target.id)) &&
-      (input.confirm_same_customer !== true || input.reason === undefined)
-    ) {
-      throw httpError(
-        409,
-        'CONFIRMATION_REQUIRED',
-        'This person contested the relationship: confirm it is the same customer with a reason'
-      );
     }
 
     const moved = await repointCustomerPerson(tx, {
