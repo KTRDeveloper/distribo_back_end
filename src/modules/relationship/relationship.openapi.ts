@@ -266,7 +266,7 @@ openApiRegistry.registerPath({
     },
     409: {
       description:
-        'RELATIONSHIP_EXISTS, CONFIRMATION_REQUIRED, NOT_A_PERSON_CUSTOMER or conflicting gesture id',
+        'RELATIONSHIP_EXISTS, SAME_NUMBER (contested record), NOT_A_PERSON_CUSTOMER or conflicting gesture id',
       content: errorContent,
     },
   },

@@ -396,5 +396,5 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-028 | done | | contest marks contested_at; 15 story tests green; 2 REL-024 correct-number tests (ghost flow) fail until REL-031 |
 | REL-029 | done | | uncontest route clears contested_at; 7 story tests green; 2 REL-024 correct-number failures remain until REL-031 |
 | REL-030 | done | | contested_at in supplier and customer views; GET /suppliers contested filter; 46 tests green; 2 correct-number failures until REL-031 |
-| REL-031 | todo | | |
+| REL-031 | done | | contested correction clears mark, SAME_NUMBER, confirm_same_customer removed |
 | SYNC-044 | todo | | |

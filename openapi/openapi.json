@@ -9695,9 +9695,6 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 2000
-                  },
-                  "confirm_same_customer": {
-                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -9924,7 +9921,7 @@
             }
           },
           "409": {
-            "description": "RELATIONSHIP_EXISTS, CONFIRMATION_REQUIRED, NOT_A_PERSON_CUSTOMER or conflicting gesture id",
+            "description": "RELATIONSHIP_EXISTS, SAME_NUMBER (contested record), NOT_A_PERSON_CUSTOMER or conflicting gesture id",
             "content": {
               "application/json": {
                 "schema": {

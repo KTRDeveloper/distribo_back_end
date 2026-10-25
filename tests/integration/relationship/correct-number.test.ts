@@ -204,37 +204,82 @@ describe('POST /api/v1/organizations/:organizationId/customers/:relationshipId/c
     expect(bodyOf<ErrorBody>(response).error.code).toBe('RELATIONSHIP_EXISTS');
   });
 
-  describe('AC-3 same customer after contestation', () => {
-    it('needs confirmation and a reason, then the customer cannot contest again', async () => {
+  describe('contested record', () => {
+    it('AC-1 another number: repointed, one journal entry, mark cleared', async () => {
+      const id = await seedRelationship({ customerPersonId: TAKEN, balance: 4000n });
+      expect((await contest(id, TAKEN)).status).toBe(204);
+      expect((await row(id)).contestedAt).not.toBeNull();
+
+      const response = await correct(id, { phone_number: RIGHT_PHONE, reason: 'Wrong person' });
+
+      expect(response.status).toBe(200);
+      expect(await row(id)).toMatchObject({
+        customerPersonId: RIGHT,
+        contestedAt: null,
+        balance: 4000n,
+      });
+      expect(await journal(id)).toHaveLength(1);
+    });
+
+    it('AC-2 the contester own number: 409 SAME_NUMBER and nothing changes', async () => {
       const id = await seedRelationship({ customerPersonId: TAKEN });
       expect((await contest(id, TAKEN)).status).toBe(204);
-      const ghost = (await row(id)).customerPersonId;
+      const before = await row(id);
+      const scopeBefore = await scope(TAKEN);
 
-      const bare = await correct(id, { phone_number: TAKEN_PHONE });
-      expect(bare.status).toBe(409);
-      expect(bodyOf<ErrorBody>(bare).error.code).toBe('CONFIRMATION_REQUIRED');
-      const noReason = await correct(id, {
-        phone_number: TAKEN_PHONE,
+      const response = await correct(id, { phone_number: TAKEN_PHONE, reason: 'It is them' });
+
+      expect(response.status).toBe(409);
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('SAME_NUMBER');
+      expect(await row(id)).toEqual(before);
+      expect(await journal(id)).toHaveLength(0);
+      expect(await scope(TAKEN)).toBe(scopeBefore);
+    });
+
+    it('AC-3 the old confirm_same_customer field: 400 VALIDATION_ERROR', async () => {
+      const id = await seedRelationship({ customerPersonId: TAKEN });
+      expect((await contest(id, TAKEN)).status).toBe(204);
+
+      const response = await correct(id, {
+        phone_number: RIGHT_PHONE,
         confirm_same_customer: true,
       });
-      expect(noReason.status).toBe(409);
-      expect(bodyOf<ErrorBody>(noReason).error.code).toBe('CONFIRMATION_REQUIRED');
-      const noConfirm = await correct(id, { phone_number: TAKEN_PHONE, reason: 'It is them' });
-      expect(noConfirm.status).toBe(409);
-      expect((await row(id)).customerPersonId).toBe(ghost);
 
-      const confirmed = await correct(id, {
-        phone_number: TAKEN_PHONE,
-        confirm_same_customer: true,
-        reason: "C'est bien ce client",
-      });
-
-      expect(confirmed.status).toBe(200);
+      expect(response.status).toBe(400);
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('VALIDATION_ERROR');
       expect((await row(id)).customerPersonId).toBe(TAKEN);
-      expect(await journal(id)).toHaveLength(2);
-      const again = await contest(id, TAKEN);
-      expect(again.status).toBe(409);
-      expect(bodyOf<ErrorBody>(again).error.code).toBe('ALREADY_CONTESTED');
+      expect((await row(id)).contestedAt).not.toBeNull();
+    });
+
+    it('AB-1 a MANAGER pushing the debt back: refused, mark and customer kept', async () => {
+      const id = await seedRelationship({ customerPersonId: TAKEN });
+      expect((await contest(id, TAKEN)).status).toBe(204);
+
+      const bare = await correct(id, { phone_number: TAKEN_PHONE }, MANAGER);
+      const extra = await correct(
+        id,
+        { phone_number: TAKEN_PHONE, confirm_same_customer: true, reason: 'Same' },
+        MANAGER
+      );
+
+      expect(bare.status).toBe(409);
+      expect(bodyOf<ErrorBody>(bare).error.code).toBe('SAME_NUMBER');
+      expect(extra.status).toBe(400);
+      expect(await row(id)).toMatchObject({ customerPersonId: TAKEN });
+      expect((await row(id)).contestedAt).not.toBeNull();
+      expect(await journal(id)).toHaveLength(0);
+    });
+
+    it('a target with a live relationship stays refused and the mark stays', async () => {
+      const id = await seedRelationship({ customerPersonId: TAKEN });
+      await seedRelationship({ customerPersonId: RIGHT });
+      expect((await contest(id, TAKEN)).status).toBe(204);
+
+      const response = await correct(id, { phone_number: RIGHT_PHONE });
+
+      expect(response.status).toBe(409);
+      expect(bodyOf<ErrorBody>(response).error.code).toBe('RELATIONSHIP_EXISTS');
+      expect((await row(id)).contestedAt).not.toBeNull();
     });
   });
 
@@ -293,7 +338,7 @@ describe('POST /api/v1/organizations/:organizationId/customers/:relationshipId/c
       ['an unknown field', { phone_number: RIGHT_PHONE, customer_person_id: RIGHT }],
       ['no phone number', {}],
       ['a malformed phone number', { phone_number: 'abc' }],
-      ['a non-boolean confirmation', { phone_number: RIGHT_PHONE, confirm_same_customer: 'yes' }],
+      ['the removed confirmation field', { phone_number: RIGHT_PHONE, confirm_same_customer: true }],
     ])('%s: 400 VALIDATION_ERROR', async (_name, body) => {
       const id = await seedRelationship({ customerPersonId: WRONG });
 
@@ -327,7 +372,7 @@ describe('POST /api/v1/organizations/:organizationId/customers/:relationshipId/c
     expect(await prisma.notification.count()).toBe(0);
   });
 
-  it('AB-1 innocent person: the journal names the author and the moved person can contest once', async () => {
+  it('AB-1 innocent person: the journal names the author; the moved person can contest, take it back and contest again', async () => {
     const id = await seedRelationship({ customerPersonId: WRONG, balance: 90000n });
 
     expect((await correct(id, { phone_number: RIGHT_PHONE })).status).toBe(200);
@@ -336,15 +381,12 @@ describe('POST /api/v1/organizations/:organizationId/customers/:relationshipId/c
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ newPersonId: RIGHT, reassignedById: OWNER });
     expect((await contest(id, RIGHT)).status).toBe(204);
-    const restored = await correct(id, {
-      phone_number: RIGHT_PHONE,
-      confirm_same_customer: true,
-      reason: 'Confirmed',
-    });
-    expect(restored.status).toBe(200);
-    const second = await contest(id, RIGHT);
-    expect(second.status).toBe(409);
-    expect(bodyOf<ErrorBody>(second).error.code).toBe('ALREADY_CONTESTED');
+    const takenBack = await createAuthenticatedRequest(app, RIGHT)
+      .post(`/api/v1/suppliers/${id}/uncontest`)
+      .send({ id: newId() });
+    expect(takenBack.status).toBe(204);
+    expect((await contest(id, RIGHT)).status).toBe(204);
     expect((await row(id)).balance).toBe(90000n);
+    expect((await row(id)).customerPersonId).toBe(RIGHT);
   });
 });

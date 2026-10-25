@@ -1122,3 +1122,32 @@ REL-026 done
 **Follow-ups:**
 - Baseline failures file was empty although the 2 correct-number failures already existed (STATUS REL-028/029 notes say they wait for REL-031).
 <!-- end REL-030 -->
+
+<!-- begin REL-031 -->
+## REL-031 — A correction on a contested record targets another number and clears the mark
+
+- Filed: 2026-10-25 04:31 UTC
+- Status: **done**: contested correction clears mark, SAME_NUMBER, confirm_same_customer removed
+- Risk: high · story: [REL-031-a-correction-on-a-contested-record-targets.md](../modules/relationship/REL-031-a-correction-on-a-contested-record-targets.md)
+- Agent: 39,374 tokens, 13 tool uses, 2 min 14 s
+
+### Agent report
+
+**Summary:** Contested correction now needs another number (409 SAME_NUMBER otherwise), clears contested_at in the same transaction; confirm_same_customer removed.
+
+**Decisions:**
+- SAME_NUMBER check runs before RELATIONSHIP_EXISTS and only when contested_at is set; an uncontested same number still answers RELATIONSHIP_EXISTS (unchanged REL-024 test).
+- Mark cleared with the existing `clearContested` after the journal insert, so no repository change was needed.
+- Regenerated openapi/openapi.json (it listed the removed field).
+
+**Tests added beyond the story:**
+- `correct-number.test.ts` › a target with a live relationship stays refused and the mark stays: failed correction leaves the mark (fail closed, C-57); passed at once
+
+**Other additions:**
+- Warn log `same_number_refused` (ids only) on the refusal: security event per Logging convention.
+
+**Evidence:** story tests 22/22; full suite 4764/4764, failing: none, 0 known; typecheck clean; lint 0 errors, 202 warnings
+
+**Follow-ups:**
+- Old tests AC-3/AB-1 of REL-024 were rewritten as the story's "Tests to update" allows.
+<!-- end REL-031 -->

@@ -1220,18 +1220,19 @@ const CORRECT_NUMBER_CONTEXT = { onServer: false, online: true, daysSinceSync: 0
  * v5.0.0-8.2.2) and checks, in order: the caller's own record (403 `OWN_RECORD`: below OWNER, the
  * caller is the customer person or manages the customer organization), a person customer (409
  * `NOT_A_PERSON_CUSTOMER`), the target having no live relationship with this supplier (409
- * `RELATIONSHIP_EXISTS`, also when the number is already the customer's) and, when the target
- * contested this relationship, `confirm_same_customer` with a `reason` (409
- * `CONFIRMATION_REQUIRED`). It then repoints the customer, appends one journal row authored by the
- * caller, bumps the scope version of both persons (CM-03) and notifies a registered target
- * `customer.added`. The moved person may contest once (AB-1), so the journal names who moved it.
+ * `RELATIONSHIP_EXISTS`, also when the number is already the customer's). On a contested record
+ * (`contested_at` set, C-57, CM-24) the customer's own number answers 409 `SAME_NUMBER` before
+ * that check: only the customer can clear the mark, the supplier must target another number. It
+ * then repoints the customer, appends one journal row authored by the caller, clears
+ * `contested_at`, bumps the scope version of both persons (CM-03) and notifies a registered target
+ * `customer.added`. The journal names who moved the record.
  *
  * @param actor - Actor loaded from the path; organization, caller and role never come from the body.
  * @param relationshipId - Validated relationship id from the path.
- * @param input - Validated body: gesture id, the right number, optional reason and confirmation.
+ * @param input - Validated body: gesture id, the right number and an optional reason.
  * @returns The supplier view of the relationship with its new customer.
  * @throws 403 `FORBIDDEN` or `OWN_RECORD`; 404 `NOT_FOUND`; 409 `NOT_A_PERSON_CUSTOMER`,
- * `RELATIONSHIP_EXISTS`, `CONFIRMATION_REQUIRED` or `ORGANIZATION_NOT_ACTIVE`.
+ * `RELATIONSHIP_EXISTS`, `SAME_NUMBER` or `ORGANIZATION_NOT_ACTIVE`.
  */
 export async function correctCustomerNumber(
   actor: Actor,
@@ -1259,6 +1260,13 @@ export async function correctCustomerNumber(
     }
 
     const target = await findOrCreateByPhone(input.phone_number, tx);
+    if (row.contestedAt !== null && target.id === previousPersonId) {
+      logger.warn(
+        { event: 'same_number_refused', relationshipId: row.id, personId: actor.personId },
+        'Same number refused on a contested relationship'
+      );
+      throw httpError(409, 'SAME_NUMBER', 'A contested record must be corrected to another number');
+    }
     const taken = (): never => {
       throw httpError(409, 'RELATIONSHIP_EXISTS', 'This number already has a relationship');
     };
@@ -1286,6 +1294,9 @@ export async function correctCustomerNumber(
       reassignedById: actor.personId,
       reason: input.reason ?? null,
     });
+    if (row.contestedAt !== null && !(await clearContested(tx, row.id))) {
+      throw httpError(409, 'NOT_CONTESTED', 'This relationship is not contested');
+    }
     await bumpScopeVersion(previousPersonId, tx);
     await bumpScopeVersion(target.id, tx);
 

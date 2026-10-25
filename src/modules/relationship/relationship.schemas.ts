@@ -199,8 +199,8 @@ export type UncontestInput = z.infer<typeof uncontestSchema>;
 
 /**
  * Strict body of the correct-number gesture: the gesture id, the right number (E.164, landlines
- * refused), an optional reason and the confirmation that the supplier means the same customer who
- * contested (ASVS v5.0.0-15.3.3). The previous person, the journal columns and the author are set by
+ * refused) and an optional reason (ASVS v5.0.0-15.3.3). `confirm_same_customer` is gone: it is an
+ * unknown key, so a supplier cannot confirm a contested number. The previous person, the journal columns and the author are set by
  * the server and rejected as unknown keys (CWE-915).
  */
 export const correctNumberSchema = z
@@ -208,7 +208,6 @@ export const correctNumberSchema = z
     id: uuidV7Schema,
     phone_number: phoneNumberSchema,
     reason: z.string().trim().min(1).max(TEXT_MAX).optional(),
-    confirm_same_customer: z.boolean().optional(),
   })
   .strict();
 
