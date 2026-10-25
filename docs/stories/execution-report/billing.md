@@ -535,3 +535,36 @@ BIL-013 done
 - Report delivered inline, not written to `/tmp/distribo-next25-20261025/BIL-019-report.md`, following the explicit instruction not to write report Markdown files.
 BIL-019 done
 <!-- end BIL-019 -->
+
+<!-- begin BIL-020 -->
+## BIL-020 — Products beyond the plan are paused and come back when it allows
+
+- Filed: 2026-10-25 22:37 UTC
+- Status: **done**: 28 story/dependency tests and 4891 full-suite tests pass; typecheck clean; lint 0 errors; existing dependency advisories and unavailable scan tools noted
+- Risk: high · story: [BIL-020-products-beyond-the-plan-are-paused-and-come.md](../modules/billing/BIL-020-products-beyond-the-plan-are-paused-and-come.md)
+- Agent: 46,533 tokens, 37 tool uses, 7 min 35 s
+
+### Agent report
+
+**Summary:** BIL-020 implemented and marked done: transactional seat/product enforcement, demand ranking, owner choices, aggregated SYSTEM events and localized count-only notices.
+
+**Decisions:**
+- Added a dedicated billing repository rather than putting Prisma writes in the service, preserving the repository-only database convention.
+- Reused the seat enforcer's transaction-scoped subscription lock to serialize product enforcement; missing active owner aborts and rolls back changes.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/limits.test.ts` › variant demand sum, exact 90-day boundary, id tie-break and zero limit: ranking/C-46 boundaries; passed at once.
+- Same test file › simultaneous pause/resume, rollback and concurrent repeats: combined ranking, ASVS 2.3.3 atomicity and AC-6 idempotency; passed at once.
+- Same test file › missing active owner: fail-closed notification requirement; passed after correcting the fixture to avoid the database's owner-not-paused constraint.
+
+**Other additions:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/limits.repository.ts`: parameterized count-only journal insertion outside the service.
+- Implementation: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/limits.service.ts`.
+
+**Evidence:** story tests 16/16, seat dependency tests 12/12; full suite 4891/4891, failing: none, 0 known; typecheck clean; lint 0 errors, 207 warnings; diff check clean. Suite output: `/tmp/distribo-next25-20261025/BIL-020-suite.txt`.
+
+**Follow-ups:**
+- Dependency audit reports 5 vulnerabilities (3 high) in unchanged dependencies; no package changes made. Semgrep and Gitleaks executables unavailable, so those scans were not run.
+- No report Markdown written, following the final developer instruction to return the report directly; requested report path remains unwritten. No commit created.
+BIL-020 done
+<!-- end BIL-020 -->
