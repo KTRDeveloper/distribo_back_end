@@ -732,3 +732,35 @@ BIL-021 done
 - Report returned here, not written to `/tmp/distribo-next25-20261025/BIL-022-report.md`, following the later instruction prohibiting report files.
 BIL-022 done
 <!-- end BIL-022 -->
+
+<!-- begin BIL-028 -->
+## BIL-028 — A business's periods and rights follow the clock
+
+- Filed: 2026-10-25 23:24 UTC
+- Status: **done**: 12 story tests and 4973 suite tests pass; typecheck clean; lint 0 errors; existing audit findings and unavailable scanners reported
+- Risk: high · story: [BIL-028-a-business-s-periods-and-rights-follow-the-clock.md](../modules/billing/BIL-028-a-business-s-periods-and-rights-follow-the-clock.md)
+- Agent: 30,900 tokens, 30 tool uses, 7 min 47 s
+
+### Agent report
+
+**Summary:** Implemented BIL-028: transactional, locked clock advancement, natural-expiry SYSTEM events, rights refresh and limit enforcement.
+
+**Decisions:**
+- Skip identical rights writes so AC-6 and repeated runs preserve organization timestamps.
+- SYSTEM lifecycle events use the shared reference time and explicit transition fields; no person or payment attribution.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/advance.test.ts` › unknown business leaves another tenant untouched: guards tenant isolation (ASVS 8.2.2); passed at once.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/advance.test.ts` › caller rollback: guards atomic periods, rights, limits and events (ASVS 2.3.3); passed once fixtures were valid.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/advance.test.ts` › exact boundary and repeat: guards inclusive expiry/activation and no-op idempotence (story transition rules, AC-6); failed before the no-op fix.
+
+**Other additions:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/rights.service.ts`: compare all five rights fields before writing; required to satisfy AC-6 without timestamp churn.
+
+**Evidence:** story tests 12/12; full suite 4973/4973 across 369 files, failing: none, 0 known; typecheck clean; lint 0 errors, 209 warnings; diff check clean.
+
+**Follow-ups:**
+- Existing dependency audit reports 5 vulnerabilities (3 high, 1 moderate, 1 low); no dependencies changed. Semgrep and Gitleaks executables unavailable, so those scans were not run.
+- Full suite evidence: `/tmp/distribo-next25-20261025/BIL-028-suite.txt`. Report delivered inline rather than written, following the instruction prohibiting report Markdown files.
+BIL-028 done
+<!-- end BIL-028 -->

@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { PLANS, type PlanCode } from '../../shared/plans.js';
-import { writePlanFields, type PlanFields } from '../organization/organization.repository.js';
+import { readPlanFields, writePlanFields, type PlanFields } from '../organization/organization.repository.js';
 import type { QueuedPeriod } from './forfait.service.js';
 import { addDays, GRACE_DAYS } from './plan-math.js';
 import { findLastExpiredPeriod, listQueue, lockSubscriptions } from './subscription.repository.js';
@@ -70,6 +70,7 @@ export function computeRights(
  * Serializes rights with subscription purchases using their organization-scoped lock.
  * All reads and the organization contract write use the caller's transaction so
  * failures roll back together (ASVS 8.2.2, 2.3.3); errors intentionally propagate.
+ * Unchanged fields are not rewritten, preserving no-op clock runs (BIL-028 AC-6).
  * @param tx The transaction owning the queue lock and plan write.
  * @param organizationId The organization selected by server code, never request input.
  * @param now The reference instant used throughout the operation.
@@ -84,6 +85,14 @@ export async function recomputeRights(
   const queue = await listQueue(tx, organizationId);
   const lastExpired = await findLastExpiredPeriod(tx, organizationId);
   const result = computeRights(queue, lastExpired, now);
-  await writePlanFields(tx, organizationId, result);
+  const before = await readPlanFields(tx, organizationId);
+  if (
+    !before || before.plan !== result.plan ||
+    before.planEndsAt?.getTime() !== result.planEndsAt?.getTime() ||
+    before.graceEndsAt?.getTime() !== result.graceEndsAt?.getTime() ||
+    before.maxCollaborators !== result.maxCollaborators || before.maxProducts !== result.maxProducts
+  ) {
+    await writePlanFields(tx, organizationId, result);
+  }
   return result;
 }

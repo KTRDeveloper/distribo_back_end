@@ -188,6 +188,42 @@ export async function endPeriod(
   await tx.subscription.update({ where: { id }, data: { status: 'ENDED', endsAt, endReason: reason } });
 }
 
+/**
+ * Activates a due period selected from the tenant's locked queue (C-52).
+ * @param tx Caller transaction holding the subscription lock until commit.
+ * @param id Server-selected SCHEDULED period; an unexpected state aborts the operation.
+ */
+export async function activatePeriod(tx: Prisma.TransactionClient, id: string): Promise<void> {
+  await tx.subscription.update({ where: { id, status: 'SCHEDULED' }, data: { status: 'ACTIVE' } });
+}
+
+/**
+ * Journals a clock-driven transition without attributing it to a person or payment.
+ * Period changes and their immutable events must commit together (ASVS 2.3.3).
+ * @param tx Caller transaction holding the organization's subscription lock.
+ * @param organizationId Tenant selected by trusted server code.
+ * @param kind Lifecycle or rights transition decided by the server.
+ * @param subscriptionId Locked period id, or null for an organization-wide rights change.
+ * @param details Explicit non-personal transition fields.
+ * @param now Reference instant shared with lifecycle and rights calculations.
+ */
+export async function insertSystemEvent(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  kind: 'FORFAIT_ENDED' | 'PLAN_CHANGED',
+  subscriptionId: string | null,
+  details: Prisma.InputJsonObject,
+  now: Date,
+): Promise<void> {
+  const json = JSON.stringify(details);
+  await tx.$executeRaw`
+    INSERT INTO subscription_events
+      (id, organization_id, kind, actor, subscription_id, details, occurred_at)
+    VALUES (${uuidv7()}::uuid, ${organizationId}::uuid, ${kind}::"SubscriptionEventKind",
+            'SYSTEM', ${subscriptionId}::uuid, ${json}::jsonb, ${now})
+  `;
+}
+
 /** Inserts the zero-price converted days after the purchased period, without payment or months. */
 export async function insertConversionPeriod(
   tx: Prisma.TransactionClient,
