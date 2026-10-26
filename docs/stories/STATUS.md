@@ -390,7 +390,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | CAT-041 | done | | products lose unit, price, minimum and status; mirror triggers dropped; tests moved to seedProduct |
 | CAT-043 | done | | price product_id dropped, variant required, writer/tests/scan updated |
 | ORD-034 | done | | order_lines.product_id dropped; trigger, fill function and product comparison removed; tests of the column rewritten |
-| PRIV-004 | todo | | |
+| PRIV-004 | done | | Avatar key cleared in the anonymization transaction, file deleted after commit |
 | PRIV-005 | todo | | |
 | REL-027 | done | | contested_at column, counter CHECK, one-contestation index dropped |
 | REL-028 | done | | contest marks contested_at; 15 story tests green; 2 REL-024 correct-number tests (ghost flow) fail until REL-031 |

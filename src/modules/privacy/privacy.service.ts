@@ -4,6 +4,8 @@ import { logger } from '../../lib/logger.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { checkAndConsume, resetKey } from '../../lib/rate-limit.js';
 import { revokeSessions } from '../auth/session.service.js';
+import { deleteImageFiles } from '../images/image.service.js';
+import { setAvatarKey } from '../person/person.repository.js';
 import {
   anonymizeRows,
   findDebtSupplierNames,
@@ -53,18 +55,25 @@ export async function deletionCheck(personId: string): Promise<DeletionCheck> {
  * Anonymizes the person in one transaction (CM-01, C-02, C-03, v5.0.0-14.2.4): personal
  * columns and dependent rows are erased, the number is released, collaborations are
  * revoked and every session ends (v5.0.0-7.4.2). Any failing step rolls everything back.
+ * The profile photo key is cleared first, in the same transaction (CM-43, C-02, v5.0.0-2.3.3):
+ * the database refuses an anonymized person that still holds a key. The file is deleted only
+ * after the commit (v5.0.0-14.2.4); a storage error never undoes the deletion, the nightly
+ * cleanup removes the file (`deleteImageFiles` logs it and does not throw).
  * Sessions end with reason LOGOUT_ALL: no dedicated reason exists and none is worth a migration.
  * Does not check blockers or the password: callers must (see `deleteAccount`).
  *
  * @throws httpError 404 NOT_FOUND when the person is absent or already anonymized
  */
 export async function anonymizePerson(personId: string): Promise<void> {
-  await inTransaction(async (tx) => {
+  const previousKey = await inTransaction(async (tx) => {
+    const previous = await setAvatarKey(personId, null, tx);
     if (!(await anonymizeRows(tx, personId))) {
       throw httpError(404, 'NOT_FOUND', 'Not found');
     }
     await revokeSessions(personId, 'LOGOUT_ALL', { tx });
+    return previous;
   });
+  if (previousKey !== null) await deleteImageFiles([previousKey]);
   logger.info({ event: 'account_anonymized', personId }, 'Account anonymized');
 }
 
