@@ -1,7 +1,10 @@
 import type { Prisma } from '@prisma/client';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
-import { findOrganizationSummary } from '../organization/organization.repository.js';
+import { maskPhone } from '../../lib/mask-phone.js';
+import { notify, recipientLanguage } from '../notification/notification.service.js';
+import { findActiveOwnerId, findOrganizationSummary } from '../organization/organization.repository.js';
+import { paidNotice } from './notices.js';
 import { getPaymentAggregator } from './aggregator.js';
 import { enforceLimits } from './limits.service.js';
 import {
@@ -21,7 +24,8 @@ export type ConfirmOutcome = 'ACTIVATED' | 'ALREADY_DONE' | 'STILL_PENDING' | 'F
  * Confirms using the aggregator, never the received body's claimed status (ASVS 8.2.1).
  * Network I/O precedes the transaction; the locked PENDING recheck prevents duplicate
  * activations and stale failure overwrites. All resulting writes commit together or
- * roll back, including receipt, journal, rights and limits (BIL-014, ASVS 2.3.3).
+ * roll back, including receipt, journal, rights, limits and the masked owner notice
+ * (BIL-014, BIL-035, ASVS 2.3.3). The payment lock also prevents duplicate notices.
  * @param providerReference Unique provider reference identifying the stored payment.
  * @param receivedBody Untrusted confirmation evidence, retained only in provider_payload.
  * @param now Shared effective instant for confirmation and all subscription effects.
@@ -80,6 +84,21 @@ export async function confirmPayment(
     await insertPaymentEvent(tx, locked, purchased.id, now);
     const rights = await recomputeRights(tx, locked.organizationId, now);
     await enforceLimits(tx, locked.organizationId, rights, now);
+    const ownerId = await findActiveOwnerId(tx, locked.organizationId);
+    if (ownerId) {
+      // Online payments require a payer number; OTHER payments belong to administrator flows.
+      if (locked.payerPhoneNumber === null) throw new RangeError('Missing payment payer phone');
+      const language = await recipientLanguage(ownerId, tx);
+      await notify({
+        recipientId: ownerId,
+        organizationId: locked.organizationId,
+        sourceEvent: 'subscription.paid',
+        content: paidNotice(language, {
+          amount: locked.amount, maskedPhone: maskPhone(locked.payerPhoneNumber),
+          plan: locked.plan, planEndsAt: purchased.endsAt,
+        }),
+      }, tx);
+    }
     return 'ACTIVATED';
   });
 }

@@ -4,6 +4,29 @@ import type { AfterEnd } from './owner-view.service.js';
 type PaidPlanCode = PeriodRow['plan'];
 
 /**
+ * Builds the payment notice from an already masked phone, never the payer's full number.
+ * @param language Active owner's stored language.
+ * @param input Confirmed amount, masked payer number and purchased period end.
+ * @returns Localized plain text using the Douala calendar date (BIL-035).
+ */
+export function paidNotice(language: 'FR' | 'EN', input: {
+  amount: bigint; maskedPhone: string; plan: PaidPlanCode; planEndsAt: Date;
+}): string {
+  const locale = language === 'FR' ? 'fr-FR' : 'en-US';
+  const amount = new Intl.NumberFormat(locale).format(input.amount).replace(/\u202f/g, ' ');
+  const date = new Intl.DateTimeFormat(locale, {
+    timeZone: 'Africa/Douala', day: 'numeric', month: 'long', year: 'numeric',
+  }).format(input.planEndsAt);
+  const plan = input.plan === 'ESSENTIAL'
+    ? (language === 'FR' ? 'Essentiel' : 'Essential')
+    : input.plan === 'ENTERPRISE' ? (language === 'FR' ? 'Entreprise' : 'Enterprise') : 'Pro';
+  if (language === 'EN') {
+    return `Payment of ${amount} received from ${input.maskedPhone}: ${plan} active until ${date}.`;
+  }
+  return `Paiement de ${amount} reçu du ${input.maskedPhone} : ${plan} actif jusqu'au ${date}.`;
+}
+
+/**
  * Builds an owner reminder with aggregate pause counts only, never personal data.
  * @param language Active owner's stored language.
  * @param input Locked plan-chain end and optional seven-day impact preview.
