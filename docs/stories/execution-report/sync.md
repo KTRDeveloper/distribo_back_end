@@ -1014,3 +1014,33 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - To finish: change `labelApplied: 'Riz (sac)'` to `'Riz — sac'` in tests/integration/sync/push-orders.test.ts (~line 254), add it to the story's "Tests to update", rerun the full suite, set done.
 <!-- end SYNC-029 -->
+
+<!-- begin SYNC-030 -->
+## SYNC-030 — The judge knows products, variants and negotiated prices
+
+- Filed: 2026-10-26 08:20 UTC
+- Status: **done**: Judge covers products, variants, prices; owner-only offline; org stamped from scope
+- Risk: high · story: [SYNC-030-the-judge-knows-products-variants-and.md](../modules/sync/SYNC-030-the-judge-knows-products-variants-and.md)
+- Agent: 95,565 tokens, 30 tool uses, 4 min 51 s
+
+### Agent report
+
+**Summary:** The judge now scopes and rights-checks products, product_variants and customer_prices (nine tables in the new order); OWNER passes offline, others get FIELD_NOT_ALLOWED.
+
+**Decisions:**
+- Scope of the three tables: a `businessOnly` rule flag drops the relationship's customer person, so a customer pushing a price on their own relationship is OUT_OF_SCOPE (the story says only ACTIVE members of the supplier are in scope), not FIELD_NOT_ALLOWED.
+- `organization_id` is stamped from the scope's owner on creates and on updates (products and variants; prices have no such column); a differing value on update is refused first through the CATALOG_FIELDS list.
+- A variant or price naming no parent stays 'unresolved' (handed to the adapter, as for order lines), a product with no valid `organization_id` is OUT_OF_SCOPE.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/judge-catalog.test.ts` › customer price on own relationship: customer person is out of scope for prices (AC-4 "only ACTIVE member"); failed first with the old code.
+- `tests/integration/sync/judge-catalog.test.ts` › OWNER updates a listed variant field: positive control for AC-5 and the organization stamp on update; failed first with the old code.
+
+**Other additions:**
+- `findStoredRow` handles the three new tables (needed to judge updates and deletions); JudgedTable in the repository gains them.
+
+**Evidence:** story tests 30/30 (judge-catalog + judge); full suite 5268/5268, failing: none, 0 known; typecheck clean; lint 0 errors, 227 warnings
+
+**Follow-ups:**
+- A customer price update by the OWNER may change `customer_relationship_id` or `product_id`/`product_variant_id` (the CustomerPrice rule lists no fields); SYNC-033 adapter must re-validate them.
+<!-- end SYNC-030 -->

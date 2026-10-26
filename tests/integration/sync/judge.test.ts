@@ -294,6 +294,9 @@ describe('sync judge pipeline', () => {
 
     expect(JUDGE_TABLE_ORDER).toEqual([
       'customer_relationships',
+      'products',
+      'product_variants',
+      'customer_prices',
       'orders',
       'order_lines',
       'deliveries',

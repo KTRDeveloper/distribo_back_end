@@ -373,7 +373,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-028 | done | | Controls already read the variant (ORD-032); added the story's tests as guards |
 | SYNC-029 | blocked | | Code done; push-orders.test.ts line ~254 expects labelApplied 'Riz (sac)' but AC-1 mandates the server label 'Riz — sac' (resolver). Not in Tests to update: allow changing that one assertion to 'Riz — sac', then rerun. |
 | ORD-033 | todo | | |
-| SYNC-030 | todo | | |
+| SYNC-030 | done | | Judge covers products, variants, prices; owner-only offline; org stamped from scope |
 | SYNC-031 | todo | | |
 | SYNC-032 | todo | | |
 | SYNC-033 | todo | | |

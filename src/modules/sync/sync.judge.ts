@@ -20,6 +20,7 @@ import { runBatchControls, runLongAbsence } from './sync.controls.js';
 import { getAdapters } from './sync.registry.js';
 import {
   findOrderOwner,
+  findProductOwner,
   findRelationshipOwner,
   findStoredRow,
   withPushTransaction,
@@ -57,9 +58,15 @@ export type JudgeOptions = {
   afterApply?: (tx: Prisma.TransactionClient, result: PushResult) => Promise<void>;
 };
 
-/** Tables judged line by line, parents before children (AC-5). */
+/**
+ * Tables judged line by line, parents before children (SYNC-010 AC-5): a price may name a variant,
+ * and a variant a product, of the same batch.
+ */
 export const JUDGE_TABLE_ORDER = [
   'customer_relationships',
+  'products',
+  'product_variants',
+  'customer_prices',
   'orders',
   'order_lines',
   'deliveries',
@@ -106,6 +113,13 @@ type TableRules = {
   authorIfPresent?: string[];
   /** The field that points to the parent row whose owner decides the scope of a create. */
   parent?: { field: string; find: typeof findRelationshipOwner };
+  /**
+   * The row belongs to the supplier business alone: only an ACTIVE member of it is in scope, never
+   * the customer person of the relationship it hangs from (catalog tables, SYNC-030).
+   */
+  businessOnly?: boolean;
+  /** The row carries `organization_id`: set from the scope's owner, never from the phone (ASVS v5.0.0-8.2.1). */
+  stampOrganization?: boolean;
 };
 
 const ORDER_STEPS: Right[] = [
@@ -123,6 +137,32 @@ const RULES_OF: Record<JudgedTable, TableRules> = {
     computed: [],
     create: [{ action: 'create', subject: 'CustomerRelationship', withRow: true }],
     author: ['created_by_id'],
+  },
+  // Catalog and prices: the OWNER writes them offline, a MANAGER online only (ACC-008, CAT-023).
+  products: {
+    subject: 'Product',
+    computed: ['paused_at', 'image_keys', 'image_urls'],
+    create: [{ action: 'create', subject: 'Product', withRow: true }],
+    author: [],
+    businessOnly: true,
+    stampOrganization: true,
+  },
+  product_variants: {
+    subject: 'ProductVariant',
+    computed: ['merged_into_id', 'image_keys', 'image_urls'],
+    create: [{ action: 'create', subject: 'ProductVariant', withRow: true }],
+    author: [],
+    parent: { field: 'product_id', find: findProductOwner },
+    businessOnly: true,
+    stampOrganization: true,
+  },
+  customer_prices: {
+    subject: 'CustomerPrice',
+    computed: ['set_at', 'set_by_id'],
+    create: [{ action: 'create', subject: 'CustomerPrice', withRow: true }],
+    author: ['set_by_id'],
+    parent: { field: 'customer_relationship_id', find: findRelationshipOwner },
+    businessOnly: true,
   },
   orders: {
     subject: 'Order',
@@ -399,6 +439,10 @@ async function ownerOfNewRow(
     }
     return { organizationId: organization, customerPersonId: person };
   }
+  if (table === 'products') {
+    const organization = row['organization_id'] ?? null;
+    return isUuid(organization) ? { organizationId: organization, customerPersonId: null } : null;
+  }
   if (table === 'notifications') {
     const recipient = row['recipient_id'] ?? null;
     return isUuid(recipient) ? { organizationId: null, customerPersonId: recipient } : null;
@@ -426,8 +470,12 @@ async function judgeRow(
   // An update of a row that does not exist is answered like one outside the scope.
   if (!stored && listed === 'updated') return OUT_OF_SCOPE;
 
-  const owner = stored ? stored.owner : await ownerOfNewRow(judge, table, row);
-  if (owner === null) return OUT_OF_SCOPE;
+  const found = stored ? stored.owner : await ownerOfNewRow(judge, table, row);
+  if (found === null) return OUT_OF_SCOPE;
+  const owner =
+    found !== 'unresolved' && rules.businessOnly
+      ? { organizationId: found.organizationId, customerPersonId: null }
+      : found;
   let role = owner === 'unresolved' ? null : roleFor(judge.viewer, owner);
   // A device that missed a rights change keeps its seller operations (CM-29, SYNC-019).
   let graced: string | undefined;
@@ -468,6 +516,9 @@ async function judgeRow(
     for (const field of rules.authorIfPresent ?? []) {
       if (field in clean) clean[field] = judge.viewer.personId;
     }
+    if (rules.stampOrganization && owner !== 'unresolved') {
+      clean['organization_id'] = owner.organizationId;
+    }
     return accept();
   }
 
@@ -481,6 +532,8 @@ async function judgeRow(
       : ability.can('update', instance, field);
     if (!allowed) return NOT_ALLOWED;
   }
+  // A changed `organization_id` was refused above; an equal one is set again from the scope.
+  if (rules.stampOrganization) clean['organization_id'] = stored.owner.organizationId;
   return accept();
 }
 
@@ -774,7 +827,7 @@ async function reportGracedOperations(
  * owners get one `sync.rights_changed` with the count. Every other line is judged with the current
  * rights, and the owners hear of the refusals as the author does. Nothing else is lent.
  *
- * Tables outside the six judged ones go to their adapter as sent: their adapters own the rules.
+ * Tables outside the nine judged ones go to their adapter as sent: their adapters own the rules.
  * Rows that name no parent are not scope-checked here, only handed over; the adapter refuses them.
  *
  * @param viewer - Built from the database for this exchange (the batch's author, on a replay).

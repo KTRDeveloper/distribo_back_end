@@ -166,9 +166,12 @@ export async function withPushTransaction<T>(
   return prisma.$transaction(work);
 }
 
-/** The six tables the judge reads and scopes. */
+/** The nine tables the judge reads and scopes. */
 export type JudgedTable =
   | 'customer_relationships'
+  | 'products'
+  | 'product_variants'
+  | 'customer_prices'
   | 'orders'
   | 'order_lines'
   | 'deliveries'
@@ -187,6 +190,12 @@ type OwnerColumns = { supplierOrganizationId: string | null; customerPersonId: s
 const ownerOf = (r: OwnerColumns): RowOwner => ({
   organizationId: r.supplierOrganizationId,
   customerPersonId: r.customerPersonId,
+});
+
+/** A row owned by a business alone: only an ACTIVE member of it is in scope. */
+const businessOwner = (organizationId: string | null): RowOwner => ({
+  organizationId,
+  customerPersonId: null,
 });
 
 function snakeCase(key: string): string {
@@ -219,6 +228,18 @@ export async function findRelationshipOwner(
   return found ? ownerOf(found) : null;
 }
 
+/**
+ * Who owns the product `id`: its organization (a product has no customer), or null when it does
+ * not exist. A new variant takes its business from here, never from a phone.
+ */
+export async function findProductOwner(
+  tx: Prisma.TransactionClient,
+  id: string
+): Promise<RowOwner | null> {
+  const found = await tx.product.findUnique({ where: { id }, select: { organizationId: true } });
+  return found ? { organizationId: found.organizationId, customerPersonId: null } : null;
+}
+
 /** Who owns the order `id` through its relationship, or null when it does not exist. */
 export async function findOrderOwner(
   tx: Prisma.TransactionClient,
@@ -243,6 +264,24 @@ export async function findStoredRow(
   const withRelationship = { customerRelationship: { select: OWNER_SELECT } };
   const withOrder = { order: { select: withRelationship } };
   switch (table) {
+    case 'products': {
+      const r = await tx.product.findUnique({ where: { id } });
+      return r ? { row: toSnakeRow(r), owner: businessOwner(r.organizationId) } : null;
+    }
+    case 'product_variants': {
+      const r = await tx.productVariant.findUnique({ where: { id } });
+      return r ? { row: toSnakeRow(r), owner: businessOwner(r.organizationId) } : null;
+    }
+    case 'customer_prices': {
+      const found = await tx.customerPrice.findUnique({ where: { id }, include: withRelationship });
+      if (!found) return null;
+      const { customerRelationship, ...r } = found;
+      // The supplier's staff alone own a price: the customer person is not an owner of it.
+      return {
+        row: toSnakeRow(r),
+        owner: businessOwner(customerRelationship.supplierOrganizationId),
+      };
+    }
     case 'customer_relationships': {
       const r = await tx.customerRelationship.findUnique({ where: { id } });
       return r ? { row: toSnakeRow(r), owner: ownerOf(r) } : null;
