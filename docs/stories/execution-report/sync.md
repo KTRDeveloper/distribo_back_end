@@ -6,6 +6,29 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 09:35 UTC: `/implement-stories next:10`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-033 The owner's phone deletes variants and products | done | b25a489 | Catalog deletions pushed through deleteVariantFromSync/deleteProductFromSync; RETIRED_INSTEAD issue |
+| SYNC-034 The owner's phone sets and removes negotiated prices | done | 1cdbe90 | price push by the owner; org found from relationship or stored price |
+| SYNC-035 Products added beyond the plan are paused after a push | done | 64459fa | Catalog limits enforced after judge tables; 6 tests; suite 5324 green |
+| SYNC-036 The phone receives the contacts of its business and of the businesses it deals with | done | 610b070 | organization_contacts adapter (team + verified other side), 16 tables, push read-only |
+| SYNC-037 The team's phone knows the plan, its due date and its limits | blocked | ea0b58c | Needs a listed update of tests/integration/sync/pull-identity-removed-fields.test.ts (AC-3 'keeps all other keys' toEqual on the organization row): it fails once the six plan fields are added, and the story lists only pull-identity.test.ts under Tests to update |
+| SYNC-039 A paused collaborator gets the grace of a revoked one | done | 33777c0 | Paused seats get the revoked-seat grace via findRightsHistory; 6 tests |
+| SYNC-040 An order given to another driver leaves the pool on the phone | done | a5046d4 | driver pool leaves orders assigned to another driver; delivery change resends order for drivers |
+| SYNC-042 The driver receives the contacts of the client businesses to deliver | done | 35aa77e | Driver pulls verified contacts of customer businesses with a CONFIRMED order to deliver; driverRelationshipsWhere shared |
+
+Not run: SYNC-038, SYNC-041.
+
+- Skipped, dependency not done: SYNC-038 (needs SYNC-037, blocked) and SYNC-041 (needs SYNC-037 and SYNC-038). Both stay todo.
+- Stash: "SYNC-037 blocked: partial changes". The adapter and its 7 new tests are in it. SYNC-037 needs `tests/integration/sync/pull-identity-removed-fields.test.ts` added to its "Tests to update": its ORG-039 AC-3 `toEqual` on the organization row fails once the six plan fields are added.
+- The run completed all 10 PLAN lines. Baseline: 0 failing.
+- SYNC-037: the first agent died on a network error (EAI_AGAIN) before any code; I ran it again once and the second agent ended blocked, so the block is not environmental.
+- SYNC-036: the agent edited `tests/integration/sync/pull-variants.test.ts` (15 -> 16 tables), which the story does not list under "Tests to update". Please confirm.
+- SYNC-040: the agent applied the "order changed when a delivery changed" rule to drivers only, because applying it to all viewers broke the seller test AC-5. A reviewer should confirm.
+- Next command: add the test to SYNC-037's "Tests to update" (design-to-user-stories skill), then `/implement-stories SYNC-037..SYNC-038,SYNC-041` or `next:3`.
+
 ### Run 2026-10-26 08:42 UTC: `/implement-stories SYNC-029,ORD-033 (resume of next:10)`
 
 | story | status | commit | note |
