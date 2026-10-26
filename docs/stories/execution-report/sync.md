@@ -6,6 +6,30 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 08:26 UTC: `/implement-stories next:10`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-024 The catalog pull speaks products and variants | done | c14b64f | products without price, product_variants adapter, 15 tables |
+| SYNC-025 A driver pull names variants without prices | done | c9c3c7a | driver pull: products id+name, variants id/product_id/name/unit via line->variant->product |
+| SYNC-026 A customer pull holds the supplier's articles on sale | done | 0aa49b7 | customer pull sends on-sale products and ACTIVE variants of live suppliers; full suite green |
+| SYNC-027 Negotiated prices and order lines are pulled by variant | done | dc700db | pull by variant verified; adapter already sent product_variant_id, new test file added |
+| SYNC-028 Controls on arrival and the list to resolve read the variant | done | 315a922 | Controls already read the variant (ORD-032); added the story's tests as guards |
+| SYNC-029 An order line entered offline names a variant | blocked | 13f8cb8 | Code done; push-orders.test.ts line ~254 expects labelApplied 'Riz (sac)' but AC-1 mandates the server label 'Riz — sac' (resolver). Not in Tests to update: allow changing that one assertion to 'Riz — sac', then rerun. |
+| SYNC-030 The judge knows products, variants and negotiated prices | done | e2dcc6a | Judge covers products, variants, prices; owner-only offline; org stamped from scope |
+| SYNC-031 The owner's phone creates and edits products | done | eed5bdc | products push: catalog.push.ts via applyProductFromSync; 5277 tests pass |
+| SYNC-032 The owner's phone creates and edits variants | done | 80d2319 | variants push through applyVariantFromSync; 10 tests; suite 5287 green |
+
+Also in this run: order.
+
+- ORD-033 skipped: it needs SYNC-029, which is blocked.
+- Stash: `SYNC-029 blocked: partial changes` (code and new tests done; one test assertion blocks).
+- SYNC-029 blocked: `tests/integration/sync/push-orders.test.ts` (around line 254) expects `labelApplied: 'Riz (sac)'`, but AC-1 gives the label 'Riz — sac'. That test is not in the story's "Tests to update", so the agent did not change it. Fix: add the row to the story's "Tests to update" and change the assertion, then rerun `/implement-stories SYNC-029,ORD-033`.
+- The run did not stop: SYNC-030, 031 and 032 do not depend on SYNC-029.
+- Baseline: 0 failing.
+- SYNC-027 and SYNC-028 needed no source change (done earlier under ORD-028 and ORD-032); only their test files were added.
+- Next command: `/implement-stories SYNC-029,ORD-033` after the story fix.
+
 ### Run 2026-10-05 05:56 UTC: `/implement-stories next:100`
 
 | story | status | commit | note |
