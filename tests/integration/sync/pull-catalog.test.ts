@@ -28,6 +28,7 @@ const pull = (personId: string, query = '') =>
   createAuthenticatedRequest(app, personId).get(`/api/v1/sync/pull${query}`);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const productsOf = (body: PullBody) => body.changes['products'];
+const variantsOf = (body: PullBody) => body.changes['product_variants'];
 const idsOf = (rows: Rows) => rows.map((r) => r['id']).sort();
 
 async function seedPerson(id: string, phone: string, name: string) {
@@ -83,6 +84,8 @@ async function seedProduct(
   });
   // The database stamps the creation time; move it back so incremental pulls are deterministic.
   await prisma.$executeRaw`UPDATE products SET server_updated_at = ${LONG_AGO} WHERE id = ${id}::uuid`;
+  // The product's mirrored variant (same id) is moved back too.
+  await prisma.$executeRaw`UPDATE product_variants SET server_updated_at = ${LONG_AGO}, created_at = ${LONG_AGO} WHERE id = ${id}::uuid`;
 }
 
 async function seedOrderLine(
@@ -158,22 +161,27 @@ describe('GET /api/v1/sync/pull (catalog)', () => {
     await prisma.$executeRaw`UPDATE products SET status = 'INACTIVE', server_updated_at = ${LONG_AGO} WHERE id = ${P_INACTIVE}::uuid`;
   });
 
-  it('seller: every live product of the organization with price and min_order_quantity (AC-1, C-35)', async () => {
+  it('seller: every live product of the organization, the price on its variant (AC-1, C-35)', async () => {
     const res = await pull(SELLER);
     expect(res.status).toBe(200);
     const rows = productsOf(bodyOf<PullBody>(res)).created;
     expect(idsOf(rows)).toEqual([P_ORDERED, P_INACTIVE, P_FREE, P_PENDING].sort());
     const riz = rows.find((r) => r['id'] === P_ORDERED)!;
-    expect(riz).toMatchObject({
-      name: 'Riz',
+    expect(riz).toMatchObject({ name: 'Riz', organization_id: ORG_A });
+    for (const field of ['unit', 'price', 'price_updated_at', 'min_order_quantity', 'status']) {
+      expect(riz).not.toHaveProperty(field);
+    }
+    expect(typeof riz['server_updated_at']).toBe('number');
+    // The variant carries the price, the unit, the minimum and the status.
+    const variants = variantsOf(bodyOf<PullBody>(res)).created;
+    expect(variants.find((r) => r['id'] === P_ORDERED)).toMatchObject({
+      product_id: P_ORDERED,
       unit: 'sac',
       price: 12500,
       min_order_quantity: '2.5',
       status: 'ACTIVE',
-      organization_id: ORG_A,
     });
-    expect(typeof riz['server_updated_at']).toBe('number');
-    expect(rows.find((r) => r['id'] === P_INACTIVE)!['status']).toBe('INACTIVE');
+    expect(variants.find((r) => r['id'] === P_INACTIVE)!['status']).toBe('INACTIVE');
     expect(productsOf(bodyOf<PullBody>(res)).deleted).toEqual([]);
   });
 
@@ -202,7 +210,7 @@ describe('GET /api/v1/sync/pull (catalog)', () => {
     expect(productsOf(bodyOf<PullBody>(res))).toEqual({ created: [], updated: [], deleted: [] });
   });
 
-  it('incremental: a changed price arrives as updated (AC-4)', async () => {
+  it('incremental: a changed price arrives as an updated variant, with its product (AC-4)', async () => {
     await sleep(15);
     const since = Date.now();
     await sleep(15);
@@ -210,8 +218,12 @@ describe('GET /api/v1/sync/pull (catalog)', () => {
     const body = bodyOf<PullBody>(await pull(SELLER, `?last_pulled_at=${since}`));
     expect(productsOf(body).created).toEqual([]);
     expect(productsOf(body).deleted).toEqual([]);
+    expect(variantsOf(body).created).toEqual([]);
+    expect(variantsOf(body).updated).toHaveLength(1);
+    expect(variantsOf(body).updated[0]).toMatchObject({ id: P_ORDERED, price: 15000 });
     expect(productsOf(body).updated).toHaveLength(1);
-    expect(productsOf(body).updated[0]).toMatchObject({ id: P_ORDERED, price: 15000 });
+    expect(productsOf(body).updated[0]).not.toHaveProperty('price');
+    expect(productsOf(body).updated[0]).toMatchObject({ id: P_ORDERED });
   });
 
   it('driver: a product newly on an order to deliver arrives on an incremental pull', async () => {

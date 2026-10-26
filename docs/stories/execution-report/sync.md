@@ -852,3 +852,33 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - Page reads full `changes` of up to 101 rows to count rows; if archives grow large, count in SQL.
 <!-- end SYNC-023 -->
+
+<!-- begin SYNC-024 -->
+## SYNC-024 — The catalog pull speaks products and variants
+
+- Filed: 2026-10-26 07:58 UTC
+- Status: **done**: products without price, product_variants adapter, 15 tables
+- Risk: medium · story: [SYNC-024-the-catalog-pull-speaks-products-and-variants.md](../modules/sync/SYNC-024-the-catalog-pull-speaks-products-and-variants.md)
+- Agent: 55,024 tokens, 21 tool uses, 3 min 21 s
+
+### Agent report
+
+**Summary:** `products` pull now sends the team no price, unit or status, plus `image_urls` and `paused_at`; new `variantsAdapter` for `product_variants`; `SYNC_TABLES` has 15 names.
+
+**Decisions:**
+- Driver and customer branches left untouched; the product query still selects `unit` for the driver.
+- `variantsAdapter` returns nothing for DRIVER and customer (the story only specifies OWNER, MANAGER and SELLER).
+- Seeds in pull-catalog rely on the CAT-014 mirror trigger (old-style products get a variant with the same id); I only moved the variants' time columns back too.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-variants.test.ts` › a deleted variant is absent from a full pull: C-35, live rows only; passed at once
+- `tests/integration/sync/pull-variants.test.ts` › driver receives no variant row: ASVS v5.0.0-15.3.1, a driver gets names only; passed at once
+
+**Other additions:**
+- Doc comments "14 tables" changed to 15 in `sync.types.ts` and `sync.registry.ts`.
+
+**Evidence:** story tests 22/22 (3 files); full suite 5227/5227, failing: none, 0 known; typecheck clean; lint 0 errors, 224 warnings (pre-existing)
+
+**Follow-ups:**
+- The code was written before the new tests ran (they passed at once, so no red phase was observed).
+<!-- end SYNC-024 -->

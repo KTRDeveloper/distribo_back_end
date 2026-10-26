@@ -124,9 +124,9 @@ describe('adapter registry', () => {
     expect(registry.getAdapters()).toEqual([adapter]);
   });
 
-  it('throws SYNC_UNKNOWN_TABLE 400 for a name outside the 14 tables (AC-3)', async () => {
+  it('throws SYNC_UNKNOWN_TABLE 400 for a name outside the 15 tables (AC-3)', async () => {
     const registry = await import('../../../src/modules/sync/sync.registry.js');
-    expect(SYNC_TABLES).toHaveLength(14);
+    expect(SYNC_TABLES).toHaveLength(15);
     for (const name of ['users', '__proto__']) {
       let error: unknown;
       try {
@@ -143,7 +143,7 @@ describe('adapter registry', () => {
     expect(() => registry.getAdapter('orders')).toThrow();
   });
 
-  it('refuses to register an adapter for a name outside the 14 tables', async () => {
+  it('refuses to register an adapter for a name outside the 15 tables', async () => {
     const registry = await import('../../../src/modules/sync/sync.registry.js');
     expect(() => registry.registerAdapter(fakeAdapter('users' as never))).toThrow();
   });

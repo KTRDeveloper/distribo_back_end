@@ -366,7 +366,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-025 | done | | Tests story 66/66 et suite 5219/5219; typecheck propre; lint 0 erreur; scans du périmètre propres, alertes globales hors story signalées. |
 | BIL-039 | done | | Story tests 9/9; suite 5125/5125; typecheck clean; lint 0 errors; existing dependency audit findings remain. |
 | ORG-036 | done | | PAUSED seats listed, role-changed and revoked without bump or notice; anonymization ends them; OpenAPI updated |
-| SYNC-024 | todo | | |
+| SYNC-024 | done | | products without price, product_variants adapter, 15 tables |
 | SYNC-025 | todo | | |
 | SYNC-026 | todo | | |
 | SYNC-027 | todo | | |

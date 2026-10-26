@@ -1,4 +1,5 @@
 import type { CollaborationRole, Prisma } from '@prisma/client';
+import { imageUrl } from '../../../lib/image-keys.js';
 import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
 import type { Row, SyncAdapter, Viewer } from '../sync.types.js';
@@ -90,10 +91,11 @@ function scopeBranches(viewer: Viewer, since: Date | null): Prisma.ProductWhereI
 }
 
 /**
- * `products`: the whole catalog of the organization for OWNER, MANAGER and SELLER (any status,
- * deleted rows in `deleted`); `id, name, unit` of the products on orders to deliver for a DRIVER
- * (ASVS v5.0.0-15.3.1); nothing for a customer person (C-35, CM-30). `min_order_quantity` is sent
- * as a decimal string, like the catalog API.
+ * `products`: the whole catalog of the organization for OWNER, MANAGER and SELLER (paused ones
+ * included, with `paused_at`; deleted rows in `deleted`), without price, unit or status: those
+ * belong to the variants (SYNC-024). `id, name, unit` of the products on orders to deliver for a
+ * DRIVER (ASVS v5.0.0-15.3.1); nothing for a customer person (C-35, CM-30). Photos go out as
+ * addresses, never as keys.
  */
 export const productsAdapter: SyncAdapter = {
   table: 'products',
@@ -108,12 +110,10 @@ export const productsAdapter: SyncAdapter = {
         organizationId: true,
         name: true,
         unit: true,
-        price: true,
-        priceUpdatedAt: true,
-        minOrderQuantity: true,
         description: true,
         category: true,
-        status: true,
+        imageKeys: true,
+        pausedAt: true,
         createdAt: true,
         serverUpdatedAt: true,
         deletedAt: true,
@@ -131,13 +131,10 @@ export const productsAdapter: SyncAdapter = {
               id: r.id,
               organization_id: r.organizationId,
               name: r.name,
-              unit: r.unit,
-              price: Number(r.price),
-              price_updated_at: toEpoch(r.priceUpdatedAt),
-              min_order_quantity: r.minOrderQuantity?.toString() ?? null,
               description: r.description,
               category: r.category,
-              status: r.status,
+              image_urls: r.imageKeys.map((key) => imageUrl(key)!),
+              paused_at: r.pausedAt ? toEpoch(r.pausedAt) : null,
               created_at: toEpoch(r.createdAt),
               server_updated_at: toEpoch(r.serverUpdatedAt),
             }
@@ -147,7 +144,64 @@ export const productsAdapter: SyncAdapter = {
   push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
 };
 
-export const catalogAdapters: SyncAdapter[] = [productsAdapter];
+/**
+ * `product_variants`: every variant of the organization (any status) for OWNER, MANAGER and
+ * SELLER; a deleted or merged one is listed in `deleted` (C-35). No other role or person receives
+ * any (ASVS v5.0.0-8.2.2). A variant change moves its product too, by a database trigger (CM-42),
+ * so both always arrive together. `min_order_quantity` is a decimal string, like the catalog API.
+ */
+export const variantsAdapter: SyncAdapter = {
+  table: 'product_variants',
+  async pull(viewer, since, tx): Promise<Changes> {
+    const orgs = organizationsWithRole(viewer, CATALOG_ROLES);
+    if (orgs.length === 0) return { created: [], updated: [], deleted: [] };
+
+    const rows = await tx.productVariant.findMany({
+      where: {
+        organizationId: { in: orgs },
+        ...(since ? { serverUpdatedAt: { gt: since } } : { deletedAt: null }),
+      },
+      select: {
+        id: true,
+        productId: true,
+        organizationId: true,
+        name: true,
+        unit: true,
+        price: true,
+        priceUpdatedAt: true,
+        minOrderQuantity: true,
+        status: true,
+        imageKeys: true,
+        createdAt: true,
+        serverUpdatedAt: true,
+        deletedAt: true,
+      },
+      orderBy: { id: 'asc' },
+    });
+    return classifyChanges(
+      rows,
+      since,
+      (r) => r.createdAt,
+      (r): Row => ({
+        id: r.id,
+        product_id: r.productId,
+        organization_id: r.organizationId,
+        name: r.name,
+        unit: r.unit,
+        price: Number(r.price),
+        price_updated_at: toEpoch(r.priceUpdatedAt),
+        min_order_quantity: r.minOrderQuantity?.toString() ?? null,
+        status: r.status,
+        image_urls: r.imageKeys.map((key) => imageUrl(key)!),
+        created_at: toEpoch(r.createdAt),
+        server_updated_at: toEpoch(r.serverUpdatedAt),
+      })
+    );
+  },
+  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+};
+
+export const catalogAdapters: SyncAdapter[] = [productsAdapter, variantsAdapter];
 
 /** Registers the catalog adapters; called once when the sync routes are built. */
 export function registerCatalogAdapters(): void {
