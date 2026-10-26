@@ -1,6 +1,8 @@
 import type { Actor as OrganizationActor } from '../../types/express.js';
 import { httpError } from '../../lib/http-error.js';
 import type { PlanCode } from '../../shared/plans.js';
+import { encodeCursor, type PaginationQuery } from '../../shared/pagination.js';
+import { listReceipts as readReceipts } from './receipt.repository.js';
 import { listTeamSeats } from '../organization/organization.repository.js';
 import { listProductsOnSale } from '../catalog/catalog.repository.js';
 import { addDays, GRACE_DAYS } from './plan-math.js';
@@ -8,6 +10,54 @@ import { computeRights } from './rights.service.js';
 import {
   findLastExpiredPeriod, listQueue, runInTransaction,
 } from './subscription.repository.js';
+
+export type ReceiptView = {
+  number: string;
+  kind: 'RECEIPT' | 'CREDIT_NOTE';
+  label: string;
+  customer_name: string;
+  customer_tax_id: string | null;
+  amount_excl_tax: number;
+  vat_rate_bp: number;
+  vat_amount: number;
+  amount: number;
+  issued_at: Date;
+};
+
+/**
+ * Lists only the owner's immutable receipt projection, including credit notes.
+ * OWNER is enforced here as well as organization membership at the HTTP boundary;
+ * internal payment, organization and cancellation ids never enter the response.
+ * @param actor Trusted membership loaded from the authenticated identity (ASVS 8.2.1/8.2.2).
+ * @param query Validated pagination fields, ordered by issue date rather than creation date.
+ * @returns Ten public fields per item and a cursor only when another row exists.
+ * @throws FORBIDDEN for non-owners; VALIDATION_ERROR for a malformed cursor.
+ */
+export async function listReceipts(
+  actor: OrganizationActor,
+  query: PaginationQuery,
+): Promise<{ items: ReceiptView[]; next_cursor: string | null }> {
+  if (actor.role !== 'OWNER') throw httpError(403, 'FORBIDDEN', 'Forbidden');
+  const rows = await readReceipts(actor.organizationId, query);
+  const page = rows.slice(0, query.limit);
+  const last = page.at(-1);
+  return {
+    items: page.map((row) => ({
+      number: row.number,
+      kind: row.kind,
+      label: row.label,
+      customer_name: row.customerName,
+      customer_tax_id: row.customerTaxId,
+      amount_excl_tax: Number(row.amountExclTax),
+      vat_rate_bp: row.vatRateBp,
+      vat_amount: Number(row.vatAmount),
+      amount: Number(row.amount),
+      issued_at: row.issuedAt,
+    })),
+    next_cursor: rows.length > query.limit && last
+      ? encodeCursor({ createdAt: last.issuedAt, id: last.id }) : null,
+  };
+}
 
 export type AfterEnd = {
   plan: PlanCode;

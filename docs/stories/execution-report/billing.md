@@ -965,3 +965,37 @@ BIL-031 done
 
 BIL-016 done
 <!-- end BIL-016 -->
+
+<!-- begin BIL-017 -->
+## BIL-017 — The owner lists the receipts
+
+- Filed: 2026-10-26 05:06 UTC
+- Status: **done**: Owner receipt pagination and tenant isolation implemented; 61 targeted and 5077 full-suite tests pass; typecheck clean, lint 0 errors
+- Risk: medium · story: [BIL-017-the-owner-lists-the-receipts.md](../modules/billing/BIL-017-the-owner-lists-the-receipts.md)
+- Agent: 47,568 tokens, 60 tool uses, 7 min 41 s
+
+### Agent report
+
+**Summary:** BIL-017 implements owner-only receipt and credit-note pagination, strict validation, tenant isolation, ten-field output and OpenAPI documentation.
+
+**Decisions:**
+- Reused the shared cursor format: its createdAt field carries issued_at; ordering is issued_at DESC, id DESC.
+- Kept the public payment receipt schema unchanged; the owner list adds kind through a separate response schema.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/receipt-list.test.ts` › denies non-owners at the service boundary: guards owner authorization independently of HTTP (ASVS 8.2.1).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/receipt-list.test.ts` › defaults to 50 items, accepts 100, and terminates an empty page: guards the specified pagination boundaries.
+- Pagination coverage includes equal issued_at values spanning pages; authentication coverage passed at once against existing middleware.
+
+**Other additions:**
+- Generated OpenAPI artifact updated by the documentation tests; no dependencies changed.
+
+**Evidence:** story command 61/61, including receipt tests 14/14; full suite 5077/5077 across 375 files, failing: none, 0 known; typecheck clean; lint 0 errors, 218 warnings; diff whitespace clean.
+
+**Follow-ups:**
+- npm audit reports 5 existing dependency vulnerabilities (3 high, 1 moderate, 1 low); Semgrep and Gitleaks executables are unavailable. No security or dependency controls were changed.
+- Full-suite evidence: `/tmp/distribo-next13-20261026/BIL-017-suite.txt`; targeted evidence: `/tmp/distribo-next13-20261026/BIL-017-targeted.txt`; audit: `/tmp/distribo-next13-20261026/BIL-017-audit.txt`.
+- `/tmp/distribo-next13-20261026/BIL-017-report.md` was not written because the final developer instruction forbids report .md files; this handback contains the report for the coordinator to file.
+
+BIL-017 done
+<!-- end BIL-017 -->

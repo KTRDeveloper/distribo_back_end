@@ -3,8 +3,8 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import { idempotent } from '../../middleware/idempotent.js';
-import { keepChoiceBodySchema, keepChoiceParamsSchema, ownerBillingQuerySchema, swapProductBodySchema, swapSeatBodySchema } from './billing.schemas.js';
-import { readOwnerBilling } from './owner-view.service.js';
+import { keepChoiceBodySchema, keepChoiceParamsSchema, ownerBillingQuerySchema, receiptListQuerySchema, swapProductBodySchema, swapSeatBodySchema } from './billing.schemas.js';
+import { listReceipts, readOwnerBilling } from './owner-view.service.js';
 import { saveKeepChoice } from './keep-choice.service.js';
 import { swapProduct, swapSeat } from './swap.service.js';
 
@@ -22,6 +22,20 @@ billingOwnerRoutes.get(
   loadActor,
   async (req, res) => {
     res.status(200).json(await readOwnerBilling(req.actor!, new Date()));
+  },
+);
+
+billingOwnerRoutes.get(
+  '/receipts',
+  authMiddleware,
+  (req, _res, next) => {
+    keepChoiceParamsSchema.parse(req.params);
+    receiptListQuerySchema.parse(req.query);
+    next();
+  },
+  loadActor,
+  async (req, res) => {
+    res.status(200).json(await listReceipts(req.actor!, receiptListQuerySchema.parse(req.query)));
   },
 );
 

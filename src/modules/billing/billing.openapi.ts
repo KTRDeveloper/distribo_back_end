@@ -12,6 +12,8 @@ import {
   paymentStatusResponseSchema,
   quoteQuerySchema,
   quoteResponseSchema,
+  receiptListQuerySchema,
+  receiptListResponseSchema,
   shopParamsOpenApiSchema,
   shopResponseSchema,
   swapProductBodySchema,
@@ -42,6 +44,37 @@ openApiRegistry.registerPath({
     },
     403: {
       description: 'Only the owner may read the subscription screen',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Organization absent or outside caller scope',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/billing/receipts',
+  tags: ['billing'],
+  summary: 'List receipts and credit notes by issue date (owner only)',
+  security: [{ bearerAuth: [] }],
+  request: { params: keepChoiceParamsSchema, query: receiptListQuerySchema },
+  responses: {
+    200: {
+      description: 'Ten public fields per receipt or credit note, with an opaque next cursor',
+      content: { 'application/json': { schema: receiptListResponseSchema } },
+    },
+    400: {
+      description: 'Invalid organization UUID, limit, cursor or unexpected query field',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Authentication required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'Only the owner may list receipts',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
     404: {

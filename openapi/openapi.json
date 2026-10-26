@@ -29606,6 +29606,179 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/billing/receipts": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "List receipts and credit notes by issue date (owner only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ten public fields per receipt or credit note, with an opaque next cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "number": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "customer_name": {
+                            "type": "string"
+                          },
+                          "customer_tax_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "amount_excl_tax": {
+                            "type": "integer"
+                          },
+                          "vat_rate_bp": {
+                            "type": "integer"
+                          },
+                          "vat_amount": {
+                            "type": "integer"
+                          },
+                          "amount": {
+                            "type": "integer"
+                          },
+                          "issued_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "RECEIPT",
+                              "CREDIT_NOTE"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "number",
+                          "label",
+                          "customer_name",
+                          "customer_tax_id",
+                          "amount_excl_tax",
+                          "vat_rate_bp",
+                          "vat_amount",
+                          "amount",
+                          "issued_at",
+                          "kind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 100
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid organization UUID, limit, cursor or unexpected query field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only the owner may list receipts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Organization absent or outside caller scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/billing/swap-product": {
       "post": {
         "tags": [

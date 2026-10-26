@@ -354,7 +354,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-031 | done | | Hooks transactionnels close/reopen ; fixtures du registre corrigées sans modifier les assertions ; 5024/5024 tests, typecheck clean, lint 0 erreur. |
 | BIL-033 | done | | Public quote route; 68 targeted and 5048 full-suite tests pass, typecheck clean, lint 0 errors. |
 | BIL-016 | done | | Owner billing read-only view; targeted 59/59, suite 5062/5062, typecheck clean; existing dependency audit findings remain |
-| BIL-017 | todo | | |
+| BIL-017 | done | | Owner receipt pagination and tenant isolation implemented; 61 targeted and 5077 full-suite tests pass; typecheck clean, lint 0 errors |
 | BIL-026 | todo | | |
 | BIL-034 | todo | | |
 | BIL-035 | todo | | |

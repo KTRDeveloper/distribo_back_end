@@ -1,7 +1,32 @@
 import type { Prisma, SubscriptionReceipt } from '@prisma/client';
 import { newId } from '../../shared/ids.js';
+import { prisma } from '../../lib/db.js';
+import { decodeCursor, type PaginationQuery } from '../../shared/pagination.js';
 
 export type ReceiptRow = SubscriptionReceipt;
+
+/**
+ * Reads one extra row to detect the next page without a count or cursor-id lookup.
+ * The organization predicate applies to every keyset branch (ASVS 8.2.2).
+ * @param organizationId Trusted organization scope from the loaded actor.
+ * @param query Bounded page size and opaque cursor; its timestamp represents issued_at.
+ * @returns Rows ordered by issue date and id descending, at most limit plus one.
+ * @throws VALIDATION_ERROR for a malformed cursor.
+ */
+export async function listReceipts(organizationId: string, query: PaginationQuery): Promise<ReceiptRow[]> {
+  const cursor = query.cursor === undefined ? undefined : decodeCursor(query.cursor);
+  return prisma.subscriptionReceipt.findMany({
+    where: {
+      organizationId,
+      ...(cursor && { OR: [
+        { issuedAt: { lt: cursor.createdAt } },
+        { issuedAt: cursor.createdAt, id: { lt: cursor.id } },
+      ] }),
+    },
+    orderBy: [{ issuedAt: 'desc' }, { id: 'desc' }],
+    take: query.limit + 1,
+  });
+}
 
 export type NewReceipt = {
   organizationId: string;

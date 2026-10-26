@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { uuidV7Schema } from '../../shared/ids.js';
 import { phoneNumberSchema } from '../../shared/phone.js';
+import { decodeCursor, paginationQuerySchema } from '../../shared/pagination.js';
 
 /** Same 32 symbols as `generatePaymentCode`: no 0, O, 1 or I. */
 const PAYMENT_CODE_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/;
@@ -124,6 +125,11 @@ export const quoteResponseSchema = z.object({
 export const paymentStatusParamsSchema = z.object({ id: z.string().uuid() }).strict();
 export const paymentStatusQuerySchema = z.object({}).strict();
 
+/** Strict receipt paging; decode before loadActor can access the database. */
+export const receiptListQuerySchema = paginationQuerySchema.extend({
+  cursor: z.string().superRefine((value) => { decodeCursor(value); }).optional(),
+}).strict();
+
 /** The public receipt projection excludes internal ids and provider evidence. */
 export const receiptViewSchema = z.object({
   number: z.string(),
@@ -135,6 +141,12 @@ export const receiptViewSchema = z.object({
   vat_amount: z.number().int(),
   amount: z.number().int(),
   issued_at: z.string().datetime(),
+}).strict();
+
+/** Owner-only ten-field projection; the public payment receipt remains unchanged. */
+export const receiptListResponseSchema = z.object({
+  items: z.array(receiptViewSchema.extend({ kind: z.enum(['RECEIPT', 'CREDIT_NOTE']) })).max(100),
+  next_cursor: z.string().nullable(),
 }).strict();
 
 /** Explicit output fields for the public bearer-id status lookup. */
