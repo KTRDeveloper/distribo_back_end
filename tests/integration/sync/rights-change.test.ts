@@ -65,7 +65,7 @@ const sale = (index: number) => {
     line: {
       id: `0199e019-0000-7000-8000-00000000b${suffix}`,
       order_id: `0199e019-0000-7000-8000-00000000a${suffix}`,
-      product_id: PRODUCT,
+      product_variant_id: PRODUCT,
       quantity: 2,
       reference_price: 3000,
       unit_price_applied: 3000,

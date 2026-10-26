@@ -3,14 +3,15 @@ import { logger } from '../../../lib/logger.js';
 import { abilityFor } from '../../../shared/access/ability.js';
 import { TEXT_MAX } from '../../../shared/limits.js';
 import { parseQuantity } from '../../../shared/money.js';
+import { resolveVariantForLine } from '../../catalog/catalog.sync-writers.js';
 import { lineAmountOf, orderTotal } from '../../order/order.calculations.js';
 import { transitionOrder } from '../../order/order.state.js';
 import { resolveMergedRelation } from '../../relationship/relationship.repository.js';
 import type { LineOutcome, PushContext, Row, SyncTable, TableChange } from '../sync.types.js';
 import { refuseEveryLine } from './identity.adapter.js';
 
-/** The note the owner reads when a line names a product withdrawn since the entry (SYNC-012 AC-3). */
-export const PRODUCT_RETIRED_NOTE = 'Article retiré de la vente depuis la saisie';
+/** The note the owner reads when a line names a variant withdrawn since the entry (SYNC-029 AC-3). */
+export const PRODUCT_RETIRED_NOTE = 'Produit retiré de la vente depuis la saisie';
 
 /** Largest amount (XAF) a pushed price, delivery cost or line may reach: sums stay in `bigint`. */
 const MAX_AMOUNT = 1_000_000_000_000n;
@@ -451,8 +452,10 @@ async function insertLine(
 
 /**
  * One line entered offline, priced from what the phone sent: quantity and prices are kept, the
- * label comes from the product and the amount is computed here (CM-27). Returns the outcome and
- * whether the line was stored, so the caller can settle its order's total.
+ * variant is resolved for the order's supplier (a merge is followed, a deleted variant comes back
+ * off sale, a foreign one is refused as OUT_OF_SCOPE), and the label and the amount are the
+ * server's (CM-27). The line is retired when the variant is no longer on sale. Returns the outcome
+ * and whether the line was stored, so the caller can settle its order's total.
  */
 async function createLine(
   ctx: PushContext,
@@ -465,14 +468,14 @@ async function createLine(
   }
 
   const orderId = row['order_id'];
-  const productId = row['product_id'];
+  const variantId = row['product_variant_id'];
   const quantityMilli = readQuantity(row);
   const referencePrice = readAmount(row, 'reference_price');
   const unitPriceApplied = readAmount(row, 'unit_price_applied');
   if (
     typeof orderId !== 'string' ||
-    typeof productId !== 'string' ||
-    !UUID.test(productId) ||
+    typeof variantId !== 'string' ||
+    !UUID.test(variantId) ||
     quantityMilli === INVALID ||
     referencePrice === INVALID ||
     unitPriceApplied === INVALID
@@ -514,12 +517,27 @@ async function createLine(
     };
   }
 
-  // A product of another organization is never written, whatever the phone says (ASVS 8.2.1).
-  const product = await tx.product.findFirst({
-    where: { id: productId, organizationId: supplier ?? undefined },
+  // The resolver reads through the supplier of the order, so a variant of another organization is
+  // never read, restored or written, whatever the phone says (ASVS 8.2.1). It follows a merge and
+  // brings a deleted variant back off sale (C-48).
+  const resolved = supplier
+    ? await resolveVariantForLine(tx, supplier, variantId, new Date())
+    : null;
+  if (!resolved) return { line: forbidden('order_lines', id, 'OUT_OF_SCOPE', OUT_OF_SCOPE) };
+  // The state after the resolution decides whether the sale outlived its article (design 9.2).
+  const variant = await tx.productVariant.findUniqueOrThrow({
+    where: { id: resolved.variantId },
+    select: {
+      status: true,
+      deletedAt: true,
+      product: { select: { pausedAt: true, deletedAt: true } },
+    },
   });
-  if (!product) return { line: forbidden('order_lines', id, 'OUT_OF_SCOPE', OUT_OF_SCOPE) };
-  const retired = product.status !== 'ACTIVE' || product.deletedAt !== null;
+  const retired =
+    variant.status !== 'ACTIVE' ||
+    variant.deletedAt !== null ||
+    variant.product.pausedAt !== null ||
+    variant.product.deletedAt !== null;
 
   const priceChanged = unitPriceApplied !== referencePrice;
   await insertLine(
@@ -527,8 +545,9 @@ async function createLine(
     {
       id,
       orderId,
-      productId,
-      labelApplied: `${product.name} (${product.unit})`,
+      productId: resolved.productId,
+      productVariantId: resolved.variantId,
+      labelApplied: resolved.label,
       quantity: milliToText(quantityMilli),
       referencePrice,
       unitPriceApplied,
@@ -552,7 +571,9 @@ async function createLine(
  * amounts and totals are recomputed (v5.0.0-2.2.1, CM-27). A line whose unit price differs from
  * the reference price the phone saw is authored by the viewer, dated by the server (CM-16). A
  * product withdrawn since the entry does not refuse the line: the order carries a `sync_issue`.
- * Edits and deletions stay refused (SYNC-013).
+ * A line names a variant in `product_variant_id`; the old `product_id` key is no longer read, so a
+ * line without the new key is set aside as malformed (SYNC-029). Edits and deletions stay refused
+ * (SYNC-013).
  *
  * @param ctx - Viewer and the batch's transaction; lines arrive already judged.
  * @param change - Judged lines of the table.

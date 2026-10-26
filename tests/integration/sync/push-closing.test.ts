@@ -270,7 +270,7 @@ describe('push of the closing of an order (SYNC-014)', () => {
           {
             id: LINE,
             order_id: ORDER,
-            product_id: PRODUCT,
+            product_variant_id: PRODUCT,
             quantity: 2,
             reference_price: 3000,
             unit_price_applied: 3000,
@@ -310,7 +310,7 @@ describe('push of the closing of an order (SYNC-014)', () => {
           {
             id: CHILD_LINE,
             order_id: CHILD,
-            product_id: PRODUCT,
+            product_variant_id: PRODUCT,
             quantity: 2,
             reference_price: 3000,
             unit_price_applied: 3000,

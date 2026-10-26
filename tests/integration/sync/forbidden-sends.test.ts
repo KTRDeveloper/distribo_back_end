@@ -57,7 +57,7 @@ const order = (id: string, relationship: string, address = 'Rue 1') => ({
 const line = (id: string, orderId: string) => ({
   id,
   order_id: orderId,
-  product_id: PRODUCT,
+  product_variant_id: PRODUCT,
   quantity: '10',
   reference_price: 3000,
   unit_price_applied: 3000,

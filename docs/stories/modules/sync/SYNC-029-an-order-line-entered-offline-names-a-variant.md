@@ -78,7 +78,7 @@ Command: `npx vitest run tests/integration/sync/push-lines-by-variant.test.ts te
 ### Tests to update
 | existing test | reason | new expectation |
 |---|---|---|
-| tests/integration/sync/push-orders.test.ts | the line rows send `product_id`, and the note text is 'Article retiré de la vente depuis la saisie' | they send `product_variant_id` with the same ids; the note is 'Produit retiré de la vente depuis la saisie' |
+| tests/integration/sync/push-orders.test.ts | the line rows send `product_id`, and the note text is 'Article retiré de la vente depuis la saisie' | they send `product_variant_id` with the same ids; the note is 'Produit retiré de la vente depuis la saisie'; the stored `labelApplied` is the label the resolver returns ('Riz — sac', name and unit), no longer 'Riz (sac)' (AC-1) |
 | tests/integration/sync/push-closing.test.ts | the line rows send `product_id` | they send `product_variant_id` with the same id |
 | tests/integration/sync/controls-credit.test.ts | the line rows send `product_id` | they send `product_variant_id` with the same id |
 | tests/integration/sync/controls-prices.test.ts | the line rows send `product_id` | they send `product_variant_id` with the same id |

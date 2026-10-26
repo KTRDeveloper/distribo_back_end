@@ -42,7 +42,7 @@ const orderRow = (id: string, createdAt: number) => ({
 const lineRow = (id: string, orderId: string, extra: Record<string, unknown> = {}) => ({
   id,
   order_id: orderId,
-  product_id: PRODUCT,
+  product_variant_id: PRODUCT,
   quantity: '10',
   reference_price: 3000,
   unit_price_applied: 3000,

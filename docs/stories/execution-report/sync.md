@@ -1014,29 +1014,29 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 <!-- begin SYNC-029 -->
 ## SYNC-029 — An order line entered offline names a variant
 
-- Filed: 2026-10-26 08:15 UTC
-- Status: **blocked**: Code done; push-orders.test.ts line ~254 expects labelApplied 'Riz (sac)' but AC-1 mandates the server label 'Riz — sac' (resolver). Not in Tests to update: allow changing that one assertion to 'Riz — sac', then rerun.
+- Filed: 2026-10-26 08:32 UTC
+- Status: **done**: Lines by product_variant_id via resolveVariantForLine; 5296 tests pass
 - Risk: medium · story: [SYNC-029-an-order-line-entered-offline-names-a-variant.md](../modules/sync/SYNC-029-an-order-line-entered-offline-names-a-variant.md)
-- Agent: 68,110 tokens, 23 tool uses, 2 min 30 s
+- Agent: 23,859 tokens, 8 tool uses, 1 min 51 s
 
 ### Agent report
 
-**Summary:** Blocked at the last step: code and new tests are done, one existing assertion contradicts AC-1 and is not listed under "Tests to update".
+**Summary:** Order lines now name `product_variant_id`, resolved with `resolveVariantForLine` for the order's supplier; finished from earlier uncommitted work.
 
 **Decisions:**
-- Retired test: variant not ACTIVE, variant deleted, or product paused or deleted (story says "not ACTIVE or product paused"; the extra two are safe supersets).
-- Resolver called with `new Date()`; the order's supplier is the only organization passed.
+- Retired check: read the variant after resolution (status, deletedAt, product pausedAt/deletedAt), since the resolver result does not carry them.
+- Missing supplier: treated as OUT_OF_SCOPE (fail closed) without calling the resolver.
 
 **Tests added beyond the story:**
-- `tests/integration/sync/push-lines-by-variant.test.ts` › paused product, non-UUID variant key, and a live variant of another business: guard retirement, v5.0.0-2.2.1 and AB-1 (story ACs); the last two passed at once
+- `tests/integration/sync/push-lines-by-variant.test.ts` › paused product, non-UUID variant key: AC-3 and v5.0.0-2.2.1 edge cases (written in the earlier attempt)
 
 **Other additions:**
-- Edited the line rows of the 7 listed tests and the note text in push-orders.test.ts as listed.
+- push-orders.test.ts line 255: `labelApplied` now 'Riz — sac', as the revised "Tests to update" row says.
 
-**Evidence:** sync integration folder 357/358 passing; the only failure is push-orders.test.ts "stores the order with the amounts the server computes" (labelApplied 'Riz (sac)' now stored as 'Riz — sac', as AC-1 requires); typecheck clean; lint 0 errors. Full suite not run.
+**Evidence:** story tests 42/42 (3 files); full suite 5296/5296, failing: none, 0 known; typecheck clean; lint 0 errors, 233 warnings
 
 **Follow-ups:**
-- To finish: change `labelApplied: 'Riz (sac)'` to `'Riz — sac'` in tests/integration/sync/push-orders.test.ts (~line 254), add it to the story's "Tests to update", rerun the full suite, set done.
+- none
 <!-- end SYNC-029 -->
 
 <!-- begin SYNC-030 -->

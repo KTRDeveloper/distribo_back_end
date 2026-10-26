@@ -31,7 +31,7 @@ const LINE = '0199e012-0000-7000-8000-000000000601';
 const LINE_2 = '0199e012-0000-7000-8000-000000000602';
 const LINE_3 = '0199e012-0000-7000-8000-000000000603';
 const LONG_AGO = new Date('2026-01-01T00:00:00.000Z');
-const RETIRED_TEXT = 'Article retiré de la vente depuis la saisie';
+const RETIRED_TEXT = 'Produit retiré de la vente depuis la saisie';
 
 type PushBody = {
   accepted: number;
@@ -67,7 +67,7 @@ const orderRow = (id: string, extra: Record<string, unknown> = {}) => ({
 const lineRow = (id: string, orderId: string, extra: Record<string, unknown> = {}) => ({
   id,
   order_id: orderId,
-  product_id: PRODUCT,
+  product_variant_id: PRODUCT,
   quantity: '10',
   reference_price: 3000,
   unit_price_applied: 3000,
@@ -252,7 +252,7 @@ describe('push of orders and order_lines (SYNC-012)', () => {
     expect(order.lines[0]).toMatchObject({
       id: LINE,
       productId: PRODUCT,
-      labelApplied: 'Riz (sac)',
+      labelApplied: 'Riz — sac',
       referencePrice: 3000n,
       unitPriceApplied: 3000n,
       amount: 30000n,
@@ -309,7 +309,7 @@ describe('push of orders and order_lines (SYNC-012)', () => {
   ])(
     'stores an order whose product is %s now, flagged PRODUCT_RETIRED (AC-3)',
     async (_name, productId) => {
-      const response = await push(SELLER, simpleBatch({}, { product_id: productId }));
+      const response = await push(SELLER, simpleBatch({}, { product_variant_id: productId }));
 
       expect(response.status).toBe(200);
       expect(bodyOf<PushBody>(response)).toMatchObject({ accepted: 2, rejected: [], aside: 0 });
@@ -410,7 +410,10 @@ describe('push of orders and order_lines (SYNC-012)', () => {
     const response = await push(SELLER, {
       orders: table({ created: [orderRow(ORDER)] }),
       order_lines: table({
-        created: [lineRow(LINE, ORDER, { product_id: PRODUCT_OTHER }), lineRow(LINE_2, ORDER)],
+        created: [
+          lineRow(LINE, ORDER, { product_variant_id: PRODUCT_OTHER }),
+          lineRow(LINE_2, ORDER),
+        ],
       }),
     });
 
