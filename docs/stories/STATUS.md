@@ -359,7 +359,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-034 | done | | 62 story checks and 5110 suite tests pass; typecheck clean; dependency audit findings and unavailable scanners reported |
 | BIL-035 | blocked | | Implementation and tests pass; may existing dependency audit findings (3 high) be handled separately, since fixing pinned dependencies is outside this story? |
 | BIL-036 | todo | | |
-| BIL-037 | todo | | |
+| BIL-037 | done | | Gift queue placement and administrator journal implemented; 6 story tests and 5116 suite tests pass |
 | BIL-023 | todo | | |
 | BIL-024 | todo | | |
 | BIL-038 | todo | | |

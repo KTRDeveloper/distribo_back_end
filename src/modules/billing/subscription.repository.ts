@@ -1,10 +1,20 @@
 import type { Prisma, Subscription } from '@prisma/client';
 import { v7 as uuidv7 } from 'uuid';
 import { prisma } from '../../lib/db.js';
-import type { ForfaitPurchase, Placement, QueuedPeriod } from './forfait.service.js';
+import type { ForfaitPurchase, GiftInput, Placement, QueuedPeriod } from './forfait.service.js';
 import type { ExpiredPeriod } from './rights.service.js';
 
 export type PeriodRow = Subscription;
+
+/**
+ * Loads a period for trusted internal callers; this lookup does not authorize access.
+ * @param tx Caller transaction shared with the surrounding subscription operation.
+ * @param id Period identifier whose scope must be checked by the caller when exposed.
+ * @returns The period, or null when the identifier is unknown.
+ */
+export function findPeriod(tx: Prisma.TransactionClient, id: string): Promise<PeriodRow | null> {
+  return tx.subscription.findUnique({ where: { id } });
+}
 
 /**
  * Checks the immutable reminder journal under the caller's subscription lock (ASVS 2.3.3).
@@ -243,22 +253,22 @@ export async function findLastExpiredPeriod(
   return row?.endReason === 'EXPIRED' ? { plan: row.plan, endsAt: row.endsAt } : null;
 }
 
-/** Inserts the purchased period using only server-decided placement and status. */
+/** Inserts a purchase or gift using only server-decided placement and status (C-52). */
 export async function insertPeriod(
   tx: Prisma.TransactionClient,
-  purchase: ForfaitPurchase,
+  purchase: ForfaitPurchase | GiftInput,
   placement: Placement & { placement: 'NOW' | 'QUEUED' },
 ): Promise<PeriodRow> {
   return tx.subscription.create({
     data: {
-      id: uuidv7(),
+      id: 'days' in purchase ? purchase.id : uuidv7(),
       organizationId: purchase.organizationId,
       plan: purchase.plan,
-      months: purchase.months,
-      price: purchase.price,
-      origin: 'PAYMENT',
+      months: 'days' in purchase ? null : purchase.months,
+      price: 'days' in purchase ? 0n : purchase.price,
+      origin: 'days' in purchase ? 'GIFT' : 'PAYMENT',
       status: placement.placement === 'NOW' ? 'ACTIVE' : 'SCHEDULED',
-      paymentId: purchase.paymentId,
+      paymentId: 'days' in purchase ? null : purchase.paymentId,
       startsAt: placement.startsAt,
       endsAt: placement.endsAt,
     },
@@ -331,17 +341,30 @@ export async function insertConversionPeriod(
 }
 
 /**
- * Appends the payment's journal entry in the same transaction as its period.
- * Actor identifiers come from the trusted caller; payer entries never inherit admin ids.
+ * Appends a purchase or gift journal entry in the same transaction as its period.
+ * Actor identifiers come from the trusted caller; gifts carry both administrator ids and no payment.
  * @param tx The caller's transaction; an insert failure must roll back the period.
- * @param purchase The purchase and its authenticated actor context.
+ * @param purchase The purchase or gift and its authenticated actor context.
  * @param period The newly inserted period to link in the immutable journal.
  */
 export async function insertEvent(
   tx: Prisma.TransactionClient,
-  purchase: ForfaitPurchase,
+  purchase: ForfaitPurchase | GiftInput,
   period: PeriodRow,
 ): Promise<void> {
+  if ('days' in purchase) {
+    const details = JSON.stringify({ plan: period.plan, days: purchase.days, status: period.status });
+    await tx.$executeRaw`
+      INSERT INTO subscription_events
+        (id, organization_id, kind, actor, administrator_id, admin_action_id,
+         subscription_id, details, occurred_at)
+      VALUES (${uuidv7()}::uuid, ${purchase.organizationId}::uuid, 'FORFAIT_ADDED',
+              'ADMINISTRATOR', ${purchase.actor.administratorId}::uuid,
+              ${purchase.actor.adminActionId}::uuid, ${period.id}::uuid,
+              ${details}::jsonb, ${purchase.now})
+    `;
+    return;
+  }
   await insertPurchaseEvent(tx, purchase, 'FORFAIT_ADDED', period.id, {
     plan: period.plan, months: period.months, status: period.status,
   });

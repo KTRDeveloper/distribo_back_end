@@ -1095,3 +1095,32 @@ BIL-034 done
 - Report returned directly rather than written to `/tmp/distribo-next13-20261026/BIL-035-report.md`, following the final developer instruction forbidding report Markdown files.
 BIL-035 blocked
 <!-- end BIL-035 -->
+
+<!-- begin BIL-037 -->
+## BIL-037 — A gift period is placed behind the paid ones
+
+- Filed: 2026-10-26 05:42 UTC
+- Status: **done**: Gift queue placement and administrator journal implemented; 6 story tests and 5116 suite tests pass
+- Risk: high · story: [BIL-037-a-gift-period-is-placed-behind-the-paid-ones.md](../modules/billing/BIL-037-a-gift-period-is-placed-behind-the-paid-ones.md)
+- Agent: 36,163 tokens, 39 tool uses, 7 min 3 s
+
+### Agent report
+
+**Summary:** Implemented BIL-037: gifts append behind the locked subscription queue, preserve paid periods, and create an administrator-attributed event; status done.
+
+**Decisions:**
+- Extended existing insertPeriod/insertEvent helpers with GiftInput rather than adding duplicate persistence APIs; purchases retain their existing behavior.
+- findPeriod is an internal lookup, not an authorization boundary; its JSDoc requires callers to check scope before exposing results.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/gift-forfait.test.ts` › rolls back the period and journal with the caller transaction: guards atomic rollback (ASVS 2.3.3); observed failing before implementation.
+
+**Evidence:** story tests 6/6; full suite 5116/5116 (378 files), failing: none, 0 known; typecheck clean; lint 0 errors, 219 warnings; git diff --check clean.
+- Full-suite output: `/tmp/distribo-next13-20261026/BIL-037-suite.txt`.
+
+**Follow-ups:**
+- Dependency audit reports 5 vulnerabilities (3 high, 1 moderate, 1 low) in unchanged dependencies; no dependency changes made. Semgrep and Gitleaks are unavailable locally.
+- `/tmp/distribo-next13-20261026/BIL-037-report.md` was not written because the final developer instruction forbids writing report Markdown files; this handback contains the complete report.
+
+BIL-037 done
+<!-- end BIL-037 -->

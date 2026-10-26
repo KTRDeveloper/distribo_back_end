@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import type { PackMonths, PaidPlanCode } from '../../shared/plans.js';
-import { addMonths, GRACE_DAYS, planRank } from './plan-math.js';
+import { addDays, addMonths, GRACE_DAYS, planRank } from './plan-math.js';
 import {
   findLastExpired,
   insertEvent,
@@ -36,6 +36,41 @@ export type ForfaitPurchase = {
   actor: ForfaitActor;
   now: Date;
 };
+
+export type GiftInput = {
+  id: string;
+  organizationId: string;
+  plan: PaidPlanCode;
+  days: number;
+  actor: { administratorId: string; adminActionId: string };
+  now: Date;
+};
+
+/**
+ * Appends offered days without changing or converting any queued period (C-52).
+ * Even a lapsed ACTIVE row keeps the gift SCHEDULED until lifecycle processing ends it.
+ * @param tx Caller transaction owning the lock, gift and journal (ASVS 2.3.3).
+ * @param gift Trusted administrator context; the caller validates days and handles repeated ids.
+ * @returns The zero-price gift, starting no earlier than now or the end of the queue.
+ */
+export async function addGiftForfait(
+  tx: Prisma.TransactionClient,
+  gift: GiftInput,
+): Promise<PeriodRow> {
+  await lockSubscriptions(tx, gift.organizationId);
+  const queue = await listQueue(tx, gift.organizationId);
+  const startsAt = new Date(queue.reduce(
+    (latest, row) => Math.max(latest, row.endsAt.getTime()),
+    gift.now.getTime(),
+  ));
+  const period = await insertPeriod(tx, gift, {
+    placement: queue.length === 0 ? 'NOW' : 'QUEUED',
+    startsAt,
+    endsAt: addDays(startsAt, gift.days),
+  });
+  await insertEvent(tx, gift, period);
+  return period;
+}
 
 /** Signals that conversion must be handled by the upgrade flow, without writing a period. */
 export class UpgradeRequiredError extends Error {
