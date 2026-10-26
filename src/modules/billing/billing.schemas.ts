@@ -29,6 +29,35 @@ export const keepChoiceBodySchema = z.object({
 
 export const keepChoiceParamsSchema = z.object({ organizationId: uuidV7Schema }).strict();
 
+/** The owner screen accepts no client-selected clock, identity or filtering. */
+export const ownerBillingQuerySchema = z.object({}).strict();
+
+const planCodeSchema = z.enum(['FREE', 'ESSENTIAL', 'PRO', 'ENTERPRISE']);
+
+/** Closed subscription projection: no personal, payment, receipt or internal period data. */
+export const ownerBillingResponseSchema = z.object({
+  plan: planCodeSchema,
+  plan_ends_at: z.string().datetime().nullable(),
+  grace_ends_at: z.string().datetime().nullable(),
+  max_collaborators: z.number().int().nonnegative().nullable(),
+  max_products: z.number().int().nonnegative().nullable(),
+  periods: z.array(z.object({
+    plan: z.enum(['ESSENTIAL', 'PRO', 'ENTERPRISE']),
+    status: z.enum(['ACTIVE', 'SCHEDULED']),
+    starts_at: z.string().datetime(),
+    ends_at: z.string().datetime(),
+  }).strict()),
+  usage: z.object({
+    collaborators: z.number().int().nonnegative(),
+    products: z.number().int().nonnegative(),
+  }).strict(),
+  after_end: z.object({
+    plan: planCodeSchema,
+    collaborators_to_pause: z.number().int().nonnegative(),
+    products_to_pause: z.number().int().nonnegative(),
+  }).strict().nullable(),
+}).strict();
+
 /** Owner swap fields only; UUID casing cannot bypass the distinct-seat rule. */
 export const swapSeatBodySchema = z.object({
   id: uuidV7Schema,

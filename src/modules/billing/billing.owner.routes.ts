@@ -3,12 +3,27 @@ import { authMiddleware } from '../../middleware/auth.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { requireAbility } from '../../middleware/require-ability.js';
 import { idempotent } from '../../middleware/idempotent.js';
-import { keepChoiceBodySchema, keepChoiceParamsSchema, swapProductBodySchema, swapSeatBodySchema } from './billing.schemas.js';
+import { keepChoiceBodySchema, keepChoiceParamsSchema, ownerBillingQuerySchema, swapProductBodySchema, swapSeatBodySchema } from './billing.schemas.js';
+import { readOwnerBilling } from './owner-view.service.js';
 import { saveKeepChoice } from './keep-choice.service.js';
 import { swapProduct, swapSeat } from './swap.service.js';
 
 /** Owner-only billing gestures, scoped by the authenticated organization's membership. */
 export const billingOwnerRoutes = Router({ mergeParams: true });
+
+billingOwnerRoutes.get(
+  '/',
+  authMiddleware,
+  (req, _res, next) => {
+    keepChoiceParamsSchema.parse(req.params);
+    ownerBillingQuerySchema.parse(req.query);
+    next();
+  },
+  loadActor,
+  async (req, res) => {
+    res.status(200).json(await readOwnerBilling(req.actor!, new Date()));
+  },
+);
 
 billingOwnerRoutes.post(
   '/swap-product',

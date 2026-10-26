@@ -29393,6 +29393,219 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/billing": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Read the owner subscription screen and end-of-grace preview without writing",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Computed rights, live periods, usage and the next plan with excess counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "FREE",
+                        "ESSENTIAL",
+                        "PRO",
+                        "ENTERPRISE"
+                      ]
+                    },
+                    "plan_ends_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "grace_ends_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "max_collaborators": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "max_products": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "periods": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "plan": {
+                            "type": "string",
+                            "enum": [
+                              "ESSENTIAL",
+                              "PRO",
+                              "ENTERPRISE"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "ACTIVE",
+                              "SCHEDULED"
+                            ]
+                          },
+                          "starts_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "ends_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "plan",
+                          "status",
+                          "starts_at",
+                          "ends_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "collaborators": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "products": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "collaborators",
+                        "products"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "after_end": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "plan": {
+                          "type": "string",
+                          "enum": [
+                            "FREE",
+                            "ESSENTIAL",
+                            "PRO",
+                            "ENTERPRISE"
+                          ]
+                        },
+                        "collaborators_to_pause": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "products_to_pause": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "plan",
+                        "collaborators_to_pause",
+                        "products_to_pause"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "plan",
+                    "plan_ends_at",
+                    "grace_ends_at",
+                    "max_collaborators",
+                    "max_products",
+                    "periods",
+                    "usage",
+                    "after_end"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid organization UUID or unexpected query field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only the owner may read the subscription screen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Organization absent or outside caller scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/billing/swap-product": {
       "post": {
         "tags": [

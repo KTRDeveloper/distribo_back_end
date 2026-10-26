@@ -4,6 +4,8 @@ import {
   keepChoiceBodySchema,
   keepChoiceParamsSchema,
   keepChoiceResponseSchema,
+  ownerBillingQuerySchema,
+  ownerBillingResponseSchema,
   paymentResponseSchema,
   paymentStatusParamsSchema,
   paymentStatusQuerySchema,
@@ -17,6 +19,37 @@ import {
   swapSeatBodySchema,
   swapSeatResponseSchema,
 } from './billing.schemas.js';
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/organizations/{organizationId}/billing',
+  tags: ['billing'],
+  summary: 'Read the owner subscription screen and end-of-grace preview without writing',
+  security: [{ bearerAuth: [] }],
+  request: { params: keepChoiceParamsSchema, query: ownerBillingQuerySchema },
+  responses: {
+    200: {
+      description: 'Computed rights, live periods, usage and the next plan with excess counts',
+      content: { 'application/json': { schema: ownerBillingResponseSchema } },
+    },
+    400: {
+      description: 'Invalid organization UUID or unexpected query field',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Authentication required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'Only the owner may read the subscription screen',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Organization absent or outside caller scope',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: 'post',
