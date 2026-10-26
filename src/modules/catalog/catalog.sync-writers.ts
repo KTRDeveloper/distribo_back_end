@@ -592,7 +592,6 @@ export async function applyPriceFromSync(
   await upsertCustomerPrice(tx, {
     id: input.id,
     relationshipId,
-    productId: variant.productId,
     variantId: variant.variantId,
     price: input.price,
     setById: input.setById,

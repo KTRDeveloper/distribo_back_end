@@ -153,7 +153,6 @@ describe('ORD-027 order lines are priced from the variant', () => {
       data: {
         id: PRICE_ID,
         customerRelationshipId: REL,
-        productId: PRODUCT,
         productVariantId: VARIANT,
         price: 2800n,
         setById: OWNER,

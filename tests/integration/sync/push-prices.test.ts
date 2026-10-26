@@ -90,12 +90,10 @@ async function seedOwner(suffix: string, personId: string, org: string) {
 }
 
 async function seedPrice(id: string, relationshipId: string, variantId: string, price: bigint) {
-  const variant = await prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } });
   await prisma.customerPrice.create({
     data: {
       id,
       customerRelationshipId: relationshipId,
-      productId: variant.productId,
       productVariantId: variantId,
       price,
       setById: relationshipId === REL_B ? OWNER_B : OWNER_A,

@@ -13,6 +13,9 @@ const REL_ID = '0199c002-0000-7000-8000-000000000021';
 const PERSON_SUPPLIER_REL_ID = '0199c002-0000-7000-8000-000000000022';
 const PRODUCT_ID = '0199c002-0000-7000-8000-000000000031';
 const FOREIGN_PRODUCT_ID = '0199c002-0000-7000-8000-000000000032';
+// CAT-013: the first variant of a product has the id of its product.
+const VARIANT_ID = PRODUCT_ID;
+const FOREIGN_VARIANT_ID = FOREIGN_PRODUCT_ID;
 const PRICE_ID = '0199c002-0000-7000-8000-000000000041';
 const OTHER_PRICE_ID = '0199c002-0000-7000-8000-000000000042';
 const UNKNOWN_ID = '0199c002-0000-7000-8000-0000000009ff';
@@ -55,7 +58,7 @@ async function captureSqlCode(operation: Promise<unknown>): Promise<string | und
 type Row = {
   id?: string;
   relationshipId?: string | null;
-  productId?: string | null;
+  variantId?: string | null;
   price?: bigint | number | null;
   setById?: string | null;
   deletedAt?: Date | null;
@@ -64,15 +67,15 @@ type Row = {
 /** Inserts a customer price; omitted fields take the valid fixture values. */
 function insertPrice(row: Row = {}): Promise<number> {
   const relationship = 'relationshipId' in row ? row.relationshipId : REL_ID;
-  const product = 'productId' in row ? row.productId : PRODUCT_ID;
+  const variant = 'variantId' in row ? row.variantId : VARIANT_ID;
   const price = 'price' in row ? row.price : 2500;
   const setBy = 'setById' in row ? row.setById : OWNER_ID;
   return prisma.$executeRaw`
     INSERT INTO customer_prices (
-      id, customer_relationship_id, product_id, price, set_by_id, deleted_at
+      id, customer_relationship_id, product_variant_id, price, set_by_id, deleted_at
     )
     VALUES (
-      ${row.id ?? PRICE_ID}::uuid, ${relationship}::uuid, ${product}::uuid,
+      ${row.id ?? PRICE_ID}::uuid, ${relationship}::uuid, ${variant}::uuid,
       ${price}::bigint, ${setBy}::uuid, ${row.deletedAt ?? null}::timestamptz
     )
   `;
@@ -156,7 +159,7 @@ describe('customer_prices row (AC-1, C-01, C-35)', () => {
     expect(row.server_updated_at).toBeInstanceOf(Date);
     expect(row.deleted_at).toBeNull();
 
-    for (const column of ['id', 'customer_relationship_id', 'product_id', 'set_by_id']) {
+    for (const column of ['id', 'customer_relationship_id', 'product_variant_id', 'set_by_id']) {
       await expectColumnType('customer_prices', column, 'uuid');
     }
     await expectColumnType('customer_prices', 'price', 'bigint');
@@ -180,7 +183,7 @@ describe('customer_prices row (AC-1, C-01, C-35)', () => {
 });
 
 describe('customer_prices uniqueness (AC-2, C-11)', () => {
-  it('rejects a second live price for the same relationship and product with 23505', async () => {
+  it('rejects a second live price for the same relationship and variant with 23505', async () => {
     await insertPrice();
     expect(await captureSqlCode(insertPrice({ id: OTHER_PRICE_ID }))).toBe('23505');
   });
@@ -201,9 +204,9 @@ describe('customer_prices uniqueness (AC-2, C-11)', () => {
   });
 });
 
-describe('customer_prices product ownership (AC-3, AB-1, C-11)', () => {
-  it('rejects a product of another organization with 23514', async () => {
-    expect(await captureSqlCode(insertPrice({ productId: FOREIGN_PRODUCT_ID }))).toBe('23514');
+describe('customer_prices variant ownership (AC-3, AB-1, C-11)', () => {
+  it('rejects a variant of another organization with 23514', async () => {
+    expect(await captureSqlCode(insertPrice({ variantId: FOREIGN_VARIANT_ID }))).toBe('23514');
   });
 
   it('rejects a relationship whose supplier is a person with 23514', async () => {
@@ -212,12 +215,12 @@ describe('customer_prices product ownership (AC-3, AB-1, C-11)', () => {
     );
   });
 
-  it('rejects moving an existing price to a foreign product with 23514', async () => {
+  it('rejects moving an existing price to a foreign variant with 23514', async () => {
     await insertPrice();
     expect(
       await captureSqlCode(
         prisma.$executeRaw`
-          UPDATE customer_prices SET product_id = ${FOREIGN_PRODUCT_ID}::uuid
+          UPDATE customer_prices SET product_variant_id = ${FOREIGN_VARIANT_ID}::uuid
           WHERE id = ${PRICE_ID}::uuid
         `
       )
@@ -230,15 +233,15 @@ describe('customer_prices author and keys (AC-4, C-04)', () => {
     expect(await captureSqlCode(insertPrice({ setById: GUEST_ID }))).toBe('23514');
   });
 
-  it('rejects an unknown relationship, product or author with 23503', async () => {
+  it('rejects an unknown relationship, variant or author with 23503', async () => {
     expect(await captureSqlCode(insertPrice({ relationshipId: UNKNOWN_ID }))).toBe('23503');
-    expect(await captureSqlCode(insertPrice({ productId: UNKNOWN_ID }))).toBe('23503');
+    expect(await captureSqlCode(insertPrice({ variantId: UNKNOWN_ID }))).toBe('23503');
     expect(await captureSqlCode(insertPrice({ setById: UNKNOWN_ID }))).toBe('23503');
   });
 
-  it('rejects a null relationship, product, price or author with 23502', async () => {
+  it('rejects a null relationship, variant, price or author with 23502', async () => {
     expect(await captureSqlCode(insertPrice({ relationshipId: null }))).toBe('23502');
-    expect(await captureSqlCode(insertPrice({ productId: null }))).toBe('23502');
+    expect(await captureSqlCode(insertPrice({ variantId: null }))).toBe('23502');
     expect(await captureSqlCode(insertPrice({ price: null }))).toBe('23502');
     expect(await captureSqlCode(insertPrice({ setById: null }))).toBe('23502');
   });

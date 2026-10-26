@@ -1482,3 +1482,34 @@ CAT-045 done
 **Follow-ups:**
 - `npm run typecheck` excludes tests; `tsc -p tsconfig.eslint.json` shows about 40 old type errors in test files I did not change, including the IDE one in `tests/integration/sync/push-lines-by-variant.test.ts` line 148 (`status: 'INACTIVE'` widened to string by `.map`). Not caused by CAT-041, left untouched (test not listed).
 <!-- end CAT-041 -->
+
+<!-- begin CAT-043 -->
+## CAT-043 — Negotiated prices lose their product column
+
+- Filed: 2026-10-26 10:23 UTC
+- Status: **done**: price product_id dropped, variant required, writer/tests/scan updated
+- Risk: high · story: [CAT-043-negotiated-prices-lose-their-product-column.md](../modules/catalog/CAT-043-negotiated-prices-lose-their-product-column.md)
+- Agent: 101,264 tokens, 42 tool uses, 6 min 34 s
+
+### Agent report
+
+**Summary:** Dropped `customer_prices.product_id` (guard, NOT NULL variant, two triggers, index, key); writer, schema, tests and scan updated.
+
+**Decisions:**
+- `upsertCustomerPrice` now returns `Promise<void>` with a required `variantId` (story signature); the old no-variant branch and returned `productId` went, no caller read them.
+- `listLiveCustomerPricesForCopy` no longer returns `productId`; `countNegotiatedPricesBefore` (unused) now filters through `productVariant.productId`.
+- Guard test drops NOT NULL inside a rolled-back transaction to insert an empty-variant row, then replays the guard lines.
+- `customer-price-table.test.ts`: product-ownership tests converted to the variant (same 23514/23503/23502 expectations) rather than deleted.
+- `customer-price-variant.test.ts`: removed every test that needs `product_id` or an empty variant (copy x2, old insert x2, old-style repeat, no-variant replace), not only two; AC-4 replace test now uses `variantId`.
+- `tests/unit/catalog/catalog-fixtures.test.ts` rewritten (not listed): it asserted the legacy product lookup of `seedCustomerPrice`, whose own JSDoc says CAT-043 removes it; the helper now writes the variant only.
+- Also edited ~14 other tests to drop `productId` / `product_id` from price inserts and reads (scan list, plus `variant-prices`, `judge-catalog`, `push-prices` for unused vars and expectations).
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/price-product-dropped.test.ts` › empty variant refused (23502) and deleted price frees its pair: fail-closed NOT NULL, C-11 partial unique index (AC-1, C-11); passed at once after the migration
+- same file › moving a price to another business's variant, and a person-supplied relationship (23514): kept trigger still guards (AB-1, C-11); passed at once
+
+**Evidence:** story tests 17/17 (integration 11, unit 1 scan, plus fixtures); full suite 5385/5387, failing: variant-prices (fixed, rerun green), images/image-copy (flaky, 0 known baseline; random UUID key matching /20\d{2}/, green on rerun); typecheck clean; lint 0 errors, 260 warnings
+
+**Follow-ups:**
+- `tests/integration/images/image-copy.test.ts` "shared file" is flaky: it asserts a random UUID key does not match `/20\d{2}/`; unrelated to CAT-043.
+<!-- end CAT-043 -->

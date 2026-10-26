@@ -30,10 +30,10 @@ async function insertPrice(
 ): Promise<void> {
   await prisma.$executeRaw`
     INSERT INTO customer_prices (
-      id, customer_relationship_id, product_id, product_variant_id, price, set_by_id, deleted_at
+      id, customer_relationship_id, product_variant_id, price, set_by_id, deleted_at
     )
     VALUES (
-      ${id}::uuid, ${relationshipId}::uuid, ${PRODUCT_ID}::uuid, ${variantId}::uuid, ${price}::bigint,
+      ${id}::uuid, ${relationshipId}::uuid, ${variantId}::uuid, ${price}::bigint,
       ${OWNER_ID}::uuid, ${deleted ? new Date('2026-02-01T00:00:00.000Z') : null}::timestamptz
     )
   `;

@@ -10,12 +10,10 @@ const input = {
   setById: '0199c042-0000-7000-8000-000000000004',
 };
 
-const parentId = '0199c042-0000-7000-8000-000000000005';
-
-describe('seedCustomerPrice compatibility', () => {
-  it('derives the legacy parent from the variant rather than assuming equal IDs', async () => {
-    const findUniqueOrThrow = vi.fn().mockResolvedValue({ productId: parentId });
-    const create = vi.fn().mockResolvedValue({ ...input, productId: parentId });
+describe('seedCustomerPrice', () => {
+  it('writes the variant only, without reading its product', async () => {
+    const findUniqueOrThrow = vi.fn();
+    const create = vi.fn().mockResolvedValue(input);
     const client = {
       productVariant: { findUniqueOrThrow },
       customerPrice: { create },
@@ -23,22 +21,16 @@ describe('seedCustomerPrice compatibility', () => {
 
     await seedCustomerPrice(client, input);
 
-    expect(findUniqueOrThrow).toHaveBeenCalledWith({
-      where: { id: input.productVariantId },
-      select: { productId: true },
-    });
-    expect(create).toHaveBeenCalledExactlyOnceWith({ data: { ...input, productId: parentId } });
+    expect(findUniqueOrThrow).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledExactlyOnceWith({ data: input });
   });
 
-  it('propagates a missing variant error without writing a price', async () => {
-    const error = new Error('Variant not found');
-    const create = vi.fn();
+  it('propagates a database error', async () => {
+    const error = new Error('Foreign key violation');
     const client = {
-      productVariant: { findUniqueOrThrow: vi.fn().mockRejectedValue(error) },
-      customerPrice: { create },
+      customerPrice: { create: vi.fn().mockRejectedValue(error) },
     } as unknown as Prisma.TransactionClient;
 
     await expect(seedCustomerPrice(client, input)).rejects.toBe(error);
-    expect(create).not.toHaveBeenCalled();
   });
 });

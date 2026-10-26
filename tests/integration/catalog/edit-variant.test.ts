@@ -151,7 +151,6 @@ async function seedNegotiatedPrices(count: number, variantId = VARIANT, setAt = 
       data: {
         id: `0199c0e5-0000-7000-8000-00000000003${i}`,
         customerRelationshipId: relationshipId,
-        productId: PRODUCT_A,
         productVariantId: variantId,
         price: 14000n,
         setById: OWNER,

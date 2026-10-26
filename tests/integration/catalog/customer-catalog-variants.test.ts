@@ -139,7 +139,6 @@ async function seedNegotiated(
     data: {
       id: id(n),
       customerRelationshipId: relId,
-      productId,
       productVariantId: variantId,
       price,
       setById: SUPPLIER_OWNER,
@@ -355,7 +354,6 @@ describe('GET /api/v1/organizations/:organizationId/catalog by product and varia
       data: {
         id: id('f1'),
         customerRelationshipId: id('e1'),
-        productId: P_RICE,
         productVariantId: V_RICE_50,
         price: 2800n,
         setById: SUPPLIER_OWNER,

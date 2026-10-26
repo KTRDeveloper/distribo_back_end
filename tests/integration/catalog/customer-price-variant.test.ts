@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
 import { upsertCustomerPrice } from '../../../src/modules/catalog/catalog.repository';
@@ -11,7 +9,6 @@ const CUSTOMER = '0199c015-0000-7000-8000-000000000012';
 const REL_A = '0199c015-0000-7000-8000-000000000021';
 const REL_PERSON = '0199c015-0000-7000-8000-000000000022';
 const PRODUCT = '0199c015-0000-7000-8000-000000000031';
-const PRODUCT_NO_VARIANT = '0199c015-0000-7000-8000-000000000032';
 const PRODUCT_B = '0199c015-0000-7000-8000-000000000033';
 const VARIANT = PRODUCT; // CAT-013: the first variant has the id of its product
 const VARIANT_2 = '0199c015-0000-7000-8000-000000000041';
@@ -20,11 +17,6 @@ const PRICE_1 = '0199c015-0000-7000-8000-000000000051';
 const PRICE_2 = '0199c015-0000-7000-8000-000000000052';
 const PRICE_3 = '0199c015-0000-7000-8000-000000000053';
 const UNKNOWN_ID = '0199c015-0000-7000-8000-0000000009ff';
-
-const MIGRATION = join(
-  __dirname,
-  '../../../prisma/migrations/20261019050000_cat_015_customer_price_variant/migration.sql'
-);
 
 type SqlError = {
   code?: string;
@@ -61,71 +53,27 @@ async function captureSqlCode(operation: Promise<unknown>): Promise<string | und
   return undefined;
 }
 
-/** The statements of the migration between the `-- copy start` and `-- copy end` lines. */
-function copyStatements(): string[] {
-  const sql = readFileSync(MIGRATION, 'utf8');
-  const start = sql.indexOf('-- copy start');
-  const end = sql.indexOf('-- copy end');
-  expect(start).toBeGreaterThanOrEqual(0);
-  expect(end).toBeGreaterThan(start);
-  return sql
-    .slice(start + '-- copy start'.length, end)
-    .split('\n')
-    .filter((line) => !line.trim().startsWith('--'))
-    .join('\n')
-    .split(';')
-    .map((statement) => statement.trim())
-    .filter((statement) => statement.length > 0);
-}
-
-/** Replays the copy in one transaction, as the migration does. */
-async function runCopy() {
-  const statements = copyStatements();
-  await prisma.$transaction(async (tx) => {
-    for (const statement of statements) {
-      await tx.$executeRawUnsafe(statement);
-    }
-  });
-}
-
-type PriceRow = { id: string; product_id: string; product_variant_id: string | null };
-
-/** Inserts a price; `variant` is left out of the statement when it is `undefined`. */
+/** Inserts a price for a variant. */
 function insertPrice(
   id: string,
   options: {
-    product?: string;
-    variant?: string | null;
+    variant?: string;
     relationship?: string;
     deletedAt?: Date | null;
     price?: number;
   } = {}
 ): Promise<number> {
-  const product = options.product ?? PRODUCT;
+  const variant = options.variant ?? VARIANT;
   const relationship = options.relationship ?? REL_A;
   const price = options.price ?? 2500;
   const deletedAt = options.deletedAt ?? null;
-  if (options.variant === undefined) {
-    return prisma.$executeRaw`
-      INSERT INTO customer_prices (id, customer_relationship_id, product_id, price, set_by_id, deleted_at)
-      VALUES (${id}::uuid, ${relationship}::uuid, ${product}::uuid, ${price}::bigint,
-              ${OWNER}::uuid, ${deletedAt}::timestamptz)
-    `;
-  }
   return prisma.$executeRaw`
     INSERT INTO customer_prices (
-      id, customer_relationship_id, product_id, product_variant_id, price, set_by_id, deleted_at
+      id, customer_relationship_id, product_variant_id, price, set_by_id, deleted_at
     )
-    VALUES (${id}::uuid, ${relationship}::uuid, ${product}::uuid, ${options.variant}::uuid,
+    VALUES (${id}::uuid, ${relationship}::uuid, ${variant}::uuid,
             ${price}::bigint, ${OWNER}::uuid, ${deletedAt}::timestamptz)
   `;
-}
-
-function readPrice(id: string) {
-  return prisma.$queryRaw<Array<PriceRow & { server_updated_at: Date; price: bigint }>>`
-    SELECT id::text, product_id::text, product_variant_id::text, price, server_updated_at
-    FROM customer_prices WHERE id = ${id}::uuid
-  `.then((rows) => rows[0]);
 }
 
 beforeEach(async () => {
@@ -149,7 +97,6 @@ beforeEach(async () => {
     INSERT INTO products (id, organization_id, name)
     VALUES
       (${PRODUCT}::uuid, ${ORG_A}::uuid, 'Fixture Rice'),
-      (${PRODUCT_NO_VARIANT}::uuid, ${ORG_A}::uuid, 'Fixture Flour'),
       (${PRODUCT_B}::uuid, ${ORG_B}::uuid, 'Fixture Oil')
   `;
   await prisma.$executeRaw`
@@ -172,51 +119,6 @@ beforeEach(async () => {
 });
 
 describe('customer price variant', () => {
-  it('AC-1 copy: gives each price the variant of its product and moves server_updated_at', async () => {
-    // A price of a product that had no variant when it was written stays empty.
-    await insertPrice(PRICE_1, { product: PRODUCT_NO_VARIANT });
-    expect((await readPrice(PRICE_1)).product_variant_id).toBeNull();
-    await prisma.$executeRaw`
-      INSERT INTO product_variants (id, product_id, organization_id, unit, price)
-      VALUES (${PRODUCT_NO_VARIANT}::uuid, ${PRODUCT_NO_VARIANT}::uuid, ${ORG_A}::uuid, 'bag', 500)
-    `;
-    const before = await readPrice(PRICE_1);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-
-    await runCopy();
-
-    const after = await readPrice(PRICE_1);
-    expect(after.product_variant_id).toBe(PRODUCT_NO_VARIANT);
-    expect(after.product_variant_id).toBe(after.product_id);
-    expect(after.server_updated_at.getTime()).toBeGreaterThan(before.server_updated_at.getTime());
-  });
-
-  it('copy: a second run changes nothing and a price without a variant stays empty', async () => {
-    await insertPrice(PRICE_1, { product: PRODUCT_NO_VARIANT });
-    await runCopy();
-    expect((await readPrice(PRICE_1)).product_variant_id).toBeNull();
-
-    await insertPrice(PRICE_2);
-    const before = await readPrice(PRICE_2);
-    await runCopy();
-    const after = await readPrice(PRICE_2);
-    expect(after.server_updated_at.getTime()).toBe(before.server_updated_at.getTime());
-  });
-
-  it('AC-2 old insert: product_id only gets the variant that has its id', async () => {
-    expect(await insertPrice(PRICE_1)).toBe(1);
-
-    const row = await readPrice(PRICE_1);
-    expect(row.product_variant_id).toBe(PRODUCT);
-    expect(row.product_variant_id).toBe(row.product_id);
-  });
-
-  it('old insert: a given variant is kept', async () => {
-    await insertPrice(PRICE_1, { variant: VARIANT_2 });
-
-    expect((await readPrice(PRICE_1)).product_variant_id).toBe(VARIANT_2);
-  });
-
   describe('AC-3 one live price per customer and variant', () => {
     it('rejects the same variant while the first price is live (23505)', async () => {
       await insertPrice(PRICE_1, { variant: VARIANT });
@@ -233,10 +135,6 @@ describe('customer price variant', () => {
       await expect(insertPrice(PRICE_2, { variant: VARIANT_2 })).resolves.toBe(1);
     });
 
-    it('rejects an old-style repeat for the same product (23505)', async () => {
-      await insertPrice(PRICE_1);
-      expect(await captureSqlCode(insertPrice(PRICE_2))).toBe('23505');
-    });
   });
 
   it('AC-4 replace: upserting the same pair twice keeps one row with the new price', async () => {
@@ -244,50 +142,26 @@ describe('customer price variant', () => {
       upsertCustomerPrice(tx, {
         id: PRICE_1,
         relationshipId: REL_A,
-        productId: PRODUCT,
+        variantId: VARIANT,
         price: 2800n,
         setById: OWNER,
       })
     );
-    const result = await prisma.$transaction((tx) =>
+    await prisma.$transaction((tx) =>
       upsertCustomerPrice(tx, {
         id: PRICE_2,
         relationshipId: REL_A,
-        productId: PRODUCT,
+        variantId: VARIANT,
         price: 3200n,
         setById: OWNER,
       })
     );
 
-    expect(result).toMatchObject({ productId: PRODUCT, price: 3200n, setById: OWNER });
-    const rows = await prisma.$queryRaw<Array<{ id: string; price: bigint }>>`
+        const rows = await prisma.$queryRaw<Array<{ id: string; price: bigint }>>`
       SELECT id::text, price FROM customer_prices
       WHERE customer_relationship_id = ${REL_A}::uuid AND deleted_at IS NULL
     `;
     expect(rows).toEqual([{ id: PRICE_1, price: 3200n }]);
-  });
-
-  it('replace: a product without a variant still keeps one live row', async () => {
-    for (const [id, price] of [
-      [PRICE_1, 100n],
-      [PRICE_2, 200n],
-    ] as const) {
-      await prisma.$transaction((tx) =>
-        upsertCustomerPrice(tx, {
-          id,
-          relationshipId: REL_A,
-          productId: PRODUCT_NO_VARIANT,
-          price,
-          setById: OWNER,
-        })
-      );
-    }
-
-    const rows = await prisma.$queryRaw<Array<{ id: string; price: bigint }>>`
-      SELECT id::text, price FROM customer_prices
-      WHERE customer_relationship_id = ${REL_A}::uuid AND deleted_at IS NULL
-    `;
-    expect(rows).toEqual([{ id: PRICE_1, price: 200n }]);
   });
 
   it('AC-5 keys: an unknown variant is rejected (23503)', async () => {

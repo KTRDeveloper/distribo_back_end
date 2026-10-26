@@ -190,7 +190,6 @@ describe('variant prices', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       productVariantId: RICE_50,
-      productId: RICE,
       price: 2800n,
       setById: MANAGER,
     });
@@ -228,7 +227,6 @@ describe('variant prices', () => {
       data: {
         id: id('90'),
         customerRelationshipId: REL,
-        productId: RICE,
         productVariantId: RICE_50,
         price: 100n,
         setById: OWNER,
@@ -325,7 +323,6 @@ describe('variant prices', () => {
           data: {
             id: id(n),
             customerRelationshipId: rel,
-            productId: RICE,
             productVariantId: variant,
             price,
             setById: OWNER,
@@ -341,14 +338,13 @@ describe('variant prices', () => {
       expect(
         rows.map((row) => ({
           variant: row.productVariantId,
-          product: row.productId,
           price: row.price,
           by: row.setById,
         }))
       ).toEqual(
         [
-          { variant: RICE_50, product: RICE, price: 2800n, by: MANAGER },
-          { variant: RICE_25, product: RICE, price: 1500n, by: MANAGER },
+          { variant: RICE_50, price: 2800n, by: MANAGER },
+          { variant: RICE_25, price: 1500n, by: MANAGER },
         ].sort((a, b) => a.variant.localeCompare(b.variant))
       );
       expect(await prisma.customerPrice.count({ where: { customerRelationshipId: REL_B } })).toBe(

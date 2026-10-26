@@ -102,7 +102,6 @@ async function seedPriceOn(variantId: string, deleted = false) {
     data: {
       id: '0199c0e6-0000-7000-8000-000000000041',
       customerRelationshipId: REL,
-      productId: PRODUCT_A,
       productVariantId: variantId,
       price: 14000n,
       setById: OWNER,

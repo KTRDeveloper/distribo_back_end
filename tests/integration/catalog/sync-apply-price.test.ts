@@ -33,7 +33,6 @@ const UNKNOWN = '0199c039-0000-7000-8000-0000000000ff';
 type PriceRow = {
   id: string;
   customer_relationship_id: string;
-  product_id: string;
   product_variant_id: string;
   price: bigint;
   set_by_id: string;
@@ -61,14 +60,14 @@ function remove(priceId: string, organizationId = ORG_A) {
 
 function allPrices() {
   return prisma.$queryRaw<PriceRow[]>`
-    SELECT id::text, customer_relationship_id::text, product_id::text,
+    SELECT id::text, customer_relationship_id::text,
            product_variant_id::text, price, set_by_id::text, deleted_at
     FROM customer_prices ORDER BY id`;
 }
 
 async function readPrice(id: string): Promise<(PriceRow & { server_updated_at: Date }) | undefined> {
   const rows = await prisma.$queryRaw<Array<PriceRow & { server_updated_at: Date }>>`
-    SELECT id::text, customer_relationship_id::text, product_id::text,
+    SELECT id::text, customer_relationship_id::text,
            product_variant_id::text, price, set_by_id::text, deleted_at, server_updated_at
     FROM customer_prices WHERE id = ${id}::uuid`;
   return rows[0];
@@ -86,7 +85,6 @@ async function insertPrice(
   options: {
     relationship?: string;
     variant?: string;
-    product?: string;
     price?: number;
     deleted?: boolean;
   } = {}
@@ -94,9 +92,9 @@ async function insertPrice(
   const deletedAt = options.deleted ? new Date('2026-02-01T00:00:00Z') : null;
   await prisma.$executeRaw`
     INSERT INTO customer_prices (
-      id, customer_relationship_id, product_id, product_variant_id, price, set_by_id, deleted_at
+      id, customer_relationship_id, product_variant_id, price, set_by_id, deleted_at
     )
-    VALUES (${id}::uuid, ${options.relationship ?? REL}::uuid, ${options.product ?? PRODUCT}::uuid,
+    VALUES (${id}::uuid, ${options.relationship ?? REL}::uuid,
             ${options.variant ?? VARIANT}::uuid, ${options.price ?? 6000}::bigint,
             ${OWNER}::uuid, ${deletedAt}::timestamptz)`;
 }
@@ -145,14 +143,13 @@ beforeEach(async () => {
 });
 
 describe('negotiated price sent by a phone (CAT-039)', () => {
-  it('AC-1 creates a price with its variant and product, written by the given person', async () => {
+  it('AC-1 creates a price with its variant, written by the given person', async () => {
     expect(await apply(input())).toEqual({ result: 'CREATED' });
 
     const row = await readPrice(PRICE_A);
     expect(row).toMatchObject({
       customer_relationship_id: REL,
       product_variant_id: VARIANT,
-      product_id: PRODUCT,
       price: 6000n,
       set_by_id: OWNER,
       deleted_at: null,
@@ -202,8 +199,8 @@ describe('negotiated price sent by a phone (CAT-039)', () => {
     beforeEach(async () => {
       await insertPrice(PRICE_DELETED, { variant: VARIANT_2, deleted: true });
       await prisma.$executeRaw`
-        INSERT INTO customer_prices (id, customer_relationship_id, product_id, product_variant_id, price, set_by_id)
-        VALUES (${PRICE_FOREIGN}::uuid, ${REL_B}::uuid, ${PRODUCT_B}::uuid, ${VARIANT_B}::uuid, 1500, ${OWNER}::uuid)`;
+        INSERT INTO customer_prices (id, customer_relationship_id, product_variant_id, price, set_by_id)
+        VALUES (${PRICE_FOREIGN}::uuid, ${REL_B}::uuid, ${VARIANT_B}::uuid, 1500, ${OWNER}::uuid)`;
     });
 
     async function expectNothingWritten(data: PriceSyncInput, expected: object) {
@@ -269,7 +266,7 @@ describe('negotiated price sent by a phone (CAT-039)', () => {
   });
 
   it('a removal of another business price answers NOT_FOUND and keeps it', async () => {
-    await insertPrice(PRICE_FOREIGN, { relationship: REL_B, variant: VARIANT_B, product: PRODUCT_B });
+    await insertPrice(PRICE_FOREIGN, { relationship: REL_B, variant: VARIANT_B });
 
     expect(await remove(PRICE_FOREIGN)).toBe('NOT_FOUND');
     expect((await readPrice(PRICE_FOREIGN))?.deleted_at).toBeNull();

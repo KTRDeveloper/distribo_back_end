@@ -167,15 +167,14 @@ describe('the judge knows products, variants and negotiated prices (SYNC-030)', 
         data: { id, productId: product, organizationId: org, unit: 'carton', price: 5000n },
       });
     }
-    for (const [id, rel, product, variant, author] of [
-      [PRICE_A, REL_A, PRODUCT_A, VARIANT_A, OWNER_A],
-      [PRICE_B, REL_B, PRODUCT_B, VARIANT_B, OWNER_B],
+    for (const [id, rel, variant, author] of [
+      [PRICE_A, REL_A, VARIANT_A, OWNER_A],
+      [PRICE_B, REL_B, VARIANT_B, OWNER_B],
     ]) {
       await prisma.customerPrice.create({
         data: {
           id,
           customerRelationshipId: rel,
-          productId: product,
           productVariantId: variant,
           price: 4000n,
           setById: author,

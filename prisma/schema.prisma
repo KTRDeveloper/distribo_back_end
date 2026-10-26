@@ -1169,10 +1169,9 @@ model Product {
   serverUpdatedAt DateTime  @default(now()) @map("server_updated_at") @db.Timestamptz
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
 
-  organization   Organization     @relation(fields: [organizationId], references: [id])
-  customerPrices CustomerPrice[]
-  orderLines     OrderLine[]
-  variants       ProductVariant[]
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  orderLines   OrderLine[]
+  variants     ProductVariant[]
 
   // Lets a variant point at its product together with the business, so the
   // database itself refuses a variant under another business's product
@@ -1246,23 +1245,20 @@ model ProductVariant {
 
 // Rules the database enforces on negotiated prices (one customer's own price
 // for one product variant), beyond what this model declares. They come from
-// migration 20261004210000_cat_002_customer_prices and, for the variant,
-// migration 20261019050000_cat_015_customer_price_variant.
-// - The product must belong to the organization that is the supplier of the
-//   relationship. A relationship whose supplier is a person has no products, so
-//   it can never hold a price. Checked on every insert and every change of the
-//   relationship or product, even for code that skipped validation.
-// - The variant must belong to that same supplier, checked in the same way.
-//   The old product column stays, required, until a later story drops it.
-// - Only one live price may exist per relationship and variant, so two variants
-//   of a product may each carry a price for one customer. Deleted rows do not
+// migration 20261004210000_cat_002_customer_prices, migration
+// 20261019050000_cat_015_customer_price_variant and, for the end of the product
+// column, migration 20261025140000_cat_043_drop_price_product_id.
+// - A price names a variant and nothing else: it has no product column.
+// - There is one live price per relationship and variant. Two variants of one
+//   product may each carry a price for the same customer. Deleted rows do not
 //   count, so a price can be set again after it was deleted. This is a partial
 //   unique index that Prisma cannot express, so code must not rely on a Prisma
 //   unique lookup; catch the unique violation (23505) instead.
-// - The variant is empty-allowed for now. An insert that leaves it empty gets
-//   the variant that has the id of the product, when that variant exists, so
-//   old code keeps working; a price whose product has no variant yet stays
-//   empty, and is then not covered by the uniqueness above.
+// - The variant is the supplier's: it must belong to the organization that is
+//   the supplier of the relationship, and the database refuses otherwise (23514),
+//   on every insert and every change of the relationship or variant, even for
+//   code that skipped validation. A relationship whose supplier is a person has
+//   no products, so it can never hold a price.
 // - The person who set the price must be a registered person, never a guest.
 //   This is checked when the transaction is saved, not row by row.
 // - set_at is the creation time given by the database. server_updated_at is set
@@ -1271,8 +1267,7 @@ model ProductVariant {
 model CustomerPrice {
   id                     String    @id @db.Uuid
   customerRelationshipId String    @map("customer_relationship_id") @db.Uuid
-  productId              String    @map("product_id") @db.Uuid
-  productVariantId       String?   @map("product_variant_id") @db.Uuid
+  productVariantId       String    @map("product_variant_id") @db.Uuid
   price                  BigInt
   setById                String    @map("set_by_id") @db.Uuid
   setAt                  DateTime  @default(now()) @map("set_at") @db.Timestamptz
@@ -1280,12 +1275,10 @@ model CustomerPrice {
   deletedAt              DateTime? @map("deleted_at") @db.Timestamptz
 
   customerRelationship CustomerRelationship @relation(fields: [customerRelationshipId], references: [id])
-  product              Product              @relation(fields: [productId], references: [id])
-  productVariant       ProductVariant?      @relation(fields: [productVariantId], references: [id])
+  productVariant       ProductVariant       @relation(fields: [productVariantId], references: [id])
   setBy                Person               @relation("CustomerPriceSetBy", fields: [setById], references: [id])
 
   @@index([customerRelationshipId])
-  @@index([productId])
   @@index([productVariantId])
   @@map("customer_prices")
 }

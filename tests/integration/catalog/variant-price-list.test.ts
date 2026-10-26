@@ -93,7 +93,6 @@ async function seedPrice(
     data: {
       id: id(n),
       customerRelationshipId: relationshipId,
-      productId,
       productVariantId: variantId,
       price,
       setById: OWNER,

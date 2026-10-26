@@ -149,7 +149,6 @@ describe('variant-only sync price consumers (ORD-032)', () => {
       data: {
         id: PRICE,
         customerRelationshipId: REL,
-        productId: PRODUCT,
         productVariantId: VARIANT,
         price: 3100n,
         setById: OWNER,
