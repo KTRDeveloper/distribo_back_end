@@ -961,3 +961,28 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - Story's "Modify" and "Tests to update" were already satisfied before this run; worth checking the story was not stale.
 <!-- end SYNC-027 -->
+
+<!-- begin SYNC-028 -->
+## SYNC-028 — Controls on arrival and the list to resolve read the variant
+
+- Filed: 2026-10-26 08:12 UTC
+- Status: **done**: Controls already read the variant (ORD-032); added the story's tests as guards
+- Risk: medium · story: [SYNC-028-controls-on-arrival-and-the-list-to-resolve.md](../modules/sync/SYNC-028-controls-on-arrival-and-the-list-to-resolve.md)
+- Agent: 41,630 tokens, 17 tool uses, 2 min 48 s
+
+### Agent report
+
+**Summary:** `priceControl` and `findFlaggedOrders` already read `productVariantId` and `getReferencePrice(variantId)` (done under ORD-032); only the story's test file was missing, so I added it and changed no source.
+
+**Decisions:**
+- Tests call `runControls` and `findFlaggedOrders` directly (pattern of nullable-line-prices.test.ts): the push adapter still maps `product_id`, so a push could not name a variant.
+- The DB trigger dates a variant's price at insert, so the "price stood since before the order" case (AC-3) dates the order after it.
+
+**Tests added beyond the story:**
+- `controls-by-variant.test.ts` › tells the two sizes apart by their label when both moved: line labels name each size (story Context, `labelApplied`); passed at once
+
+**Evidence:** story tests 25/25 (6 new, all passed at once: the behaviour pre-existed); full suite 5257/5257, failing: none, 0 known; typecheck clean; lint 0 errors, 224 warnings
+
+**Follow-ups:**
+- The story is satisfied by earlier work; SYNC-028 has no source diff, only the test file.
+<!-- end SYNC-028 -->
