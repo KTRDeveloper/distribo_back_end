@@ -92,7 +92,7 @@ async function seedOrder(
       lines: {
         create: {
           id: lineId(n),
-          productId: relationshipId === OTHER_REL ? OTHER_PRODUCT : PRODUCT,
+          productVariantId: relationshipId === OTHER_REL ? OTHER_PRODUCT : PRODUCT,
           labelApplied: 'Rice (sack)',
           quantity: '2',
           ...(status === 'DELIVERED' ? { deliveredQuantity: '2' } : {}),

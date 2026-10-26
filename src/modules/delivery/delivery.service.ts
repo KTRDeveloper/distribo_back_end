@@ -497,7 +497,6 @@ export function deliverOrder(
         const remaining = quantityMilli - deliveredMilli;
         return {
           id: newId(),
-          productId: line.productId,
           productVariantId: line.productVariantId,
           labelApplied: line.labelApplied,
           quantity: formatQuantity(remaining),

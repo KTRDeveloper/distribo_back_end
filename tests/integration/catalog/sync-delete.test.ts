@@ -38,7 +38,7 @@ async function seedProduct(id: string, organizationId: string, variantIds: strin
   }
 }
 
-async function seedOrderLineOn(variantId: string, productId = PRODUCT_A) {
+async function seedOrderLineOn(variantId: string) {
   await prisma.order.create({
     data: {
       id: '0199c036-0000-7000-8000-000000000031',
@@ -51,7 +51,6 @@ async function seedOrderLineOn(variantId: string, productId = PRODUCT_A) {
       lines: {
         create: {
           id: '0199c036-0000-7000-8000-000000000032',
-          productId,
           productVariantId: variantId,
           labelApplied: 'T-shirt',
           quantity: '1',
@@ -290,10 +289,10 @@ describe('deleteProductFromSync (CAT-036)', () => {
     await deleteProduct(PRODUCT_A);
 
     const line = await prisma.orderLine.findFirstOrThrow({
-      include: { productVariant: true, product: true },
+      include: { productVariant: { include: { product: true } } },
     });
     expect(line.deletedAt).toBeNull();
     expect(line.productVariant.deletedAt).toBeNull();
-    expect(line.product.deletedAt).toBeNull();
+    expect(line.productVariant.product.deletedAt).toBeNull();
   });
 });

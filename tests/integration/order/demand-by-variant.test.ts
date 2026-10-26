@@ -60,7 +60,7 @@ async function addOrder(
       const lineDeletedAt = line.deleted ? INSIDE : null;
       await tx.$executeRaw`
         INSERT INTO order_lines (
-          id, order_id, product_id, label_applied, quantity,
+          id, order_id, product_variant_id, label_applied, quantity,
           reference_price, unit_price_applied, amount, deleted_at
         )
         VALUES (${nextId(2)}::uuid, ${orderId}::uuid, ${line.product}::uuid, 'Fixture', 2,

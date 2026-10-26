@@ -54,7 +54,7 @@ async function captureSqlCode(operation: Promise<unknown>): Promise<string | und
 type Line = {
   id?: string;
   orderId?: string;
-  productId?: string;
+  variantId?: string;
   quantity?: string;
   reference?: bigint;
   applied?: bigint;
@@ -82,12 +82,12 @@ async function insertLine(row: Line = {}): Promise<number> {
   const [inserted] = await prisma.$transaction([
     prisma.$executeRaw`
     INSERT INTO order_lines (
-      id, order_id, product_id, label_applied, quantity,
+      id, order_id, product_variant_id, label_applied, quantity,
       reference_price, unit_price_applied, amount, price_set_by_id, price_set_at
     )
     VALUES (
       ${row.id ?? LINE_ID}::uuid, ${row.orderId ?? CUSTOMER_ORDER_ID}::uuid,
-      ${row.productId ?? PRODUCT_ID}::uuid, 'Fixture Rice', ${quantity}::numeric,
+      ${row.variantId ?? PRODUCT_ID}::uuid, 'Fixture Rice', ${quantity}::numeric,
       ${reference}::bigint, ${applied}::bigint, ${amount}::bigint,
       ${row.authorId ?? null}::uuid, ${row.authoredAt ?? null}::timestamptz
     )
@@ -169,9 +169,9 @@ describe('product rule (AC-1, C-15, AB-1)', () => {
 
   it('rejects a product of another organization with 23514 (AB-1)', async () => {
     await insertProduct(OTHER_PRODUCT_ID, OTHER_ORG_ID);
-    expect(await captureSqlCode(insertLine({ productId: OTHER_PRODUCT_ID }))).toBe('23514');
+    expect(await captureSqlCode(insertLine({ variantId: OTHER_PRODUCT_ID }))).toBe('23514');
     expect(
-      await captureSqlCode(insertLine({ productId: OTHER_PRODUCT_ID, orderId: SUPPLIER_ORDER_ID }))
+      await captureSqlCode(insertLine({ variantId: OTHER_PRODUCT_ID, orderId: SUPPLIER_ORDER_ID }))
     ).toBe('23514');
   });
 
@@ -326,6 +326,6 @@ describe('customer order prices (AC-4, C-20, CM-16)', () => {
 describe('foreign product by a crafted write (AB-1, CWE-639)', () => {
   it('is refused by PostgreSQL with 23514', async () => {
     await insertProduct(OTHER_PRODUCT_ID, OTHER_ORG_ID, null);
-    expect(await captureSqlCode(insertLine({ productId: OTHER_PRODUCT_ID }))).toBe('23514');
+    expect(await captureSqlCode(insertLine({ variantId: OTHER_PRODUCT_ID }))).toBe('23514');
   });
 });

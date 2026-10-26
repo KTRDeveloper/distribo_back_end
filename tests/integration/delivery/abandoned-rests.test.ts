@@ -92,7 +92,7 @@ async function deliveredOrder(options: Seeded = {}): Promise<string> {
       lines: {
         create: lines.map(([quantity, delivered], index) => ({
           id: nextId(),
-          productId: (options.rel ?? REL) === OTHER_REL ? OTHER_PRODUCT : PRODUCT,
+          productVariantId: (options.rel ?? REL) === OTHER_REL ? OTHER_PRODUCT : PRODUCT,
           labelApplied: 'Fixture Rice',
           quantity,
           deliveredQuantity: delivered,
@@ -120,7 +120,7 @@ async function childOrder(parentId: string) {
       lines: {
         create: {
           id: nextId(),
-          productId: PRODUCT,
+          productVariantId: PRODUCT,
           labelApplied: 'Fixture Rice',
           quantity: '2',
           referencePrice: 3000n,

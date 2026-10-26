@@ -114,7 +114,7 @@ async function seedOrder(
       lines: {
         create: {
           id: lineOf(id),
-          productId: relationshipId === REL_B ? PRODUCT_B : PRODUCT_A,
+          productVariantId: relationshipId === REL_B ? PRODUCT_B : PRODUCT_A,
           labelApplied: 'Eau',
           quantity: 2,
           deliveredQuantity: data.status === 'DELIVERED' ? 2 : null,

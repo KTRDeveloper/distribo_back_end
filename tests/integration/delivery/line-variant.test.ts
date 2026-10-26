@@ -71,7 +71,6 @@ async function seedOrder(n: number, productId: string, variantId: string, label:
         create: [
           {
             id: lineId(n),
-            productId,
             productVariantId: variantId,
             labelApplied: label,
             quantity: '5',
@@ -170,7 +169,7 @@ describe('DLV-014 the rest of a delivery and a counter sale keep the variant', (
     });
     expect(child.lines).toHaveLength(1);
     expect(child.lines[0]).toMatchObject({
-      productId,
+      productId: null,
       productVariantId: variantId,
       labelApplied: label,
       referencePrice: 3000n,
@@ -212,7 +211,7 @@ describe('DLV-014 the rest of a delivery and a counter sale keep the variant', (
     expect(child.lines[0]?.quantity.toString()).toBe('2');
   });
 
-  it('a counter sale names the variant and its product (AC-2)', async () => {
+  it('a counter sale names the variant and no product (AC-2)', async () => {
     const response = await createAuthenticatedRequest(app, SELLER)
       .post(`/api/v1/organizations/${SUPPLIER}/counters/${COUNTER}/sales`)
       .send({
@@ -227,7 +226,7 @@ describe('DLV-014 the rest of a delivery and a counter sale keep the variant', (
     expect(response.status).toBe(201);
     const line = await prisma.orderLine.findUniqueOrThrow({ where: { id: lineId(2) } });
     expect(line).toMatchObject({
-      productId: SHIRT_PRODUCT,
+      productId: null,
       productVariantId: RED_L,
       labelApplied: 'T-shirt — Rouge / L (pièce)',
       amount: 6000n,

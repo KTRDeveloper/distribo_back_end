@@ -120,7 +120,7 @@ async function seedOrder(id: string, lineId: string, relationshipId: string, pro
       lines: {
         create: {
           id: lineId,
-          productId,
+          productVariantId: productId,
           labelApplied: 'Eau',
           quantity: 2,
           referencePrice: 5000n,

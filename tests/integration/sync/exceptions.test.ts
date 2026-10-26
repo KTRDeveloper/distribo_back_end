@@ -97,7 +97,7 @@ async function seedOrder(
       lines: {
         create: (options.lines ?? []).map(([quantity, referencePrice, applied], index) => ({
           id: idOf(id * 100 + index),
-          productId: options.productId ?? PRODUCT_A,
+          productVariantId: options.productId ?? PRODUCT_A,
           labelApplied: 'Riz (sac)',
           quantity,
           referencePrice,

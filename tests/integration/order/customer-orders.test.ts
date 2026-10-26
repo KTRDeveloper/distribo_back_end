@@ -96,7 +96,7 @@ async function seedOrder(
       lines: {
         create: {
           id: lineId(n),
-          productId,
+          productVariantId: productId,
           labelApplied: 'Rice (sack)',
           quantity: '1',
           referencePrice: 3000n,
@@ -344,7 +344,7 @@ describe('ORD-021 customer lists and opens their orders', () => {
         data: {
           id: '0199c021-0000-7000-8000-0000000004f0',
           orderId: orderId(2),
-          productId: PRODUCT,
+          productVariantId: PRODUCT,
           labelApplied: 'Rice (sack)',
           quantity: '1',
           referencePrice: 3000n,

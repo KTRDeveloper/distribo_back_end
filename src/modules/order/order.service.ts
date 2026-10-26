@@ -83,7 +83,6 @@ async function priceLine(
   const { price } = await getReferencePrice(tx, relationshipId, variant.id);
   return {
     id: line.id,
-    productId: variant.productId,
     productVariantId: variant.id,
     labelApplied: variantLabel(variant.productName, variant.variantName, variant.unit),
     quantity: line.quantity,
@@ -536,7 +535,6 @@ export async function priceEnteredLine(
     line.unit_price_applied === undefined ? referencePrice : BigInt(line.unit_price_applied);
   return {
     id: line.id,
-    productId: variant.productId,
     productVariantId: variant.id,
     labelApplied: variantLabel(variant.productName, variant.variantName, variant.unit),
     quantity: line.quantity,

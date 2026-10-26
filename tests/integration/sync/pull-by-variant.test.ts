@@ -109,7 +109,6 @@ describe('GET /api/v1/sync/pull (negotiated prices and order lines by variant)',
         lines: {
           create: {
             id: LINE,
-            productId: PRODUCT,
             productVariantId: VARIANT,
             labelApplied: 'Riz sac 10 kg',
             quantity: 2,

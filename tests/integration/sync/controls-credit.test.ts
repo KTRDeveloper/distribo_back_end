@@ -131,7 +131,7 @@ async function seedConfirmed(id: string, lineId: string) {
       lines: {
         create: {
           id: lineId,
-          productId: PRODUCT,
+          productVariantId: PRODUCT,
           labelApplied: 'Riz (sac)',
           quantity: '10',
           referencePrice: 3000n,

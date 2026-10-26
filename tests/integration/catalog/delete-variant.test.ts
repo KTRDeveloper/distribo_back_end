@@ -72,7 +72,7 @@ async function seedProduct(id: string, organizationId: string, variantIds: strin
   }
 }
 
-async function seedOrderLineOn(variantId: string, productId = PRODUCT_A) {
+async function seedOrderLineOn(variantId: string) {
   await prisma.order.create({
     data: {
       id: '0199c0e6-0000-7000-8000-000000000031',
@@ -85,7 +85,6 @@ async function seedOrderLineOn(variantId: string, productId = PRODUCT_A) {
       lines: {
         create: {
           id: '0199c0e6-0000-7000-8000-000000000032',
-          productId,
           productVariantId: variantId,
           labelApplied: 'T-shirt',
           quantity: '1',

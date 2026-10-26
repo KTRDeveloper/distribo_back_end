@@ -119,7 +119,6 @@ export function runInTransaction<T>(
 
 export type NewOrderLine = {
   id: string;
-  productId: string;
   productVariantId: string;
   labelApplied: string;
   quantity: string;

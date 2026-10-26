@@ -101,7 +101,7 @@ async function seedOrder(
         create: [
           {
             id: lines[0],
-            productId: PRODUCT_A,
+            productVariantId: PRODUCT_A,
             labelApplied: 'Rice (sack)',
             quantity: '10',
             referencePrice: 2800n,
@@ -110,7 +110,7 @@ async function seedOrder(
           },
           {
             id: lines[1],
-            productId: PRODUCT_B,
+            productVariantId: PRODUCT_B,
             labelApplied: 'Salt (kg)',
             quantity: '2',
             referencePrice: 500n,

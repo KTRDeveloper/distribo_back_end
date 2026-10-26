@@ -61,7 +61,7 @@ async function seedOrder(n: number, lines: SeedLine[]) {
       lines: {
         create: lines.map((line, i) => ({
           id: lineId(n, i + 1),
-          productId: PRODUCT,
+          productVariantId: PRODUCT,
           labelApplied: line.label ?? 'Rice (sack)',
           quantity: line.quantity,
           referencePrice: line.reference,
@@ -207,7 +207,7 @@ describe('DLV-008 deliver only part of an order', () => {
     });
     expect(child.lines).toHaveLength(1);
     expect(child.lines[0]).toMatchObject({
-      productId: PRODUCT,
+      productId: null,
       labelApplied: 'Rice (sack)',
       referencePrice: 3000n,
       unitPriceApplied: 3000n,

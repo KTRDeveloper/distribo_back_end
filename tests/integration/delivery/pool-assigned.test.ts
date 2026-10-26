@@ -68,7 +68,7 @@ async function seedOrder(id: string, lineId: string, day: number) {
       lines: {
         create: {
           id: lineId,
-          productId: PRODUCT,
+          productVariantId: PRODUCT,
           labelApplied: 'Rice (sack)',
           quantity: '2',
           referencePrice: 1500n,

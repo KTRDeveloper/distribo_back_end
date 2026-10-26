@@ -1085,3 +1085,33 @@ ORD-031 done
 
 ORD-032 done
 <!-- end ORD-032 -->
+
+<!-- begin ORD-033 -->
+## ORD-033 — Orders, rests and synced lines are saved without a product
+
+- Filed: 2026-10-26 08:42 UTC
+- Status: **done**: Lines saved with variant only; scan test with 4-file column-test allowlist for ORD-034
+- Risk: medium · story: [ORD-033-orders-rests-and-synced-lines-are-saved-without.md](../modules/order/ORD-033-orders-rests-and-synced-lines-are-saved-without.md)
+- Agent: 96,959 tokens, 42 tool uses, 7 min 8 s
+
+### Agent report
+
+**Summary:** Removed productId from NewOrderLine, RestLine and their builders (order, rest, push); 36 test files converted to variant-only; scan and integration tests added.
+
+**Decisions:**
+- The scan skips 4 tests whose subject is the `product_id` column itself (order-line-variant, order-line-variant-required, line-product-optional, line-rules-variant): the fill/mismatch triggers (ORD-024/025/032) cannot be tested without naming it. The list sits in the scan test; ORD-034 drops the column and those tests, so the list goes then.
+- The scan flags `productId` only as a property name of the created object (not `productVariantId: productId` or `options.productId`).
+- Existing expectations of `productId: <product>` on rest lines, counter-sale and pushed lines (DLV-008, DLV-014, ORD-027, SYNC-012, SYNC-029) now expect `productId: null`; amended by this story.
+
+**Tests added beyond the story:**
+- none
+
+**Other additions:**
+- `CounterSaleLine.productId` (delivery.repository.ts) removed too: counter-sale lines come from `priceLine`, which no longer returns a product, so the type had to follow.
+- `sync-delete` AB-1 now reads the product through the variant (`line.productVariant.product`), since the line's own product is empty.
+
+**Evidence:** story tests 5/5 (AC-2 test seeds a legacy product_id so it fails on the old code); full suite 5300/5301 on the first run, the one failure (quality-gates lint exit 0, caused by 2 unused-parameter lint errors of mine) fixed and rerun green; the rest of the suite was not rerun since the fix touched two test files only; typecheck clean; lint 0 errors.
+
+**Follow-ups:**
+- ORD-034 must also rewrite the 4 allowlisted tests and remove the allowlist from `tests/unit/order/no-line-product-id.test.ts`; its "Tests to update" lists only order-line-table and line-rules, not these 4.
+<!-- end ORD-033 -->

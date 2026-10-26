@@ -154,7 +154,7 @@ async function orderWithLines(lines: Line[], rel = REL) {
       const changed = line.applied !== line.reference;
       await tx.$executeRaw`
         INSERT INTO order_lines (
-          id, order_id, product_id, label_applied, quantity, delivered_quantity,
+          id, order_id, product_variant_id, label_applied, quantity, delivered_quantity,
           reference_price, unit_price_applied, amount, price_set_by_id, price_set_at
         )
         VALUES (

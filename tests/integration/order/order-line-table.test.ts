@@ -52,7 +52,7 @@ async function captureSqlCode(operation: Promise<unknown>): Promise<string | und
 type Line = {
   id?: string;
   orderId?: string;
-  productId?: string;
+  variantId?: string;
   label?: string | null;
   quantity?: string;
   delivered?: string | null;
@@ -80,12 +80,12 @@ function insertLine(row: Line = {}): Promise<number> {
   return prisma.$executeRaw`
     WITH inserted AS (
       INSERT INTO order_lines (
-        id, order_id, product_id, label_applied, quantity, delivered_quantity,
+        id, order_id, product_variant_id, label_applied, quantity, delivered_quantity,
         reference_price, unit_price_applied, amount, price_set_by_id, price_set_at
       )
       VALUES (
         ${row.id ?? LINE_ID}::uuid, ${orderId}::uuid,
-        ${row.productId ?? PRODUCT_ID}::uuid, ${label}::text, ${quantity}::numeric,
+        ${row.variantId ?? PRODUCT_ID}::uuid, ${label}::text, ${quantity}::numeric,
         ${delivered}::numeric, ${reference}::bigint, ${applied}::bigint, ${amount}::bigint,
         ${row.authorId ?? null}::uuid, ${row.authoredAt ?? null}::timestamptz
       )
@@ -319,7 +319,7 @@ describe('customer-placed orders (AC-4, C-20)', () => {
 describe('order line keys and required columns (AC-4)', () => {
   it('rejects an unknown order or product with 23503', async () => {
     expect(await captureSqlCode(insertLine({ orderId: UNKNOWN_ID }))).toBe('23503');
-    expect(await captureSqlCode(insertLine({ productId: UNKNOWN_ID }))).toBe('23503');
+    expect(await captureSqlCode(insertLine({ variantId: UNKNOWN_ID }))).toBe('23503');
   });
 
   it('rejects an unknown price author with 23503', async () => {

@@ -162,7 +162,7 @@ async function seedOrder(id: string, lineId: string, status: 'CONFIRMED' | 'IN_D
       lines: {
         create: {
           id: lineId,
-          productId: PRODUCT,
+          productVariantId: PRODUCT,
           labelApplied: 'Riz (sac)',
           quantity: '2',
           referencePrice: 3000n,

@@ -103,7 +103,7 @@ async function seedOrder(n: number, options: SeedOrder = {}) {
       lines: {
         create: {
           id: lineId(n),
-          productId: options.productId ?? PRODUCT,
+          productVariantId: options.productId ?? PRODUCT,
           labelApplied: 'Rice (sack)',
           quantity: '2',
           referencePrice: 1500n,

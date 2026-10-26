@@ -88,7 +88,7 @@ async function seedOrder(status: 'PENDING' | 'CONFIRMED' | 'DELIVERED' | 'CANCEL
       lines: {
         create: {
           id: LINE_1,
-          productId: PRODUCT_A,
+          productVariantId: PRODUCT_A,
           labelApplied: 'Rice (sack)',
           quantity: '10',
           referencePrice: 3000n,

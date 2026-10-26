@@ -545,7 +545,6 @@ async function createLine(
     {
       id,
       orderId,
-      productId: resolved.productId,
       productVariantId: resolved.variantId,
       labelApplied: resolved.label,
       quantity: milliToText(quantityMilli),

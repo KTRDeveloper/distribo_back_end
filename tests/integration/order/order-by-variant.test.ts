@@ -171,7 +171,7 @@ describe('ORD-027 order lines are priced from the variant', () => {
     });
     const line = await prisma.orderLine.findUniqueOrThrow({ where: { id: LINE_ID } });
     expect(line).toMatchObject({
-      productId: PRODUCT,
+      productId: null,
       productVariantId: VARIANT,
       labelApplied: 'T-shirt — Rouge / L (pièce)',
       referencePrice: 2800n,
@@ -218,18 +218,21 @@ describe('ORD-027 order lines are priced from the variant', () => {
       ['an id that does not exist', UNKNOWN],
     ];
 
-    it.each(cases)('answers 404 for %s, with the same message, and stores nothing', async (_n, id) => {
-      const byCustomer = await place(id, 10);
-      const bySeller = await enter(id, 10);
+    it.each(cases)(
+      'answers 404 for %s, with the same message, and stores nothing',
+      async (_n, id) => {
+        const byCustomer = await place(id, 10);
+        const bySeller = await enter(id, 10);
 
-      expect(byCustomer.status).toBe(404);
-      expect(bySeller.status).toBe(404);
-      expect(bodyOf<ErrorBody>(byCustomer).error).toMatchObject({ code: 'NOT_FOUND' });
-      expect(bodyOf<ErrorBody>(bySeller).error.message).toBe(
-        bodyOf<ErrorBody>(byCustomer).error.message
-      );
-      await nothingStored();
-    });
+        expect(byCustomer.status).toBe(404);
+        expect(bySeller.status).toBe(404);
+        expect(bodyOf<ErrorBody>(byCustomer).error).toMatchObject({ code: 'NOT_FOUND' });
+        expect(bodyOf<ErrorBody>(bySeller).error.message).toBe(
+          bodyOf<ErrorBody>(byCustomer).error.message
+        );
+        await nothingStored();
+      }
+    );
   });
 
   describe('another supplier (AB-1, CWE-639)', () => {

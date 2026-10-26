@@ -72,7 +72,7 @@ function insertLine(
 ): Promise<number> {
   return tx.$executeRaw`
     INSERT INTO order_lines (
-      id, order_id, product_id, label_applied, quantity, delivered_quantity,
+      id, order_id, product_variant_id, label_applied, quantity, delivered_quantity,
       reference_price, unit_price_applied, amount
     )
     VALUES (${id}::uuid, ${orderId}::uuid, ${PRODUCT_ID}::uuid, 'Fixture Rice', 5,

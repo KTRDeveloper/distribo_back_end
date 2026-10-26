@@ -73,7 +73,7 @@ async function seedOrder(n: number, status: 'CONFIRMED' | 'CANCELLED' = 'CONFIRM
       lines: {
         create: {
           id: lineId(n),
-          productId: PRODUCT,
+          productVariantId: PRODUCT,
           labelApplied: 'Rice (sack)',
           quantity: '3',
           referencePrice: 10000n,

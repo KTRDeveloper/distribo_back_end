@@ -145,7 +145,7 @@ async function seedOrder(
       lines: {
         create: {
           id: lineId,
-          productId: options.product ?? PRODUCT,
+          productVariantId: options.product ?? PRODUCT,
           labelApplied: 'Riz (sac)',
           quantity: String(quantity),
           ...(status === 'DELIVERED' ? { deliveredQuantity: String(quantity) } : {}),

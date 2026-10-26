@@ -535,10 +535,9 @@ export async function setLineDelivered(
 
 /**
  * A line of the order made for the undelivered rest, its amount computed by the caller. It keeps the
- * variant of the original line and preserves its optional product without guessing (ORD-032).
+ * variant of the original line and no product: the variant alone names the article (ORD-033).
  */
 export type RestLine = {
-  productId: string | null;
   productVariantId: string;
   labelApplied: string;
   quantity: string;
@@ -608,7 +607,6 @@ export async function markArrived(
 /** A line of a counter sale: priced by the caller, delivered in full (quantity = delivered). */
 export type CounterSaleLine = {
   id: string;
-  productId: string;
   productVariantId: string;
   labelApplied: string;
   quantity: string;

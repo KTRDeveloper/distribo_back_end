@@ -178,13 +178,13 @@ describe('push of order lines by variant (SYNC-029)', () => {
     });
   });
 
-  it('stores a line by variant, with its product, its label and the computed amount (AC-1, CM-27)', async () => {
+  it('stores a line by variant, without a product, with its label and the computed amount (AC-1, CM-27)', async () => {
     const response = await push(batch(lineRow({ amount: 1, label_applied: 'Forged' })));
 
     expect(bodyOf<PushBody>(response)).toMatchObject({ accepted: 2, rejected: [], aside: 0 });
     expect(await storedLine()).toMatchObject({
       productVariantId: RICE,
-      productId: RICE,
+      productId: null,
       labelApplied: 'Riz parfumé — sac 10 kg',
       amount: 12000n,
     });

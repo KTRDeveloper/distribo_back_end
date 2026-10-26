@@ -84,7 +84,6 @@ beforeEach(async () => {
         create: {
           id: LINE,
           productVariantId: VARIANT,
-          productId: null,
           labelApplied: 'Fixture Rice bag',
           quantity: '5',
           referencePrice: 3000n,

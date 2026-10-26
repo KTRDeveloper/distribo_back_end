@@ -111,8 +111,7 @@ async function seedOrderLine(
       lines: {
         create: {
           id: `0199e005-0000-7000-8000-0000000003${suffix}`,
-          productId,
-          ...(variantId ? { productVariantId: variantId } : {}),
+          productVariantId: variantId ?? productId,
           labelApplied: 'x',
           quantity: '3.000',
           referencePrice: 12500n,

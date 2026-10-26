@@ -372,7 +372,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-027 | done | | pull by variant verified; adapter already sent product_variant_id, new test file added |
 | SYNC-028 | done | | Controls already read the variant (ORD-032); added the story's tests as guards |
 | SYNC-029 | done | | Lines by product_variant_id via resolveVariantForLine; 5296 tests pass |
-| ORD-033 | todo | | |
+| ORD-033 | done | | Lines saved with variant only; scan test with 4-file column-test allowlist for ORD-034 |
 | SYNC-030 | done | | Judge covers products, variants, prices; owner-only offline; org stamped from scope |
 | SYNC-031 | done | | products push: catalog.push.ts via applyProductFromSync; 5277 tests pass |
 | SYNC-032 | done | | variants push through applyVariantFromSync; 10 tests; suite 5287 green |

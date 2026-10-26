@@ -110,7 +110,7 @@ async function seedOrder(
       lines: {
         create: {
           id: lineId,
-          productId: PRODUCT_A,
+          productVariantId: PRODUCT_A,
           labelApplied: 'Rice (sack)',
           quantity: '10',
           referencePrice: 3000n,
@@ -443,7 +443,9 @@ describe('ORD-014 seller edits an order before departure', () => {
   });
 
   it('keeps the price author away from the SELLER view and shows it to the OWNER (v5.0.0-8.2.3)', async () => {
-    const lines = [{ id: LINE_2, product_variant_id: PRODUCT_A, quantity: 1, unit_price_applied: 2000 }];
+    const lines = [
+      { id: LINE_2, product_variant_id: PRODUCT_A, quantity: 1, unit_price_applied: 2000 },
+    ];
     const asSeller = await edit(patchOf({ lines }));
     expect(bodyOf<OrderBody>(asSeller).lines[0]).not.toHaveProperty('price_set_by_id');
 

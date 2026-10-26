@@ -131,7 +131,7 @@ async function seedBase() {
         create: [
           {
             id: GAP_LINE,
-            productId: PRODUCT,
+            productVariantId: PRODUCT,
             labelApplied: 'Rice (sack)',
             quantity: '1',
             referencePrice: 3000n,
@@ -142,7 +142,7 @@ async function seedBase() {
           },
           {
             id: PLAIN_LINE,
-            productId: PRODUCT,
+            productVariantId: PRODUCT,
             labelApplied: 'Rice (sack)',
             quantity: '1',
             referencePrice: 2500n,
@@ -165,7 +165,7 @@ async function seedBase() {
       lines: {
         create: {
           id: OTHER_LINE,
-          productId: OTHER_PRODUCT,
+          productVariantId: OTHER_PRODUCT,
           labelApplied: 'Oil (l)',
           quantity: '1',
           referencePrice: 900n,
@@ -210,7 +210,7 @@ describe('ORD-020 seller opens one order', () => {
         data: {
           id: '0199c020-0000-7000-8000-0000000002f0',
           orderId: ORDER,
-          productId: PRODUCT,
+          productVariantId: PRODUCT,
           labelApplied: 'Rice (sack)',
           quantity: '1',
           referencePrice: 2500n,
