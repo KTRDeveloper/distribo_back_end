@@ -171,7 +171,7 @@ describe('POST /api/v1/organizations/:organizationId/products', () => {
     );
 
     const row = await prisma.product.findUniqueOrThrow({ where: { id: GESTURE_1 } });
-    expect(row).toMatchObject({ organizationId: ORG_A, unit: '', status: 'ACTIVE' });
+    expect(row).toMatchObject({ organizationId: ORG_A });
     const variantRow = await prisma.productVariant.findUniqueOrThrow({ where: { id: VARIANT_1 } });
     expect(variantRow).toMatchObject({
       organizationId: ORG_A,

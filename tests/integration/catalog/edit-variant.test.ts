@@ -93,7 +93,6 @@ async function seedProduct(
       id,
       organizationId,
       name: 'T-shirt',
-      unit: '',
       pausedAt: options.paused ? new Date('2026-02-01T00:00:00.000Z') : null,
     },
   });
@@ -410,7 +409,7 @@ describe('PATCH /api/v1/organizations/:organizationId/products/:productId/varian
       for (let i = 0; i < count; i += 1) {
         const id = `0199c0e5-0000-7000-8000-${String(5000 + i).padStart(12, '0')}`;
         await prisma.product.create({
-          data: { id, organizationId: orgId, name: `Fixture ${i}`, unit: '', price: 100n },
+          data: { id, organizationId: orgId, name: `Fixture ${i}` },
         });
         await prisma.productVariant.create({
           data: {

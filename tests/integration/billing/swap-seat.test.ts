@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { v7 as uuidv7 } from 'uuid';
 import { app } from '../../../src/app.js';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { bodyOf, type ErrorBody } from '../../helpers/body';
 import { enforceSeatLimit } from '../../../src/modules/billing/seat-limit.service.js';
@@ -48,10 +49,8 @@ describe('BIL-029 owner seat swap', () => {
   it('swap: journals the owner, sends notices, snapshots products and survives enforcement', async () => {
     const product = uuidv7();
     const pausedProduct = uuidv7();
-    await prisma.product.createMany({ data: [
-      { id: product, organizationId: org, name: 'Fixture Product', unit: 'bag', price: 100n },
-      { id: pausedProduct, organizationId: org, name: 'Fixture Paused', unit: 'bag', price: 100n, pausedAt: now },
-    ] });
+    await seedProduct(prisma, { id: product, organizationId: org, name: 'Fixture Product', unit: 'bag', price: 100n });
+    await seedProduct(prisma, { id: pausedProduct, organizationId: org, name: 'Fixture Paused', unit: 'bag', price: 100n, pausedAt: now });
     const response = await post(body());
     expect(response.status).toBe(201);
     expect(response.body).toEqual({ paused_collaboration_id: aSeat, resumed_collaboration_id: cSeat });

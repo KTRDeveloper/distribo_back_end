@@ -39,8 +39,6 @@ async function seedProduct(imageKeys: string[]): Promise<void> {
       id: PRODUCT_ID,
       organizationId: ORG_ID,
       name: 'Riz',
-      unit: 'u',
-      price: 1000n,
       imageKeys,
     },
   });

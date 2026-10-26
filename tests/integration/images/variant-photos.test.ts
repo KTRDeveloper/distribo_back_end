@@ -85,8 +85,6 @@ async function business(
       id: newId(),
       organizationId: organization.id,
       name: 'T-shirt',
-      unit: 'u',
-      price: 1000n,
     },
   });
   const variant = await prisma.productVariant.create({
@@ -180,7 +178,7 @@ describe('IMG-010 variant photos', () => {
       data: { imageKeys: [keyOld] },
     });
     const other = await prisma.product.create({
-      data: { id: newId(), organizationId: s.organizationId, name: 'Other', unit: 'u', price: 1n },
+      data: { id: newId(), organizationId: s.organizationId, name: 'Other' },
     });
 
     const res = await put(s.people.MANAGER, { ...s, productId: other.id }, 1, png());
@@ -253,7 +251,7 @@ describe('IMG-010 variant photos', () => {
   it('removes the new file when the variant is not under the product of the path', async () => {
     const s = await business();
     const other = await prisma.product.create({
-      data: { id: newId(), organizationId: s.organizationId, name: 'Other', unit: 'u', price: 1n },
+      data: { id: newId(), organizationId: s.organizationId, name: 'Other' },
     });
     const res = await put(s.people.MANAGER, { ...s, productId: other.id }, 1, png());
     expect(res.status).toBe(404);

@@ -51,8 +51,8 @@ async function seedPerson(id: string, phone: string) {
 
 async function seedProduct(id: string, orgId: string, name: string, paused = false) {
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, paused_at)
-    VALUES (${id}::uuid, ${orgId}::uuid, ${name}, '', 3000,
+    INSERT INTO products (id, organization_id, name, paused_at)
+    VALUES (${id}::uuid, ${orgId}::uuid, ${name},
       ${paused ? new Date('2026-01-02T00:00:00.000Z') : null}::timestamptz)
   `;
 }

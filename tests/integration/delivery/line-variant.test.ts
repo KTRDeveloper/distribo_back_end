@@ -39,11 +39,11 @@ async function seedPerson(id: string, phone: string) {
   });
 }
 
-/** A new-style product (empty unit): the code, not the trigger, inserts its variants. */
+/** A product without variant: the test inserts its variants. */
 async function seedProduct(id: string, name: string) {
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${id}::uuid, ${SUPPLIER}::uuid, ${name}, '', 3000)
+    INSERT INTO products (id, organization_id, name)
+    VALUES (${id}::uuid, ${SUPPLIER}::uuid, ${name})
   `;
 }
 

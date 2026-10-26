@@ -56,7 +56,7 @@ async function seedMember(
 
 async function seedProduct(id: string, organizationId: string, variantIds: string[]) {
   await prisma.product.create({
-    data: { id, organizationId, name: 'T-shirt', unit: '', price: 15000n },
+    data: { id, organizationId, name: 'T-shirt' },
   });
   for (const [index, variantId] of variantIds.entries()) {
     await prisma.productVariant.create({
@@ -265,7 +265,7 @@ describe('DELETE /api/v1/organizations/:organizationId/products/:productId/varia
   it('an unknown variant: 404; a variant of another product: 404', async () => {
     await seedProduct(PRODUCT_A, ORG_A, [V1, V2]);
     await prisma.product.create({
-      data: { id: PRODUCT_B, organizationId: ORG_A, name: 'Casquette', unit: '', price: 100n },
+      data: { id: PRODUCT_B, organizationId: ORG_A, name: 'Casquette' },
     });
     await prisma.productVariant.create({
       data: {

@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
 import { seedCustomerPrice, seedProduct } from '../../helpers/catalog-fixtures.js';
-import {
-  getActiveProduct,
-  getReferencePrice,
-} from '../../../src/modules/catalog/catalog.repository';
+import { getReferencePrice } from '../../../src/modules/catalog/catalog.repository';
 
 const SUPPLIER_ORG_ID = '0199c003-0000-7000-8000-000000000001';
 const OTHER_ORG_ID = '0199c003-0000-7000-8000-000000000002';
@@ -40,9 +37,6 @@ async function insertPrice(
 
 const reference = (relationshipId: string, productId = PRODUCT_ID) =>
   prisma.$transaction((tx) => getReferencePrice(tx, relationshipId, productId));
-
-const active = (organizationId: string, productId: string) =>
-  prisma.$transaction((tx) => getActiveProduct(tx, organizationId, productId));
 
 /** Seeds variant-backed fixtures for reference-price checks. */
 async function seedReferenceProducts(): Promise<void> {
@@ -178,37 +172,5 @@ describe('getReferencePrice other customers (AC-2, AB-1, CWE-200)', () => {
     await insertPrice(OTHER_PRICE_ID, OTHER_REL_ID, 1000);
     expect((await reference(REL_ID)).price).toBe(2800n);
     expect((await reference(OTHER_REL_ID)).price).toBe(1000n);
-  });
-});
-
-describe('getActiveProduct (AC-3, C-15)', () => {
-  beforeEach(async () => {
-    // Keep legacy fixtures only for this obsolete reader until CAT-041 removes it.
-    await prisma.$executeRaw`
-      INSERT INTO products (id, organization_id, name, unit, price, status, deleted_at)
-      VALUES
-        (${PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Rice', 'sack', 3000, 'ACTIVE', NULL),
-        (${INACTIVE_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Sugar', 'sack', 900, 'INACTIVE', NULL),
-        (${DELETED_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Salt', 'bag', 400, 'ACTIVE', now()),
-        (${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'Fixture Oil', 'can', 1500, 'ACTIVE', NULL)
-    `;
-  });
-
-  it('returns an ACTIVE product of the organization', async () => {
-    const product = await active(SUPPLIER_ORG_ID, PRODUCT_ID);
-    expect(product.id).toBe(PRODUCT_ID);
-    expect(product.price).toBe(3000n);
-  });
-
-  it.each([
-    ['an INACTIVE product', SUPPLIER_ORG_ID, INACTIVE_PRODUCT_ID],
-    ['a deleted product', SUPPLIER_ORG_ID, DELETED_PRODUCT_ID],
-    ['a product of another organization', SUPPLIER_ORG_ID, FOREIGN_PRODUCT_ID],
-    ['an unknown product', SUPPLIER_ORG_ID, UNKNOWN_ID],
-  ])('throws 404 NOT_FOUND for %s', async (_case, organizationId, productId) => {
-    await expect(active(organizationId, productId)).rejects.toMatchObject({
-      statusCode: 404,
-      code: 'NOT_FOUND',
-    });
   });
 });

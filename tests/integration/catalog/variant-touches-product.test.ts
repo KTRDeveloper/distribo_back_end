@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { getAppRolePrisma } from '../../helpers/app-role';
 
 const ORG = '0199c021-0000-7000-8000-0000000000a1';
@@ -55,11 +56,10 @@ function insertVariant(id: string, product: string) {
 beforeEach(async () => {
   await cleanUp();
   await prisma.$executeRaw`INSERT INTO organizations (id, name) VALUES (${ORG}::uuid, 'Fixture Business')`;
-  // An empty unit marks a new-style product: no variant is mirrored from it (CAT-014).
   for (const id of [PRODUCT, OTHER_PRODUCT]) {
     await prisma.$executeRaw`
-      INSERT INTO products (id, organization_id, name, unit, price)
-      VALUES (${id}::uuid, ${ORG}::uuid, 'Fixture Rice', '', 3000)
+      INSERT INTO products (id, organization_id, name)
+      VALUES (${id}::uuid, ${ORG}::uuid, 'Fixture Rice')
     `;
   }
 });
@@ -128,21 +128,22 @@ describe('a variant change moves its product server date', () => {
     expect((await productDate(OTHER_PRODUCT)).getUTCFullYear()).toBe(2020);
   });
 
-  it('no loop: an old-style price update ends and both rows carry the price', async () => {
-    await prisma.$executeRaw`
-      INSERT INTO products (id, organization_id, name, unit, price)
-      VALUES (${OLD_STYLE}::uuid, ${ORG}::uuid, 'Old Rice', 'sack', 3000)
-    `;
+  it('no loop: a variant price update ends and moves the product date', async () => {
+    await seedProduct(prisma, {
+      id: OLD_STYLE,
+      organizationId: ORG,
+      name: 'Old Rice',
+      unit: 'sack',
+      price: 3000n,
+    });
     await ageProducts();
 
-    await prisma.$executeRaw`UPDATE products SET price = 4000 WHERE id = ${OLD_STYLE}::uuid`;
+    await prisma.$executeRaw`UPDATE product_variants SET price = 4000 WHERE id = ${OLD_STYLE}::uuid`;
 
-    const [row] = await prisma.$queryRaw<Array<{ product_price: bigint; variant_price: bigint }>>`
-      SELECT p.price AS product_price, v.price AS variant_price
-      FROM products p JOIN product_variants v ON v.id = p.id
-      WHERE p.id = ${OLD_STYLE}::uuid
+    const [row] = await prisma.$queryRaw<Array<{ variant_price: bigint }>>`
+      SELECT v.price AS variant_price FROM product_variants v WHERE v.id = ${OLD_STYLE}::uuid
     `;
-    expect(row).toEqual({ product_price: 4000n, variant_price: 4000n });
+    expect(row).toEqual({ variant_price: 4000n });
     await expectRecent(OLD_STYLE);
   });
 

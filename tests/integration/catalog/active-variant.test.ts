@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { getActiveVariant } from '../../../src/modules/catalog/catalog.repository';
 
 const ORG_ID = '0199c019-0000-7000-8000-000000000001';
 const OTHER_ORG_ID = '0199c019-0000-7000-8000-000000000002';
-// Products are written the new way (empty unit): variants are inserted by hand.
+// Variants are inserted by hand.
 const PRODUCT_ID = '0199c019-0000-7000-8000-000000000031';
 const DELETED_PRODUCT_ID = '0199c019-0000-7000-8000-000000000032';
 const PAUSED_PRODUCT_ID = '0199c019-0000-7000-8000-000000000033';
 const FOREIGN_PRODUCT_ID = '0199c019-0000-7000-8000-000000000034';
-// A product written the old way: its variant has the id of the product (CAT-013, CAT-014).
+// A product whose variant has the id of the product (CAT-013).
 const LEGACY_PRODUCT_ID = '0199c019-0000-7000-8000-000000000035';
 const VARIANT_ID = '0199c019-0000-7000-8000-000000000041';
 const INACTIVE_VARIANT_ID = '0199c019-0000-7000-8000-000000000042';
@@ -37,14 +38,14 @@ beforeEach(async () => {
     VALUES (${ORG_ID}::uuid, 'Fixture Business'), (${OTHER_ORG_ID}::uuid, 'Fixture Other Business')
   `;
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, deleted_at, paused_at)
+    INSERT INTO products (id, organization_id, name, deleted_at, paused_at)
     VALUES
-      (${PRODUCT_ID}::uuid, ${ORG_ID}::uuid, 'T-shirt', '', 1, NULL, NULL),
-      (${DELETED_PRODUCT_ID}::uuid, ${ORG_ID}::uuid, 'Fixture Deleted', '', 1,
+      (${PRODUCT_ID}::uuid, ${ORG_ID}::uuid, 'T-shirt', NULL, NULL),
+      (${DELETED_PRODUCT_ID}::uuid, ${ORG_ID}::uuid, 'Fixture Deleted',
         '2026-02-01T00:00:00Z'::timestamptz, NULL),
-      (${PAUSED_PRODUCT_ID}::uuid, ${ORG_ID}::uuid, 'Fixture Paused', '', 1,
+      (${PAUSED_PRODUCT_ID}::uuid, ${ORG_ID}::uuid, 'Fixture Paused',
         NULL, '2026-02-01T00:00:00Z'::timestamptz),
-      (${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'Fixture Foreign', '', 1, NULL, NULL)
+      (${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'Fixture Foreign', NULL, NULL)
   `;
   await prisma.$executeRaw`
     INSERT INTO product_variants (id, product_id, organization_id, name, unit, price,
@@ -111,10 +112,13 @@ describe('getActiveVariant', () => {
   });
 
   it('answers for the id of a product written the old way', async () => {
-    await prisma.$executeRaw`
-      INSERT INTO products (id, organization_id, name, unit, price)
-      VALUES (${LEGACY_PRODUCT_ID}::uuid, ${ORG_ID}::uuid, 'Fixture Rice', 'sack', 4000)
-    `;
+    await seedProduct(prisma, {
+      id: LEGACY_PRODUCT_ID,
+      organizationId: ORG_ID,
+      name: 'Fixture Rice',
+      unit: 'sack',
+      price: 4000n,
+    });
     const variant = await read(LEGACY_PRODUCT_ID);
     expect(variant).toMatchObject({
       id: LEGACY_PRODUCT_ID,

@@ -1452,3 +1452,33 @@ CAT-042 done
 
 CAT-045 done
 <!-- end CAT-045 -->
+
+<!-- begin CAT-041 -->
+## CAT-041 — Products lose their old price, unit, minimum and status
+
+- Filed: 2026-10-26 10:16 UTC
+- Status: **done**: products lose unit, price, minimum and status; mirror triggers dropped; tests moved to seedProduct
+- Risk: high · story: [CAT-041-products-lose-their-old-price-unit-minimum-and.md](../modules/catalog/CAT-041-products-lose-their-old-price-unit-minimum-and.md)
+- Agent: 151,923 tokens, 65 tool uses, 12 min 50 s
+
+### Agent report
+
+**Summary:** Migration 20261025130000_cat_041 (guard, drops), schema, repository and about 55 test files moved off the five old product columns; suite green.
+
+**Decisions:**
+- `catalog.repository.ts` also lost the unused `insertProduct` and the `status: 'ACTIVE'` filter on the product in `getProductCopyableBy` (variants are still filtered ACTIVE), and `insertProductForVariants` no longer writes `unit: ''`: typecheck failed on them, so "no other production change" could not hold.
+- Files that insert variants themselves (customer-price-variant, product-variant-table, sync-apply-price, many raw inserts) get plain products without old columns instead of `seedProduct`, which would add a same-id variant and change their counts.
+- Tests that only existed for the mirror triggers or the old columns were removed: in product-new-columns the old insert, the three old updates and the mirrored-business test (story names two); in line-rules-variant "reads the minimum on the variant, not on the product"; variant-touches-product's old-style test now updates the variant.
+- Scan test also catches `createMany` rows and `row.status`-style reads of a `product.find*` result, so it found sites the story's list did not name.
+
+**Tests added beyond the story:**
+- `tests/integration/catalog/product-columns-dropped.test.ts` › guard refuses a live product whose only variant is deleted: a deleted variant does not protect the price (AC-3 "variant not deleted"); passed at once
+
+**Other additions:**
+- Guard is a single `DO` block so the test replays it as one statement.
+
+**Evidence:** story tests 8/8; full suite 5383/5383, failing: none, 0 known; typecheck clean; lint 0 errors, 255 warnings
+
+**Follow-ups:**
+- `npm run typecheck` excludes tests; `tsc -p tsconfig.eslint.json` shows about 40 old type errors in test files I did not change, including the IDE one in `tests/integration/sync/push-lines-by-variant.test.ts` line 148 (`status: 'INACTIVE'` widened to string by `.map`). Not caused by CAT-041, left untouched (test not listed).
+<!-- end CAT-041 -->

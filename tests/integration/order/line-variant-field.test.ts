@@ -133,8 +133,8 @@ beforeEach(async () => {
     });
   }
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${PRODUCT}::uuid, ${SUPPLIER}::uuid, 'T-shirt', '', 3000)
+    INSERT INTO products (id, organization_id, name)
+    VALUES (${PRODUCT}::uuid, ${SUPPLIER}::uuid, 'T-shirt')
   `;
   await prisma.$executeRaw`
     INSERT INTO product_variants (id, product_id, organization_id, name, unit, price)

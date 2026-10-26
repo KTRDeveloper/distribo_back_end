@@ -78,7 +78,7 @@ describe('GET /api/v1/sync/pull (negotiated prices and order lines by variant)',
       },
     });
     await prisma.product.create({
-      data: { id: PRODUCT, organizationId: ORG, name: 'Riz', unit: 'sac', price: 5000n },
+      data: { id: PRODUCT, organizationId: ORG, name: 'Riz' },
     });
     await prisma.productVariant.create({
       data: {

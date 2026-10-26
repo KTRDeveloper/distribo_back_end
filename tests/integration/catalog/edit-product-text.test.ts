@@ -92,7 +92,6 @@ beforeEach(async () => {
       id: PRODUCT_A,
       organizationId: ORG_A,
       name: 'Riz',
-      unit: '',
       description: 'Sac',
       category: 'Céréales',
     },
@@ -118,7 +117,7 @@ beforeEach(async () => {
     ],
   });
   await prisma.product.create({
-    data: { id: PRODUCT_B, organizationId: ORG_B, name: 'Huile', unit: '', category: 'Huiles' },
+    data: { id: PRODUCT_B, organizationId: ORG_B, name: 'Huile', category: 'Huiles' },
   });
 });
 

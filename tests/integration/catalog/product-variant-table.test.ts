@@ -77,17 +77,14 @@ beforeEach(async () => {
   await prisma.$executeRaw`
     INSERT INTO organizations (id, name) VALUES (${ORG_B}::uuid, 'Fixture Business B')
   `;
-  // The CAT-014 mirror triggers would give each product a variant at once, so they are off while seeding.
-  await prisma.$executeRaw`ALTER TABLE products DISABLE TRIGGER USER`;
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${PRODUCT_A}::uuid, ${ORG_A}::uuid, 'Fixture Rice', 'sack', 3000)
+    INSERT INTO products (id, organization_id, name)
+    VALUES (${PRODUCT_A}::uuid, ${ORG_A}::uuid, 'Fixture Rice')
   `;
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${PRODUCT_B}::uuid, ${ORG_B}::uuid, 'Fixture Oil', 'can', 1000)
+    INSERT INTO products (id, organization_id, name)
+    VALUES (${PRODUCT_B}::uuid, ${ORG_B}::uuid, 'Fixture Oil')
   `;
-  await prisma.$executeRaw`ALTER TABLE products ENABLE TRIGGER USER`;
 });
 
 afterAll(cleanUp);

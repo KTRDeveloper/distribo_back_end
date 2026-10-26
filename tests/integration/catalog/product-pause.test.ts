@@ -37,9 +37,6 @@ async function seedProduct(
       id: productId,
       organizationId,
       name: 'Fixture product',
-      // An empty unit keeps the old-style mirror trigger from adding a variant of its own.
-      unit: '',
-      price: 100n,
       createdAt: seed.createdAt,
       deletedAt: seed.deleted ? new Date('2026-02-01T00:00:00.000Z') : null,
       pausedAt: seed.paused ? OLD_PAUSE : null,

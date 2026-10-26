@@ -142,9 +142,8 @@ beforeEach(async () => {
   await seedMember('e4', SUPPLIER_ORG, DRIVER, 'DRIVER');
   await seedMember('e5', OTHER_ORG, OTHER_OWNER, 'OWNER');
 
-  // An empty unit keeps the old-style mirror from adding a variant of its own (CAT-014).
   await prisma.product.create({
-    data: { id: RICE, organizationId: SUPPLIER_ORG, name: 'Riz', unit: '' },
+    data: { id: RICE, organizationId: SUPPLIER_ORG, name: 'Riz' },
   });
   await seedVariant(RICE_50, RICE, SUPPLIER_ORG, { name: null, unit: 'sac 50 kg', price: 3000n });
   await seedVariant(RICE_25, RICE, SUPPLIER_ORG, { name: null, unit: 'sac 25 kg', price: 1600n });
@@ -161,7 +160,7 @@ beforeEach(async () => {
     status: 'INACTIVE',
   });
   await prisma.product.create({
-    data: { id: FOREIGN_PRODUCT, organizationId: OTHER_ORG, name: 'Sel', unit: '' },
+    data: { id: FOREIGN_PRODUCT, organizationId: OTHER_ORG, name: 'Sel' },
   });
   await seedVariant(FOREIGN_VARIANT, FOREIGN_PRODUCT, OTHER_ORG, {
     name: null,

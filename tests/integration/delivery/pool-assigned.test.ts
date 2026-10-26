@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
 import { prisma } from '../../setup.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 
 const OWNER = '0199c0e0-0000-7000-8000-000000000001';
 const MANAGER = '0199c0e0-0000-7000-8000-000000000002';
@@ -94,8 +95,12 @@ async function seedBase() {
   await seedMember(SELLER, 'SELLER', 3);
   await seedMember(DRIVER_A, 'DRIVER', 4);
   await seedMember(DRIVER_B, 'DRIVER', 5);
-  await prisma.product.create({
-    data: { id: PRODUCT, organizationId: SUPPLIER, name: 'Rice', unit: 'sack', price: 1500n },
+  await seedProduct(prisma, {
+    id: PRODUCT,
+    organizationId: SUPPLIER,
+    name: 'Rice',
+    unit: 'sack',
+    price: 1500n,
   });
   await prisma.customerRelationship.create({
     data: {

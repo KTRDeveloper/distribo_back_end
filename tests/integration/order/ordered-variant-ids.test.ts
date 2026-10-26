@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { listOrderedVariantIds } from '../../../src/modules/order/order.repository';
 
 const SUPPLIER_ID = '0199c030-0000-7000-8000-000000000001';
@@ -101,13 +102,10 @@ beforeEach(async () => {
     VALUES (${REL_ID}::uuid, ${SUPPLIER_ID}::uuid, ${CUSTOMER_ID}::uuid, ${OWNER_ID}::uuid),
       (${OTHER_REL_ID}::uuid, ${OTHER_SUPPLIER_ID}::uuid, ${CUSTOMER_ID}::uuid, ${OWNER_ID}::uuid)
   `;
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price) VALUES
-      (${RICE}::uuid, ${SUPPLIER_ID}::uuid, 'Fixture Rice', 'sack', 3000),
-      (${OIL}::uuid, ${SUPPLIER_ID}::uuid, 'Fixture Oil', 'can', 3000),
-      (${SUGAR}::uuid, ${SUPPLIER_ID}::uuid, 'Fixture Sugar', 'kg', 3000),
-      (${OTHER_PRODUCT}::uuid, ${OTHER_SUPPLIER_ID}::uuid, 'Fixture Other', 'kg', 3000)
-  `;
+  await seedProduct(prisma, { id: RICE, organizationId: SUPPLIER_ID, name: 'Fixture Rice', unit: 'sack', price: 3000n });
+  await seedProduct(prisma, { id: OIL, organizationId: SUPPLIER_ID, name: 'Fixture Oil', unit: 'can', price: 3000n });
+  await seedProduct(prisma, { id: SUGAR, organizationId: SUPPLIER_ID, name: 'Fixture Sugar', unit: 'kg', price: 3000n });
+  await seedProduct(prisma, { id: OTHER_PRODUCT, organizationId: OTHER_SUPPLIER_ID, name: 'Fixture Other', unit: 'kg', price: 3000n });
 });
 
 describe('listOrderedVariantIds', () => {

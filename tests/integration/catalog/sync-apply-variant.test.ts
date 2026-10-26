@@ -93,14 +93,14 @@ beforeEach(async () => {
     VALUES (${ORG}::uuid, 'Fixture Business'), (${OTHER_ORG}::uuid, 'Other Business')
   `;
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${PRODUCT}::uuid, ${ORG}::uuid, 'T-shirt', '', 1),
-           (${SECOND_PRODUCT}::uuid, ${ORG}::uuid, 'Riz', '', 1),
-           (${OTHER_PRODUCT}::uuid, ${OTHER_ORG}::uuid, 'Huile', '', 1)
+    INSERT INTO products (id, organization_id, name)
+    VALUES (${PRODUCT}::uuid, ${ORG}::uuid, 'T-shirt'),
+           (${SECOND_PRODUCT}::uuid, ${ORG}::uuid, 'Riz'),
+           (${OTHER_PRODUCT}::uuid, ${OTHER_ORG}::uuid, 'Huile')
   `;
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, deleted_at)
-    VALUES (${DELETED_PRODUCT}::uuid, ${ORG}::uuid, 'Vieux', '', 1, now())
+    INSERT INTO products (id, organization_id, name, deleted_at)
+    VALUES (${DELETED_PRODUCT}::uuid, ${ORG}::uuid, 'Vieux', now())
   `;
   await prisma.$executeRaw`
     INSERT INTO product_variants (id, product_id, organization_id, name, unit, price)

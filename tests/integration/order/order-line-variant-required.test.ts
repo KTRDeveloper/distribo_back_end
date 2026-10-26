@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 
 const SUPPLIER_ORG_ID = '0199c025-0000-7000-8000-000000000001';
 const OWNER_ID = '0199c025-0000-7000-8000-000000000011';
@@ -169,14 +170,16 @@ beforeEach(async () => {
     VALUES (${REL_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, ${CUSTOMER_ID}::uuid, ${OWNER_ID}::uuid)
   `;
   // Old-style product: it has a variant with its own id.
+  await seedProduct(prisma, {
+    id: OLD_PRODUCT_ID,
+    organizationId: SUPPLIER_ORG_ID,
+    name: 'Fixture Rice',
+    unit: 'sack',
+    price: 3000n,
+  });
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${OLD_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Rice', 'sack', 3000)
-  `;
-  // New-style product: empty unit, so no variant with its own id.
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${NEW_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Oil', '', 1)
+    INSERT INTO products (id, organization_id, name)
+    VALUES (${NEW_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Oil')
   `;
   await prisma.$executeRaw`
     INSERT INTO orders (id, customer_relationship_id, placed_by_party, entered_by_id, total_amount)

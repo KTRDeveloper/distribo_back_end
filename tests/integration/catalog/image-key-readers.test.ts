@@ -39,11 +39,10 @@ beforeEach(async () => {
     INSERT INTO organizations (id, name) VALUES
       (${ORG}::uuid, 'Fixture Business'), (${OTHER_ORG}::uuid, 'Other Business')
   `;
-  // An empty unit marks a new-style product: no variant is mirrored from it (CAT-014).
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, image_keys) VALUES
-      (${PRODUCT}::uuid, ${ORG}::uuid, 'Fixture Shirt', '', 3000, ARRAY[${KEY_A}, ${KEY_B}]::text[]),
-      (${OTHER_PRODUCT}::uuid, ${OTHER_ORG}::uuid, 'Other Shirt', '', 3000, ARRAY[${KEY_D}]::text[])
+    INSERT INTO products (id, organization_id, name, image_keys) VALUES
+      (${PRODUCT}::uuid, ${ORG}::uuid, 'Fixture Shirt', ARRAY[${KEY_A}, ${KEY_B}]::text[]),
+      (${OTHER_PRODUCT}::uuid, ${OTHER_ORG}::uuid, 'Other Shirt', ARRAY[${KEY_D}]::text[])
   `;
   await prisma.$executeRaw`
     INSERT INTO product_variants (id, product_id, organization_id, name, unit, price, image_keys) VALUES

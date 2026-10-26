@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
 import { prisma } from '../../setup.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 
 const id = (n: string) => `0199c0d6-0000-7000-8000-0000000000${n}`;
 
@@ -132,8 +133,12 @@ beforeEach(async () => {
   await seedMember('c4', SUPPLIER_ORG, DRIVER, 'DRIVER');
   await seedMember('c5', OTHER_ORG, OTHER_OWNER, 'OWNER');
 
-  await prisma.product.create({
-    data: { id: RICE, organizationId: SUPPLIER_ORG, name: 'Riz', unit: 'sac', price: 3000n },
+  await seedProduct(prisma, {
+    id: RICE,
+    organizationId: SUPPLIER_ORG,
+    name: 'Riz',
+    unit: 'sac',
+    price: 3000n,
   });
   await prisma.productVariant.create({
     data: {
@@ -253,8 +258,12 @@ describe('negotiated prices listed by variant', () => {
   });
 
   it('AB-1 a member of A lists the prices of a relationship of B: 404, nothing returned', async () => {
-    await prisma.product.create({
-      data: { id: FOREIGN_PRODUCT, organizationId: OTHER_ORG, name: 'Sel', unit: 'sac', price: 9n },
+    await seedProduct(prisma, {
+      id: FOREIGN_PRODUCT,
+      organizationId: OTHER_ORG,
+      name: 'Sel',
+      unit: 'sac',
+      price: 9n,
     });
     await seedPrice('e1', REL_FOREIGN, FOREIGN_PRODUCT, FOREIGN_PRODUCT, 1n, OLD);
 
@@ -266,8 +275,12 @@ describe('negotiated prices listed by variant', () => {
   });
 
   it("a variant of another business can't be removed through one's own relationship (404)", async () => {
-    await prisma.product.create({
-      data: { id: FOREIGN_PRODUCT, organizationId: OTHER_ORG, name: 'Sel', unit: 'sac', price: 9n },
+    await seedProduct(prisma, {
+      id: FOREIGN_PRODUCT,
+      organizationId: OTHER_ORG,
+      name: 'Sel',
+      unit: 'sac',
+      price: 9n,
     });
     await seedPrice('e1', REL, RICE, RICE_BAG, 2800n, OLD);
 

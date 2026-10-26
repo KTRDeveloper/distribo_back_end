@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { prisma } from '../../setup.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 
 const OWNER = '0199e040-0000-7000-8000-000000000001';
 const MANAGER = '0199e040-0000-7000-8000-000000000002';
@@ -85,8 +86,12 @@ describe('GET /api/v1/sync/pull (an order assigned to another driver)', () => {
         balance: 0n,
       },
     });
-    await prisma.product.create({
-      data: { id: PRODUCT, organizationId: ORG, name: 'Eau', unit: 'carton', price: 5000n },
+    await seedProduct(prisma, {
+      id: PRODUCT,
+      organizationId: ORG,
+      name: 'Eau',
+      unit: 'carton',
+      price: 5000n,
     });
     await prisma.order.create({
       data: {

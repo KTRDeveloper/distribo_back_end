@@ -58,7 +58,7 @@ async function products(count: number) {
   for (let i = 0; i < count; i++) {
     const id = uuidv7();
     await prisma.product.create({ data: {
-      id, organizationId: ORG, name: `Fixture product ${i}`, price: 100n,
+      id, organizationId: ORG, name: `Fixture product ${i}`,
       variants: { create: { id: uuidv7(), unit: 'piece', price: 100n } },
     } });
   }

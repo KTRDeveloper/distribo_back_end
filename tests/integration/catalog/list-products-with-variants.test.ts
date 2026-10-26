@@ -76,7 +76,6 @@ async function seedProduct(
       id,
       organizationId: data.organizationId ?? ORG_A,
       name: data.name,
-      unit: '',
       category: data.category ?? null,
       createdAt: new Date(data.createdAt),
       pausedAt: data.pausedAt ?? null,

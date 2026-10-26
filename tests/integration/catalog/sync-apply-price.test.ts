@@ -119,13 +119,10 @@ beforeEach(async () => {
   await prisma.$executeRaw`
     INSERT INTO organizations (id, name)
     VALUES (${ORG_A}::uuid, 'Fixture Business A'), (${ORG_B}::uuid, 'Fixture Business B')`;
-  // The mirror triggers would give each product a variant of its own id, so they are off while seeding.
-  await prisma.$executeRaw`ALTER TABLE products DISABLE TRIGGER USER`;
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${PRODUCT}::uuid, ${ORG_A}::uuid, 'Fixture Rice', 'sack', 3000),
-           (${PRODUCT_B}::uuid, ${ORG_B}::uuid, 'Fixture Oil', 'can', 1500)`;
-  await prisma.$executeRaw`ALTER TABLE products ENABLE TRIGGER USER`;
+    INSERT INTO products (id, organization_id, name)
+    VALUES (${PRODUCT}::uuid, ${ORG_A}::uuid, 'Fixture Rice'),
+           (${PRODUCT_B}::uuid, ${ORG_B}::uuid, 'Fixture Oil')`;
   await prisma.$executeRaw`
     INSERT INTO product_variants (id, product_id, organization_id, name, unit, price, status)
     VALUES (${VARIANT}::uuid, ${PRODUCT}::uuid, ${ORG_A}::uuid, NULL, 'sack', 3000, 'ACTIVE'),

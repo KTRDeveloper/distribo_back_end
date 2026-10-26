@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { v7 as uuidv7 } from 'uuid';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { enforceLimits } from '../../../src/modules/billing/limits.service';
 import type { OrganizationRights } from '../../../src/modules/billing/rights.service';
 import { insertKeepChoiceEvent } from '../../../src/modules/billing/subscription.repository';
@@ -36,10 +37,14 @@ async function business(): Promise<string> {
 async function product(index: number, org = organizationId): Promise<string> {
   const id = uuidv7();
   const createdAt = new Date(NOW.getTime() - DAY + index * 1000);
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, created_at)
-    VALUES (${id}::uuid, ${org}::uuid, 'Fixture Product', 'box', 100, ${createdAt})
-  `;
+  await seedProduct(prisma, {
+    id,
+    organizationId: org,
+    name: 'Fixture Product',
+    unit: 'box',
+    price: 100n,
+  });
+  await prisma.$executeRaw`UPDATE products SET created_at = ${createdAt} WHERE id = ${id}::uuid`;
   return id;
 }
 

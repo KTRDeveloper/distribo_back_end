@@ -24,8 +24,6 @@ async function seedProduct(imageKeys: string[]): Promise<void> {
       id: PRODUCT_ID,
       organizationId: ORG_ID,
       name: 'Riz',
-      unit: 'u',
-      price: 1000n,
       imageKeys,
     },
   });
@@ -86,12 +84,17 @@ describe('deleteImageFiles', () => {
     const shared = newImageKey('products');
     await store(shared);
     await seedProduct([shared]);
-    // A database trigger gives the product its first variant: that variant holds the key too
-    const held = await prisma.productVariant.updateMany({
-      where: { productId: PRODUCT_ID },
-      data: { imageKeys: [shared] },
+    // A variant of the product holds the key too
+    await prisma.productVariant.create({
+      data: {
+        id: PRODUCT_ID,
+        productId: PRODUCT_ID,
+        organizationId: ORG_ID,
+        unit: 'u',
+        price: 1000n,
+        imageKeys: [shared],
+      },
     });
-    expect(held.count).toBe(1);
     // The product lets go of the key; the variant still holds it
     await prisma.product.update({ where: { id: PRODUCT_ID }, data: { imageKeys: [] } });
 

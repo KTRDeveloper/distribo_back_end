@@ -57,13 +57,13 @@ beforeEach(async () => {
     VALUES (${ORG}::uuid, 'Fixture Business'), (${OTHER_ORG}::uuid, 'Other Business')
   `;
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, description, category)
-    VALUES (${PRODUCT}::uuid, ${ORG}::uuid, 'Riz', '', 1, 'Sac de 25 kg', 'Céréales'),
-           (${OTHER_PRODUCT}::uuid, ${OTHER_ORG}::uuid, 'Huile', '', 1, 'Bidon', NULL)
+    INSERT INTO products (id, organization_id, name, description, category)
+    VALUES (${PRODUCT}::uuid, ${ORG}::uuid, 'Riz', 'Sac de 25 kg', 'Céréales'),
+           (${OTHER_PRODUCT}::uuid, ${OTHER_ORG}::uuid, 'Huile', 'Bidon', NULL)
   `;
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, deleted_at)
-    VALUES (${DELETED_PRODUCT}::uuid, ${ORG}::uuid, 'Vieux', '', 1, now())
+    INSERT INTO products (id, organization_id, name, deleted_at)
+    VALUES (${DELETED_PRODUCT}::uuid, ${ORG}::uuid, 'Vieux', now())
   `;
 });
 
@@ -84,7 +84,6 @@ describe('applyProductFromSync', () => {
       name: 'Riz parfumé',
       description: 'Long grain',
       category: 'Céréales',
-      unit: '',
       paused_at: null,
       image_keys: [],
       deleted_at: null,
@@ -163,7 +162,6 @@ describe('applyProductFromSync', () => {
   });
 
   it('never writes the server fields carried by the input', async () => {
-    const before = await readRow(PRODUCT);
     const result = await apply({
       ...base,
       name: 'Riz parfumé',
@@ -179,8 +177,6 @@ describe('applyProductFromSync', () => {
     expect(result).toEqual({ result: 'UPDATED' });
     const row = await readRow(PRODUCT);
     expect(row).toMatchObject({
-      unit: '',
-      price: before?.price,
       paused_at: null,
       image_keys: [],
     });
@@ -189,8 +185,6 @@ describe('applyProductFromSync', () => {
   it('does not set the server fields on a creation either', async () => {
     await apply({ ...base, id: NEW_PRODUCT, unit: 'kg', price: 9999n, imageKeys: [KEY] });
     expect(await readRow(NEW_PRODUCT)).toMatchObject({
-      unit: '',
-      price: 1n,
       image_keys: [],
       paused_at: null,
     });

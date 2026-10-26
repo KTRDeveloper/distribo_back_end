@@ -180,8 +180,6 @@ describe('POST /api/v1/organizations/:organizationId/products/copy', () => {
     expect(await productCount()).toBe(before + 1);
     const row = await prisma.product.findUniqueOrThrow({ where: { id: NEW_ID } });
     expect(row.organizationId).toBe(BUYER_ORG);
-    expect(row.status).toBe('ACTIVE');
-    expect(row.minOrderQuantity).toBeNull();
     const variant = await prisma.productVariant.findUniqueOrThrow({
       where: { id: NEW_VARIANT_ID },
     });

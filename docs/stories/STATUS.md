@@ -387,7 +387,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-041 | done | | 5 characterization tests; AC-4 test aligned to read-only collaborations |
 | SYNC-042 | done | | Driver pulls verified contacts of customer businesses with a CONFIRMED order to deliver; driverRelationshipsWhere shared |
 | SYNC-043 | done | | 12 sync tests seed through seedProduct; price/status updates on variants |
-| CAT-041 | todo | | |
+| CAT-041 | done | | products lose unit, price, minimum and status; mirror triggers dropped; tests moved to seedProduct |
 | CAT-043 | todo | | |
 | ORD-034 | todo | | |
 | PRIV-004 | todo | | |

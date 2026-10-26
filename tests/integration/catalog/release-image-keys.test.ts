@@ -29,10 +29,9 @@ async function cleanUp() {
 }
 
 async function insertProduct(id: string, keys: string[], deletedAt: Date | null) {
-  // An empty unit marks a new-style product: no variant is mirrored from it (CAT-014).
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, image_keys, deleted_at)
-    VALUES (${id}::uuid, ${ORG}::uuid, 'Fixture Shirt', '', 3000, ${keys}::text[], ${deletedAt})
+    INSERT INTO products (id, organization_id, name, image_keys, deleted_at)
+    VALUES (${id}::uuid, ${ORG}::uuid, 'Fixture Shirt', ${keys}::text[], ${deletedAt})
   `;
 }
 

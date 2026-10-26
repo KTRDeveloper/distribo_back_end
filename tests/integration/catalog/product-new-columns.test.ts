@@ -5,9 +5,7 @@ import { prisma } from '../../setup';
 
 const ORG_ID = '0199c014-0000-7000-8000-0000000000a1';
 const NEW_STYLE = '0199c014-0000-7000-8000-0000000000b1';
-const OLD_STYLE = '0199c014-0000-7000-8000-0000000000b2';
 const OTHER_VARIANT = '0199c014-0000-7000-8000-0000000000c1';
-const PRODUCT_IDS = [NEW_STYLE, OLD_STYLE];
 
 const MIGRATION_DIR = join(__dirname, '../../../prisma/migrations');
 
@@ -106,18 +104,15 @@ beforeEach(async () => {
 afterAll(cleanUp);
 
 describe('product new columns', () => {
-  it('new-style row: defaults apply and no variant is created', async () => {
+  it('new row: defaults apply and no variant is created', async () => {
     await prisma.$executeRaw`
       INSERT INTO products (id, organization_id, name) VALUES (${NEW_STYLE}::uuid, ${ORG_ID}::uuid, 'Rice')
     `;
 
-    const [row] = await prisma.$queryRaw<
-      Array<{ image_keys: string[]; paused_at: Date | null; unit: string; price: bigint; status: string }>
-    >`
-      SELECT image_keys, paused_at, unit, price, status::text AS status
-      FROM products WHERE id = ${NEW_STYLE}::uuid
+    const [row] = await prisma.$queryRaw<Array<{ image_keys: string[]; paused_at: Date | null }>>`
+      SELECT image_keys, paused_at FROM products WHERE id = ${NEW_STYLE}::uuid
     `;
-    expect(row).toEqual({ image_keys: [], paused_at: null, unit: '', price: 1n, status: 'ACTIVE' });
+    expect(row).toEqual({ image_keys: [], paused_at: null });
     expect(await variantsOf(NEW_STYLE)).toHaveLength(0);
   });
 
@@ -143,65 +138,6 @@ describe('product new columns', () => {
       `
     );
     expect(code).toBe('23502');
-  });
-
-  it('old insert: one variant with the same id and the old values', async () => {
-    await prisma.$executeRaw`
-      INSERT INTO products (id, organization_id, name, unit, price, min_order_quantity)
-      VALUES (${OLD_STYLE}::uuid, ${ORG_ID}::uuid, 'Rice', 'sac', 3000, 2.5)
-    `;
-
-    const variants = await variantsOf(OLD_STYLE);
-    expect(variants).toHaveLength(1);
-    expect(variants[0]).toMatchObject({
-      id: OLD_STYLE,
-      product_id: OLD_STYLE,
-      organization_id: ORG_ID,
-      name: null,
-      unit: 'sac',
-      price: 3000n,
-      min_order_quantity: '2.500',
-      status: 'ACTIVE',
-    });
-  });
-
-  it('old update: a new price reaches the variant with a later price date', async () => {
-    await prisma.$executeRaw`
-      INSERT INTO products (id, organization_id, name, unit, price)
-      VALUES (${OLD_STYLE}::uuid, ${ORG_ID}::uuid, 'Rice', 'sac', 3000)
-    `;
-    const [before] = await variantsOf(OLD_STYLE);
-
-    await prisma.$executeRaw`UPDATE products SET price = 3500 WHERE id = ${OLD_STYLE}::uuid`;
-
-    const [after] = await variantsOf(OLD_STYLE);
-    expect(after.price).toBe(3500n);
-    expect(after.price_updated_at.getTime()).toBeGreaterThan(before.price_updated_at.getTime());
-  });
-
-  it('old update: a new status reaches the variant', async () => {
-    await prisma.$executeRaw`
-      INSERT INTO products (id, organization_id, name, unit, price)
-      VALUES (${OLD_STYLE}::uuid, ${ORG_ID}::uuid, 'Rice', 'sac', 3000)
-    `;
-
-    await prisma.$executeRaw`UPDATE products SET status = 'INACTIVE' WHERE id = ${OLD_STYLE}::uuid`;
-
-    const [after] = await variantsOf(OLD_STYLE);
-    expect(after.status).toBe('INACTIVE');
-  });
-
-  it('old update: a change of another column leaves the variant untouched', async () => {
-    await prisma.$executeRaw`
-      INSERT INTO products (id, organization_id, name, unit, price)
-      VALUES (${OLD_STYLE}::uuid, ${ORG_ID}::uuid, 'Rice', 'sac', 3000)
-    `;
-    const [before] = await variantsOf(OLD_STYLE);
-
-    await prisma.$executeRaw`UPDATE products SET name = 'Long rice' WHERE id = ${OLD_STYLE}::uuid`;
-
-    const [after] = await variantsOf(OLD_STYLE);
-    expect(after.server_updated_at.getTime()).toBe(before.server_updated_at.getTime());
   });
 
   it('new-style product: a rename creates no variant with the id of the product', async () => {
@@ -264,19 +200,5 @@ describe('product new columns, security', () => {
       SELECT cardinality(image_keys)::int AS n FROM products WHERE id = ${NEW_STYLE}::uuid
     `;
     expect(row.n).toBe(0);
-  });
-
-  it('two businesses: the mirrored variant takes the business of its product', async () => {
-    await prisma.$executeRaw`
-      INSERT INTO products (id, organization_id, name, unit, price)
-      VALUES (${OLD_STYLE}::uuid, ${ORG_ID}::uuid, 'Rice', 'sac', 3000)
-    `;
-    const rows = await prisma.$queryRaw<Array<{ v: string; p: string }>>`
-      SELECT v.organization_id::text AS v, p.organization_id::text AS p
-      FROM product_variants v JOIN products p ON p.id = v.product_id
-      WHERE p.id = ANY(${PRODUCT_IDS}::uuid[])
-    `;
-    expect(rows).toHaveLength(1);
-    expect(rows[0].v).toBe(rows[0].p);
   });
 });

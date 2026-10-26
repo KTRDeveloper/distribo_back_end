@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { expectColumnType } from '../../helpers/db-schema';
 
 const SUPPLIER_ORG_ID = '0199c024-0000-7000-8000-000000000001';
@@ -122,15 +123,17 @@ beforeEach(async () => {
     INSERT INTO customer_relationships (id, supplier_organization_id, customer_person_id, created_by_id)
     VALUES (${REL_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, ${CUSTOMER_ID}::uuid, ${OWNER_ID}::uuid)
   `;
-  // Old-style product: the CAT-014 trigger gives it a variant with its own id.
+  // A product with a variant of its own id.
+  await seedProduct(prisma, {
+    id: OLD_PRODUCT_ID,
+    organizationId: SUPPLIER_ORG_ID,
+    name: 'Fixture Rice',
+    unit: 'sack',
+    price: 3000n,
+  });
   await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${OLD_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Rice', 'sack', 3000)
-  `;
-  // New-style product: empty unit, so no variant of its own id; one variant with another id.
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${NEW_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Oil', '', 1)
+    INSERT INTO products (id, organization_id, name)
+    VALUES (${NEW_PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Oil')
   `;
   await prisma.$executeRaw`
     INSERT INTO product_variants (id, product_id, organization_id, name, unit, price)

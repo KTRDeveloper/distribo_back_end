@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 
 const SUPPLIER_ORG_ID = '0199c026-0000-7000-8000-000000000001';
 const OTHER_ORG_ID = '0199c026-0000-7000-8000-000000000002';
@@ -97,11 +98,16 @@ function insertLine(row: Line = {}): Promise<unknown> {
   });
 }
 
+/** A product without variant when `unit` is empty, else a product with a variant of its own id. */
 async function insertProduct(id: string, orgId: string, unit: string): Promise<void> {
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price)
-    VALUES (${id}::uuid, ${orgId}::uuid, 'Fixture Product', ${unit}, 3000)
-  `;
+  if (unit === '') {
+    await prisma.$executeRaw`
+      INSERT INTO products (id, organization_id, name)
+      VALUES (${id}::uuid, ${orgId}::uuid, 'Fixture Product')
+    `;
+    return;
+  }
+  await seedProduct(prisma, { id, organizationId: orgId, name: 'Fixture Product', unit, price: 3000n });
 }
 
 async function insertVariant(
@@ -247,13 +253,6 @@ describe('the minimum is the variant (AC-2, C-15)', () => {
       await captureSqlCode(insertLine({ orderId: SUPPLIER_ORDER_ID, quantity: '1', amount: 3000n }))
     ).toBeUndefined();
   });
-
-  it('reads the minimum on the variant, not on the product', async () => {
-    await prisma.$executeRaw`
-      UPDATE products SET min_order_quantity = 50 WHERE id = ${PRODUCT_ID}::uuid
-    `;
-    expect(await captureSqlCode(insertLine())).toBeUndefined();
-  });
 });
 
 describe('retired variants through synchronization (AC-3)', () => {
@@ -321,10 +320,10 @@ describe('retired variants through synchronization (AC-3)', () => {
   });
 });
 
-describe('old-style products behave as before (AC-4)', () => {
-  it('refuses a line for an old-style product set INACTIVE with a direct update', async () => {
+describe('products whose variant has their id behave as before (AC-4)', () => {
+  it('refuses a line for a variant set INACTIVE with a direct update', async () => {
     await prisma.$executeRaw`
-      UPDATE products SET status = 'INACTIVE' WHERE id = ${OLD_PRODUCT_ID}::uuid
+      UPDATE product_variants SET status = 'INACTIVE' WHERE id = ${OLD_PRODUCT_ID}::uuid
     `;
     expect(
       await captureSqlCode(insertLine({ productId: OLD_PRODUCT_ID, variantId: OLD_PRODUCT_ID }))

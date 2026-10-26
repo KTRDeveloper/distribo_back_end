@@ -51,24 +51,6 @@ export async function getReferencePrice(
   return { price: variant.price, negotiated: false, changedAt: variant.priceUpdatedAt };
 }
 
-/**
- * Returns the product when it belongs to the organization, is ACTIVE and not
- * deleted (C-15).
- *
- * @throws 404 NOT_FOUND otherwise, without telling which condition failed.
- */
-export async function getActiveProduct(
-  tx: Prisma.TransactionClient,
-  organizationId: string,
-  productId: string
-): Promise<Product> {
-  const product = await tx.product.findFirst({
-    where: { id: productId, organizationId, status: 'ACTIVE', deletedAt: null },
-  });
-  if (!product) throw notFound();
-  return product;
-}
-
 /** A variant on sale with the facts an order line freezes (C-15). */
 export type ActiveVariant = {
   id: string;
@@ -131,34 +113,9 @@ export async function getActiveVariant(
 }
 
 /**
- * Inserts a product of the organization. `price_updated_at` and `created_at` come from the
- * database defaults, never from the caller (C-13).
- *
- * @param tx - Transaction client of the gesture.
- * @param data - Values already validated by the service.
- */
-export async function insertProduct(
-  tx: Prisma.TransactionClient,
-  data: {
-    id: string;
-    organizationId: string;
-    name: string;
-    unit: string;
-    price: bigint;
-    minOrderQuantity: string | null;
-    description: string | null;
-    category: string | null;
-  }
-): Promise<Product> {
-  return tx.product.create({ data });
-}
-
-/**
- * Inserts a product that the code gives variants to: the unit stays empty, so the old-style mirror
- * of CAT-014 adds no variant of its own, and the price keeps its database default. `created_at`
- * comes from the database; the photos and the pause date stay empty (server-owned).
- *
- * Named apart from {@link insertProduct}, which writes an old-style product with its unit and price.
+ * Inserts a product that the code gives variants to. Price, unit, minimum and status live on the
+ * variants (CAT-041), so the product carries only its name, texts and business. `created_at` comes
+ * from the database; the photos and the pause date stay empty (server-owned).
  */
 export async function insertProductForVariants(
   tx: Prisma.TransactionClient,
@@ -170,7 +127,7 @@ export async function insertProductForVariants(
     category: string | null;
   }
 ): Promise<Product> {
-  return tx.product.create({ data: { ...data, unit: '' } });
+  return tx.product.create({ data });
 }
 
 /**
@@ -221,7 +178,6 @@ export async function getProductCopyableBy(
   const product = await tx.product.findFirst({
     where: {
       id: productId,
-      status: 'ACTIVE',
       deletedAt: null,
       pausedAt: null,
       organizationId: { not: buyerOrganizationId },

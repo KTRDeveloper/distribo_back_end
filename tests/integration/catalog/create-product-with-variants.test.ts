@@ -234,7 +234,7 @@ describe('POST /api/v1/organizations/:organizationId/products with variants', ()
       for (let i = 0; i < count; i += 1) {
         const id = `0199c0c4-0000-7000-8000-${String(5000 + i).padStart(12, '0')}`;
         await prisma.product.create({
-          data: { id, organizationId: orgId, name: `Fixture ${i}`, unit: '', price: 100n },
+          data: { id, organizationId: orgId, name: `Fixture ${i}` },
         });
         await prisma.productVariant.create({
           data: {
@@ -305,7 +305,6 @@ describe('POST /api/v1/organizations/:organizationId/products with variants', ()
         id: '0199c0c4-0000-7000-8000-0000000000aa',
         organizationId: ORG_B,
         name: 'B',
-        unit: '',
       },
     });
     await prisma.productVariant.create({

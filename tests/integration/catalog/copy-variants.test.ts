@@ -142,7 +142,6 @@ beforeEach(async () => {
         id: productId,
         organizationId,
         name,
-        unit: '',
         description: 'Description fixture',
         category: 'Cereales',
       },
@@ -225,7 +224,6 @@ describe('CAT-031 copy purchased variants', () => {
     });
     const row = await prisma.product.findUniqueOrThrow({ where: { id: NEW_PRODUCT } });
     expect(row.organizationId).toBe(BUYER);
-    expect(row.unit).toBe('');
   });
 
   it('AC-1 accepts a destination name and the owner role', async () => {
@@ -470,8 +468,6 @@ describe('CAT-031 copy purchased variants', () => {
     expect(rows.every((row) => row.minOrderQuantity === null)).toBe(true);
     expect(rows.map((row) => row.imageKeys.length)).toEqual([1, 0]);
     const product = await prisma.product.findUniqueOrThrow({ where: { id: NEW_PRODUCT } });
-    expect(product.price).not.toBe(12000n);
-    expect(product.minOrderQuantity).toBeNull();
     expect(product.imageKeys).toHaveLength(1);
     const copiedKeys = [...product.imageKeys, ...rows.flatMap((row) => row.imageKeys)];
     expect(new Set([...copiedKeys, productPhoto, variantPhoto]).size).toBe(4);

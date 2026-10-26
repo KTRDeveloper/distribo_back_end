@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../setup';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { getReferencePrice } from '../../../src/modules/catalog/catalog.repository';
 
 const SUPPLIER_ORG_ID = '0199c017-0000-7000-8000-000000000001';
@@ -64,12 +65,20 @@ beforeEach(async () => {
     INSERT INTO organizations (id, name)
     VALUES (${SUPPLIER_ORG_ID}::uuid, 'Fixture Supplier'), (${OTHER_ORG_ID}::uuid, 'Fixture Other Business')
   `;
-  await prisma.$executeRaw`
-    INSERT INTO products (id, organization_id, name, unit, price, status, deleted_at)
-    VALUES
-      (${PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Fixture Rice', 'sack', 3000, 'ACTIVE', NULL),
-      (${FOREIGN_PRODUCT_ID}::uuid, ${OTHER_ORG_ID}::uuid, 'Fixture Oil', 'can', 1500, 'ACTIVE', NULL)
-  `;
+  await seedProduct(prisma, {
+    id: PRODUCT_ID,
+    organizationId: SUPPLIER_ORG_ID,
+    name: 'Fixture Rice',
+    unit: 'sack',
+    price: 3000n,
+  });
+  await seedProduct(prisma, {
+    id: FOREIGN_PRODUCT_ID,
+    organizationId: OTHER_ORG_ID,
+    name: 'Fixture Oil',
+    unit: 'can',
+    price: 1500n,
+  });
   await prisma.$executeRaw`
     INSERT INTO product_variants (id, product_id, organization_id, name, unit, price)
     VALUES (${SECOND_VARIANT_ID}::uuid, ${PRODUCT_ID}::uuid, ${SUPPLIER_ORG_ID}::uuid, 'Large', 'big sack', 5000)

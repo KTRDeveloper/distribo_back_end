@@ -77,7 +77,6 @@ async function seedProduct(
       id: productId,
       organizationId: SUPPLIER_ORG,
       name,
-      unit: '',
       category: 'Epicerie',
       createdAt: new Date(createdAt),
       pausedAt: extra.pausedAt ?? null,

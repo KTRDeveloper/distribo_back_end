@@ -22,7 +22,7 @@ const NOW = new Date('2026-10-19T10:00:00.000Z');
 
 async function seedProduct(id: string, organizationId: string, variantIds: string[]) {
   await prisma.product.create({
-    data: { id, organizationId, name: 'T-shirt', unit: '', price: 15000n },
+    data: { id, organizationId, name: 'T-shirt' },
   });
   for (const [index, variantId] of variantIds.entries()) {
     await prisma.productVariant.create({

@@ -4,6 +4,7 @@ import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
 import { prisma } from '../../setup.js';
+import { seedProduct } from '../../helpers/catalog-fixtures.js';
 
 const SELLER = '0199e039-0000-7000-8000-000000000001';
 const MANAGER = '0199e039-0000-7000-8000-000000000002';
@@ -159,8 +160,12 @@ describe('a paused collaborator gets the grace of a revoked one (SYNC-039)', () 
       [PRODUCT, ORG_A],
       [PRODUCT_B, ORG_B],
     ]) {
-      await prisma.product.create({
-        data: { id, organizationId: org, name: 'Riz', unit: 'sac', price: 3000n },
+      await seedProduct(prisma, {
+        id,
+        organizationId: org,
+        name: 'Riz',
+        unit: 'sac',
+        price: 3000n,
       });
     }
     for (const [id, org] of [

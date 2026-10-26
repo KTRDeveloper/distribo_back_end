@@ -58,8 +58,6 @@ async function business(
       id: newId(),
       organizationId: organization.id,
       name: 'T-shirt',
-      unit: 'u',
-      price: 1000n,
     },
   });
   return { organizationId: organization.id, productId: product.id, people };
@@ -164,7 +162,7 @@ describe('IMG-011 take a photo from another variant', () => {
       const b = await business();
       const p = await seedFile();
       const otherProduct = await prisma.product.create({
-        data: { id: newId(), organizationId: b.organizationId, name: 'O', unit: 'u', price: 1n },
+        data: { id: newId(), organizationId: b.organizationId, name: 'O' },
       });
       const src = await variant({ ...b, productId: otherProduct.id }, [p]);
       const dest = await variant(b);

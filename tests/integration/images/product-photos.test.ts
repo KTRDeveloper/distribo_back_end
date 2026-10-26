@@ -96,8 +96,6 @@ async function business(
       id: newId(),
       organizationId: organization.id,
       name: 'Riz',
-      unit: 'u',
-      price: 1000n,
       imageKeys,
     },
   });
