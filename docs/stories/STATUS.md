@@ -352,7 +352,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-029 | done | | Owner seat swap atomic and tenant-scoped; 4997 tests pass, typecheck clean, lint 0 errors; dependency audit findings and unavailable SAST/secret scanners reported. |
 | BIL-030 | done | | Product swap implemented; 58 targeted and 5012 full-suite tests pass; dependency audit findings reported |
 | BIL-031 | done | | Hooks transactionnels close/reopen ; fixtures du registre corrigées sans modifier les assertions ; 5024/5024 tests, typecheck clean, lint 0 erreur. |
-| BIL-033 | todo | | |
+| BIL-033 | blocked | | Verification command denied by permission system; authorize final suite/scans and resolve pre-existing pinned-Zod audit findings. |
 | BIL-016 | todo | | |
 | BIL-017 | todo | | |
 | BIL-026 | todo | | |
