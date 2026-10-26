@@ -17,6 +17,7 @@ import {
 } from './adapters/closing.push.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import { runBatchControls, runLongAbsence } from './sync.controls.js';
+import { enforceCatalogLimits } from './sync.limits.js';
 import { getAdapters } from './sync.registry.js';
 import {
   findOrderOwner,
@@ -254,7 +255,7 @@ const SERVER_CONTEXT = { onServer: true, online: false, daysSinceSync: 0 } as co
 
 /** `graced` names the organization whose rows were kept under old rights (SYNC-019, CM-29). */
 type Verdict =
-  | { ok: true; row: Row; graced?: string }
+  | { ok: true; row: Row; graced?: string; organizationId?: string }
   | { ok: false; code: string; message: string };
 const refuse = (code: string, message: string): Verdict => ({ ok: false, code, message });
 const OUT_OF_SCOPE = refuse('OUT_OF_SCOPE', 'This line is outside your scope');
@@ -273,6 +274,8 @@ type Judge = {
   gracedOrders: Set<string>;
   /** The operations kept under old rights that the owners are told about. */
   gracedOps: Array<{ table: SyncTable; id: string; organizationId: string }>;
+  /** Organizations of the product and variant lines this batch passed, fitted to their plan at the end (SYNC-035). */
+  catalogOrganizations: Set<string>;
 };
 
 /**
@@ -549,7 +552,16 @@ async function judgeDeletion(judge: Judge, table: JudgedTable, id: string): Prom
     'delete',
     subject(RULES_OF[table].subject, stored.row)
   );
-  return allowed ? { ok: true, row: {} } : NOT_ALLOWED;
+  return allowed
+    ? { ok: true, row: {}, organizationId: stored.owner.organizationId ?? undefined }
+    : NOT_ALLOWED;
+}
+
+/** Remembers the organization of a passed product or variant line, from the judge's own scope. */
+function noteCatalogOrganization(judge: Judge, table: JudgedTable, organizationId: unknown): void {
+  if ((table === 'products' || table === 'product_variants') && isUuid(organizationId)) {
+    judge.catalogOrganizations.add(organizationId);
+  }
 }
 
 /**
@@ -567,14 +579,19 @@ async function judgeTable(judge: Judge, table: JudgedTable, change: TableChange)
   for (const listed of ['created', 'updated'] as const) {
     for (const row of change[listed]) {
       const verdict = await judgeRow(judge, table, row, listed);
-      if (verdict.ok) (verdict.graced === undefined ? passed : graced)[listed].push(verdict.row);
+      if (verdict.ok) {
+        (verdict.graced === undefined ? passed : graced)[listed].push(verdict.row);
+        noteCatalogOrganization(judge, table, verdict.row['organization_id']);
+      }
       else refuseLine(typeof row['id'] === 'string' ? row['id'] : '', verdict);
     }
   }
   for (const id of change.deleted) {
     const verdict = await judgeDeletion(judge, table, id);
-    if (verdict.ok) passed.deleted.push(id);
-    else refuseLine(id, verdict);
+    if (verdict.ok) {
+      passed.deleted.push(id);
+      noteCatalogOrganization(judge, table, verdict.organizationId);
+    } else refuseLine(id, verdict);
   }
   return { passed, graced, forbidden };
 }
@@ -827,6 +844,10 @@ async function reportGracedOperations(
  * owners get one `sync.rights_changed` with the count. Every other line is judged with the current
  * rights, and the owners hear of the refusals as the author does. Nothing else is lent.
  *
+ * After the last table, the organizations whose products or variants the batch changed are fitted
+ * to their plan: the excess is paused by billing, never refused (SYNC-035, C-46). A batch without
+ * catalog line does not call billing.
+ *
  * Tables outside the nine judged ones go to their adapter as sent: their adapters own the rules.
  * Rows that name no parent are not scope-checked here, only handed over; the adapter refuses them.
  *
@@ -858,6 +879,7 @@ export async function judgeBatch(
       stale,
       gracedOrders: new Set(),
       gracedOps: [],
+      catalogOrganizations: new Set(),
     };
     const outcomes: LineOutcome[] = [];
     const unwritten: Unwritten[] = [];
@@ -962,6 +984,11 @@ export async function judgeBatch(
       const index = outcomes.findIndex((o) => o.table === line.table && o.id === line.id);
       if (index === -1) outcomes.push(line);
       else if (line.kind !== 'accepted') outcomes[index] = line;
+    }
+
+    // What the catalog lines added beyond the plan is paused, never refused (SYNC-035, C-46).
+    if (judge.catalogOrganizations.size > 0) {
+      await enforceCatalogLimits(tx, [...judge.catalogOrganizations], new Date());
     }
 
     // Controls never refuse: they flag the orders stored by this batch and tell the owners (SYNC-016).

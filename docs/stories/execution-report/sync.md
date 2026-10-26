@@ -1201,3 +1201,34 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - The story says the judge stamps `organization_id` on prices; it does not. If SYNC-030 was meant to, the adapter's lookup could go.
 <!-- end SYNC-034 -->
+
+<!-- begin SYNC-035 -->
+## SYNC-035 — Products added beyond the plan are paused after a push
+
+- Filed: 2026-10-26 09:03 UTC
+- Status: **done**: Catalog limits enforced after judge tables; 6 tests; suite 5324 green
+- Risk: medium · story: [SYNC-035-products-added-beyond-the-plan-are-paused-after.md](../modules/sync/SYNC-035-products-added-beyond-the-plan-are-paused-after.md)
+- Agent: 63,440 tokens, 24 tool uses, 3 min 51 s
+
+### Agent report
+
+**Summary:** `judgeBatch` now fits the catalog to each touched organization's plan through the new `enforceCatalogLimits`; excess products are paused, no line refused.
+
+**Decisions:**
+- Organization source: stamped `organization_id` of passed created/updated lines, and the stored owner for deletions (new optional `organizationId` on the ok verdict). It comes from the judge's scope, never the phone.
+- Placement: after `runClosings`, just before the batch controls, in the batch transaction.
+- `now` is `new Date()` taken at that point (the judge has no other clock).
+- Graced (old-rights) lines count too, since they are also passed lines.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/push-plan-limits.test.ts` › calls billing once for an organization whose catalog changed: the positive counterpart of AC-4 (Implementation section: per organization); passed once the code existed
+
+**Other additions:**
+- `enforceLimits` is wrapped in `vi.mock` with the real implementation as the spy, to check "billing not called" (AC-4).
+- AC-2 and AC-4 tests passed before the code existed (regression guards).
+
+**Evidence:** story tests 6/6 (plus push-products 9/9); full suite 5324/5324, failing: none, 0 known; typecheck clean; lint 0 errors, 242 warnings (existing)
+
+**Follow-ups:**
+- Billing ranks products newest first, so newly pushed products win over older ones and the older ones are paused. The story leaves the choice to BIL-020, so I did not change it.
+<!-- end SYNC-035 -->

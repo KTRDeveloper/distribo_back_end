@@ -378,7 +378,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-032 | done | | variants push through applyVariantFromSync; 10 tests; suite 5287 green |
 | SYNC-033 | done | | Catalog deletions pushed through deleteVariantFromSync/deleteProductFromSync; RETIRED_INSTEAD issue |
 | SYNC-034 | done | | price push by the owner; org found from relationship or stored price |
-| SYNC-035 | todo | | |
+| SYNC-035 | done | | Catalog limits enforced after judge tables; 6 tests; suite 5324 green |
 | SYNC-036 | todo | | |
 | SYNC-037 | todo | | |
 | SYNC-038 | todo | | |
