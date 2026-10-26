@@ -1065,3 +1065,33 @@ BIL-026 done
 
 BIL-034 done
 <!-- end BIL-034 -->
+
+<!-- begin BIL-035 -->
+## BIL-035 — The owner is told when a payment is confirmed
+
+- Filed: 2026-10-26 05:34 UTC
+- Status: **blocked**: Implementation and tests pass; may existing dependency audit findings (3 high) be handled separately, since fixing pinned dependencies is outside this story?
+- Risk: medium · story: [BIL-035-the-owner-is-told-when-a-payment-is-confirmed.md](../modules/billing/BIL-035-the-owner-is-told-when-a-payment-is-confirmed.md)
+- Agent: 37,210 tokens, 37 tool uses, 6 min 37 s
+
+### Agent report
+
+**Summary:** BIL-035 implemented with localized, masked, atomic payment notifications; blocked only by existing dependency audit findings that violate the clean-scan Definition of Done.
+
+**Decisions:**
+- FR grouping uses ordinary spaces to match the acceptance text; dates use Africa/Douala.
+- A missing payer phone fails closed; database rules reserve null phone numbers for administrator payments outside this story.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/payment-notice.test.ts` › writes only one notice for concurrent confirmations: guards AC-3 under a race.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/payment-notice.test.ts` › rolls back the activation and notice together when notification fails: guards the story's same-transaction requirement.
+
+**Evidence:** story tests 7/7; full suite initially 5115/5117, 0 known; both failures were typecheck wrappers and pass after the nullable-phone fix; targeted rerun 14/14; typecheck clean; lint 0 errors, 219 warnings; git diff --check clean.
+
+**Follow-ups:**
+- `npm audit --audit-level=high` reports 5 existing vulnerabilities (3 high, 1 moderate, 1 low), including body-parser and zod; pinned dependency remediation requires separate authorization/scope.
+- SAST and secret scanner executables are unavailable locally.
+- Full-suite output: `/tmp/distribo-next13-20261026/BIL-035-suite.txt`; no second full run because the fix changes billing service code, not shared code.
+- Report returned directly rather than written to `/tmp/distribo-next13-20261026/BIL-035-report.md`, following the final developer instruction forbidding report Markdown files.
+BIL-035 blocked
+<!-- end BIL-035 -->

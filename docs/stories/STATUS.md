@@ -357,7 +357,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-017 | done | | Owner receipt pagination and tenant isolation implemented; 61 targeted and 5077 full-suite tests pass; typecheck clean, lint 0 errors |
 | BIL-026 | done | | 18 reminder tests and 5095 suite tests pass; typecheck clean; lint 0 errors (218 existing warnings); dependency audit flags 3 high findings in unchanged dependencies. |
 | BIL-034 | done | | 62 story checks and 5110 suite tests pass; typecheck clean; dependency audit findings and unavailable scanners reported |
-| BIL-035 | todo | | |
+| BIL-035 | blocked | | Implementation and tests pass; may existing dependency audit findings (3 high) be handled separately, since fixing pinned dependencies is outside this story? |
 | BIL-036 | todo | | |
 | BIL-037 | todo | | |
 | BIL-023 | todo | | |
