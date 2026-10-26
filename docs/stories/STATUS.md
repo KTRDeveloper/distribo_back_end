@@ -397,4 +397,4 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-029 | done | | uncontest route clears contested_at; 7 story tests green; 2 REL-024 correct-number failures remain until REL-031 |
 | REL-030 | done | | contested_at in supplier and customer views; GET /suppliers contested filter; 46 tests green; 2 correct-number failures until REL-031 |
 | REL-031 | done | | contested correction clears mark, SAME_NUMBER, confirm_same_customer removed |
-| SYNC-044 | todo | | |
+| SYNC-044 | done | | contested_at server-only on push, pulled as epoch ms on supplier and customer rows |

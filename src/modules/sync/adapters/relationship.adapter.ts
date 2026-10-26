@@ -102,7 +102,8 @@ function baseColumns(r: RelationshipRow & { serverUpdatedAt: Date }): Row {
 /**
  * Builds the row a phone receives, from the REL-005 projection that fits the viewer. A person who
  * is the customer of the row always gets the customer view, even when also a collaborator of the
- * supplier (nobody judges their own record). Explicit field lists only (ASVS v5.0.0-15.3.1).
+ * supplier (nobody judges their own record). Explicit field lists only (ASVS v5.0.0-15.3.1). Both
+ * non-driver rows carry `contested_at` (epoch ms or null, C-57); a phone never sends it back.
  */
 function toSyncRow(
   r: RelationshipRow & { serverUpdatedAt: Date },
@@ -119,6 +120,7 @@ function toSyncRow(
       credit_limit: v.credit_limit,
       balance: v.balance,
       ended_by_party: v.ended_by_party,
+      contested_at: v.contested_at ? toEpoch(v.contested_at) : null,
     };
   }
   if (r.supplierOrganizationId !== null && supplierViewOrgs.has(r.supplierOrganizationId)) {
@@ -133,6 +135,7 @@ function toSyncRow(
       credit_limit_set_at: v.credit_limit_set_at ? toEpoch(v.credit_limit_set_at) : null,
       balance: v.balance,
       ended_by_party: v.ended_by_party,
+      contested_at: v.contested_at ? toEpoch(v.contested_at) : null,
     };
   }
   // A driver: the available credit takes the place of the limit, the balance is zeroed (CM-30).

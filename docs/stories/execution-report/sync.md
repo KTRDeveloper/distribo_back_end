@@ -1462,3 +1462,27 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 
 **Evidence:** story tests 492/492 (sync folder + unit); full suite 5405/5405, failing: none, 0 known; typecheck clean; lint 0 errors, 249 warnings (existing style)
 <!-- end SYNC-043 -->
+
+<!-- begin SYNC-044 -->
+## SYNC-044 — The contested mark is a server field in synchronization
+
+- Filed: 2026-10-26 10:33 UTC
+- Status: **done**: contested_at server-only on push, pulled as epoch ms on supplier and customer rows
+- Risk: medium · story: [SYNC-044-the-contested-mark-is-a-server-field-in.md](../modules/sync/SYNC-044-the-contested-mark-is-a-server-field-in.md)
+- Agent: 38,090 tokens, 14 tool uses, 2 min 49 s
+
+### Agent report
+
+**Summary:** Added `contested_at` to the server-only list of the judge and to the customer and supplier pulled relationship rows.
+
+**Decisions:**
+- Wire format of `contested_at`: epoch ms or null, not the "ISO timestamp" the story says. SYNC-003 and `toEpoch` make epoch ms the only timestamp format a phone receives; the story's wording looks copied from REL-030 (REST).
+
+**Tests added beyond the story:**
+- `tests/integration/sync/judge.test.ts` › ignores a pushed contested_at on an unmarked row: a phone cannot set the mark (CM-27, C-57); failed before the change, as the story's tests did
+
+**Evidence:** story tests 23/23 (file); full suite 5391/5391, failing: none, 0 known; typecheck clean; lint 0 errors, 260 warnings
+
+**Follow-ups:**
+- Confirm the epoch ms format against the story's "ISO timestamp"; the story text could be amended.
+<!-- end SYNC-044 -->

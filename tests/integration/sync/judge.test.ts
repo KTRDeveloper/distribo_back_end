@@ -581,6 +581,7 @@ describe('sync judge pipeline', () => {
         balance: 1,
         credit_limit_set_at: 2,
         ended_by_party: 'X',
+        contested_at: 7,
         amount_held: 3,
         price_updated_at: 4,
         customer_label: 'keep',
@@ -596,5 +597,80 @@ describe('sync judge pipeline', () => {
     expect(
       stripComputed('ledger_entries', { id: 'e', kind: 'PAYMENT', amount: 5, balance_effect: 5 })
     ).toEqual({ id: 'e', kind: 'PAYMENT', amount: 5 });
+  });
+
+  describe('the contested mark is a server field (SYNC-044)', () => {
+    const MARKED_AT = new Date('2026-10-20T08:00:00.000Z');
+
+    async function mark(contestedAt: Date | null) {
+      await prisma.customerRelationship.update({
+        where: { id: REL_A },
+        data: { contestedAt },
+      });
+    }
+
+    const storedMark = async () =>
+      (await prisma.customerRelationship.findUniqueOrThrow({ where: { id: REL_A } })).contestedAt;
+
+    it('ignores a pushed contested_at and keeps the stored value (AC-1, CM-27)', async () => {
+      await mark(MARKED_AT);
+
+      const response = await push(SELLER, {
+        customer_relationships: table({
+          updated: [{ id: REL_A, customer_label: 'Renamed', contested_at: 1 }],
+        }),
+      });
+
+      expect(bodyOf<PushBody>(response).rejected).toEqual([]);
+      expect(await storedMark()).toEqual(MARKED_AT);
+    });
+
+    it('ignores a pushed contested_at on an unmarked row (AC-1, CM-27)', async () => {
+      const response = await push(SELLER, {
+        customer_relationships: table({
+          updated: [{ id: REL_A, customer_label: 'Renamed', contested_at: 1_760_000_000_000 }],
+        }),
+      });
+
+      expect(bodyOf<PushBody>(response).rejected).toEqual([]);
+      expect(await storedMark()).toBeNull();
+    });
+
+    it('keeps the mark when the supplier pushes contested_at null (AB-1, CWE-915)', async () => {
+      await mark(MARKED_AT);
+
+      const response = await push(SELLER, {
+        customer_relationships: table({
+          updated: [{ id: REL_A, customer_label: 'Renamed', contested_at: null }],
+        }),
+      });
+
+      expect(bodyOf<PushBody>(response).rejected).toEqual([]);
+      expect(await storedMark()).toEqual(MARKED_AT);
+    });
+
+    it('gives both the supplier and the customer the mark on pull, null when absent (AC-2, C-57)', async () => {
+      await mark(MARKED_AT);
+      const pull = async (personId: string) => {
+        const response = await createAuthenticatedRequest(app, personId, devices[personId]).get(
+          '/api/v1/sync/pull'
+        );
+        const body = bodyOf<{
+          changes: { customer_relationships: { created: Array<Record<string, unknown>> } };
+        }>(response);
+        return body.changes.customer_relationships.created.filter((r) => r['id'] === REL_A);
+      };
+
+      expect(await pull(SELLER)).toEqual([
+        expect.objectContaining({ contested_at: MARKED_AT.getTime() }),
+      ]);
+      expect(await pull(CUSTOMER)).toEqual([
+        expect.objectContaining({ contested_at: MARKED_AT.getTime() }),
+      ]);
+
+      await mark(null);
+      expect(await pull(SELLER)).toEqual([expect.objectContaining({ contested_at: null })]);
+      expect(await pull(CUSTOMER)).toEqual([expect.objectContaining({ contested_at: null })]);
+    });
   });
 });

@@ -86,6 +86,7 @@ const COMPUTED_EVERYWHERE = [
   'price_updated_at',
   'credit_limit_set_at',
   'ended_by_party',
+  'contested_at',
   'last_synced_at',
   'scope_version',
   'server_updated_at',
