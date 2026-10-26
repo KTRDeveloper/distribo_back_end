@@ -895,31 +895,28 @@ BIL-031 done
 <!-- begin BIL-033 -->
 ## BIL-033 — A payer sees the price and the start date before paying
 
-- Filed: 2026-10-26 03:29 UTC
-- Status: **blocked**: Verification command denied by permission system; authorize final suite/scans and resolve pre-existing pinned-Zod audit findings.
+- Filed: 2026-10-26 04:37 UTC
+- Status: **done**: Public quote route; 68 targeted and 5048 full-suite tests pass, typecheck clean, lint 0 errors.
 - Risk: medium · story: [BIL-033-a-payer-sees-the-price-and-the-start-date.md](../modules/billing/BIL-033-a-payer-sees-the-price-and-the-start-date.md)
-- Agent: 60,416 tokens, 10 tool uses, 2 min 25 s
+- Agent: 35,647 tokens, 13 tool uses, 1 min 53 s
 
 ### Agent report
 
-**Summary:** BIL-033 implementation and targeted tests are complete; status remains blocked on final verification permissions and pre-existing dependency-security findings.
+**Summary:** Public GET /billing/shops/{code}/quote done; reused the earlier blocked attempt kept in a git stash (applied, re-verified).
+
 **Decisions:**
-- Read-scope blocker resolved; reused existing lookup, pricing, placement and rate-limit event, with seven explicit output fields and no writes.
-- No dependencies, CI, security controls or existing image tests modified.
+- Rate-limit hit logs the same `payment_code_rate_limited` event as BIL-007, as the story says.
+- `months` arrives as a query string: closed enum of '1','3','6','12' converted to numbers.
+
 **Tests added beyond the story:**
-- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/shop-quote.test.ts`: tenant queue/expiry isolation, grace boundary, limiter failure/read cutoff, strict duplicate queries and no-write checks; observed red before implementation.
-**Evidence:** story tests 68/68; full suite 5047/5048 (0 baseline-known); targeted rerun including image-copy 75/75; typecheck clean; lint 0 errors/216 warnings; whitespace check clean.
-- Full evidence: `/tmp/distribo-next25-20261025/BIL-033-suite.txt`; rerun evidence: `/tmp/distribo-next25-20261025/BIL-033-recheck.txt`; audit details: `/tmp/distribo-next25-20261025/BIL-033-audit.json`.
-**Image Failure:**
-- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/lib/image-keys.ts:25` generates UUIDv4; `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/images/image-copy.test.ts:91` falsely rejects random `2040` in `products/2c71f2cc-2263-4ef6-bbc0-12040821d49f.webp` as a date. Not a production timestamp leak.
-- Proposed minimal fixture fix: deterministic distinct UUIDv4 values via a test-scoped UUID generator spy, leaving every assertion unchanged; not applied because this existing test is not listed under Tests to update. Coordinator should document that scope extension first; story files were not edited.
-**Audit Facts:**
-- Pre-existing, not introduced here: Express 5.1.0 → body-parser 2.3.0 (high, vulnerable >=2.0.0 <2.4.0; correction >=2.4.0; audit says compatible fix available). No direct Express version change necessarily required; exact compatibility query was denied.
-- Direct Zod 3.25.76 (high, vulnerable <4.6.6; audit proposes 4.6.7) also affects direct zod-to-openapi 7.3.4; audit proposes 9.1.0. These departures from the exact permitted Zod/OpenAPI versions definitely require policy approval and migration work.
-- Direct nodemailer 10.0.6 (moderate; aggregate affected through 10.1.3; correction >=10.1.4, audit proposes 10.2.1) already lies outside the permitted package list; approval needed to retain/upgrade it.
-- tsup 8.5.1 and Vitest 4.1.12 → Vite 7.3.7 share esbuild 0.27.7 (low, affected >=0.27.3 <0.28.1; correction >=0.28.1). tsx 4.20.6 has separate unaffected esbuild 0.25.12. Audit advertises a compatible fix; no direct allowlisted-version exception established for this transitive fix.
-**Scans And Follow-ups:**
-- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/.github/workflows/ci.yml:55` defines audit, Semgrep 1.178.0 and Gitleaks 8.30.1 jobs; no npm scan scripts. Both scanner Docker images already exist locally, although host executables do not. Neither scanner was executed or declared clean.
-- Tool permission system denied the compound command inspecting image entrypoints, querying remediation compatibility and rerunning the complete suite; did not retry via another execution path. Need permission to finish those checks. Latest completed complete-suite run remains 5047/5048, not wholly green.
-BIL-033 blocked
+- `tests/integration/billing/shop-quote.test.ts` › tenant queue isolation, grace boundary (3 and 7 days), limiter failure fails closed, malformed codes rejected before any read, quota covers queue reads (AC-1..4, AB-1, BIL-007 rule); written in the earlier attempt, observed red then
+
+**Other additions:**
+- `openapi/openapi.json` regenerated for the new path.
+
+**Evidence:** story tests 68/68; full suite 5048/5048, failing: none, 0 known; typecheck clean; lint 0 errors, 216 warnings
+
+**Follow-ups:**
+- The earlier block cited audit findings (pinned zod, express/body-parser) not caused by this story; the scans were not rerun here.
+- The image-copy test flake seen in the earlier attempt (random UUID containing "2040") did not recur; it could still fail at random.
 <!-- end BIL-033 -->

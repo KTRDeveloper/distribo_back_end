@@ -170,6 +170,21 @@ export async function listQueue(
   }));
 }
 
+/**
+ * Reads a tenant's quote inputs without taking a subscription lock or changing periods.
+ * @param organizationId Business resolved from the validated public payment code.
+ * @returns ACTIVE/SCHEDULED periods and the latest natural expiry, scoped to this business.
+ */
+export async function readQueueFor(organizationId: string): Promise<{
+  queue: QueuedPeriod[]; lastExpiredEndsAt: Date | null;
+}> {
+  const [queue, lastExpiredEndsAt] = await Promise.all([
+    listQueue(prisma, organizationId),
+    findLastExpired(prisma, organizationId),
+  ]);
+  return { queue, lastExpiredEndsAt };
+}
+
 /** Returns the latest natural expiry, excluding upgrades and other ending reasons. */
 export async function findLastExpired(
   tx: Prisma.TransactionClient,

@@ -8,6 +8,8 @@ import {
   paymentStatusParamsSchema,
   paymentStatusQuerySchema,
   paymentStatusResponseSchema,
+  quoteQuerySchema,
+  quoteResponseSchema,
   shopParamsOpenApiSchema,
   shopResponseSchema,
   swapProductBodySchema,
@@ -151,6 +153,33 @@ openApiRegistry.registerPath({
     },
     429: {
       description: 'More than 30 lookups an hour from this address',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/api/v1/billing/shops/{code}/quote',
+  tags: ['billing'],
+  summary: 'Preview a paid pack price and purchased period before paying (public)',
+  security: [],
+  request: { params: shopParamsOpenApiSchema, query: quoteQuerySchema },
+  responses: {
+    200: {
+      description: 'Seven public quote fields; upgrade dates cover only the purchased period',
+      content: { 'application/json': { schema: quoteResponseSchema } },
+    },
+    400: {
+      description: 'Malformed code, invalid plan or months, or unexpected query field',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'No ACTIVE business holds this code',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    429: {
+      description: 'More than 60 quotes an hour from this address',
       content: { 'application/json': { schema: errorResponseSchema } },
     },
   },

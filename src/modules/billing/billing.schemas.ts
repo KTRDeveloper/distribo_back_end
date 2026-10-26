@@ -67,6 +67,30 @@ export const keepChoiceResponseSchema = z.object({
 
 export const shopParamsSchema = z.object({ code: paymentCodeSchema }).strict();
 
+/** Closed query lists reject duplicates, unlisted packs and client-supplied prices. */
+export const quoteQuerySchema = z.object({
+  plan: z.enum(['ESSENTIAL', 'PRO', 'ENTERPRISE']),
+  months: z.enum(['1', '3', '6', '12']).transform((value): 1 | 3 | 6 | 12 => {
+    switch (value) {
+      case '1': return 1;
+      case '3': return 3;
+      case '6': return 6;
+      case '12': return 12;
+    }
+  }),
+}).strict();
+
+/** Seven public fields only; internal rights and conversion periods are never exposed. */
+export const quoteResponseSchema = z.object({
+  name: z.string(),
+  plan: z.enum(['ESSENTIAL', 'PRO', 'ENTERPRISE']),
+  months: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]),
+  price: z.number().int(),
+  placement: z.enum(['NOW', 'QUEUED', 'UPGRADE']),
+  starts_at: z.string().datetime(),
+  ends_at: z.string().datetime(),
+}).strict();
+
 /** Status accepts any UUID, but no query fields (ASVS 2.2.1). */
 export const paymentStatusParamsSchema = z.object({ id: z.string().uuid() }).strict();
 export const paymentStatusQuerySchema = z.object({}).strict();

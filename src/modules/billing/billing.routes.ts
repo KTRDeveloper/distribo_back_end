@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import {
-  createPaymentBodySchema, paymentStatusParamsSchema, paymentStatusQuerySchema, shopParamsSchema,
+  createPaymentBodySchema, paymentStatusParamsSchema, paymentStatusQuerySchema, quoteQuerySchema,
+  shopParamsSchema,
 } from './billing.schemas.js';
 import { lookupShop } from './billing.service.js';
 import { createPayment, readPayment } from './payment.service.js';
+import { quoteFor } from './quote.service.js';
 
 /** Billing routes; the payment site asks for no sign-in, so the shop lookup is public. */
 export const billingRoutes = Router();
@@ -13,6 +15,24 @@ billingRoutes.get('/shops/:code', (req, res, next) => {
     const { code } = shopParamsSchema.parse(req.params);
     const shop = await lookupShop(code, req.ip ?? 'unknown');
     res.status(200).json({ name: shop.name });
+  })().catch(next);
+});
+
+/** Public quote: a non-binding preview, with no organization rights in the response. */
+billingRoutes.get('/shops/:code/quote', (req, res, next) => {
+  void (async () => {
+    const { code } = shopParamsSchema.parse(req.params);
+    const { plan, months } = quoteQuerySchema.parse(req.query);
+    const quote = await quoteFor({ code, plan, months, ip: req.ip ?? 'unknown', now: new Date() });
+    res.status(200).json({
+      name: quote.name,
+      plan: quote.plan,
+      months: quote.months,
+      price: Number(quote.price),
+      placement: quote.placement,
+      starts_at: quote.startsAt.toISOString(),
+      ends_at: quote.endsAt.toISOString(),
+    });
   })().catch(next);
 });
 

@@ -308,6 +308,7 @@ describe('GET /docs/openapi.json', () => {
 
     // BIL-007: a payer reads the business name from its payment code
     expect(paths).toContain('/api/v1/billing/shops/{code}');
+    expect(paths).toContain('/api/v1/billing/shops/{code}/quote');
 
     expect(paths).toContain('/api/v1/organizations/{organizationId}/billing/keep-choice');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/billing/swap-seat');

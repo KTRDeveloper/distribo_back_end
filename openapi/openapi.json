@@ -29868,6 +29868,164 @@
         }
       }
     },
+    "/api/v1/billing/shops/{code}/quote": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Preview a paid pack price and purchased period before paying (public)",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "code",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ESSENTIAL",
+                "PRO",
+                "ENTERPRISE"
+              ]
+            },
+            "required": true,
+            "name": "plan",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "3",
+                "6",
+                "12"
+              ]
+            },
+            "required": true,
+            "name": "months",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Seven public quote fields; upgrade dates cover only the purchased period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "ESSENTIAL",
+                        "PRO",
+                        "ENTERPRISE"
+                      ]
+                    },
+                    "months": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "enum": [
+                            1
+                          ]
+                        },
+                        {
+                          "type": "number",
+                          "enum": [
+                            3
+                          ]
+                        },
+                        {
+                          "type": "number",
+                          "enum": [
+                            6
+                          ]
+                        },
+                        {
+                          "type": "number",
+                          "enum": [
+                            12
+                          ]
+                        }
+                      ]
+                    },
+                    "price": {
+                      "type": "integer"
+                    },
+                    "placement": {
+                      "type": "string",
+                      "enum": [
+                        "NOW",
+                        "QUEUED",
+                        "UPGRADE"
+                      ]
+                    },
+                    "starts_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "ends_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "plan",
+                    "months",
+                    "price",
+                    "placement",
+                    "starts_at",
+                    "ends_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed code, invalid plan or months, or unexpected query field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No ACTIVE business holds this code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "More than 60 quotes an hour from this address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/billing/payments/{id}": {
       "get": {
         "tags": [
