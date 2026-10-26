@@ -6,6 +6,21 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 10:39 UTC: `/implement-stories next:10`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORD-034 Order lines lose their product column | done | c15f0fd | order_lines.product_id dropped; trigger, fill function and product comparison removed; tests of the column rewritten |
+
+Also in this run: sync, catalog, privacy.
+
+- Run completed: all 7 stories done, none skipped, no stash, baseline 0 failing.
+- CAT-041: the subagent hit its 40-turn limit with partial changes; resumed with SendMessage (same agent), then it ended done. Figures filed are the cumulative ones from the second notification.
+- SYNC-044: contested_at sent as epoch ms, not the "ISO timestamp" the story says (SYNC-003 / toEpoch); story wording may need amending.
+- ORD-034, CAT-043: tests not listed under "Tests to update" were edited because the Prisma client rejects the dropped columns; listed in their reports.
+- Flaky test seen once: tests/integration/images/image-copy.test.ts "shared file" (random UUID key vs /20\d{2}/); green on rerun.
+- Next command: node .claude/skills/implement-stories/scripts/select.mjs next:10 (then /implement-stories next:10).
+
 ### Run 2026-10-26 08:42 UTC: `/implement-stories SYNC-029,ORD-033 (resume of next:10)`
 
 | story | status | commit | note |
