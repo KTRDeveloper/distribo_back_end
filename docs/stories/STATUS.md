@@ -362,7 +362,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-037 | done | | Gift queue placement and administrator journal implemented; 6 story tests and 5116 suite tests pass |
 | BIL-023 | todo | | |
 | BIL-024 | todo | | |
-| BIL-038 | todo | | |
+| BIL-038 | blocked | | All 5127 tests pass; may dependency pins be updated to resolve npm audit's 3 high vulnerabilities before satisfying the security DoD? |
 | BIL-025 | todo | | |
 | BIL-039 | todo | | |
 | ORG-036 | todo | | |
