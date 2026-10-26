@@ -369,7 +369,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-024 | done | | products without price, product_variants adapter, 15 tables |
 | SYNC-025 | done | | driver pull: products id+name, variants id/product_id/name/unit via line->variant->product |
 | SYNC-026 | done | | customer pull sends on-sale products and ACTIVE variants of live suppliers; full suite green |
-| SYNC-027 | todo | | |
+| SYNC-027 | done | | pull by variant verified; adapter already sent product_variant_id, new test file added |
 | SYNC-028 | todo | | |
 | SYNC-029 | todo | | |
 | ORD-033 | todo | | |

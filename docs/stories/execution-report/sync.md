@@ -936,3 +936,28 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - Ending a relationship or suspending the supplier after a pull does not announce the catalog ids in `deleted` (not in the ACs); the phone keeps them until a resync.
 - The "fresh" rule resends the catalog on any relationship change (e.g. balance updates); consider limiting it to creation and status changes.
 <!-- end SYNC-026 -->
+
+<!-- begin SYNC-027 -->
+## SYNC-027 — Negotiated prices and order lines are pulled by variant
+
+- Filed: 2026-10-26 08:09 UTC
+- Status: **done**: pull by variant verified; adapter already sent product_variant_id, new test file added
+- Risk: medium · story: [SYNC-027-negotiated-prices-and-order-lines-are-pulled-by.md](../modules/sync/SYNC-027-negotiated-prices-and-order-lines-are-pulled-by.md)
+- Agent: 44,806 tokens, 16 tool uses, 2 min 28 s
+
+### Agent report
+
+**Summary:** The adapter and the existing pull-relationships test already matched the story (earlier stories did it); I only added the story's test file.
+
+**Decisions:**
+- No code change to relationship.adapter.ts: `customerPricesAdapter` already selects `productVariantId` and sends no `product_id`; order lines already spread the ORD-028 view. The story's tests therefore passed at once.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-by-variant.test.ts` › price by variant: a person outside the relationship gets no price (ASVS 8.2.2, scope unchanged); passed at once
+- same file › deleted price also seen as deleted by the customer (AC-3, C-35); passed at once
+
+**Evidence:** story tests 17/17 (both files); full suite 5251/5251, failing: none, 0 known; typecheck clean; lint 0 errors, 224 warnings
+
+**Follow-ups:**
+- Story's "Modify" and "Tests to update" were already satisfied before this run; worth checking the story was not stale.
+<!-- end SYNC-027 -->
