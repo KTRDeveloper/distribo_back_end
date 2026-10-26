@@ -6,6 +6,22 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 06:39 UTC: `/implement-stories BIL-035,BIL-038,ORG-036`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORG-036 A paused team member is listed, can be changed or revoked, and has no access | done | a717d90 | PAUSED seats listed, role-changed and revoked without bump or notice; anonymization ends them; OpenAPI updated |
+
+Also in this run: billing.
+
+- Run done by hand: the skill is disable-model-invocation, so the SKILL.md steps were followed from the session, not through /implement-stories.
+- The three stories were blocked only by the npm audit gate. Unblocked by ADR-007 (waiver of GHSA-mrhx-c7xc-m3w5, `npm run audit`, body-parser 2.4.0) and the quality-gates test now expects `npm run audit` (commits 4df036c, 1aa90f2).
+- Baseline: 1 failing (quality-gates, caused by the CI change), fixed before the first story.
+- BIL-038: its stash conflicted on subscription.repository.ts with BIL-039; both sides kept by hand.
+- ORG-036: the red TDD step was not watched, the partial tests came from the earlier run.
+- ORG-036 figures were first filed as zeros before the notification arrived, then re-filed with the real figures.
+- No stash left for these three stories. Next command: /implement-stories next:5
+
 ### Run 2026-10-26 06:11 UTC: `/implement-stories next:13`
 
 | story | status | commit | note |
