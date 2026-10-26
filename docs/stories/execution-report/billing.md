@@ -6,6 +6,23 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 07:51 UTC: `/implement-stories BIL-024,BIL-025`
+
+| story | status | commit | note |
+|---|---|---|---|
+| BIL-024 A super administrator records a payment made outside the aggregator | done | c1b21b9 | 70 tests ciblés OK; suite 5202/5203, échec temporel sync passé à la relance (83/83); typecheck OK, lint 0 erreur |
+| BIL-025 A super administrator refunds a payment after an error | done | a9f0f24 | Tests story 66/66 et suite 5219/5219; typecheck propre; lint 0 erreur; scans du périmètre propres, alertes globales hors story signalées. |
+
+Exécution terminée : les deux stories sélectionnées ont été traitées, aucune ignorée ; aucun stash créé.
+Autorisation utilisateur appliquée : lecture des dépendances et contrats nécessaires, sans élargir le périmètre des modifications.
+BIL-025 a été temporairement rebloquée par une mauvaise interprétation de la transmission du consentement ; clarification transmise au même agent, puis reprise sans nouvelle autorisation.
+Les deux agents ont repris dans leur contexte après leur limite de tours.
+Les deux rapports Markdown étaient absents : reconstitués à l'identique depuis les retours des agents et archivés avec les chiffres des notifications finales, sans estimation.
+BIL-024 : suite initiale 5202/5203 avec une assertion sync intermittente sur un horodatage ; fichier échoué et ciblés 83/83 à la relance, puis suite finale BIL-025 entièrement verte (387 fichiers, 5219 tests).
+BIL-024 : Semgrep et Gitleaks annoncés indisponibles ; BIL-025 : scans ciblés propres, mais scans globaux avec 12 alertes Semgrep hors story et 36 détections Gitleaks dans 527 commits, à qualifier séparément sans exposer de secrets.
+Une commande de l'agent BIL-025 incluant le diff OpenAPI généré a été refusée avant exécution ; vérification poursuivie uniquement sur les sources et tests autorisés, sans modifier les permissions.
+Prochaine commande : /implement-stories next:4 ; les alertes des scans globaux restent à qualifier séparément.
+
 ### Run 2026-10-26 07:15 UTC: `/implement-stories next:4`
 
 | story | status | commit | note |
