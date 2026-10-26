@@ -368,7 +368,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORG-036 | done | | PAUSED seats listed, role-changed and revoked without bump or notice; anonymization ends them; OpenAPI updated |
 | SYNC-024 | done | | products without price, product_variants adapter, 15 tables |
 | SYNC-025 | done | | driver pull: products id+name, variants id/product_id/name/unit via line->variant->product |
-| SYNC-026 | todo | | |
+| SYNC-026 | done | | customer pull sends on-sale products and ACTIVE variants of live suppliers; full suite green |
 | SYNC-027 | todo | | |
 | SYNC-028 | todo | | |
 | SYNC-029 | todo | | |

@@ -906,3 +906,33 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 
 **Evidence:** story tests 14/14; full suite 5234/5234, failing: none, 0 known; typecheck clean; lint 0 errors, 224 warnings
 <!-- end SYNC-025 -->
+
+<!-- begin SYNC-026 -->
+## SYNC-026 — A customer pull holds the supplier's articles on sale
+
+- Filed: 2026-10-26 08:06 UTC
+- Status: **done**: customer pull sends on-sale products and ACTIVE variants of live suppliers; full suite green
+- Risk: high · story: [SYNC-026-a-customer-pull-holds-the-supplier-s-articles.md](../modules/sync/SYNC-026-a-customer-pull-holds-the-supplier-s-articles.md)
+- Agent: 69,927 tokens, 20 tool uses, 4 min 23 s
+
+### Agent report
+
+**Summary:** Customer pull now sends on-sale products and ACTIVE variants of suppliers with a live relationship; withdrawn or paused ones go in `deleted`.
+
+**Decisions:**
+- Customer shape: exactly the columns the story lists (no created_at/server_updated_at, no paused_at/status/image_keys).
+- A supplier where the viewer holds any membership is excluded from the customer scope: staff view applies, no second narrower shape.
+- A relationship whose server_updated_at is after the last pull ("fresh") resends the supplier's whole on-sale catalog, since no catalog row changed to trigger it.
+- A variant's effective update time on an incremental pull is the later of its own and its product's, so siblings travel with a product that came back on sale or left it.
+
+**Tests added beyond the story:**
+- `pull-customer-catalog.test.ts` › a relationship created after the last pull brings the supplier catalog: new connection must not leave the phone empty (Context, AC-1)
+- `pull-customer-catalog.test.ts` › a member of the supplier keeps the staff view: no narrowing of staff rows (8.2.2); passed at once
+- `pull-customer-catalog.test.ts` › paused product and one-of-two variant withdrawn cases (AC-4); sibling variants travel with a returning variant (CM-42)
+
+**Evidence:** story tests 35/35 (with pull-variants); full suite 5247/5247, failing: none, 0 known; typecheck clean; lint 0 errors, 224 warnings
+
+**Follow-ups:**
+- Ending a relationship or suspending the supplier after a pull does not announce the catalog ids in `deleted` (not in the ACs); the phone keeps them until a resync.
+- The "fresh" rule resends the catalog on any relationship change (e.g. balance updates); consider limiting it to creation and status changes.
+<!-- end SYNC-026 -->

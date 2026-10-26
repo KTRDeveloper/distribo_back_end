@@ -233,10 +233,13 @@ describe('GET /api/v1/sync/pull (catalog)', () => {
     expect(JSON.stringify(res.body)).not.toContain('secret-description');
   });
 
-  it('customer: no product rows (AC-3)', async () => {
+  it('customer: the products on sale and their ACTIVE variants (SYNC-026)', async () => {
     const res = await pull(CUSTOMER);
     expect(res.status).toBe(200);
-    expect(productsOf(bodyOf<PullBody>(res))).toEqual({ created: [], updated: [], deleted: [] });
+    const body = bodyOf<PullBody>(res);
+    expect(idsOf(productsOf(body).created)).toEqual([P_ORDERED, P_FREE, P_PENDING].sort());
+    expect(idsOf(variantsOf(body).created)).toEqual([P_ORDERED, P_FREE, P_PENDING].sort());
+    expect(productsOf(body).deleted).toEqual([]);
   });
 
   it('incremental: a changed price arrives as an updated variant, with its product (AC-4)', async () => {
