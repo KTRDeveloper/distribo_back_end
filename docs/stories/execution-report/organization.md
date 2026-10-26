@@ -6,6 +6,27 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 06:11 UTC: `/implement-stories next:13`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORG-036 A paused team member is listed, can be changed or revoked, and has no access | blocked | 60ef556 | Implementation and 5133 tests pass; dependency audit has 3 high vulnerabilities: authorize dependency updates outside pinned versions or waive this gate? |
+
+Also in this run: billing.
+
+Selection completed: every PLAN item was examined; no early stop.
+Skipped BIL-036: BIL-035 blocked; BIL-023: BIL-036 todo; BIL-024: BIL-023 todo; BIL-025: BIL-023 todo and BIL-038 blocked.
+Stash: BIL-035 blocked: partial changes.
+Stash: BIL-038 blocked: partial changes.
+Stash: ORG-036 blocked: partial changes.
+BIL-026's initial read-scope blocker was resolved using named files and compiler diagnostics, without expanding its read scope.
+BIL-016, BIL-017, BIL-026 and BIL-034 resumed in the same agent after turn limits; BIL-026 also resumed after its initial blocked hand-back.
+All nine story report files were missing; report.mjs confirmed each absence and the coordinator recreated each from the hand-back verbatim. Agents cited an instruction against report Markdown files.
+Security gate was applied inconsistently: six done stories also report the same five unchanged dependency vulnerabilities (three high), while BIL-035, BIL-038 and ORG-036 remain blocked on the audit. No dependency versions or security gates were changed.
+Later agents reported Semgrep and Gitleaks unavailable and did not run those scans; BIL-016 reported both scans clean.
+BIL-035's first full suite had two typecheck-wrapper failures; after the fix, typecheck and the 14 targeted checks passed, without a second full-suite run.
+Next: obtain authorization to remediate dependencies outside the pinned versions and satisfy the security scans, then run /implement-stories BIL-035,BIL-038,ORG-036 --include-blocked; dependent todo stories follow with /implement-stories next:4.
+
 ### Run 2026-10-25 04:36 UTC: `/implement-stories next:10`
 
 | story | status | commit | note |

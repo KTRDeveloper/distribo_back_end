@@ -6,6 +6,35 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 06:11 UTC: `/implement-stories next:13`
+
+| story | status | commit | note |
+|---|---|---|---|
+| BIL-016 The owner reads the subscription screen | done | 25bd651 | Owner billing read-only view; targeted 59/59, suite 5062/5062, typecheck clean; existing dependency audit findings remain |
+| BIL-017 The owner lists the receipts | done | d9326a1 | Owner receipt pagination and tenant isolation implemented; 61 targeted and 5077 full-suite tests pass; typecheck clean, lint 0 errors |
+| BIL-026 The owner is reminded before the plan ends | done | 10cf322 | 18 reminder tests and 5095 suite tests pass; typecheck clean; lint 0 errors (218 existing warnings); dependency audit flags 3 high findings in unchanged dependencies. |
+| BIL-034 The aggregator confirms a payment through a verified call | done | ed48b87 | 62 story checks and 5110 suite tests pass; typecheck clean; dependency audit findings and unavailable scanners reported |
+| BIL-035 The owner is told when a payment is confirmed | blocked | 3e920f7 | Implementation and tests pass; may existing dependency audit findings (3 high) be handled separately, since fixing pinned dependencies is outside this story? |
+| BIL-037 A gift period is placed behind the paid ones | done | 951dc25 | Gift queue placement and administrator journal implemented; 6 story tests and 5116 suite tests pass |
+| BIL-038 A refund cancels the receipt and ends the periods of the payment | blocked | 53a1f7b | All 5127 tests pass; may dependency pins be updated to resolve npm audit's 3 high vulnerabilities before satisfying the security DoD? |
+| BIL-039 A daily job advances every business that needs it | done | 8d5e7b9 | Story tests 9/9; suite 5125/5125; typecheck clean; lint 0 errors; existing dependency audit findings remain. |
+
+Not run: BIL-036, BIL-023..BIL-025.
+Also in this run: organization.
+
+Selection completed: every PLAN item was examined; no early stop.
+Skipped BIL-036: BIL-035 blocked; BIL-023: BIL-036 todo; BIL-024: BIL-023 todo; BIL-025: BIL-023 todo and BIL-038 blocked.
+Stash: BIL-035 blocked: partial changes.
+Stash: BIL-038 blocked: partial changes.
+Stash: ORG-036 blocked: partial changes.
+BIL-026's initial read-scope blocker was resolved using named files and compiler diagnostics, without expanding its read scope.
+BIL-016, BIL-017, BIL-026 and BIL-034 resumed in the same agent after turn limits; BIL-026 also resumed after its initial blocked hand-back.
+All nine story report files were missing; report.mjs confirmed each absence and the coordinator recreated each from the hand-back verbatim. Agents cited an instruction against report Markdown files.
+Security gate was applied inconsistently: six done stories also report the same five unchanged dependency vulnerabilities (three high), while BIL-035, BIL-038 and ORG-036 remain blocked on the audit. No dependency versions or security gates were changed.
+Later agents reported Semgrep and Gitleaks unavailable and did not run those scans; BIL-016 reported both scans clean.
+BIL-035's first full suite had two typecheck-wrapper failures; after the fix, typecheck and the 14 targeted checks passed, without a second full-suite run.
+Next: obtain authorization to remediate dependencies outside the pinned versions and satisfy the security scans, then run /implement-stories BIL-035,BIL-038,ORG-036 --include-blocked; dependent todo stories follow with /implement-stories next:4.
+
 ### Run 2026-10-26 04:37 UTC: `/implement-stories BIL-033`
 
 | story | status | commit | note |
