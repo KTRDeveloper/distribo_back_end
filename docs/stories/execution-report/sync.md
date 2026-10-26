@@ -1292,3 +1292,21 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - `tests/integration/sync/pull-identity-removed-fields.test.ts` › "keeps all other keys and amount scope" (2 cases, AC-3 of ORG-039) uses `toEqual` on the whole organization row and fails with the six new keys (payment_code, plan, plan_ends_at, grace_ends_at, max_collaborators, max_products). The story says only `pull-identity.test.ts` is affected. A human must either list that file under "Tests to update" (expected row gains the six fields, FREE defaults: plan FREE, dates null, 2, 30) or authorize the edit.
 <!-- end SYNC-037 -->
+
+<!-- begin SYNC-039 -->
+## SYNC-039 — A paused collaborator gets the grace of a revoked one
+
+- Filed: 2026-10-26 09:28 UTC
+- Status: **done**: Paused seats get the revoked-seat grace via findRightsHistory; 6 tests
+- Risk: high · story: [SYNC-039-a-paused-collaborator-gets-the-grace-of-a.md](../modules/sync/SYNC-039-a-paused-collaborator-gets-the-grace-of-a.md)
+- Agent: 39,964 tokens, 15 tool uses, 2 min 44 s
+
+### Agent report
+
+**Summary:** `findRightsHistory` now returns REVOKED and PAUSED memberships; comments in viewer and types updated; new test file covers AC-1..5 and AB-1.
+
+**Decisions:**
+- AC-5 resumed: the test bumps scope_version to 4 on resume so the phone is stale and the full pull is the one that updates it; the sale is then judged by the SELLER role (accepted 2: order and line).
+
+**Evidence:** story tests 16/16 (6 new + 10 in rights-change); full suite 5345/5345, failing: none, 0 known; typecheck clean; lint 0 errors, 248 warnings
+<!-- end SYNC-039 -->

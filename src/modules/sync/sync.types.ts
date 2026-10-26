@@ -42,8 +42,8 @@ export type Viewer = {
    */
   scopeVersionSeen?: number;
   /**
-   * Organizations where the person's membership was REVOKED, with the role they held. Read only
-   * for a device with stale rights: a revoked collaborator's late sales, deliveries and payments
+   * Organizations where the person's membership was REVOKED or PAUSED, with the role they held.
+   * Read only for a device with stale rights: a revoked or paused collaborator's late sales, deliveries and payments
    * are kept (CM-29), never anything else.
    */
   formerMemberships?: Array<{ organizationId: string; role: CollaborationRole }>;

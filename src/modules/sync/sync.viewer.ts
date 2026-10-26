@@ -6,7 +6,7 @@ import type { Viewer } from './sync.types.js';
  * Builds the viewer of a sync exchange from the database, never from the request
  * (ASVS v5.0.0-8.2.2, v5.0.0-8.3.1): ACTIVE memberships only, the person's current scope version.
  * When the device's `scope_version_seen` is older than that version, the viewer also carries the
- * scope version seen and the REVOKED memberships, which only the first push after a rights change
+ * scope version seen and the REVOKED or PAUSED memberships, which only the first push after a rights change
  * uses (SYNC-019, CM-29).
  *
  * @param personId - From the authenticated session.
