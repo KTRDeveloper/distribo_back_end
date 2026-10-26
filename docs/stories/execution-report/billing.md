@@ -1226,6 +1226,31 @@ BIL-037 done
 BIL-023 done
 <!-- end BIL-023 -->
 
+<!-- begin BIL-024 -->
+## BIL-024 — A super administrator records a payment made outside the aggregator
+
+- Filed: 2026-10-26 07:10 UTC
+- Status: **blocked**: May I inspect the existing billing dependency implementations and test helpers, starting with gift.service.ts, which the story does not authorize opening?
+- Risk: high · story: [BIL-024-a-super-administrator-records-a-payment-made.md](../modules/billing/BIL-024-a-super-administrator-records-a-payment-made.md)
+- Agent: 18,157 tokens, 13 tool uses, 1 min 42 s
+
+### Agent report
+
+**Summary:** BIL-024 blocked before implementation by the explicit restriction on opening dependency files; no application code or tests changed.
+
+**Decisions:**
+- Did not infer dependency signatures or bypass the story's file allowlist.
+- Did not create `/tmp/distribo-next4-20261026-KSzdD0/BIL-024-report.md`: the latest developer instruction prohibits writing report files and requires direct handback.
+
+**Evidence:** story tests not run; full suite not run; typecheck not run; lint not run; baseline failures not inspected.
+
+**Follow-ups:**
+- Authorize inspecting existing billing dependency implementations and test helpers, starting with `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/gift.service.ts`; the story requires reusing these APIs but does not list their files among those agents may open.
+- `set-status` recorded the blocker question; no tests or implementation were attempted.
+
+BIL-024 blocked
+<!-- end BIL-024 -->
+
 <!-- begin BIL-038 -->
 ## BIL-038 — A refund cancels the receipt and ends the periods of the payment
 
