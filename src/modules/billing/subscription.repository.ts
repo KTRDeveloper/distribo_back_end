@@ -40,6 +40,41 @@ export async function listBusinessesToAdvance(
   return rows.map((row) => row.id);
 }
 
+/** Returns only refundable open periods; ended periods retain their original dates and reason. */
+export function listOpenPeriodsOfPayment(tx: Prisma.TransactionClient, paymentId: string): Promise<PeriodRow[]> {
+  return tx.subscription.findMany({
+    where: { paymentId, status: { in: ['ACTIVE', 'SCHEDULED'] } },
+    orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+  });
+}
+
+/**
+ * Appends an administrator-attributed refund event without replacing immutable purchase events.
+ * @param tx Transaction shared with the payment, credit note and ended periods (ASVS 2.3.3).
+ * @param input Trusted refund context, never actor identifiers from a request body.
+ * @param kind One payment event per refund or one ending event per changed period.
+ * @param subscriptionId Ended period, or null for the payment-wide event.
+ */
+export async function insertRefundEvent(
+  tx: Prisma.TransactionClient,
+  input: {
+    organizationId: string; paymentId: string; now: Date;
+    actor: { administratorId: string; adminActionId: string };
+  },
+  kind: 'PAYMENT' | 'FORFAIT_ENDED',
+  subscriptionId: string | null,
+): Promise<void> {
+  const details = JSON.stringify({ reason: 'REFUNDED' });
+  await tx.$executeRaw`
+    INSERT INTO subscription_events
+      (id, organization_id, kind, actor, administrator_id, admin_action_id,
+       payment_id, subscription_id, details, occurred_at)
+    VALUES (${uuidv7()}::uuid, ${input.organizationId}::uuid, ${kind}::"SubscriptionEventKind",
+            'ADMINISTRATOR', ${input.actor.administratorId}::uuid, ${input.actor.adminActionId}::uuid,
+            ${input.paymentId}::uuid, ${subscriptionId}::uuid, ${details}::jsonb, ${input.now})
+  `;
+}
+
 /**
  * Loads a period for trusted internal callers; this lookup does not authorize access.
  * @param tx Caller transaction shared with the surrounding subscription operation.

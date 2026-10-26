@@ -68,8 +68,8 @@ export function findPaymentByReference(providerReference: string): Promise<Payme
 }
 
 /**
- * Locks the payment until commit; callers must recheck PENDING after acquiring it.
- * This serializes both activation and late failure callbacks (ASVS 2.3.3).
+ * Locks the payment until commit; callers must recheck its eligible source status.
+ * This serializes confirmation callbacks and refunds (ASVS 2.3.3).
  * @param tx Transaction owning all confirmation writes.
  * @param id Payment id loaded by the server from its provider reference.
  * @returns The locked payment, or null if absent.
@@ -81,7 +81,7 @@ export async function lockPayment(tx: Prisma.TransactionClient, id: string): Pro
 
 /**
  * Records a terminal outcome only after the caller locks and rechecks the payment.
- * The confirmation timestamp is set only for success, as required by C-53.
+ * C-53: success sets the confirmation timestamp; a refund preserves it and provider evidence.
  * @param tx Transaction shared with periods, receipts, rights and limits.
  * @param id Locked payment id.
  * @param outcome Server-checked terminal status and JSON-safe provider evidence.
@@ -89,8 +89,13 @@ export async function lockPayment(tx: Prisma.TransactionClient, id: string): Pro
 export async function setPaymentOutcome(
   tx: Prisma.TransactionClient,
   id: string,
-  outcome: { status: 'SUCCEEDED' | 'FAILED' | 'EXPIRED'; now: Date; payload: Prisma.InputJsonObject },
+  outcome: { status: 'SUCCEEDED' | 'FAILED' | 'EXPIRED'; now: Date; payload: Prisma.InputJsonObject }
+    | { status: 'REFUNDED' },
 ): Promise<void> {
+  if (outcome.status === 'REFUNDED') {
+    await tx.subscriptionPayment.update({ where: { id }, data: { status: 'REFUNDED' } });
+    return;
+  }
   await tx.subscriptionPayment.update({ where: { id }, data: {
     status: outcome.status,
     confirmedAt: outcome.status === 'SUCCEEDED' ? outcome.now : null,

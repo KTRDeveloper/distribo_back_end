@@ -28,6 +28,40 @@ export async function listReceipts(organizationId: string, query: PaginationQuer
   });
 }
 
+/** Finds the original immutable receipt, never its credit note, in the caller's transaction. */
+export function findReceiptOfPayment(tx: Prisma.TransactionClient, paymentId: string): Promise<ReceiptRow | null> {
+  return tx.subscriptionReceipt.findFirst({ where: { paymentId, kind: 'RECEIPT' } });
+}
+
+/** Finds a payment's credit note without reading outside the caller's transaction. */
+export function findCreditNoteOfPayment(tx: Prisma.TransactionClient, paymentId: string): Promise<ReceiptRow | null> {
+  return tx.subscriptionReceipt.findFirst({ where: { paymentId, kind: 'CREDIT_NOTE' } });
+}
+
+/**
+ * Inserts an immutable cancellation by copying the original receipt's frozen customer and amounts.
+ * @param tx Transaction shared with the refund and gapless number allocation (C-54).
+ * @param number Next number allocated by that transaction.
+ * @param receipt Original receipt; taxes must never be recomputed using today's configuration.
+ * @param now Credit note issue date, also used to allocate its number.
+ * @returns The positive-valued CREDIT_NOTE linked to the cancelled receipt.
+ */
+export function insertCreditNote(
+  tx: Prisma.TransactionClient,
+  number: string,
+  receipt: ReceiptRow,
+  now: Date,
+): Promise<ReceiptRow> {
+  return tx.subscriptionReceipt.create({ data: {
+    id: newId(), number, kind: 'CREDIT_NOTE', cancelsReceiptId: receipt.id,
+    organizationId: receipt.organizationId, paymentId: receipt.paymentId,
+    customerName: receipt.customerName, customerTaxId: receipt.customerTaxId,
+    label: `Avoir — ${receipt.label}`, amountExclTax: receipt.amountExclTax,
+    vatRateBp: receipt.vatRateBp, vatAmount: receipt.vatAmount, amount: receipt.amount,
+    issuedAt: now,
+  } });
+}
+
 export type NewReceipt = {
   organizationId: string;
   paymentId: string;

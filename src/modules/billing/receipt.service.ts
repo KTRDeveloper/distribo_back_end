@@ -1,7 +1,22 @@
 import type { Prisma } from '@prisma/client';
 import { env } from '../../config/env.js';
 import type { PackMonths, PaidPlanCode } from '../../shared/plans.js';
-import { insertReceipt, nextReceiptNumber, type ReceiptRow } from './receipt.repository.js';
+import { insertCreditNote, insertReceipt, nextReceiptNumber, type ReceiptRow } from './receipt.repository.js';
+
+/**
+ * Cancels a frozen receipt without recalculating its customer, tax rate or positive amounts.
+ * @param tx Caller transaction shared with payment status, periods and events (ASVS 2.3.3).
+ * @param receipt Original receipt whose values must cancel exactly (ASVS 2.2.3).
+ * @param now Issue date used for the shared gapless receipt series (C-54).
+ * @returns The immutable credit note linked to the original receipt.
+ */
+export async function issueCreditNote(
+  tx: Prisma.TransactionClient,
+  receipt: ReceiptRow,
+  now: Date,
+): Promise<ReceiptRow> {
+  return insertCreditNote(tx, await nextReceiptNumber(tx, now), receipt, now);
+}
 
 export type ReceiptInput = {
   payment: {

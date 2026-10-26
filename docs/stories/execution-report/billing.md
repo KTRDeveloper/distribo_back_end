@@ -1150,34 +1150,28 @@ BIL-037 done
 <!-- begin BIL-038 -->
 ## BIL-038 — A refund cancels the receipt and ends the periods of the payment
 
-- Filed: 2026-10-26 05:50 UTC
-- Status: **blocked**: All 5127 tests pass; may dependency pins be updated to resolve npm audit's 3 high vulnerabilities before satisfying the security DoD?
+- Filed: 2026-10-26 06:37 UTC
+- Status: **done**: Story tests 11/11; suite 5143/5143; typecheck clean; lint 0 errors
 - Risk: high · story: [BIL-038-a-refund-cancels-the-receipt-and-ends-the.md](../modules/billing/BIL-038-a-refund-cancels-the-receipt-and-ends-the.md)
-- Agent: 33,375 tokens, 37 tool uses, 7 min 17 s
+- Agent: 25,662 tokens, 9 tool uses, 2 min 11 s
 
 ### Agent report
 
-**Summary:** BIL-038 implémentée et testée ; statut blocked car l’audit des dépendances empêche de satisfaire la définition de terminé.
+**Summary:** Finished BIL-038 (refund.service.ts, credit note, open-period listing, refund events); work from an earlier blocked run was already in the tree and verified green.
 
 **Decisions:**
-- Verrouillage du paiement puis de la file des périodes pour sérialiser remboursements concurrents et changements de cycle de vie.
-- Conservation de confirmedAt et des données fournisseur ; copie des montants et du taux figés du reçu, sans recalcul.
+- REFUNDED outcome: `setPaymentOutcome` gains a `{ status: 'REFUNDED' }` variant that updates only status, so confirmed_at and provider evidence stay (C-53).
+- Refund events: new `insertRefundEvent` (raw insert) writes ADMINISTRATOR-attributed PAYMENT and FORFAIT_ENDED events with admin_action_id, since the existing event insert has no administrator actor.
+- `applyRefund` also takes `lockSubscriptions` for the business, to exclude queue/lifecycle changes during the refund.
+- A SUCCEEDED payment with no receipt throws a plain Error (rolls back; no partial refund).
 
 **Tests added beyond the story:**
-- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/refund-payment.test.ts` › rolls back every refund write and reuses its number when the caller aborts : garantit atomicité et numérotation sans trou (ASVS 2.3.3, C-54) ; ajouté avant implémentation, échec initial observé.
+- `tests/integration/billing/refund-payment.test.ts` › rolls back every refund write and reuses its number when the caller aborts: transaction atomicity and gapless numbering (C-54, ASVS 2.3.3); passed at once
 
-**Other additions:**
-- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/payment.repository.ts` : extension minimale de setPaymentOutcome pour REFUNDED sans effacer la confirmation.
-- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/refund.service.ts` : orchestration transactionnelle ; événement administrateur dédié ajouté au repository des périodes.
-
-**Evidence:** story tests 11/11; full suite 5127/5127, failing: none, 0 known; typecheck clean; lint 0 errors, 219 warnings; git diff --check clean.
-- Sortie complète conservée dans `/tmp/distribo-next13-20261026/BIL-038-suite.txt` ; aucun rapport Markdown créé conformément à l’instruction finale.
+**Evidence:** story tests 11/11; full suite 5143/5143, failing: none, 0 known (quality-gates baseline failure passed this run); typecheck clean; lint 0 errors, 219 warnings
 
 **Follow-ups:**
-- npm audit : 5 vulnérabilités, dont 3 high ; autoriser une évolution des versions imposées, notamment Zod, pour résoudre le blocage sécurité. Aucune dépendance modifiée.
-- Semgrep et Gitleaks absents du PATH : scans SAST et secrets non exécutés.
-
-BIL-038 blocked
+- The earlier block (npm audit) is covered by ADR-007 waiver; no action in this story.
 <!-- end BIL-038 -->
 
 <!-- begin BIL-039 -->
