@@ -64,7 +64,7 @@ describe('Quality Gates Tooling', () => {
       expect(ciContent).toContain('npm run typecheck');
       expect(ciContent).toContain('npm run lint');
       expect(ciContent).toContain('npm test');
-      expect(ciContent).toContain('npm audit --audit-level=high');
+      expect(ciContent).toContain('npm run audit');
       expect(ciContent).toContain('semgrep/semgrep:1.178.0');
       expect(ciContent).toContain('semgrep scan --config p/default --error --metrics=off');
       expect(ciContent).toContain('zricethezav/gitleaks:v8.30.1');
