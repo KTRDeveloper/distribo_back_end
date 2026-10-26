@@ -1044,3 +1044,33 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - A customer price update by the OWNER may change `customer_relationship_id` or `product_id`/`product_variant_id` (the CustomerPrice rule lists no fields); SYNC-033 adapter must re-validate them.
 <!-- end SYNC-030 -->
+
+<!-- begin SYNC-031 -->
+## SYNC-031 — The owner's phone creates and edits products
+
+- Filed: 2026-10-26 08:23 UTC
+- Status: **done**: products push: catalog.push.ts via applyProductFromSync; 5277 tests pass
+- Risk: medium · story: [SYNC-031-the-owner-s-phone-creates-and-edits-products.md](../modules/sync/SYNC-031-the-owner-s-phone-creates-and-edits-products.md)
+- Agent: 72,901 tokens, 18 tool uses, 2 min 51 s
+
+### Agent report
+
+**Summary:** `pushProducts` in `adapters/catalog.push.ts` feeds created and updated product rows to `applyProductFromSync`; the `products` adapter calls it.
+
+**Decisions:**
+- Outcome codes the story left open: INVALID gives `aside` `INVALID` with field names in the message; GONE gives `aside` `GONE`; FOREIGN gives `forbidden` `OUT_OF_SCOPE`.
+- A line in `deleted` gives `aside` `DELETE_PENDING` until SYNC-033.
+- A row with no `organization_id` (the judge always stamps it) gives `forbidden` `OUT_OF_SCOPE`, fail closed.
+- Absent `description` or `category` on an update are sent to the writer as null.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/push-products.test.ts` › INVALID names fields only: no value in the message (v5.0.0-2.2.1); passed at once with the first implementation
+- same file › created row naming B's id gives `forbidden` `OUT_OF_SCOPE`, B unchanged (AB-1)
+- same file › forged `organization_id` of B is refused by the judge (v5.0.0-8.2.1); passed at once
+- same file › deleted line and GONE product are `aside`
+
+**Evidence:** story tests 9/9 (with push-envelope and judge-catalog: 50/50); full suite 5277/5277, failing: none, 0 known; typecheck clean; lint 0 errors, 230 warnings
+
+**Follow-ups:**
+- A partial `updated` row (no `description`) clears the stored description, since absent is read as null. Phones send full rows; confirm that holds.
+<!-- end SYNC-031 -->

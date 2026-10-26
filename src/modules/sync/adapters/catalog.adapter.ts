@@ -3,6 +3,7 @@ import { imageUrl } from '../../../lib/image-keys.js';
 import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
 import type { Row, SyncAdapter, Viewer } from '../sync.types.js';
+import { pushProducts } from './catalog.push.js';
 import { refuseEveryLine } from './identity.adapter.js';
 
 type Changes = { created: Row[]; updated: Row[]; deleted: string[] };
@@ -223,7 +224,8 @@ function variantScopeBranches(
  * addresses, never as keys. A customer person receives the products on sale of the suppliers they
  * hold a live relationship with: `id, organization_id, name, description, category, image_urls`;
  * one that left the sale (deleted, paused, no ACTIVE variant) is listed in `deleted` (SYNC-026,
- * C-46, ASVS v5.0.0-15.3.1: no pause date, status or photo key).
+ * C-46, ASVS v5.0.0-15.3.1: no pause date, status or photo key). Push: the OWNER's created and
+ * edited products, name, description and category only (SYNC-031, `catalog.push.ts`).
  */
 export const productsAdapter: SyncAdapter = {
   table: 'products',
@@ -290,7 +292,7 @@ export const productsAdapter: SyncAdapter = {
       }
     );
   },
-  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+  push: pushProducts,
 };
 
 /**
