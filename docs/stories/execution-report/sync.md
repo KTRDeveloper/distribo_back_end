@@ -986,3 +986,31 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - The story is satisfied by earlier work; SYNC-028 has no source diff, only the test file.
 <!-- end SYNC-028 -->
+
+<!-- begin SYNC-029 -->
+## SYNC-029 — An order line entered offline names a variant
+
+- Filed: 2026-10-26 08:15 UTC
+- Status: **blocked**: Code done; push-orders.test.ts line ~254 expects labelApplied 'Riz (sac)' but AC-1 mandates the server label 'Riz — sac' (resolver). Not in Tests to update: allow changing that one assertion to 'Riz — sac', then rerun.
+- Risk: medium · story: [SYNC-029-an-order-line-entered-offline-names-a-variant.md](../modules/sync/SYNC-029-an-order-line-entered-offline-names-a-variant.md)
+- Agent: 68,110 tokens, 23 tool uses, 2 min 30 s
+
+### Agent report
+
+**Summary:** Blocked at the last step: code and new tests are done, one existing assertion contradicts AC-1 and is not listed under "Tests to update".
+
+**Decisions:**
+- Retired test: variant not ACTIVE, variant deleted, or product paused or deleted (story says "not ACTIVE or product paused"; the extra two are safe supersets).
+- Resolver called with `new Date()`; the order's supplier is the only organization passed.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/push-lines-by-variant.test.ts` › paused product, non-UUID variant key, and a live variant of another business: guard retirement, v5.0.0-2.2.1 and AB-1 (story ACs); the last two passed at once
+
+**Other additions:**
+- Edited the line rows of the 7 listed tests and the note text in push-orders.test.ts as listed.
+
+**Evidence:** sync integration folder 357/358 passing; the only failure is push-orders.test.ts "stores the order with the amounts the server computes" (labelApplied 'Riz (sac)' now stored as 'Riz — sac', as AC-1 requires); typecheck clean; lint 0 errors. Full suite not run.
+
+**Follow-ups:**
+- To finish: change `labelApplied: 'Riz (sac)'` to `'Riz — sac'` in tests/integration/sync/push-orders.test.ts (~line 254), add it to the story's "Tests to update", rerun the full suite, set done.
+<!-- end SYNC-029 -->

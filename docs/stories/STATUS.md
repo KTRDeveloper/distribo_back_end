@@ -371,7 +371,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-026 | done | | customer pull sends on-sale products and ACTIVE variants of live suppliers; full suite green |
 | SYNC-027 | done | | pull by variant verified; adapter already sent product_variant_id, new test file added |
 | SYNC-028 | done | | Controls already read the variant (ORD-032); added the story's tests as guards |
-| SYNC-029 | todo | | |
+| SYNC-029 | blocked | | Code done; push-orders.test.ts line ~254 expects labelApplied 'Riz (sac)' but AC-1 mandates the server label 'Riz — sac' (resolver). Not in Tests to update: allow changing that one assertion to 'Riz — sac', then rerun. |
 | ORD-033 | todo | | |
 | SYNC-030 | todo | | |
 | SYNC-031 | todo | | |
