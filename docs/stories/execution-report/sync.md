@@ -1074,3 +1074,34 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - A partial `updated` row (no `description`) clears the stored description, since absent is read as null. Phones send full rows; confirm that holds.
 <!-- end SYNC-031 -->
+
+<!-- begin SYNC-032 -->
+## SYNC-032 — The owner's phone creates and edits variants
+
+- Filed: 2026-10-26 08:26 UTC
+- Status: **done**: variants push through applyVariantFromSync; 10 tests; suite 5287 green
+- Risk: medium · story: [SYNC-032-the-owner-s-phone-creates-and-edits-variants.md](../modules/sync/SYNC-032-the-owner-s-phone-creates-and-edits-variants.md)
+- Agent: 62,661 tokens, 19 tool uses, 3 min 18 s
+
+### Agent report
+
+**Summary:** `pushVariants` added and wired to the `product_variants` adapter; variants created and edited by the OWNER go through `applyVariantFromSync`.
+
+**Decisions:**
+- Non-UUID `product_id`: replaced by the nil UUID so the DB never sees it and a new variant answers `NO_PRODUCT` (aside), not a 500.
+- Partial update rows (e.g. price only, allowed by the judge) are not completed from the stored row: missing unit/status gives aside `INVALID`. A full row is expected, as WatermelonDB sends.
+- Deleted lines are set aside `DELETE_PENDING` until SYNC-033, as for products.
+- `outcome` helper in `catalog.push.ts` became a factory shared by both tables (adds `mergedInto`).
+
+**Tests added beyond the story:**
+- `push-variants.test.ts` › repeated edit unchanged: no date moves (C-36); passed at once
+- `push-variants.test.ts` › each refusal has its own code, field names only, bad types, non-UUID product (AC-4, v5.0.0-2.2.1)
+- `push-variants.test.ts` › edit of a deleted variant is aside GONE (writer contract, CAT-035)
+- `push-variants.test.ts` › FOREIGN variant of B is forbidden OUT_OF_SCOPE, B unchanged (AB-1)
+- `push-variants.test.ts` › merge link, price date, photos ignored (v5.0.0-15.3.3); passed at once (judge strips them)
+
+**Evidence:** story tests 10/10; full suite 5287/5287, failing: none, 0 known; typecheck clean; lint 0 errors, 233 warnings (existing)
+
+**Follow-ups:**
+- The MERGED issue has `mergedInto` but the judge only uses it for relationships; later lines of the batch naming the folded variant are not redirected client-side (the server resolves them by `merged_into_id`).
+<!-- end SYNC-032 -->

@@ -375,7 +375,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-033 | todo | | |
 | SYNC-030 | done | | Judge covers products, variants, prices; owner-only offline; org stamped from scope |
 | SYNC-031 | done | | products push: catalog.push.ts via applyProductFromSync; 5277 tests pass |
-| SYNC-032 | todo | | |
+| SYNC-032 | done | | variants push through applyVariantFromSync; 10 tests; suite 5287 green |
 | SYNC-033 | todo | | |
 | SYNC-034 | todo | | |
 | SYNC-035 | todo | | |

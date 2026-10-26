@@ -3,8 +3,7 @@ import { imageUrl } from '../../../lib/image-keys.js';
 import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
 import type { Row, SyncAdapter, Viewer } from '../sync.types.js';
-import { pushProducts } from './catalog.push.js';
-import { refuseEveryLine } from './identity.adapter.js';
+import { pushProducts, pushVariants } from './catalog.push.js';
 
 type Changes = { created: Row[]; updated: Row[]; deleted: string[] };
 
@@ -304,6 +303,7 @@ export const productsAdapter: SyncAdapter = {
  * organization_id, name, unit, price, min_order_quantity, image_urls`, and the ids of those that
  * left the sale in `deleted` (SYNC-026); their negotiated prices come from `customer_prices`. A variant change moves its product too, by a database trigger (CM-42), so
  * both always arrive together. `min_order_quantity` is a decimal string, like the catalog API.
+ * Push: the OWNER's created and edited variants (SYNC-032, `catalog.push.ts`).
  */
 export const variantsAdapter: SyncAdapter = {
   table: 'product_variants',
@@ -390,7 +390,7 @@ export const variantsAdapter: SyncAdapter = {
       }
     );
   },
-  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+  push: pushVariants,
 };
 
 export const catalogAdapters: SyncAdapter[] = [productsAdapter, variantsAdapter];
