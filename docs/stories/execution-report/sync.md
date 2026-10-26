@@ -6,6 +6,22 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 09:55 UTC: `/implement-stories SYNC-037,SYNC-038,SYNC-041 (rerun after fixing the stories)`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-037 The team's phone knows the plan, its due date and its limits | done | 079b32f | organizations pull carries six plan fields; removed-fields test updated |
+| SYNC-038 The phone receives logo and profile photo addresses | done | 68e47ae | logo_url and avatar_url added to sync pull; 2 exact-shape tests updated |
+| SYNC-041 A phone cannot write the fields only the server writes | done | d01af0c | 5 characterization tests; AC-4 test aligned to read-only collaborations |
+
+- Follow-up run after the first run (see the previous entry): SYNC-037, SYNC-038 and SYNC-041 were picked up again at the user's request ("resoud les blocages et continue").
+- SYNC-037 was unblocked by adding `pull-identity-removed-fields.test.ts` to its "Tests to update" (story file edited by the orchestrator, with the user's go-ahead); the stash "SYNC-037 blocked: partial changes" was popped and used.
+- SYNC-041 was blocked twice on AC-4: the story said `collaborations` had no sync table (400 SYNC_UNKNOWN_TABLE). It is a read-only sync table, so the story now says forbidden `SYNC_TABLE_READ_ONLY`, 200, seat unchanged (story file edited by the orchestrator). Its first blocked attempt has no entry of its own: the report file was overwritten by the later attempts.
+- SYNC-038 edited two existing tests not listed under "Tests to update" (`pull-identity.test.ts`, `pull-identity-removed-fields.test.ts`): only the new field was added to each expectation. Please confirm.
+- Two tests are unstable in the full suite and pass alone: `tests/integration/organization/team-list.test.ts` AB-1 (asserts the body does not contain "999", a random request id can) and `tests/integration/sync/pull-plan-fields.test.ts` AC-4 (renewal, passed 5 of 5 alone). Neither is caused by these stories. The suite passed 5376/5376 on one rerun.
+- Stash list still holds older blocked stories from earlier runs; none from this run.
+- Next command: `/implement-stories next:10`.
+
 ### Run 2026-10-26 09:35 UTC: `/implement-stories next:10`
 
 | story | status | commit | note |
