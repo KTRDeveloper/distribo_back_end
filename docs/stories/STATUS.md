@@ -384,7 +384,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-038 | done | | logo_url and avatar_url added to sync pull; 2 exact-shape tests updated |
 | SYNC-039 | done | | Paused seats get the revoked-seat grace via findRightsHistory; 6 tests |
 | SYNC-040 | done | | driver pool leaves orders assigned to another driver; delivery change resends order for drivers |
-| SYNC-041 | todo | | |
+| SYNC-041 | done | | 5 characterization tests; AC-4 test aligned to read-only collaborations |
 | SYNC-042 | done | | Driver pulls verified contacts of customer businesses with a CONFIRMED order to deliver; driverRelationshipsWhere shared |
 | SYNC-043 | todo | | |
 | CAT-041 | todo | | |

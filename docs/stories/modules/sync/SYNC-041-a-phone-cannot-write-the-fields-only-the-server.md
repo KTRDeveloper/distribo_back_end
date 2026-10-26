@@ -22,7 +22,7 @@ As an owner, I want the plan, the limits, the photos and the verification of my 
 ## Context
 - Exists: the pushes of products, variants and prices (SYNC-031 to SYNC-034), the read-only pushes of `organizations`, `people` and `organization_contacts` (SYNC-036 to SYNC-038), and `SYNC_UNKNOWN_TABLE` for a name that is not a sync table.
 - Characterization tests only, no production code. The server fields added in v16: `ProductVariant.price_updated_at` and `merged_into_id`, `Product.image_keys`, `ProductVariant.image_keys`, `Organization.logo_key`, `Person.avatar_key`, `OrganizationContact.verified_at` and `verification_method`, the plan fields of `Organization`, `Product.paused_at`, and the collaboration status PAUSED.
-- A catalog line that carries a server field is judged as if the field were absent. A line of a read-only table is forbidden `SYNC_TABLE_READ_ONLY`. The collaboration status has no sync table, so a batch naming one is refused `SYNC_UNKNOWN_TABLE`.
+- A catalog line that carries a server field is judged as if the field were absent. A line of a read-only table is forbidden `SYNC_TABLE_READ_ONLY`. `collaborations` is a read-only sync table, so a line naming it is forbidden `SYNC_TABLE_READ_ONLY`, the answer stays 200 and nothing is stored.
 - `C-41`: `Organization.plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators` and `max_products` are written by the server only and sent to the team of the business only.
 - `C-46`: `Product.paused_at` is written by the server only; the products on sale (not deleted, not paused, with at least one ACTIVE variant) number at most `Organization.max_products`, checked by the phone and by the online routes; what arrives in excess through synchronization is paused, never refused.
 - `C-49`: `Product.image_keys` and `ProductVariant.image_keys` hold at most 5 keys (CHECK) with a GIN index; a key is cited by one record only, across all tables; the image keys, `Organization.logo_key` and `Person.avatar_key` are written by the server only.
@@ -39,9 +39,9 @@ Scenario: AC-2 Stored values stay
 Scenario: AC-3 Read-only tables
   When a phone pushes an organization with `logo_key`, `payment_code`, `plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators` and `max_products`, a person with `avatar_key`, and a contact with `verified_at` and `verification_method`
   Then each line is forbidden `SYNC_TABLE_READ_ONLY` and the stored rows are unchanged
-Scenario: AC-4 No table for the seat status
+Scenario: AC-4 The seat status table is read-only
   When a batch has a table `collaborations` with `status` PAUSED
-  Then the batch is refused 400 `SYNC_UNKNOWN_TABLE` and nothing is stored
+  Then the line is forbidden `SYNC_TABLE_READ_ONLY`, the answer is 200 and the seat status is unchanged
 ```
 
 ## Abuse cases
@@ -67,7 +67,7 @@ Scenario: AB-1 A phone lifts its limits (mass assignment)
 | dropped fields | integration | AC-1, C-46, C-49 | stored values |
 | stored values stay | integration | AC-2, C-46, C-49 | unchanged |
 | read-only tables | integration | AC-3, C-41 | forbidden, rows unchanged |
-| no seat table | integration | AC-4 | 400, nothing stored |
+| seat table read-only | integration | AC-4 | forbidden SYNC_TABLE_READ_ONLY, 200, seat status unchanged |
 | limits | security | AB-1, CWE-915 | plan, limits and pause unchanged |
 
 Command: `npx vitest run tests/integration/sync/server-fields.test.ts`

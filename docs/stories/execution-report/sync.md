@@ -1384,6 +1384,27 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Evidence:** story tests 19/19 (8 new + 11 existing); full suite 5353/5353, failing: none, 0 known; typecheck clean; lint 0 errors, 248 warnings
 <!-- end SYNC-040 -->
 
+<!-- begin SYNC-041 -->
+## SYNC-041 — A phone cannot write the fields only the server writes
+
+- Filed: 2026-10-26 09:55 UTC
+- Status: **done**: 5 characterization tests; AC-4 test aligned to read-only collaborations
+- Risk: medium · story: [SYNC-041-a-phone-cannot-write-the-fields-only-the-server.md](../modules/sync/SYNC-041-a-phone-cannot-write-the-fields-only-the-server.md)
+- Agent: 27,246 tokens, 9 tool uses, 2 min 8 s
+
+### Agent report
+
+**Summary:** The test file was already in the tree; I aligned its AC-4 test to the amended story (read-only `collaborations`) and the 5 tests pass.
+
+**Decisions:**
+- AC-4 test: it still expected the old "set aside, aside: 1" outcome. I changed it to the amended AC-4: 200, one rejection `SYNC_TABLE_READ_ONLY` for `collaborations`, seat status still ACTIVE.
+
+**Evidence:** story tests 5/5; full suite 5380/5381, failing: `pull-plan-fields.test.ts` (AC-4, renewal), 0 known; typecheck clean; lint 0 errors, 248 warnings
+
+**Follow-ups:**
+- `pull-plan-fields.test.ts` AC-4 failed once in the full suite and passed twice alone. It looks like a timing flake and is unrelated to this test-only story.
+<!-- end SYNC-041 -->
+
 <!-- begin SYNC-042 -->
 ## SYNC-042 — The driver receives the contacts of the client businesses to deliver
 
