@@ -198,6 +198,7 @@ describe('purge (PRIV-003)', () => {
       otp_challenges: 2,
       refresh_tokens: 2,
       idempotency_keys: 1,
+      subscription_payments: 0,
     });
   });
 

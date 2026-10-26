@@ -154,3 +154,21 @@ Also in this run: relationship, catalog, order, finance, delivery, sync.
 
 **Evidence:** story tests 19/19 (6 new + 13 existing anonymize); full suite 5397/5397, failing: none, 0 known; typecheck clean; lint 0 errors, 260 warnings (existing)
 <!-- end PRIV-004 -->
+
+<!-- begin PRIV-005 -->
+## PRIV-005 — The purge deletes failed and expired payment requests after 90 days
+
+- Filed: 2026-10-26 10:39 UTC
+- Status: **done**: purge deletes FAILED/EXPIRED payments after 90 days, cited rows kept
+- Risk: high · story: [PRIV-005-the-purge-deletes-failed-and-expired-payment.md](../modules/privacy/PRIV-005-the-purge-deletes-failed-and-expired-payment.md)
+- Agent: 39,778 tokens, 14 tool uses, 2 min 43 s
+
+### Agent report
+
+**Summary:** Added the `subscription_payments` deleter to the purge (FAILED/EXPIRED, older than 90 days, not cited by a receipt, period or event) and the count key.
+
+**Tests added beyond the story:**
+- `tests/integration/privacy/purge-payments.test.ts` › AC-2 receipt cites: a FAILED payment cited by a receipt stays (AC-2, CM-44); passed at once after the deleter existed (it was covered by the same NOT EXISTS clause)
+
+**Evidence:** story tests 14/14 (purge-payments + purge); full suite 5402/5402, failing: none, 0 known; typecheck clean; lint 0 errors, 260 warnings
+<!-- end PRIV-005 -->

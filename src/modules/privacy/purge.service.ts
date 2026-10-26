@@ -46,12 +46,26 @@ const DELETERS: Record<string, Deleter> = {
       SELECT ctid FROM idempotency_keys
       WHERE created_at < ${now}::timestamptz - interval '30 days'
       LIMIT ${limit})`,
+  // Only requests that never succeeded: they still hold the payer's phone number (CM-44). A
+  // receipt, a period or an event may cite a payment, and its foreign key forbids the delete, so
+  // such a request stays as long as the row that cites it. SUCCEEDED, REFUNDED and PENDING rows
+  // are commercial data or still open and are never selected.
+  subscription_payments: (db, now, limit) => db.$executeRaw`
+    DELETE FROM subscription_payments WHERE ctid IN (
+      SELECT p.ctid FROM subscription_payments p
+      WHERE p.status IN ('FAILED', 'EXPIRED')
+        AND p.created_at < ${now}::timestamptz - interval '90 days'
+        AND NOT EXISTS (SELECT 1 FROM subscription_receipts r WHERE r.payment_id = p.id)
+        AND NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.payment_id = p.id)
+        AND NOT EXISTS (SELECT 1 FROM subscription_events e WHERE e.payment_id = p.id)
+      LIMIT ${limit})`,
 };
 
 /**
  * Deletes the data that outlived its retention period (CM-35, ASVS v5.0.0-14.2.4): notifications
  * after 24 months, sync archives after 90 days, one-time codes and refresh tokens 30 days after
- * they expired or were consumed or revoked, idempotency keys after 30 days.
+ * they expired or were consumed or revoked, idempotency keys after 30 days, and payment requests
+ * that ended FAILED or EXPIRED after 90 days when nothing cites them (CM-44).
  *
  * Connects with `MIGRATION_DATABASE_URL` only: the application account cannot delete immutable
  * tables (ASVS v5.0.0-13.3.2), and there is no fallback to `DATABASE_URL`, so a missing value
