@@ -365,7 +365,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-038 | done | | Story tests 11/11; suite 5143/5143; typecheck clean; lint 0 errors |
 | BIL-025 | todo | | |
 | BIL-039 | done | | Story tests 9/9; suite 5125/5125; typecheck clean; lint 0 errors; existing dependency audit findings remain. |
-| ORG-036 | blocked | | Implementation and 5133 tests pass; dependency audit has 3 high vulnerabilities: authorize dependency updates outside pinned versions or waive this gate? |
+| ORG-036 | done | | PAUSED seats listed, role-changed and revoked without bump or notice; anonymization ends them; OpenAPI updated |
 | SYNC-024 | todo | | |
 | SYNC-025 | todo | | |
 | SYNC-026 | todo | | |

@@ -339,7 +339,7 @@ const ROLE_CHANGED_CONTENT = {
  * The owner changes a collaborator's role. The target is looked up inside the actor's
  * organization, so another business's row looks absent (ASVS v5.0.0-8.2.1). The OWNER row is
  * protected (CM-09). An ACTIVE target gets a scope version bump (CM-03) and a notification in the
- * same transaction; an INVITED target has no rights yet, so only the role is written.
+ * same transaction; INVITED and PAUSED targets have no access, so only the role is written.
  *
  * @param actor - Owner loaded from the path and checked for `update Collaboration`.
  * @param collaborationId - Collaboration from the path.
@@ -360,7 +360,7 @@ export async function changeRole(
     }
 
     const updated = await updateRole(tx, collaborationId, actor.organizationId, role);
-    if (!updated) throw httpError(404, 'NOT_FOUND', 'Not found');
+    if (!updated || updated.status === 'REVOKED') throw httpError(404, 'NOT_FOUND', 'Not found');
 
     if (updated.status === 'ACTIVE') {
       await bumpScopeVersion(target.personId, tx);
@@ -386,7 +386,7 @@ export async function changeRole(
       id: updated.id,
       person: toPublicPerson(target.person),
       role: updated.role,
-      status: updated.status === 'ACTIVE' ? 'ACTIVE' : 'INVITED',
+      status: updated.status,
       invited_at: updated.invitedAt.toISOString(),
     };
   });
@@ -401,9 +401,9 @@ const REVOKED_CONTENT = {
  * The owner revokes a collaborator: the row becomes REVOKED and stops being the public contact,
  * `amount_held` is kept. The target is looked up inside the actor's organization, so another
  * business's row looks absent (ASVS v5.0.0-8.2.1). The OWNER row is protected (CM-09). An ACTIVE
- * target gets a scope version bump (CM-03) and a notification in the same transaction; an INVITED
- * target has no rights yet. Access ends on the next request because the actor is loaded from the
- * database (ASVS v5.0.0-7.4.2).
+ * target gets a scope version bump (CM-03) and a notification in the same transaction; INVITED
+ * and PAUSED targets have no access and need neither. Access ends on the next request because
+ * the actor is loaded from the database (ASVS v5.0.0-7.4.2).
  *
  * @param actor - Owner loaded from the path and checked for `update Collaboration`.
  * @param collaborationId - Collaboration from the path.

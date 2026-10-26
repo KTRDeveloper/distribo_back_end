@@ -66,12 +66,17 @@ export const inviteCollaboratorSchema = z
 
 export type InviteInput = z.infer<typeof inviteCollaboratorSchema>;
 
-/** Closed response of the invite gesture. */
+/** Closed response of the invite and role-change gestures. */
 export type CollaborationView = {
   id: string;
-  person: { public_name: string | null; phone_number: string | null; registered: boolean };
+  person: {
+    public_name: string | null;
+    phone_number: string | null;
+    registered: boolean;
+    avatar_url: string | null;
+  };
   role: string;
-  status: 'INVITED' | 'ACTIVE';
+  status: 'INVITED' | 'ACTIVE' | 'PAUSED';
   invited_at: string;
 };
 
@@ -147,9 +152,14 @@ export const listCollaboratorsQuerySchema = paginationQuerySchema.strict();
  */
 export type CollaboratorItem = {
   id: string;
-  person: { public_name: string | null; phone_number: string | null; registered: boolean };
+  person: {
+    public_name: string | null;
+    phone_number: string | null;
+    registered: boolean;
+    avatar_url: string | null;
+  };
   role: string;
-  status: string;
+  status: 'INVITED' | 'ACTIVE' | 'PAUSED' | 'REVOKED';
   invited_at: string;
   accepted_at: string | null;
   amount_held?: number;

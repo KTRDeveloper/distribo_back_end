@@ -62,7 +62,8 @@ export async function findDeletionIdentity(
 /**
  * Erases the person's personal columns and dependent rows inside the caller's transaction
  * (CM-01, C-02, C-03). Relationships, orders, ledger entries and journals are not touched.
- * Collaborations are ended (REVOKED); their held amount stays.
+ * ACTIVE, INVITED and PAUSED collaborations are ended (REVOKED); their held amount stays.
+ * Ending PAUSED seats prevents a later plan refresh from restoring a deleted person's access.
  *
  * @returns false when the person is absent or already anonymized (nothing was changed).
  */
@@ -78,7 +79,7 @@ export async function anonymizeRows(
 
   const now = new Date();
   await tx.collaboration.updateMany({
-    where: { personId, status: { in: ['ACTIVE', 'INVITED'] } },
+    where: { personId, status: { in: ['ACTIVE', 'INVITED', 'PAUSED'] } },
     data: { status: 'REVOKED' },
   });
   await tx.notification.deleteMany({ where: { recipientId: personId } });

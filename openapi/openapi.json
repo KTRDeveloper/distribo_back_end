@@ -5714,12 +5714,19 @@
                               },
                               "registered": {
                                 "type": "boolean"
+                              },
+                              "avatar_url": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
                               }
                             },
                             "required": [
                               "public_name",
                               "phone_number",
-                              "registered"
+                              "registered",
+                              "avatar_url"
                             ]
                           },
                           "role": {
@@ -5736,6 +5743,7 @@
                             "enum": [
                               "INVITED",
                               "ACTIVE",
+                              "PAUSED",
                               "REVOKED"
                             ]
                           },
@@ -5904,12 +5912,19 @@
                         },
                         "registered": {
                           "type": "boolean"
+                        },
+                        "avatar_url": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
                         "public_name",
                         "phone_number",
-                        "registered"
+                        "registered",
+                        "avatar_url"
                       ]
                     },
                     "role": {
@@ -6703,12 +6718,19 @@
                         },
                         "registered": {
                           "type": "boolean"
+                        },
+                        "avatar_url": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
                         "public_name",
                         "phone_number",
-                        "registered"
+                        "registered",
+                        "avatar_url"
                       ]
                     },
                     "role": {
@@ -6723,7 +6745,8 @@
                       "type": "string",
                       "enum": [
                         "INVITED",
-                        "ACTIVE"
+                        "ACTIVE",
+                        "PAUSED"
                       ]
                     },
                     "invited_at": {
