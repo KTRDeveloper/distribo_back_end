@@ -1,6 +1,6 @@
 import type { CollaborationRole, Prisma } from '@prisma/client';
 
-/** The 15 tables a phone can pull and push (Q-014). */
+/** The 16 tables a phone can pull and push (Q-014). */
 export const SYNC_TABLES = [
   'organizations',
   'collaborations',
@@ -17,6 +17,7 @@ export const SYNC_TABLES = [
   'handovers',
   'credit_limit_changes',
   'notifications',
+  'organization_contacts',
 ] as const;
 
 export type SyncTable = (typeof SYNC_TABLES)[number];

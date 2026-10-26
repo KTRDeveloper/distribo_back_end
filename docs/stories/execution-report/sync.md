@@ -1232,3 +1232,38 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - Billing ranks products newest first, so newly pushed products win over older ones and the older ones are paused. The story leaves the choice to BIL-020, so I did not change it.
 <!-- end SYNC-035 -->
+
+<!-- begin SYNC-036 -->
+## SYNC-036 — The phone receives the contacts of its business and of the businesses it deals with
+
+- Filed: 2026-10-26 09:11 UTC
+- Status: **done**: organization_contacts adapter (team + verified other side), 16 tables, push read-only
+- Risk: medium · story: [SYNC-036-the-phone-receives-the-contacts-of-its-business.md](../modules/sync/SYNC-036-the-phone-receives-the-contacts-of-its-business.md)
+- Agent: 90,704 tokens, 42 tool uses, 7 min 28 s
+
+### Agent report
+
+**Summary:** Added the `organization_contacts` pull adapter (team sees all, other side of each visible relationship sees verified only), 16th sync table, push refused read-only.
+
+**Decisions:**
+- Pending/deleted contact of the other side goes in `deleted` only if it existed before the last pull (created_at <= since) and its org was not newly visible: a contact created after the pull is never even named. A contact that was always pending cannot be told from "pending again", so its id appears in `deleted` when edited (id only, never content).
+- Contacts of an organization made visible by a relationship created since the last pull are sent in `created` (the phone never had them), not `updated`.
+- Other-side orgs exclude the viewer's own team orgs, so no contact is sent twice and a DRIVER org gives nothing (REL-001 predicate fed with OWNER/MANAGER/SELLER orgs only).
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-contacts.test.ts` › row field list: no `created_by_id` (ASVS 15.3.1); passed at once with the adapter
+- same › driver gets nothing of its own business (Context, SYNC-042)
+- same › deleted contact: id in `deleted` on both sides, absent from a full pull (C-35)
+- same › pending contact created after the last pull is not named to the other side (AB-1)
+- same › relationship deleted: no contacts on a full pull (REL-001 predicate)
+
+**Other additions:**
+- Edited `tests/integration/sync/pull-variants.test.ts` (15 -> 16 in one count assertion and its title): NOT listed in "Tests to update", but it failed because of the 16th table; minimal change, please confirm.
+- Updated "15" to "16" in comments of `sync.registry.ts`.
+
+**Evidence:** story tests 15/15 + registry-viewer; full suite 5339/5339, failing: none, 0 known; typecheck clean; lint 0 errors, 242 warnings
+
+**Follow-ups:**
+- Story's "Tests to update" missed pull-variants.test.ts (same 15-table assertion).
+- Team gaining a new membership after the last pull does not resend that org's old contacts (same as other adapters, left to the scope-version resync).
+<!-- end SYNC-036 -->

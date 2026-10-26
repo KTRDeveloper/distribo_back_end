@@ -241,8 +241,8 @@ describe('GET /api/v1/sync/pull (products and variants)', () => {
     expect(variantsOf(body).deleted).toEqual([]);
   });
 
-  it('new table: the answer has a product_variants entry and 15 tables exist (AC-5)', async () => {
-    expect(SYNC_TABLES).toHaveLength(15);
+  it('new table: the answer has a product_variants entry and 16 tables exist (AC-5)', async () => {
+    expect(SYNC_TABLES).toHaveLength(16);
     expect(SYNC_TABLES).toContain('product_variants');
     const body = bodyOf<PullBody>(await pull(SELLER));
     expect(variantsOf(body).created.length).toBeGreaterThan(0);

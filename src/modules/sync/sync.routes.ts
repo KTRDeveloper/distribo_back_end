@@ -3,6 +3,7 @@ import { adminAuthMiddleware, requireAdminRole } from '../../middleware/admin-au
 import { authMiddleware } from '../../middleware/auth.js';
 import { loadActor } from '../../middleware/load-actor.js';
 import { registerCatalogAdapters } from './adapters/catalog.adapter.js';
+import { registerContactAdapters } from './adapters/contacts.adapter.js';
 import { registerIdentityAdapters } from './adapters/identity.adapter.js';
 import { registerMoneyAdapters } from './adapters/money.adapter.js';
 import { registerOrderAdapters } from './adapters/order.adapter.js';
@@ -36,6 +37,7 @@ registerRelationshipAdapters();
 registerCatalogAdapters();
 registerOrderAdapters();
 registerMoneyAdapters();
+registerContactAdapters();
 
 /** Sync routes; all require authentication. */
 export const syncRoutes = Router();

@@ -10,7 +10,7 @@ function isSyncTable(name: string): name is SyncTable {
 /**
  * Registers the single adapter of a table.
  *
- * @throws Error when the table is outside the 15 sync tables or already has an adapter, so a
+ * @throws Error when the table is outside the 16 sync tables or already has an adapter, so a
  * wiring mistake stops the app at startup instead of silently replacing a table's rules.
  */
 export function registerAdapter(adapter: SyncAdapter): void {
@@ -31,7 +31,7 @@ export function getAdapters(): SyncAdapter[] {
 /**
  * Looks up the adapter of a table named by a client.
  *
- * @throws HttpError 400 `SYNC_UNKNOWN_TABLE` when the name is not one of the 15 sync tables,
+ * @throws HttpError 400 `SYNC_UNKNOWN_TABLE` when the name is not one of the 16 sync tables,
  * or when no adapter is registered for it (fail closed).
  */
 export function getAdapter(table: string): SyncAdapter {
