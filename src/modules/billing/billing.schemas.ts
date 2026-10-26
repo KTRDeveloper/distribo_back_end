@@ -3,6 +3,15 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import { phoneNumberSchema } from '../../shared/phone.js';
 import { decodeCursor, paginationQuerySchema } from '../../shared/pagination.js';
 
+/** Refund identity comes only from validated path ids; the payment is the gesture key. */
+export const refundPaymentParamsSchema = z.object({
+  organizationId: z.string().uuid().transform((id) => id.toLowerCase()),
+  paymentId: z.string().uuid().transform((id) => id.toLowerCase()),
+}).strict();
+
+/** No caller-selected actor, amount or status can enter a refund. */
+export const refundPaymentBodySchema = z.object({ reason: z.string().min(1).max(2000) }).strict();
+
 /** Recorded payments accept no client-selected amount, status, operator or actor. */
 export const recordPaymentBodySchema = z.object({
   id: uuidV7Schema.transform((id) => id.toLowerCase()),
@@ -172,6 +181,13 @@ export const receiptViewSchema = z.object({
   vat_amount: z.number().int(),
   amount: z.number().int(),
   issued_at: z.string().datetime(),
+}).strict();
+
+/** Refunds expose the BIL-017 credit-note item, never its internal cancellation ids. */
+export const refundPaymentResponseSchema = z.object({
+  payment_id: z.string().uuid(),
+  status: z.literal('REFUNDED'),
+  credit_note: receiptViewSchema.extend({ kind: z.literal('CREDIT_NOTE') }),
 }).strict();
 
 /** Owner-only ten-field projection; the public payment receipt remains unchanged. */

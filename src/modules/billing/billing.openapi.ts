@@ -19,6 +19,9 @@ import {
   receiptListQuerySchema,
   receiptListResponseSchema,
   recordPaymentBodySchema,
+  refundPaymentBodySchema,
+  refundPaymentParamsSchema,
+  refundPaymentResponseSchema,
   shopParamsOpenApiSchema,
   shopResponseSchema,
   swapProductBodySchema,
@@ -26,6 +29,45 @@ import {
   swapSeatBodySchema,
   swapSeatResponseSchema,
 } from './billing.schemas.js';
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/organizations/{organizationId}/billing/payments/{paymentId}/refund',
+  tags: ['billing'],
+  summary: 'Refund a mistaken payment (super administrator only)',
+  description: 'Records the refund and credit note; returning money to the payer happens outside Distribo.',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: refundPaymentParamsSchema,
+    body: { required: true, content: { 'application/json': { schema: refundPaymentBodySchema } } },
+  },
+  responses: {
+    200: {
+      description: 'Refunded payment and immutable credit note, including an idempotent repeat',
+      content: { 'application/json': { schema: refundPaymentResponseSchema } },
+    },
+    400: {
+      description: 'VALIDATION_ERROR: invalid UUID or body',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'UNAUTHORIZED: administration token required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'FORBIDDEN: super administrator role required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'NOT_FOUND: payment absent or belonging to another business',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'PAYMENT_NOT_REFUNDABLE: payment has not succeeded',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: 'post',

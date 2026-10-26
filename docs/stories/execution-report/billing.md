@@ -1306,27 +1306,30 @@ BIL-024 done
 <!-- begin BIL-025 -->
 ## BIL-025 — A super administrator refunds a payment after an error
 
-- Filed: 2026-10-26 07:15 UTC
-- Status: **blocked**: May I read the existing transaction, receipt projection and cross-module contract files needed by refundPayment, which are absent from read_first and Implementation?
+- Filed: 2026-10-26 07:50 UTC
+- Status: **done**: Tests story 66/66 et suite 5219/5219; typecheck propre; lint 0 erreur; scans du périmètre propres, alertes globales hors story signalées.
 - Risk: high · story: [BIL-025-a-super-administrator-refunds-a-payment-after.md](../modules/billing/BIL-025-a-super-administrator-refunds-a-payment-after.md)
-- Agent: 20,601 tokens, 13 tool uses, 2 min 27 s
+- Agent: 59,527 tokens, 3 tool uses, 1 min 27 s
 
 ### Agent report
 
-**Summary:** BIL-025 blocked: the mandatory read scope excludes existing helper implementations and cross-module contracts required to implement the refund transaction safely.
-
+**Summary:** BIL-025 implémentée en TDD et marquée done : route SUPER_ADMIN, remboursement atomique, avoir BIL-017, droits/limites/notification et répétitions sans écriture.
 **Decisions:**
-- No signatures or transaction behavior were guessed; no implementation or tests were changed.
-- Updated BIL-025 to blocked using set-status; did not create a report file because the final developer instruction prohibits report Markdown files.
-
-**Evidence:** story tests not run; full suite not run; typecheck not run; lint not run. Stopped before implementation for scope clarification.
-
+- UUID génériques normalisés en minuscules conformément à la story ; la projection ReceiptView réutilise le type BIL-017 avec issued_at Date sérialisé par Express.
+- Les périodes terminées restent celles choisies par applyRefund existant ; aucune décision supplémentaire sur Q-043.
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/refund-gesture.test.ts` › serializes concurrent refunds into one credit note, action and notice : protège AC-2 en concurrence ; échec observé avant implémentation.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/refund-gesture.test.ts` › rolls back refund, audit, credit note, rights and seats if the final notice fails : protège ASVS 2.3.3 et C-54, y compris absence de trou après retry ; échec observé avant implémentation.
+**Other additions:**
+- Artefact OpenAPI régénéré automatiquement par les tests api-docs prévus ; aucune lecture ni modification manuelle du JSON généré.
+**Evidence:** story command 66/66 (15 tests dans refund-gesture) ; full suite 5219/5219, failing: none, 0 known ; typecheck clean ; lint 0 errors, 224 warnings ; audit passe avec ADR-007 existante ; diff whitespace propre.
+- Semgrep ciblé : 0 finding sur les 7 fichiers source/tests, exit 0 ; Gitleaks sur leur patch : 0 fuite, exit 0.
+- Sortie suite : `/tmp/distribo-bil024-bil025-20261026-hJv2db/BIL-025-suite.txt` ; autres preuves dans le même dossier, préfixe BIL-025.
 **Follow-ups:**
-- Authorize reading the existing transaction setup, receipt projection, payment/receipt repositories, rights/limits helpers, notification helper, administrator action helper, and relevant cross-module contracts.
-- Story: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/docs/stories/modules/billing/BIL-025-a-super-administrator-refunds-a-payment-after.md`.
-- Requested report destination (not written): `/tmp/distribo-next4-20261026-KSzdD0/BIL-025-report.md`.
-
-BIL-025 blocked
+- Scans globaux non propres hors story : Semgrep 12 findings dans hook/CI/docker/src/lib/crypto.ts ; Gitleaks 36 détections dans 527 commits. Aucun changement de ces fichiers, aucun affaiblissement des contrôles.
+- La commande composée contenant `git diff -- src tests openapi` a été refusée avant exécution ; aucun effet de cette commande. Nouvelle commande limitée aux sources/tests autorisés, aucun accès au JSON/diff généré, aucune permission changée.
+- Aucun commit et aucun rapport Markdown écrit ; le coordinateur prend en charge `/tmp/distribo-bil024-bil025-20261026-hJv2db/BIL-025-report.md` et les commits.
+BIL-025 done
 <!-- end BIL-025 -->
 
 <!-- begin BIL-039 -->

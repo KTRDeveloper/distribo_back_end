@@ -29416,6 +29416,196 @@
         }
       }
     },
+    "/api/v1/admin/organizations/{organizationId}/billing/payments/{paymentId}/refund": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Refund a mistaken payment (super administrator only)",
+        "description": "Records the refund and credit note; returning money to the payer happens outside Distribo.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "paymentId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Refunded payment and immutable credit note, including an idempotent repeat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "payment_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "REFUNDED"
+                      ]
+                    },
+                    "credit_note": {
+                      "type": "object",
+                      "properties": {
+                        "number": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "customer_name": {
+                          "type": "string"
+                        },
+                        "customer_tax_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "amount_excl_tax": {
+                          "type": "integer"
+                        },
+                        "vat_rate_bp": {
+                          "type": "integer"
+                        },
+                        "vat_amount": {
+                          "type": "integer"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        },
+                        "issued_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "CREDIT_NOTE"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "number",
+                        "label",
+                        "customer_name",
+                        "customer_tax_id",
+                        "amount_excl_tax",
+                        "vat_rate_bp",
+                        "vat_amount",
+                        "amount",
+                        "issued_at",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "payment_id",
+                    "status",
+                    "credit_note"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: invalid UUID or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: administration token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: super administrator role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: payment absent or belonging to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PAYMENT_NOT_REFUNDABLE: payment has not succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/organizations/{organizationId}/billing/payments": {
       "post": {
         "tags": [
