@@ -6,6 +6,36 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 03:30 UTC: `/implement-stories next:25`
+
+| story | status | commit | note |
+|---|---|---|---|
+| BIL-019 Collaborators beyond the plan are paused and come back when it allows | done | 8e79080 | 12 story tests and 4875 suite tests pass; typecheck clean; existing dependency audit findings remain |
+| BIL-020 Products beyond the plan are paused and come back when it allows | done | 951bbcc | 28 story/dependency tests and 4891 full-suite tests pass; typecheck clean; lint 0 errors; existing dependency advisories and unavailable scan tools noted |
+| BIL-027 A higher plan starts at once and converts the days left | done | efea947 | 27 targeted and 4904 full-suite tests pass; typecheck clean, lint 0 errors; existing dependency audit alerts remain |
+| BIL-014 A confirmed payment activates one period and its receipt | done | 4ab8404 | 13 confirmation tests and 4917 full-suite tests pass; typecheck clean; lint 0 errors (207 warnings); existing dependency audit alerts need follow-up |
+| BIL-015 A payer follows a payment and gets the receipt | done | a85507d | 54 tests ciblés et 4930 tests complets passent; typage propre; audit: 3 vulnérabilités hautes des dépendances installées |
+| BIL-021 Old pending payments are settled with the aggregator | done | f645a24 | 15 story tests and all 4945 suite tests pass; typecheck clean; lint 0 errors; existing dependency audit findings and unavailable scan tools reported |
+| BIL-022 The nightly check compares payments with the aggregator's statement | done | c826a3f | 16 story tests and 4961 suite tests pass; typecheck clean; lint 0 errors; pre-existing audit findings and unavailable scanners noted |
+| BIL-028 A business's periods and rights follow the clock | done | 29ccb68 | 12 story tests and 4973 suite tests pass; typecheck clean; lint 0 errors; existing audit findings and unavailable scanners reported |
+| BIL-029 The owner swaps a paused collaborator with an active one | done | dc697b6 | Owner seat swap atomic and tenant-scoped; 4997 tests pass, typecheck clean, lint 0 errors; dependency audit findings and unavailable SAST/secret scanners reported. |
+| BIL-030 The owner swaps a paused product with one on sale | done | b8d94b6 | Product swap implemented; 58 targeted and 5012 full-suite tests pass; dependency audit findings reported |
+| BIL-031 Closing a business ends its plans and reopening restarts from free | done | 5f086eb | Hooks transactionnels close/reopen ; fixtures du registre corrigées sans modifier les assertions ; 5024/5024 tests, typecheck clean, lint 0 erreur. |
+| BIL-033 A payer sees the price and the start date before paying | blocked | 91c3189 | Verification command denied by permission system; authorize final suite/scans and resolve pre-existing pinned-Zod audit findings. |
+
+Not run: BIL-016..BIL-017, BIL-026, BIL-034..BIL-037, BIL-023..BIL-024, BIL-038, BIL-025, BIL-039.
+Also in this run: organization.
+
+Run stopped at BIL-033: final verification command was denied; pre-existing vulnerabilities in mandated dependencies require explicit dependency-policy authorization. No permission bypass or dependency changes attempted.
+Not reached: BIL-016, BIL-017, BIL-026, BIL-034, BIL-035, BIL-036, BIL-037, BIL-023, BIL-024, BIL-038, BIL-025, BIL-039, ORG-036.
+Stash preserved: BIL-033 blocked: partial changes. set-aside reset the test database successfully.
+Missing agent report files for all 12 attempted stories were reconstructed verbatim from their hand-backs and filed with the exact available final-notification usage figures.
+Resolved read-scope omissions in BIL-014 and BIL-033, OWNER journal repository omission in BIL-029, and invalid lifecycle-hook fixtures in BIL-031 without weakening assertions or security. The BIL-031 Tests to update entry was added by the coordinator.
+Agents for BIL-015 and BIL-030 resumed after turn limits; BIL-033 resumed after an API usage-limit interruption and the user's explicit continue request.
+BIL-033 targeted checks passed (68/68; recheck with image-copy 75/75), but the full suite remained 5047/5048: an existing image-copy assertion misidentifies 2040 inside a random UUID as a date; no fix applied. Typecheck clean; lint 0 errors and 216 warnings.
+Dependency audit remained at 5 pre-existing findings (3 high, 1 moderate, 1 low). No Semgrep/Gitleaks scan completed; existing scanner Docker images were found, but further verification was denied. Earlier done statuses do not constitute security-scan sign-off.
+Next: obtain authorization for remaining suite/scans and dependency-policy remediation; restore BIL-033's stash and run /implement-stories BIL-033, then /implement-stories next:13 to resume the remaining original selection.
+
 ### Run 2026-10-25 22:15 UTC: `/implement-stories BIL-018`
 
 | story | status | commit | note |
