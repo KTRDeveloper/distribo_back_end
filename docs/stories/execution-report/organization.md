@@ -788,3 +788,36 @@ ORG-043 done
 
 **Evidence:** story tests 17/17 (35/35 with close and reopen); full suite 4775/4776 before a lint fix of my test file, the one failure was quality-gates (lint errors in my test), re-run after the fix: pass; typecheck clean; lint 0 errors
 <!-- end ORG-034 -->
+
+<!-- begin ORG-036 -->
+## ORG-036 — A paused team member is listed, can be changed or revoked, and has no access
+
+- Filed: 2026-10-26 06:10 UTC
+- Status: **blocked**: Implementation and 5133 tests pass; dependency audit has 3 high vulnerabilities: authorize dependency updates outside pinned versions or waive this gate?
+- Risk: medium · story: [ORG-036-a-paused-team-member-is-listed-can-be-changed.md](../modules/organization/ORG-036-a-paused-team-member-is-listed-can-be-changed.md)
+- Agent: 64,273 tokens, 41 tool uses, 8 min 13 s
+
+### Agent report
+
+**Summary:** ORG-036 is implemented and all tests pass; marked blocked because the required dependency audit is not clean and fixing pinned dependencies needs authorization.
+
+**Decisions:**
+- Preserve the updated database status directly in role-change responses; fail closed if an unexpected REVOKED result appears.
+- No dependency updates: conventions pin versions, while audit recommends incompatible updates, including Zod 4.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/organization/paused-seats.test.ts` › foreign paused seat PATCH/DELETE: 404 with no role, money, scope or notification changes (ASVS tenant isolation); both passed at once.
+- Role-change test also verifies a newly assigned MANAGER role still grants no access while PAUSED (AB-1).
+
+**Other additions:**
+- Full suite regenerated `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/openapi/openapi.json`; retained generated documentation changes.
+
+**Evidence:** story tests 8/8; focused tests 556/556; full suite 5133/5133, failing: none, 0 known; typecheck clean; lint 0 errors, 220 warnings; diff whitespace clean.
+- TDD initial run: 4 failed, 4 passed; role, revoke, anonymization and documentation failures fixed.
+- Suite output: `/tmp/distribo-next13-20261026/ORG-036-suite.txt`.
+
+**Follow-ups:**
+- Audit reports 5 vulnerabilities (3 high, 1 moderate, 1 low): authorize dependency remediation or explicitly resolve the security-gate blocker; Semgrep and Gitleaks executables are unavailable.
+- No report Markdown file written, following the later instruction to return the report directly through handback.
+ORG-036 blocked
+<!-- end ORG-036 -->

@@ -365,7 +365,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-038 | blocked | | All 5127 tests pass; may dependency pins be updated to resolve npm audit's 3 high vulnerabilities before satisfying the security DoD? |
 | BIL-025 | todo | | |
 | BIL-039 | done | | Story tests 9/9; suite 5125/5125; typecheck clean; lint 0 errors; existing dependency audit findings remain. |
-| ORG-036 | todo | | |
+| ORG-036 | blocked | | Implementation and 5133 tests pass; dependency audit has 3 high vulnerabilities: authorize dependency updates outside pinned versions or waive this gate? |
 | SYNC-024 | todo | | |
 | SYNC-025 | todo | | |
 | SYNC-026 | todo | | |
