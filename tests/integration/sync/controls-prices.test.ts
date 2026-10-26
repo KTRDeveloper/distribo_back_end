@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e016-0000-7000-8000-000000000001';
@@ -116,14 +117,12 @@ describe('controls on arrival (SYNC-016)', () => {
     await seedMember('05', OWNER_B, ORG_B, 'OWNER');
     await seedMember('01', SELLER, ORG_A, 'SELLER');
     // The database dates the price at creation: it has stood since before the orders below.
-    await prisma.product.create({
-      data: {
-        id: PRODUCT,
-        organizationId: ORG_A,
-        name: 'Riz',
-        unit: 'sac',
-        price: 3000n,
-      },
+    await seedProduct(prisma, {
+      id: PRODUCT,
+      organizationId: ORG_A,
+      name: 'Riz',
+      unit: 'sac',
+      price: 3000n,
     });
     await prisma.customerRelationship.create({
       data: {
@@ -140,7 +139,7 @@ describe('controls on arrival (SYNC-016)', () => {
   it('flags a sale at the old price as PRICE_CHANGED, with no price gap author (AC-1, CM-28)', async () => {
     // The seller sold at 3000 on Sunday offline; the price rose to 3200 since (the database dates
     // the change, so it is later than the Sunday order).
-    await prisma.product.update({ where: { id: PRODUCT }, data: { price: 3200n } });
+    await prisma.productVariant.update({ where: { id: PRODUCT }, data: { price: 3200n } });
 
     const response = await push(batchOf(1, SUNDAY));
 
@@ -196,7 +195,7 @@ describe('controls on arrival (SYNC-016)', () => {
   });
 
   it('joins several issues of one order with " ; " (AC-3)', async () => {
-    await prisma.product.update({ where: { id: PRODUCT }, data: { price: 3200n } });
+    await prisma.productVariant.update({ where: { id: PRODUCT }, data: { price: 3200n } });
     await prisma.device.update({
       where: { id: deviceId },
       data: { lastSyncedAt: new Date('2026-09-01T00:00:00.000Z') },

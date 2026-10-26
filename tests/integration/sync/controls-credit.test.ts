@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e017-0000-7000-8000-000000000001';
@@ -167,8 +168,12 @@ describe('controls on arrival: credit, restricted mode, long absence (SYNC-017)'
     await seedMember('04', OWNER_A, ORG_A, 'OWNER');
     await seedMember('05', OWNER_B, ORG_B, 'OWNER');
     await seedMember('01', SELLER, ORG_A, 'SELLER');
-    await prisma.product.create({
-      data: { id: PRODUCT, organizationId: ORG_A, name: 'Riz', unit: 'sac', price: 3000n },
+    await seedProduct(prisma, {
+      id: PRODUCT,
+      organizationId: ORG_A,
+      name: 'Riz',
+      unit: 'sac',
+      price: 3000n,
     });
     await prisma.customerRelationship.create({
       data: {

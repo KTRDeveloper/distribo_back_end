@@ -6,6 +6,7 @@ import { createTotpSecret, encryptSecret } from '../../../src/lib/totp.js';
 import { newId } from '../../../src/shared/ids.js';
 import { bodyOf } from '../../helpers/body';
 import { seedAccount } from '../../helpers/database.js';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e022-0000-7000-8000-000000000001';
@@ -155,8 +156,12 @@ describe('super administrator replays an archived batch (SYNC-022)', () => {
     await seedMember('04', OWNER_A, ORG_A, 'OWNER');
     await seedMember('05', OWNER_B, ORG_B, 'OWNER');
     await seedMember('01', SELLER, ORG_A, 'SELLER');
-    await prisma.product.create({
-      data: { id: PRODUCT, organizationId: ORG_A, name: 'Riz', unit: 'sac', price: 3000n },
+    await seedProduct(prisma, {
+      id: PRODUCT,
+      organizationId: ORG_A,
+      name: 'Riz',
+      unit: 'sac',
+      price: 3000n,
     });
     await prisma.customerRelationship.create({
       data: {

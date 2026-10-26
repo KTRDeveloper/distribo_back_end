@@ -1,4 +1,4 @@
-import { seedCustomerPrice } from '../../helpers/catalog-fixtures.js';
+import { seedCustomerPrice, seedProduct } from '../../helpers/catalog-fixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
@@ -205,8 +205,12 @@ describe('GET /api/v1/sync/pull (relationships and negotiated prices)', () => {
       [PRODUCT, ORG_A],
       [PRODUCT_B, ORG_B],
     ]) {
-      await prisma.product.create({
-        data: { id, organizationId: org, name: 'Eau', unit: 'carton', price: 5000n },
+      await seedProduct(prisma, {
+        id,
+        organizationId: org,
+        name: 'Eau',
+        unit: 'carton',
+        price: 5000n,
       });
     }
     await seedCustomerPrice(prisma, {

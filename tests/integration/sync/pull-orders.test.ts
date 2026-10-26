@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199e006-0000-7000-8000-000000000001';
@@ -178,8 +179,12 @@ describe('GET /api/v1/sync/pull (orders, lines and deliveries)', () => {
       [PRODUCT_A, ORG_A],
       [PRODUCT_B, ORG_B],
     ]) {
-      await prisma.product.create({
-        data: { id, organizationId: org, name: 'Eau', unit: 'carton', price: 5000n },
+      await seedProduct(prisma, {
+        id,
+        organizationId: org,
+        name: 'Eau',
+        unit: 'carton',
+        price: 5000n,
       });
     }
 

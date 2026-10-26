@@ -15,6 +15,7 @@ import type { SyncAdapter, TableChange } from '../../../src/modules/sync/sync.ty
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e010-0000-7000-8000-000000000001';
@@ -179,8 +180,12 @@ describe('sync judge pipeline', () => {
       [PRODUCT_A, ORG_A],
       [PRODUCT_B, ORG_B],
     ]) {
-      await prisma.product.create({
-        data: { id: id, organizationId: org, name: 'Eau', unit: 'carton', price: 5000n },
+      await seedProduct(prisma, {
+        id: id,
+        organizationId: org,
+        name: 'Eau',
+        unit: 'carton',
+        price: 5000n,
       });
     }
     await seedOrder(ORDER_A, LINE_A, REL_A, PRODUCT_A);

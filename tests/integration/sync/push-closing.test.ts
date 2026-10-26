@@ -4,6 +4,7 @@ import { deliverOrder } from '../../../src/modules/delivery/delivery.service.js'
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e014-0000-7000-8000-000000000001';
@@ -197,11 +198,19 @@ describe('push of the closing of an order (SYNC-014)', () => {
     await seedMember('01', SELLER, ORG_A, 'SELLER');
     await seedMember('03', DRIVER, ORG_A, 'DRIVER');
     await seedMember('04', DRIVER_2, ORG_A, 'DRIVER');
-    await prisma.product.create({
-      data: { id: PRODUCT, organizationId: ORG_A, name: 'Riz', unit: 'sac', price: 3000n },
+    await seedProduct(prisma, {
+      id: PRODUCT,
+      organizationId: ORG_A,
+      name: 'Riz',
+      unit: 'sac',
+      price: 3000n,
     });
-    await prisma.product.create({
-      data: { id: PRODUCT_B, organizationId: ORG_B, name: 'Riz', unit: 'sac', price: 3000n },
+    await seedProduct(prisma, {
+      id: PRODUCT_B,
+      organizationId: ORG_B,
+      name: 'Riz',
+      unit: 'sac',
+      price: 3000n,
     });
     for (const [id, org, creditLimit] of [
       [REL, ORG_A, 100000n],

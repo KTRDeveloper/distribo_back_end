@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { prisma } from '../../setup.js';
 
 const idOf = (n: number) => `0199e021-0000-7000-8000-${String(n).padStart(12, '0')}`;
@@ -135,11 +136,19 @@ describe('GET /api/v1/organizations/{organizationId}/exceptions/sync', () => {
     await seedCollaboration(6, SELLER_B, ORG_B, 'SELLER');
 
     // The current price is 1000; lines sold at 900 are the old-price lines.
-    await prisma.product.create({
-      data: { id: PRODUCT_A, organizationId: ORG_A, name: 'Riz', unit: 'sac', price: 1000n },
+    await seedProduct(prisma, {
+      id: PRODUCT_A,
+      organizationId: ORG_A,
+      name: 'Riz',
+      unit: 'sac',
+      price: 1000n,
     });
-    await prisma.product.create({
-      data: { id: PRODUCT_B, organizationId: ORG_B, name: 'Mil', unit: 'sac', price: 1000n },
+    await seedProduct(prisma, {
+      id: PRODUCT_B,
+      organizationId: ORG_B,
+      name: 'Mil',
+      unit: 'sac',
+      price: 1000n,
     });
     for (const [id, org, label] of [
       [REL_A, ORG_A, 'Chez Mama'],

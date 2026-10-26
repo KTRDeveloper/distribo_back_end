@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
+import { seedProduct as seedCatalogProduct } from '../../helpers/catalog-fixtures';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199e005-0000-7000-8000-000000000001';
@@ -70,24 +71,23 @@ async function seedProduct(
   name: string,
   extra: { status?: 'ACTIVE' | 'INACTIVE'; deletedAt?: Date } = {}
 ) {
-  await prisma.product.create({
-    data: {
-      id,
-      organizationId: org,
-      name,
-      unit: 'sac',
-      price: 12500n,
-      minOrderQuantity: '2.500',
-      description: 'secret-description',
-      category: 'secret-category',
-      status: extra.status ?? 'ACTIVE',
-      deletedAt: extra.deletedAt ?? null,
-      createdAt: LONG_AGO,
-    },
+  await seedCatalogProduct(prisma, {
+    id,
+    organizationId: org,
+    name,
+    unit: 'sac',
+    price: 12500n,
+    minOrderQuantity: '2.500',
+    status: extra.status ?? 'ACTIVE',
+    deletedAt: extra.deletedAt ?? null,
+  });
+  await prisma.product.update({
+    where: { id },
+    data: { description: 'secret-description', category: 'secret-category', createdAt: LONG_AGO },
   });
   // The database stamps the creation time; move it back so incremental pulls are deterministic.
   await prisma.$executeRaw`UPDATE products SET server_updated_at = ${LONG_AGO} WHERE id = ${id}::uuid`;
-  // The product's mirrored variant (same id) is moved back too.
+  // The product's variant (same id) is moved back too.
   await prisma.$executeRaw`UPDATE product_variants SET server_updated_at = ${LONG_AGO}, created_at = ${LONG_AGO} WHERE id = ${id}::uuid`;
 }
 
@@ -183,7 +183,8 @@ describe('GET /api/v1/sync/pull (catalog)', () => {
     await seedOrderLine('02', P_INACTIVE, 'IN_DELIVERY');
     await seedOrderLine('03', P_PENDING, 'PENDING');
     // A line needs an ACTIVE product when created; the product is deactivated afterwards.
-    await prisma.$executeRaw`UPDATE products SET status = 'INACTIVE', server_updated_at = ${LONG_AGO} WHERE id = ${P_INACTIVE}::uuid`;
+    await prisma.$executeRaw`UPDATE product_variants SET status = 'INACTIVE', server_updated_at = ${LONG_AGO} WHERE id = ${P_INACTIVE}::uuid`;
+    await prisma.$executeRaw`UPDATE products SET server_updated_at = ${LONG_AGO} WHERE id = ${P_INACTIVE}::uuid`;
   });
 
   it('seller: every live product of the organization, the price on its variant (AC-1, C-35)', async () => {
@@ -245,7 +246,7 @@ describe('GET /api/v1/sync/pull (catalog)', () => {
     await sleep(15);
     const since = Date.now();
     await sleep(15);
-    await prisma.product.update({ where: { id: P_ORDERED }, data: { price: 15000n } });
+    await prisma.productVariant.update({ where: { id: P_ORDERED }, data: { price: 15000n } });
     const body = bodyOf<PullBody>(await pull(SELLER, `?last_pulled_at=${since}`));
     expect(productsOf(body).created).toEqual([]);
     expect(productsOf(body).deleted).toEqual([]);

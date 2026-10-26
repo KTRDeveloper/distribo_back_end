@@ -1443,3 +1443,22 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 
 **Evidence:** story tests 35/35 (the three sync pull files); full suite 5360/5360, failing: none, 0 known; typecheck clean; lint 0 errors, 248 warnings
 <!-- end SYNC-042 -->
+
+<!-- begin SYNC-043 -->
+## SYNC-043 — Synchronization tests seed products through the catalog helper
+
+- Filed: 2026-10-26 10:03 UTC
+- Status: **done**: 12 sync tests seed through seedProduct; price/status updates on variants
+- Risk: low · story: [SYNC-043-synchronization-tests-seed-products-through-the.md](../modules/sync/SYNC-043-synchronization-tests-seed-products-through-the.md)
+- Agent: 38,606 tokens, 15 tool uses, 3 min 50 s
+
+### Agent report
+
+**Summary:** The 12 sync test files now seed products with `seedProduct`; price and status updates target the variant.
+
+**Decisions:**
+- pull-catalog local `seedProduct`: kept as a wrapper around the helper (imported as `seedCatalogProduct`); description, category and createdAt are set by a follow-up `product.update` so the "no secret leak" assertion still has data.
+- pull-catalog INACTIVE step: status set on `product_variants`, `server_updated_at` reset on both tables.
+
+**Evidence:** story tests 492/492 (sync folder + unit); full suite 5405/5405, failing: none, 0 known; typecheck clean; lint 0 errors, 249 warnings (existing style)
+<!-- end SYNC-043 -->

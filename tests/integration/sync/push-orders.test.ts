@@ -5,6 +5,7 @@ import type { Viewer } from '../../../src/modules/sync/sync.types.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
+import { seedProduct } from '../../helpers/catalog-fixtures';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e012-0000-7000-8000-000000000001';
@@ -186,31 +187,35 @@ describe('push of orders and order_lines (SYNC-012)', () => {
     await seedMember('05', OWNER_B, ORG_B, 'OWNER');
     await seedMember('01', SELLER, ORG_A, 'SELLER');
     await seedMember('03', DRIVER, ORG_A, 'DRIVER');
-    await prisma.product.create({
-      data: { id: PRODUCT, organizationId: ORG_A, name: 'Riz', unit: 'sac', price: 3000n },
+    await seedProduct(prisma, {
+      id: PRODUCT,
+      organizationId: ORG_A,
+      name: 'Riz',
+      unit: 'sac',
+      price: 3000n,
     });
-    await prisma.product.create({
-      data: {
-        id: PRODUCT_RETIRED,
-        organizationId: ORG_A,
-        name: 'Sel',
-        unit: 'kg',
-        price: 500n,
-        status: 'INACTIVE',
-      },
+    await seedProduct(prisma, {
+      id: PRODUCT_RETIRED,
+      organizationId: ORG_A,
+      name: 'Sel',
+      unit: 'kg',
+      price: 500n,
+      status: 'INACTIVE',
     });
-    await prisma.product.create({
-      data: {
-        id: PRODUCT_DELETED,
-        organizationId: ORG_A,
-        name: 'Huile',
-        unit: 'l',
-        price: 900n,
-        deletedAt: LONG_AGO,
-      },
+    await seedProduct(prisma, {
+      id: PRODUCT_DELETED,
+      organizationId: ORG_A,
+      name: 'Huile',
+      unit: 'l',
+      price: 900n,
+      deletedAt: LONG_AGO,
     });
-    await prisma.product.create({
-      data: { id: PRODUCT_OTHER, organizationId: ORG_B, name: 'Sucre', unit: 'kg', price: 700n },
+    await seedProduct(prisma, {
+      id: PRODUCT_OTHER,
+      organizationId: ORG_B,
+      name: 'Sucre',
+      unit: 'kg',
+      price: 700n,
     });
     await seedRelationship(REL, ORG_A, { customerPersonId: CUSTOMER });
     await seedRelationship(REL_ENDED, ORG_A, {
