@@ -363,7 +363,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-023 | done | | 67 targeted tests and 5182 full-suite tests pass; typecheck clean; lint 0 errors; SAST/secrets/audit clean |
 | BIL-024 | blocked | | May I inspect the existing billing dependency implementations and test helpers, starting with gift.service.ts, which the story does not authorize opening? |
 | BIL-038 | done | | Story tests 11/11; suite 5143/5143; typecheck clean; lint 0 errors |
-| BIL-025 | todo | | |
+| BIL-025 | blocked | | May I read the existing transaction, receipt projection and cross-module contract files needed by refundPayment, which are absent from read_first and Implementation? |
 | BIL-039 | done | | Story tests 9/9; suite 5125/5125; typecheck clean; lint 0 errors; existing dependency audit findings remain. |
 | ORG-036 | done | | PAUSED seats listed, role-changed and revoked without bump or notice; anonymization ends them; OpenAPI updated |
 | SYNC-024 | todo | | |

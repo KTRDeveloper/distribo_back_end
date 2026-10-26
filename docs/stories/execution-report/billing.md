@@ -1278,6 +1278,32 @@ BIL-024 blocked
 - The earlier block (npm audit) is covered by ADR-007 waiver; no action in this story.
 <!-- end BIL-038 -->
 
+<!-- begin BIL-025 -->
+## BIL-025 — A super administrator refunds a payment after an error
+
+- Filed: 2026-10-26 07:15 UTC
+- Status: **blocked**: May I read the existing transaction, receipt projection and cross-module contract files needed by refundPayment, which are absent from read_first and Implementation?
+- Risk: high · story: [BIL-025-a-super-administrator-refunds-a-payment-after.md](../modules/billing/BIL-025-a-super-administrator-refunds-a-payment-after.md)
+- Agent: 20,601 tokens, 13 tool uses, 2 min 27 s
+
+### Agent report
+
+**Summary:** BIL-025 blocked: the mandatory read scope excludes existing helper implementations and cross-module contracts required to implement the refund transaction safely.
+
+**Decisions:**
+- No signatures or transaction behavior were guessed; no implementation or tests were changed.
+- Updated BIL-025 to blocked using set-status; did not create a report file because the final developer instruction prohibits report Markdown files.
+
+**Evidence:** story tests not run; full suite not run; typecheck not run; lint not run. Stopped before implementation for scope clarification.
+
+**Follow-ups:**
+- Authorize reading the existing transaction setup, receipt projection, payment/receipt repositories, rights/limits helpers, notification helper, administrator action helper, and relevant cross-module contracts.
+- Story: `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/docs/stories/modules/billing/BIL-025-a-super-administrator-refunds-a-payment-after.md`.
+- Requested report destination (not written): `/tmp/distribo-next4-20261026-KSzdD0/BIL-025-report.md`.
+
+BIL-025 blocked
+<!-- end BIL-025 -->
+
 <!-- begin BIL-039 -->
 ## BIL-039 — A daily job advances every business that needs it
 
