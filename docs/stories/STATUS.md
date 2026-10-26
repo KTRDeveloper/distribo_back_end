@@ -389,7 +389,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-043 | done | | 12 sync tests seed through seedProduct; price/status updates on variants |
 | CAT-041 | done | | products lose unit, price, minimum and status; mirror triggers dropped; tests moved to seedProduct |
 | CAT-043 | done | | price product_id dropped, variant required, writer/tests/scan updated |
-| ORD-034 | todo | | |
+| ORD-034 | done | | order_lines.product_id dropped; trigger, fill function and product comparison removed; tests of the column rewritten |
 | PRIV-004 | todo | | |
 | PRIV-005 | todo | | |
 | REL-027 | done | | contested_at column, counter CHECK, one-contestation index dropped |

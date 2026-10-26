@@ -207,7 +207,6 @@ describe('DLV-008 deliver only part of an order', () => {
     });
     expect(child.lines).toHaveLength(1);
     expect(child.lines[0]).toMatchObject({
-      productId: null,
       labelApplied: 'Rice (sack)',
       referencePrice: 3000n,
       unitPriceApplied: 3000n,

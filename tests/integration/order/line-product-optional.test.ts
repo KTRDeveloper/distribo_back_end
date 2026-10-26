@@ -16,14 +16,14 @@ const LINE_ID = '0199c032-0000-7000-8000-000000000051';
 const AT = new Date('2026-01-02T00:00:00.000Z');
 
 /** Inserts the line and its matching total atomically, preserving the deferred total rule. */
-function insertLine(variantId = VARIANT_ID, productId: string | null = null, quantity = '5') {
+function insertLine(variantId = VARIANT_ID, quantity = '5') {
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`
       INSERT INTO order_lines (
-        id, order_id, product_id, product_variant_id, label_applied, quantity,
+        id, order_id, product_variant_id, label_applied, quantity,
         reference_price, unit_price_applied, amount
       ) VALUES (
-        ${LINE_ID}::uuid, ${ORDER_ID}::uuid, ${productId}::uuid, ${variantId}::uuid,
+        ${LINE_ID}::uuid, ${ORDER_ID}::uuid, ${variantId}::uuid,
         'Fixture Rice', ${quantity}::numeric, 3000, 3000,
         round(${quantity}::numeric * 3000)::bigint
       )
@@ -99,12 +99,10 @@ beforeEach(async () => {
 describe('optional order-line product (ORD-032)', () => {
   it('saves a line with its variant and no product (AC-1)', async () => {
     await insertLine();
-    const [line] = await prisma.$queryRaw<
-      Array<{ product_id: string | null; product_variant_id: string }>
-    >`
-      SELECT product_id, product_variant_id FROM order_lines WHERE id = ${LINE_ID}::uuid
+    const [line] = await prisma.$queryRaw<Array<{ product_variant_id: string }>>`
+      SELECT product_variant_id FROM order_lines WHERE id = ${LINE_ID}::uuid
     `;
-    expect(line).toEqual({ product_id: null, product_variant_id: VARIANT_ID });
+    expect(line).toEqual({ product_variant_id: VARIANT_ID });
   });
 
   it('accepts an ACTIVE variant of the supplier with the product column omitted (AC-2)', async () => {
@@ -118,10 +116,7 @@ describe('optional order-line product (ORD-032)', () => {
       `;
       await tx.$executeRaw`UPDATE orders SET total_amount = 15000 WHERE id = ${ORDER_ID}::uuid`;
     });
-    const [line] = await prisma.$queryRaw<Array<{ product_id: string | null }>>`
-      SELECT product_id FROM order_lines WHERE id = ${LINE_ID}::uuid
-    `;
-    expect(line.product_id).toBeNull();
+    expect(await prisma.orderLine.count({ where: { id: LINE_ID } })).toBe(1);
   });
 
   it('rejects another business variant without a product and leaves no line (AC-2, AB-1)', async () => {
@@ -135,10 +130,6 @@ describe('optional order-line product (ORD-032)', () => {
 
   it('rejects an unknown variant with 23503 (AC-2)', async () => {
     await expectRejected(insertLine(UNKNOWN_ID), '23503');
-  });
-
-  it('rejects a given product that is not the variant product (AC-3)', async () => {
-    await expectRejected(insertLine(VARIANT_ID, OTHER_PRODUCT_ID), '23514');
   });
 
   it.each(['deleted variant', 'deleted product', 'paused product'])(
@@ -156,6 +147,6 @@ describe('optional order-line product (ORD-032)', () => {
   );
 
   it('rejects quantity just below the variant minimum without a product (C-15)', async () => {
-    await expectRejected(insertLine(VARIANT_ID, null, '4.999'), '23514');
+    await expectRejected(insertLine(VARIANT_ID, '4.999'), '23514');
   });
 });

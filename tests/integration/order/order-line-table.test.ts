@@ -171,14 +171,9 @@ describe('order line amount rule (AC-1, C-20, CM-14, C-01, C-35)', () => {
     const [after] = await read();
     expect(after.server_updated_at.getTime()).toBeGreaterThan(before.server_updated_at.getTime());
 
-    for (const column of ['id', 'order_id', 'product_id', 'price_set_by_id']) {
+    for (const column of ['id', 'order_id', 'product_variant_id', 'price_set_by_id']) {
       await expectColumnType('order_lines', column, 'uuid');
     }
-    const [productColumn] = await prisma.$queryRaw<Array<{ is_nullable: string }>>`
-      SELECT is_nullable FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'order_lines' AND column_name = 'product_id'
-    `;
-    expect(productColumn.is_nullable).toBe('YES');
     for (const column of ['reference_price', 'unit_price_applied', 'amount']) {
       await expectColumnType('order_lines', column, 'bigint');
     }
@@ -190,11 +185,11 @@ describe('order line amount rule (AC-1, C-20, CM-14, C-01, C-35)', () => {
     }
   });
 
-  it('has indexes on order_id and product_id', async () => {
+  it('has indexes on order_id and product_variant_id', async () => {
     const rows = await prisma.$queryRaw<Array<{ indexdef: string }>>`
       SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'order_lines'
     `;
-    for (const columns of ['(order_id)', '(product_id)']) {
+    for (const columns of ['(order_id)', '(product_variant_id)']) {
       expect(
         rows.some((r) => r.indexdef.includes(columns)),
         columns

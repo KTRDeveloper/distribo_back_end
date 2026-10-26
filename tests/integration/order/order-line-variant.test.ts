@@ -55,16 +55,15 @@ async function captureSqlCode(operation: Promise<unknown>): Promise<string | und
  * statement (ORD-006). The variant column is left out of the statement when
  * `variant` is `undefined`.
  */
-function insertLine(product: string, variant?: string): Promise<number> {
+function insertLine(variant?: string): Promise<number> {
   if (variant === undefined) {
     return prisma.$executeRaw`
       WITH inserted AS (
         INSERT INTO order_lines (
-          id, order_id, product_id, label_applied, quantity,
+          id, order_id, label_applied, quantity,
           reference_price, unit_price_applied, amount
         )
-        VALUES (${LINE_ID}::uuid, ${ORDER_ID}::uuid, ${product}::uuid, 'Fixture Rice', 2,
-          3000, 3000, 6000)
+        VALUES (${LINE_ID}::uuid, ${ORDER_ID}::uuid, 'Fixture Rice', 2, 3000, 3000, 6000)
         RETURNING id
       )
       UPDATE orders SET total_amount = total_amount + 6000 WHERE id = ${ORDER_ID}::uuid
@@ -73,10 +72,10 @@ function insertLine(product: string, variant?: string): Promise<number> {
   return prisma.$executeRaw`
     WITH inserted AS (
       INSERT INTO order_lines (
-        id, order_id, product_id, product_variant_id, label_applied, quantity,
+        id, order_id, product_variant_id, label_applied, quantity,
         reference_price, unit_price_applied, amount
       )
-      VALUES (${LINE_ID}::uuid, ${ORDER_ID}::uuid, ${product}::uuid, ${variant}::uuid,
+      VALUES (${LINE_ID}::uuid, ${ORDER_ID}::uuid, ${variant}::uuid,
         'Fixture Rice', 2, 3000, 3000, 6000)
       RETURNING id
     )
@@ -169,23 +168,18 @@ describe('order line variant', () => {
     expect(indexes.some((r) => r.indexdef.includes('(product_variant_id)'))).toBe(true);
   });
 
-  it('AC-2 a line for an old-style product gets its variant', async () => {
-    await insertLine(OLD_PRODUCT_ID);
-    expect(await readVariant()).toBe(OLD_PRODUCT_ID);
-  });
-
   it('AC-3 a given variant is kept', async () => {
-    await insertLine(NEW_PRODUCT_ID, NEW_VARIANT_ID);
+    await insertLine(NEW_VARIANT_ID);
     expect(await readVariant()).toBe(NEW_VARIANT_ID);
   });
 
   it('AC-4 an unknown variant fails with 23503', async () => {
-    expect(await captureSqlCode(insertLine(OLD_PRODUCT_ID, UNKNOWN_ID))).toBe('23503');
+    expect(await captureSqlCode(insertLine(UNKNOWN_ID))).toBe('23503');
     expect(await countLines()).toBe(0);
   });
 
-  it('AB-1 a new-style product without a given variant fails with 23503 and stores nothing', async () => {
-    expect(await captureSqlCode(insertLine(NEW_PRODUCT_ID))).toBe('23503');
+  it('AB-1 a line without a variant fails with 23502 and stores nothing (ORD-034)', async () => {
+    expect(await captureSqlCode(insertLine())).toBe('23502');
     expect(await countLines()).toBe(0);
   });
 });

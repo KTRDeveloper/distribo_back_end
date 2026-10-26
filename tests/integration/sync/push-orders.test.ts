@@ -256,7 +256,6 @@ describe('push of orders and order_lines (SYNC-012)', () => {
     expect(order.lines).toHaveLength(1);
     expect(order.lines[0]).toMatchObject({
       id: LINE,
-      productId: null,
       labelApplied: 'Riz — sac',
       referencePrice: 3000n,
       unitPriceApplied: 3000n,

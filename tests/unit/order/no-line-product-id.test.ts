@@ -5,15 +5,9 @@ import { describe, expect, it } from 'vitest';
 const ROOT = join(__dirname, '../../..');
 const THIS_FILE = 'tests/unit/order/no-line-product-id.test.ts';
 
-// Tests whose subject is the `product_id` column itself: the filling and checking triggers of
-// ORD-024, ORD-025 and ORD-032. They cannot name the column less than they test it. ORD-034 drops
-// the column and rewrites them, then this list goes.
-const COLUMN_TESTS = new Set([
-  'tests/integration/order/order-line-variant.test.ts',
-  'tests/integration/order/order-line-variant-required.test.ts',
-  'tests/integration/order/line-product-optional.test.ts',
-  'tests/integration/order/line-rules-variant.test.ts',
-]);
+// Tests whose subject is the `product_id` column itself. ORD-034 dropped the column, so the only one
+// left is the test that proves a raw insert naming it is refused.
+const COLUMN_TESTS = new Set(['tests/integration/order/line-product-dropped.test.ts']);
 
 // `productId` used as a property name of the created object, longhand or shorthand; a value such as
 // `productVariantId: productId` or `options.productId` is not a write of the product.

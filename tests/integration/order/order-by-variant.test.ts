@@ -170,7 +170,6 @@ describe('ORD-027 order lines are priced from the variant', () => {
     });
     const line = await prisma.orderLine.findUniqueOrThrow({ where: { id: LINE_ID } });
     expect(line).toMatchObject({
-      productId: null,
       productVariantId: VARIANT,
       labelApplied: 'T-shirt — Rouge / L (pièce)',
       referencePrice: 2800n,

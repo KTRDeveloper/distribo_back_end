@@ -1128,3 +1128,34 @@ ORD-032 done
 **Follow-ups:**
 - ORD-034 must also rewrite the 4 allowlisted tests and remove the allowlist from `tests/unit/order/no-line-product-id.test.ts`; its "Tests to update" lists only order-line-table and line-rules, not these 4.
 <!-- end ORD-033 -->
+
+<!-- begin ORD-034 -->
+## ORD-034 — Order lines lose their product column
+
+- Filed: 2026-10-26 10:30 UTC
+- Status: **done**: order_lines.product_id dropped; trigger, fill function and product comparison removed; tests of the column rewritten
+- Risk: high · story: [ORD-034-order-lines-lose-their-product-column.md](../modules/order/ORD-034-order-lines-lose-their-product-column.md)
+- Agent: 102,623 tokens, 37 tool uses, 6 min 59 s
+
+### Agent report
+
+**Summary:** Migration 20261025150000_ord_034_drop_line_product_id drops order_lines.product_id (index, key, fill trigger and function) and rewrites order_lines_enforce_rules() without the product comparison; schema and its comment updated.
+
+**Decisions:**
+- Migration timestamp 20261025150000: next after CAT-043's 20261025140000.
+- Tests that wrote or read the dropped column, outside "Tests to update": I edited them minimally (the story lists only two files). Removed `productId` assertions in delivery/line-variant, partial-delivery, order-by-variant, sync/controls-by-variant, nullable-line-prices, push-lines-by-variant, push-orders, line-without-product (now asserts no `productId` property). Cause: the column no longer exists, so the Prisma client rejects them.
+- The four tests whose subject was the column (order-line-variant, order-line-variant-required, line-product-optional, line-rules-variant): the comment in tests/unit/order/no-line-product-id.test.ts says ORD-034 "rewrites them, then this list goes". Removed fill-from-product, product-mismatch and the one-time ORD-025 copy/audit tests (they need the dropped column and trigger); kept the other rules on variant-only inserts. order-line-variant AB-1 now expects 23502.
+- tests/unit/order/no-line-product-id.test.ts: COLUMN_TESTS now holds only line-product-dropped.test.ts (its AB-1 raw insert must name product_id), as that comment foresees.
+
+**Tests added beyond the story:**
+- `line-product-dropped.test.ts` › no trigger that fills the variant: trigger and function `order_lines_fill_variant` are absent (Context); failed first.
+- `line-product-dropped.test.ts` › refuses a paused product with 23514 (C-15); passed at once (rule kept by the rewritten function).
+
+**Other additions:**
+- Rewrote the stale ORD-026 text in the OrderLine schema comment (no more product match).
+
+**Evidence:** story tests 49/49 (+8 in the new file); full suite 5387/5387, failing: none, 0 known; typecheck clean; lint 0 errors, warnings only
+
+**Follow-ups:**
+- A human may want to confirm that editing the unlisted tests above is acceptable; they were unavoidable once the column went.
+<!-- end ORD-034 -->

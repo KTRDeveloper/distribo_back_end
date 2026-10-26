@@ -184,7 +184,6 @@ describe('push of order lines by variant (SYNC-029)', () => {
     expect(bodyOf<PushBody>(response)).toMatchObject({ accepted: 2, rejected: [], aside: 0 });
     expect(await storedLine()).toMatchObject({
       productVariantId: RICE,
-      productId: null,
       labelApplied: 'Riz parfumé — sac 10 kg',
       amount: 12000n,
     });

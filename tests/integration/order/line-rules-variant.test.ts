@@ -12,9 +12,6 @@ const SUPPLIER_ORDER_ID = '0199c026-0000-7000-8000-000000000032';
 // New-style product of the supplier and its variant (minimum 5).
 const PRODUCT_ID = '0199c026-0000-7000-8000-000000000041';
 const VARIANT_ID = '0199c026-0000-7000-8000-000000000051';
-// A second product of the supplier, for a variant that sits under another product.
-const SIBLING_PRODUCT_ID = '0199c026-0000-7000-8000-000000000042';
-const SIBLING_VARIANT_ID = '0199c026-0000-7000-8000-000000000052';
 // Product and variant of another business.
 const FOREIGN_PRODUCT_ID = '0199c026-0000-7000-8000-000000000043';
 const FOREIGN_VARIANT_ID = '0199c026-0000-7000-8000-000000000053';
@@ -61,7 +58,6 @@ async function captureSqlCode(operation: Promise<unknown>): Promise<string | und
 
 type Line = {
   orderId?: string;
-  productId?: string;
   variantId?: string;
   quantity?: string;
   amount?: bigint;
@@ -81,10 +77,10 @@ function insertLine(row: Line = {}): Promise<unknown> {
     tx.$executeRaw`
       WITH inserted AS (
         INSERT INTO order_lines (
-          id, order_id, product_id, product_variant_id, label_applied, quantity,
+          id, order_id, product_variant_id, label_applied, quantity,
           reference_price, unit_price_applied, amount
         )
-        VALUES (${LINE_ID}::uuid, ${orderId}::uuid, ${row.productId ?? PRODUCT_ID}::uuid,
+        VALUES (${LINE_ID}::uuid, ${orderId}::uuid,
           ${row.variantId ?? VARIANT_ID}::uuid, 'Fixture Rice', ${quantity}::numeric,
           3000, 3000, ${amount}::bigint)
         RETURNING id
@@ -107,7 +103,13 @@ async function insertProduct(id: string, orgId: string, unit: string): Promise<v
     `;
     return;
   }
-  await seedProduct(prisma, { id, organizationId: orgId, name: 'Fixture Product', unit, price: 3000n });
+  await seedProduct(prisma, {
+    id,
+    organizationId: orgId,
+    name: 'Fixture Product',
+    unit,
+    price: 3000n,
+  });
 }
 
 async function insertVariant(
@@ -158,8 +160,6 @@ beforeEach(async () => {
   `;
   await insertProduct(PRODUCT_ID, SUPPLIER_ORG_ID, '');
   await insertVariant(VARIANT_ID, PRODUCT_ID, SUPPLIER_ORG_ID, '5');
-  await insertProduct(SIBLING_PRODUCT_ID, SUPPLIER_ORG_ID, '');
-  await insertVariant(SIBLING_VARIANT_ID, SIBLING_PRODUCT_ID, SUPPLIER_ORG_ID, null);
   await insertProduct(FOREIGN_PRODUCT_ID, OTHER_ORG_ID, '');
   await insertVariant(FOREIGN_VARIANT_ID, FOREIGN_PRODUCT_ID, OTHER_ORG_ID, null);
   await insertProduct(OLD_PRODUCT_ID, SUPPLIER_ORG_ID, 'sack');
@@ -184,11 +184,7 @@ describe('control', () => {
 
 describe('refused lines (AC-1, C-15)', () => {
   const retire: Array<[string, () => Promise<unknown>, Line]> = [
-    [
-      'a variant of another business',
-      () => Promise.resolve(),
-      { productId: FOREIGN_PRODUCT_ID, variantId: FOREIGN_VARIANT_ID },
-    ],
+    ['a variant of another business', () => Promise.resolve(), { variantId: FOREIGN_VARIANT_ID }],
     [
       'an INACTIVE variant',
       () =>
@@ -220,11 +216,6 @@ describe('refused lines (AC-1, C-15)', () => {
           UPDATE products SET paused_at = now() WHERE id = ${PRODUCT_ID}::uuid
         `,
       {},
-    ],
-    [
-      "a variant that belongs to another product than the line's product_id",
-      () => Promise.resolve(),
-      { productId: PRODUCT_ID, variantId: SIBLING_VARIANT_ID },
     ],
   ];
 
@@ -295,21 +286,7 @@ describe('retired variants through synchronization (AC-3)', () => {
 
   it('still refuses a variant of another business', async () => {
     expect(
-      await captureSqlCode(
-        insertLine({
-          productId: FOREIGN_PRODUCT_ID,
-          variantId: FOREIGN_VARIANT_ID,
-          allowRetired: true,
-        })
-      )
-    ).toBe('23514');
-  });
-
-  it('still refuses a variant that belongs to another product', async () => {
-    expect(
-      await captureSqlCode(
-        insertLine({ productId: PRODUCT_ID, variantId: SIBLING_VARIANT_ID, allowRetired: true })
-      )
+      await captureSqlCode(insertLine({ variantId: FOREIGN_VARIANT_ID, allowRetired: true }))
     ).toBe('23514');
   });
 
@@ -325,15 +302,11 @@ describe('products whose variant has their id behave as before (AC-4)', () => {
     await prisma.$executeRaw`
       UPDATE product_variants SET status = 'INACTIVE' WHERE id = ${OLD_PRODUCT_ID}::uuid
     `;
-    expect(
-      await captureSqlCode(insertLine({ productId: OLD_PRODUCT_ID, variantId: OLD_PRODUCT_ID }))
-    ).toBe('23514');
+    expect(await captureSqlCode(insertLine({ variantId: OLD_PRODUCT_ID }))).toBe('23514');
   });
 
   it('accepts a line for an ACTIVE old-style product', async () => {
-    expect(
-      await captureSqlCode(insertLine({ productId: OLD_PRODUCT_ID, variantId: OLD_PRODUCT_ID }))
-    ).toBeUndefined();
+    expect(await captureSqlCode(insertLine({ variantId: OLD_PRODUCT_ID }))).toBeUndefined();
   });
 });
 
@@ -344,7 +317,6 @@ describe('a variant of another business with the setting on (AB-1, CWE-639)', ()
         await captureSqlCode(
           insertLine({
             orderId,
-            productId: FOREIGN_PRODUCT_ID,
             variantId: FOREIGN_VARIANT_ID,
             quantity: '5',
             allowRetired: true,

@@ -100,7 +100,6 @@ describe('variant-only sync price consumers (ORD-032)', () => {
     expect(await control()).toEqual([expect.stringContaining('PRICE_CHANGED:')]);
     const line = await prisma.orderLine.findUniqueOrThrow({ where: { id: LINE } });
     expect(line).toMatchObject({
-      productId: null,
       productVariantId: VARIANT,
       referencePrice: 3000n,
     });

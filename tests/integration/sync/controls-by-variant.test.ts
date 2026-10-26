@@ -44,7 +44,6 @@ const movePrice = (id: string, price: bigint) =>
 const lineData = (id: string, variantId: string, label: string, price: bigint) => ({
   id,
   productVariantId: variantId,
-  productId: null,
   labelApplied: label,
   quantity: '1',
   referencePrice: price,

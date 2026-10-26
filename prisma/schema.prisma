@@ -1170,7 +1170,6 @@ model Product {
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
 
   organization Organization     @relation(fields: [organizationId], references: [id])
-  orderLines   OrderLine[]
   variants     ProductVariant[]
 
   // Lets a variant point at its product together with the business, so the
@@ -1406,15 +1405,14 @@ model Order {
 //   other code may set it; the product must still belong to the supplier.
 // Migration 20261019160000_ord_026_line_rules_by_variant: the insert rules above
 // now check the line's variant and its product, not the product alone. On insert
-// the variant must be the variant of the line's own product and belong to the
-// supplier of the order's relationship, and it must be ACTIVE and not deleted,
+// the variant must belong to the supplier of the order's relationship, and it
+// must be ACTIVE and not deleted,
 // with a product that is neither deleted nor paused (SQLSTATE 23514 otherwise).
 // On an order placed by the CUSTOMER the quantity must reach the variant's
 // minimum order quantity, when it has one. A variant that does not exist is left
 // to the foreign key (23503). The sync setting above still lets a retired
 // variant through: it skips only the ACTIVE, deletion and pause checks, never
-// the business, the product match or the minimum. An old-style product keeps
-// working because its variant copies its status and minimum.
+// the business or the minimum.
 // Migration 20261004320000_ord_006_total_check: adding, changing, moving or
 // removing a line (and soft-deleting it) re-checks its order's total at commit.
 // The order's total must equal the sum of its non-deleted line amounts plus its
@@ -1422,26 +1420,20 @@ model Order {
 // the same transaction (SQLSTATE 23514 otherwise). A DELIVERED order needs a
 // delivered quantity on every non-deleted line.
 // These are CHECK constraints and triggers, which Prisma cannot express.
-// Migration 20261019140000_ord_024_order_line_variant: a line names a product
-// variant. When a line is saved without one, the database fills it from
-// product_id, because every old-style product has a variant with its own id.
-// A new-style product has no such variant, so the line is refused (SQLSTATE
-// 23503) and no variant is guessed. A variant that is given is kept as it is.
-// Migration 20261019150000_ord_025_order_line_variant_required: the variant is
-// now required. The lines saved before were filled from their product, and a
-// migration that finds a line it cannot fill stops instead of guessing. A line
-// can never be saved or updated with an empty variant (SQLSTATE 23502). Code may
-// still leave the variant out of a create, because the database fills it, so the
-// field has an unknown default here and every read returns a value.
-// Migration 20261021210235_ord_032_line_product_optional: the product is optional.
-// The variant alone decides which product and supplier the line belongs to; a
-// product given by the caller must still match the variant's product. The insert
-// trigger checks this because Prisma cannot express rules across these tables.
+// Migration 20261025150000_ord_034_drop_line_product_id: a line names its variant
+// and nothing else. The order_lines table has no product column any more; the
+// variant alone says which product and which business the line belongs to, and
+// nothing fills it in for the code: a line saved without a variant is refused
+// (SQLSTATE 23502), so code must always give it. The database still checks, on
+// insert, that the variant belongs to the supplier of the order's relationship
+// (23514), and a variant that does not exist is refused by the foreign key
+// (23503). Migrations 20261019140000_ord_024, 20261019150000_ord_025 and
+// 20261021210235_ord_032 led here: they added the variant, made it required and
+// made the product optional.
 model OrderLine {
   id                String    @id @db.Uuid
   orderId           String    @map("order_id") @db.Uuid
-  productId         String?   @map("product_id") @db.Uuid
-  productVariantId  String    @default(dbgenerated()) @map("product_variant_id") @db.Uuid
+  productVariantId  String    @map("product_variant_id") @db.Uuid
   labelApplied      String    @map("label_applied")
   quantity          Decimal   @db.Decimal(12, 3)
   deliveredQuantity Decimal?  @map("delivered_quantity") @db.Decimal(12, 3)
@@ -1454,12 +1446,10 @@ model OrderLine {
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
 
   order          Order          @relation(fields: [orderId], references: [id])
-  product        Product?       @relation(fields: [productId], references: [id], onDelete: Restrict)
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
   priceSetBy     Person?        @relation("OrderLinePriceSetBy", fields: [priceSetById], references: [id])
 
   @@index([orderId])
-  @@index([productId])
   @@index([productVariantId])
   @@map("order_lines")
 }

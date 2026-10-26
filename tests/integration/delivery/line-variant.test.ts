@@ -169,7 +169,6 @@ describe('DLV-014 the rest of a delivery and a counter sale keep the variant', (
     });
     expect(child.lines).toHaveLength(1);
     expect(child.lines[0]).toMatchObject({
-      productId: null,
       productVariantId: variantId,
       labelApplied: label,
       referencePrice: 3000n,
@@ -182,8 +181,6 @@ describe('DLV-014 the rest of a delivery and a counter sale keep the variant', (
 
   it('the rest preserves a null product and its distinct variant (ORD-032)', async () => {
     await seedOrder(1, SHIRT_PRODUCT, RED_L, 'Fixture Red');
-    await prisma.orderLine.update({ where: { id: lineId(1) }, data: { productId: null } });
-
     const response = await createAuthenticatedRequest(app, DRIVER)
       .post(`/api/v1/organizations/${SUPPLIER}/orders/${orderId(1)}/deliver`)
       .send({
@@ -201,7 +198,6 @@ describe('DLV-014 the rest of a delivery and a counter sale keep the variant', (
     });
     expect(child.lines).toHaveLength(1);
     expect(child.lines[0]).toMatchObject({
-      productId: null,
       productVariantId: RED_L,
       referencePrice: 3000n,
       unitPriceApplied: 2700n,
@@ -226,7 +222,6 @@ describe('DLV-014 the rest of a delivery and a counter sale keep the variant', (
     expect(response.status).toBe(201);
     const line = await prisma.orderLine.findUniqueOrThrow({ where: { id: lineId(2) } });
     expect(line).toMatchObject({
-      productId: null,
       productVariantId: RED_L,
       labelApplied: 'T-shirt — Rouge / L (pièce)',
       amount: 6000n,

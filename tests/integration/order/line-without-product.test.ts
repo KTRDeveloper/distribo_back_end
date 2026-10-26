@@ -119,12 +119,8 @@ describe('ORD-033 lines are saved with their variant and no product', () => {
 
     expect([placed.status, entered.status]).toEqual([201, 201]);
     const lines = [...(await linesOf(orderId(1))), ...(await linesOf(orderId(2)))];
-    expect(lines.map((line) => [line.productVariantId, line.productId])).toEqual([
-      [RICE, null],
-      [SALT, null],
-      [RICE, null],
-      [SALT, null],
-    ]);
+    expect(lines.map((line) => line.productVariantId)).toEqual([RICE, SALT, RICE, SALT]);
+    for (const line of lines) expect(line).not.toHaveProperty('productId');
   });
 
   it('the order made for the rest of a delivery keeps the variant only (AC-2)', async () => {
@@ -162,10 +158,6 @@ describe('ORD-033 lines are saved with their variant and no product', () => {
         },
       },
     });
-    // Lines saved before ORD-033 may still carry their product; the rest must not copy it.
-    await prisma.$executeRaw`
-      UPDATE order_lines SET product_id = product_variant_id WHERE order_id = ${orderId(3)}::uuid
-    `;
     await prisma.delivery.create({
       data: {
         id: deliveryId(3),
@@ -192,7 +184,7 @@ describe('ORD-033 lines are saved with their variant and no product', () => {
     const child = await prisma.order.findFirstOrThrow({ where: { parentOrderId: orderId(3) } });
     const lines = await linesOf(child.id);
     expect(lines.map((line) => line.productVariantId).sort()).toEqual([RICE, SALT].sort());
-    expect(lines.map((line) => line.productId)).toEqual([null, null]);
+    for (const line of lines) expect(line).not.toHaveProperty('productId');
   });
 
   it('a line pushed by a phone keeps the variant only (AC-3)', async () => {
@@ -236,7 +228,6 @@ describe('ORD-033 lines are saved with their variant and no product', () => {
     });
     expect(await prisma.orderLine.findUniqueOrThrow({ where: { id: lineId(7) } })).toMatchObject({
       productVariantId: RICE,
-      productId: null,
     });
   });
 });
