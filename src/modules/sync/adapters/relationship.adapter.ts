@@ -8,7 +8,7 @@ import {
 import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
 import type { Row, SyncAdapter, Viewer } from '../sync.types.js';
-import { refuseEveryLine } from './identity.adapter.js';
+import { pushPrices } from './price.push.js';
 import { pushRelationships } from './relationship.push.js';
 
 type Changes = { created: Row[]; updated: Row[]; deleted: string[] };
@@ -166,6 +166,7 @@ export const customerRelationshipsAdapter: SyncAdapter = {
  * SELLER; a customer person receives only the prices of their own relationships; a DRIVER none.
  * `set_at` stands for `created_at`. Prices identify the sellable variant, never its legacy parent
  * (SYNC-027, ASVS v5.0.0-15.3.1); the database compatibility column is not part of the wire contract.
+ * The owner's phone sets and removes prices through `price.push.ts` (SYNC-034).
  */
 export const customerPricesAdapter: SyncAdapter = {
   table: 'customer_prices',
@@ -210,7 +211,7 @@ export const customerPricesAdapter: SyncAdapter = {
       })
     );
   },
-  push: (_ctx, change) => Promise.resolve(refuseEveryLine(change)),
+  push: pushPrices,
 };
 
 export const relationshipAdapters: SyncAdapter[] = [

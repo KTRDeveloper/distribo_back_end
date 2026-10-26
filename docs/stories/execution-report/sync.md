@@ -1171,3 +1171,33 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - None.
 <!-- end SYNC-033 -->
+
+<!-- begin SYNC-034 -->
+## SYNC-034 — The owner's phone sets and removes negotiated prices
+
+- Filed: 2026-10-26 08:59 UTC
+- Status: **done**: price push by the owner; org found from relationship or stored price
+- Risk: medium · story: [SYNC-034-the-owner-s-phone-sets-and-removes-negotiated.md](../modules/sync/SYNC-034-the-owner-s-phone-sets-and-removes-negotiated.md)
+- Agent: 80,988 tokens, 22 tool uses, 4 min 5 s
+
+### Agent report
+
+**Summary:** The `customer_prices` adapter now pushes through the new `pushPrices` (`price.push.ts`): create, update and delete with the CAT-039 writers.
+
+**Decisions:**
+- Organization source: the judge does not stamp `organization_id` on prices (judge-catalog.test.ts expects none, and I may not change it). The adapter reads it from the relationship (create) or the stored price (update), and requires it among the viewer's ACTIVE OWNER organizations, else forbidden `OUT_OF_SCOPE`.
+- Update: the relationship and variant passed to the writer are the stored ones, so a pair never moves (v5.0.0-15.3.3).
+- Delete: tries each owned organization, as `deleteInOwnedOrganizations` does for the catalog; `NOT_FOUND` becomes aside `NOT_FOUND`.
+- Non-UUID references are replaced by the nil UUID, so the database never sees junk (as `readVariant` does).
+
+**Tests added beyond the story:**
+- `push-prices.test.ts` › same value again: UNCHANGED moves no date (AC-3); passed at once
+- `push-prices.test.ts` › each aside line has its code (INVALID, NO_RELATIONSHIP, NO_VARIANT, NOT_FOUND) (AC-4)
+- `push-prices.test.ts` › change to a price deleted since gives GONE, price unchanged (AC-4)
+- `push-prices.test.ts` › author is the session person whatever `set_by_id` the row carries (v5.0.0-15.3.3)
+
+**Evidence:** story tests 9/9 (`push-prices.test.ts`; `pull-relationships.test.ts` also passes in the full suite); full suite 5318/5318, failing: none, 0 known; typecheck clean; lint 0 errors, 242 warnings (not counted)
+
+**Follow-ups:**
+- The story says the judge stamps `organization_id` on prices; it does not. If SYNC-030 was meant to, the adapter's lookup could go.
+<!-- end SYNC-034 -->
