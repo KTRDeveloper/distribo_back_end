@@ -65,7 +65,7 @@ jobs:
           node-version: 22
 
       - name: Run dependency audit
-        run: npm audit --audit-level=high
+        run: npm run audit
 
   semgrep:
     name: SAST Scan (Semgrep)

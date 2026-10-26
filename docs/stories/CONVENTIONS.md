@@ -16,7 +16,7 @@ Every story assumes this file; stories never restate it. If a story contradicts 
 | typecheck | `npm run typecheck` |
 | test one file | `npx vitest run <test-file>` |
 | full suite | `npm test` |
-| dependency audit | `npm audit --audit-level=high` |
+| dependency audit | `npm run audit` |
 | test database | `npm run test:db:up` |
 | new migration | `npx prisma migrate dev --name <name>` |
 

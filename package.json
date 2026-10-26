@@ -30,6 +30,7 @@
     "job:image-cleanup": "tsx src/jobs/image-cleanup.ts",
     "admin:create-super": "tsx scripts/create-super-admin.ts",
     "typecheck": "tsc --noEmit",
+    "audit": "node scripts/audit.mjs",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
