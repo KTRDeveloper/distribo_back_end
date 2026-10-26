@@ -380,7 +380,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-034 | done | | price push by the owner; org found from relationship or stored price |
 | SYNC-035 | done | | Catalog limits enforced after judge tables; 6 tests; suite 5324 green |
 | SYNC-036 | done | | organization_contacts adapter (team + verified other side), 16 tables, push read-only |
-| SYNC-037 | todo | | |
+| SYNC-037 | blocked | | Needs a listed update of tests/integration/sync/pull-identity-removed-fields.test.ts (AC-3 'keeps all other keys' toEqual on the organization row): it fails once the six plan fields are added, and the story lists only pull-identity.test.ts under Tests to update |
 | SYNC-038 | todo | | |
 | SYNC-039 | todo | | |
 | SYNC-040 | todo | | |

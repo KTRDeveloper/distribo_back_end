@@ -1267,3 +1267,28 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - Story's "Tests to update" missed pull-variants.test.ts (same 15-table assertion).
 - Team gaining a new membership after the last pull does not resend that org's old contacts (same as other adapters, left to the scope-version resync).
 <!-- end SYNC-036 -->
+
+<!-- begin SYNC-037 -->
+## SYNC-037 — The team's phone knows the plan, its due date and its limits
+
+- Filed: 2026-10-26 09:25 UTC
+- Status: **blocked**: Needs a listed update of tests/integration/sync/pull-identity-removed-fields.test.ts (AC-3 'keeps all other keys' toEqual on the organization row): it fails once the six plan fields are added, and the story lists only pull-identity.test.ts under Tests to update
+- Risk: medium · story: [SYNC-037-the-team-s-phone-knows-the-plan-its-due-date.md](../modules/sync/SYNC-037-the-team-s-phone-knows-the-plan-its-due-date.md)
+- Agent: 48,037 tokens, 20 tool uses, 2 min 34 s
+
+### Agent report
+
+**Summary:** Blocked: adapter and new tests are done, but an existing test not listed under "Tests to update" now fails, and I may not edit it.
+
+**Decisions:**
+- Left the adapter change and `pull-plan-fields.test.ts` in the working tree; did not touch `pull-identity-removed-fields.test.ts`.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-plan-fields.test.ts` › revoked member gets no organization row: only ACTIVE memberships receive the plan (v5.0.0-8.2.2); passed at once
+- `tests/integration/sync/pull-plan-fields.test.ts` › read-only and other side tests passed at once (regression guards: SYNC_TABLE_READ_ONLY already refused the push)
+
+**Evidence:** story tests 7/7 plus pull-identity 15/15; full suite not run (blocked); typecheck clean; lint 0 errors (quiet)
+
+**Follow-ups:**
+- `tests/integration/sync/pull-identity-removed-fields.test.ts` › "keeps all other keys and amount scope" (2 cases, AC-3 of ORG-039) uses `toEqual` on the whole organization row and fails with the six new keys (payment_code, plan, plan_ends_at, grace_ends_at, max_collaborators, max_products). The story says only `pull-identity.test.ts` is affected. A human must either list that file under "Tests to update" (expected row gains the six fields, FREE defaults: plan FREE, dates null, 2, 30) or authorize the edit.
+<!-- end SYNC-037 -->
