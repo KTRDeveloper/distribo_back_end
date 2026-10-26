@@ -1,5 +1,11 @@
 import express, { Request, Response, NextFunction } from 'express';
 
+declare module 'express-serve-static-core' {
+  interface Request {
+    rawBody?: Buffer;
+  }
+}
+
 interface BodyParserError {
   status?: number;
   code?: string;
@@ -27,7 +33,13 @@ export function jsonBodyParser(req: Request, res: Response, next: NextFunction) 
   const limit = BODY_LIMITS[req.path] || '100kb';
 
   // Create a parser with the appropriate limit
-  const parser = express.json({ limit });
+  const parser = express.json({
+    limit,
+    verify: (_request, _response, body) => {
+      // Signature verification must see the original bytes, not re-serialized JSON.
+      if (req.path === '/api/v1/billing/confirmations') req.rawBody = body;
+    },
+  });
 
   // If the body exceeds the limit, express will emit a 'PayloadTooLargeError'
   // We need to catch this and handle it

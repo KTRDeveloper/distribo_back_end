@@ -1031,3 +1031,37 @@ BIL-017 done
 
 BIL-026 done
 <!-- end BIL-026 -->
+
+<!-- begin BIL-034 -->
+## BIL-034 — The aggregator confirms a payment through a verified call
+
+- Filed: 2026-10-26 05:26 UTC
+- Status: **done**: 62 story checks and 5110 suite tests pass; typecheck clean; dependency audit findings and unavailable scanners reported
+- Risk: high · story: [BIL-034-the-aggregator-confirms-a-payment-through-a.md](../modules/billing/BIL-034-the-aggregator-confirms-a-payment-through-a.md)
+- Agent: 47,847 tokens, 49 tool uses, 7 min 3 s
+
+### Agent report
+
+**Summary:** BIL-034 implemented: public confirmations verify aggregator proof over exact raw bytes before invoking transactional payment confirmation; status marked done.
+
+**Decisions:**
+- Keep provider-specific validation inside the aggregator adapter; preserve the existing 100 kb JSON limit and capture raw bytes only for the exact confirmations path.
+- Rejection assertions isolate the single payment_confirmation_rejected event because the existing global handler also logs application errors.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/confirmation-route.test.ts` › verified wrong amount: returns 409 with no activation (story error contract).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/confirmation-route.test.ts` › missing raw body: refuses parsed-body substitution without calling verification (fail-closed context).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/confirmation-route.test.ts` › exact bytes and normalized headers; FAILED/EXPIRED acknowledgments: preserve proof and return only OK (story context).
+
+**Other additions:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/openapi/openapi.json` regenerated automatically by documentation checks.
+
+**Evidence:** story checks 62/62; full suite 5110/5110 across 377 files, failing: none, 0 known; typecheck clean; lint 0 errors, 219 warnings; git diff --check clean. Red tests observed before implementation; full suite ran once.
+
+**Follow-ups:**
+- Dependency audit reports 5 vulnerabilities (3 high, 1 moderate, 1 low) in installed dependencies; no dependency changes made because versions are constrained.
+- Semgrep and Gitleaks executables are unavailable; SAST and dedicated secret scanning remain unverified.
+- Report delivered directly in this handback rather than written to a Markdown file, following the explicit instruction prohibiting report-file writes.
+
+BIL-034 done
+<!-- end BIL-034 -->

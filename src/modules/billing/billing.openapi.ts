@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
   createPaymentBodyOpenApiSchema,
@@ -21,6 +22,45 @@ import {
   swapSeatBodySchema,
   swapSeatResponseSchema,
 } from './billing.schemas.js';
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/billing/confirmations',
+  tags: ['billing'],
+  summary: 'Confirm a payment with aggregator proof, without a user session',
+  description: 'The aggregator verifies headers and original JSON bytes (ADR-006). '
+    + 'The received status is never trusted; the provider status is checked independently. Maximum body: 100 kb.',
+  security: [],
+  request: {
+    body: { required: true, content: { 'application/json': { schema: z.unknown() } } },
+  },
+  responses: {
+    200: {
+      description: 'Acknowledged, including repeats and payments still pending, failed or expired',
+      content: { 'application/json': { schema: z.object({ status: z.literal('OK') }).strict() } },
+    },
+    400: {
+      description: 'Malformed JSON',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'Missing body or invalid aggregator proof',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'Unknown provider reference',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'PAYMENT_MISMATCH: provider amount differs from the stored amount',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    413: {
+      description: 'PAYLOAD_TOO_LARGE: body exceeds 100 kb',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: 'get',

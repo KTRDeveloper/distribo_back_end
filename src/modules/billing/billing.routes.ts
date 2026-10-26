@@ -3,12 +3,24 @@ import {
   createPaymentBodySchema, paymentStatusParamsSchema, paymentStatusQuerySchema, quoteQuerySchema,
   shopParamsSchema,
 } from './billing.schemas.js';
-import { lookupShop } from './billing.service.js';
+import { handleConfirmation, lookupShop } from './billing.service.js';
 import { createPayment, readPayment } from './payment.service.js';
 import { quoteFor } from './quote.service.js';
 
 /** Billing routes; the payment site asks for no sign-in, so the shop lookup is public. */
 export const billingRoutes = Router();
+
+/** Public without a session: only the aggregator's proof authorizes confirmation. */
+billingRoutes.post('/confirmations', (req, res, next) => {
+  void (async () => {
+    const headers: Record<string, string | undefined> = {};
+    for (const [name, value] of Object.entries(req.headers)) {
+      headers[name.toLowerCase()] = Array.isArray(value) ? value.join(', ') : value;
+    }
+    await handleConfirmation(headers, req.rawBody, req.body as unknown, new Date());
+    res.status(200).json({ status: 'OK' });
+  })().catch(next);
+});
 
 billingRoutes.get('/shops/:code', (req, res, next) => {
   void (async () => {
