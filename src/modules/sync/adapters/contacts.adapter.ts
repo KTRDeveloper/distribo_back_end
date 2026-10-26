@@ -4,6 +4,7 @@ import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
 import type { Row, SyncAdapter } from '../sync.types.js';
 import { refuseEveryLine } from './identity.adapter.js';
+import { driverRelationshipsWhere } from './relationship.adapter.js';
 
 type Changes = { created: Row[]; updated: Row[]; deleted: string[] };
 
@@ -42,12 +43,17 @@ function toRow(c: ContactRow): Row {
  * memberships and the relationships the REL-001 predicate lets them see (ASVS v5.0.0-8.2.2):
  *
  * - the team (OWNER, MANAGER, SELLER) gets every contact of its organizations, pending ones
- *   included; a DRIVER gets none here (SYNC-042);
+ *   included; a DRIVER gets none of their own business;
  * - the other side of each visible relationship (whatever the organization's status) gets the
  *   verified contacts only. A contact that went back to pending or was deleted is listed by id in
  *   `deleted`, but only when the phone could already hold it: one created after the last pull is
  *   never named. An organization made visible by a relationship created since the last pull is
  *   sent whole, as `created`.
+ *
+ * - a DRIVER also gets the verified contacts of the customer organization of each relationship
+ *   with a CONFIRMED order to deliver (SYNC-042, `driverRelationshipsWhere`). When an order of
+ *   that relationship changed since the last pull, the customer's verified contacts are sent
+ *   whole again, so a newly confirmed order brings its customer's numbers.
  *
  * Contacts are written by online routes only: every pushed line is refused.
  */
@@ -88,8 +94,37 @@ export const contactsAdapter: SyncAdapter = {
         if (since === null || r.createdAt <= since) knownOrgs.add(org);
       }
     }
+
+    // A DRIVER's customer businesses; their own business is never sent (SYNC-042).
+    const driverOrgs = viewer.memberships
+      .filter((m) => m.role === 'DRIVER')
+      .map((m) => m.organizationId);
+    const freshOrgs = new Set<string>();
+    if (driverOrgs.length > 0) {
+      const delivering = await tx.customerRelationship.findMany({
+        where: {
+          ...driverRelationshipsWhere(driverOrgs, viewer.personId),
+          customerOrganizationId: { not: null },
+        },
+        select: {
+          customerOrganizationId: true,
+          createdAt: true,
+          orders: since
+            ? { where: { serverUpdatedAt: { gt: since } }, select: { id: true }, take: 1 }
+            : false,
+        },
+      });
+      for (const r of delivering) {
+        const org = r.customerOrganizationId;
+        if (org === null || teamOrgs.has(org) || driverOrgs.includes(org)) continue;
+        partyOrgs.add(org);
+        const changed = r.createdAt > (since ?? r.createdAt) || (r.orders?.length ?? 0) > 0;
+        if (changed) freshOrgs.add(org);
+        else knownOrgs.add(org);
+      }
+    }
     if (partyOrgs.size === 0) return result;
-    const newOrgs = [...partyOrgs].filter((org) => !knownOrgs.has(org));
+    const newOrgs = [...partyOrgs].filter((org) => freshOrgs.has(org) || !knownOrgs.has(org));
 
     const partyRows = await tx.organizationContact.findMany({
       where: since

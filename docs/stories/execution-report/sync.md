@@ -1334,3 +1334,26 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 
 **Evidence:** story tests 19/19 (8 new + 11 existing); full suite 5353/5353, failing: none, 0 known; typecheck clean; lint 0 errors, 248 warnings
 <!-- end SYNC-040 -->
+
+<!-- begin SYNC-042 -->
+## SYNC-042 — The driver receives the contacts of the client businesses to deliver
+
+- Filed: 2026-10-26 09:35 UTC
+- Status: **done**: Driver pulls verified contacts of customer businesses with a CONFIRMED order to deliver; driverRelationshipsWhere shared
+- Risk: medium · story: [SYNC-042-the-driver-receives-the-contacts-of-the-client.md](../modules/sync/SYNC-042-the-driver-receives-the-contacts-of-the-client.md)
+- Agent: 43,599 tokens, 13 tool uses, 2 min 59 s
+
+### Agent report
+
+**Summary:** The DRIVER now gets the verified contacts of the customer businesses they deliver to; `driverRelationshipsWhere` is extracted and shared.
+
+**Decisions:**
+- "An order changed since" means any order of the relationship with `server_updated_at > since`, which resends the customer's verified contacts whole; this is simple and harmless on a repeat.
+- A customer organization that is also one of the driver's own organizations, or a team organization of the viewer, is skipped for the driver branch: the team branch already covers it, and the story excludes the driver's own business.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-contacts-driver.test.ts` › a verified contact changed after the last pull is updated: C-35 incremental update for the driver; failed first, with the other three red tests.
+- `tests/integration/sync/pull-contacts-driver.test.ts` › a driver of nowhere else gets nothing for a relationship ended by deletion: a deleted relationship gives no contacts (REL-001 live predicate, as in SYNC-036); passed at once.
+
+**Evidence:** story tests 35/35 (the three sync pull files); full suite 5360/5360, failing: none, 0 known; typecheck clean; lint 0 errors, 248 warnings
+<!-- end SYNC-042 -->

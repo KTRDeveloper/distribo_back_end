@@ -31,6 +31,33 @@ function isGone(row: { deletedAt: Date | null; mergedIntoId: string | null }): b
 }
 
 /**
+ * The relationships a DRIVER receives: the live ones of their organizations that have a CONFIRMED
+ * order to deliver, one with an applied delivery address or a delivery assigned to this person
+ * (CM-30). Both organization ids and person id come from the session (ASVS v5.0.0-8.2.2); shared
+ * by the relationship pull and the contacts pull so the two always agree on who is visible.
+ */
+export function driverRelationshipsWhere(
+  driverOrganizationIds: string[],
+  personId: string
+): Prisma.CustomerRelationshipWhereInput {
+  return {
+    supplierOrganizationId: { in: driverOrganizationIds },
+    deletedAt: null,
+    mergedIntoId: null,
+    orders: {
+      some: {
+        status: 'CONFIRMED',
+        deletedAt: null,
+        OR: [
+          { deliveryAddressApplied: { not: null } },
+          { deliveries: { some: { assignedToId: personId, deletedAt: null } } },
+        ],
+      },
+    },
+  };
+}
+
+/**
  * The relationships a viewer may receive, as OR branches (ASVS v5.0.0-8.2.2). Scope comes from the
  * viewer's ACTIVE memberships and person id only. On a first pull gone rows are left out; on an
  * incremental pull they are kept so the phone learns their ids (AC-5).
@@ -54,20 +81,7 @@ function scopeBranches(
   }
   const driverOrgs = organizationsWithRole(viewer, ['DRIVER']);
   if (driverOrgs.length > 0) {
-    branches.push({
-      supplierOrganizationId: { in: driverOrgs },
-      ...live,
-      orders: {
-        some: {
-          status: 'CONFIRMED',
-          deletedAt: null,
-          OR: [
-            { deliveryAddressApplied: { not: null } },
-            { deliveries: { some: { assignedToId: viewer.personId, deletedAt: null } } },
-          ],
-        },
-      },
-    });
+    branches.push(driverRelationshipsWhere(driverOrgs, viewer.personId));
     if (since) branches.push({ supplierOrganizationId: { in: driverOrgs }, ...gone });
   }
   return branches;
