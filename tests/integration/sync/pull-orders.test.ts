@@ -284,9 +284,7 @@ describe('GET /api/v1/sync/pull (orders, lines and deliveries)', () => {
     const body = bodyOf<PullBody>(await pull(DRIVER));
 
     const orders = body.changes['orders'].created;
-    expect(idsOf(orders)).toEqual(
-      sorted([ORDER.confirmedAddress, ORDER.inDelivery, ORDER.deliveredRecent])
-    );
+    expect(idsOf(orders)).toEqual(sorted([ORDER.inDelivery, ORDER.deliveredRecent]));
     for (const order of orders) {
       expect(order).not.toHaveProperty('sync_issue');
       expect(order).toHaveProperty('customer_note');

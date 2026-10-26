@@ -1310,3 +1310,27 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 
 **Evidence:** story tests 16/16 (6 new + 10 in rights-change); full suite 5345/5345, failing: none, 0 known; typecheck clean; lint 0 errors, 248 warnings
 <!-- end SYNC-039 -->
+
+<!-- begin SYNC-040 -->
+## SYNC-040 — An order given to another driver leaves the pool on the phone
+
+- Filed: 2026-10-26 09:32 UTC
+- Status: **done**: driver pool leaves orders assigned to another driver; delivery change resends order for drivers
+- Risk: medium · story: [SYNC-040-an-order-given-to-another-driver-leaves-the.md](../modules/sync/SYNC-040-an-order-given-to-another-driver-leaves-the.md)
+- Agent: 45,432 tokens, 14 tool uses, 3 min 16 s
+
+### Agent report
+
+**Summary:** The driver's CONFIRMED-with-address branch now excludes orders with a live delivery assigned to another driver; a delivery change resends the order and its lines to drivers.
+
+**Decisions:**
+- "An order also counts as changed when one of its deliveries changed": applied only for viewers holding DRIVER in the order's organization, because applying it to everyone would break the existing seller test (AC-5, orders.updated must stay empty after a delivery change).
+- Resent orders arrive as `updated` (created_at older than the watermark); the tests accept created or updated.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-orders-assigned.test.ts` › unassigned order stays in A's pool: baseline of CM-38; passed at once
+- same file › new delivery to A after B's is removed: order arrives (AC-3 variant)
+- same file › seller pull is not resent on a delivery change: guards the driver-only decision; passed at once
+
+**Evidence:** story tests 19/19 (8 new + 11 existing); full suite 5353/5353, failing: none, 0 known; typecheck clean; lint 0 errors, 248 warnings
+<!-- end SYNC-040 -->

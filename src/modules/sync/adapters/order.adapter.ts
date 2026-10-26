@@ -65,7 +65,19 @@ function orderScope(viewer: Viewer, includeGone: boolean): Prisma.OrderWhereInpu
       base: { customerRelationship: { supplierOrganizationId: { in: driverOrgs } } },
       narrow: {
         OR: [
-          { status: 'CONFIRMED', deliveryAddressApplied: { not: null } },
+          {
+            status: 'CONFIRMED',
+            deliveryAddressApplied: { not: null },
+            // CM-38: an order a live delivery assigns to another driver is not in the pool.
+            deliveries: {
+              none: {
+                deletedAt: null,
+                arrivedAt: null,
+                failedAt: null,
+                assignedToId: { not: viewer.personId },
+              },
+            },
+          },
           { status: 'IN_DELIVERY' },
           { deliveredById: viewer.personId },
           { deliveries: { some: { assignedToId: viewer.personId, deletedAt: null } } },
@@ -80,6 +92,23 @@ function orderScope(viewer: Viewer, includeGone: boolean): Prisma.OrderWhereInpu
     for (const { base } of parties) branches.push({ AND: [base, { deletedAt: { not: null } }] });
   }
   return { OR: branches };
+}
+
+/**
+ * Orders whose row did not change but whose delivery did, for a DRIVER's organizations only:
+ * an assignment that ends or moves puts the order in or out of that driver's pool without
+ * touching the order (SYNC-040, CM-38). Other roles see the same orders whatever their deliveries.
+ */
+function deliveryChangedSince(viewer: Viewer, since: Date): Prisma.OrderWhereInput[] {
+  const driverOrgs = organizationsWithRole(viewer, ['DRIVER']);
+  if (driverOrgs.length === 0) return [];
+  return [
+    {
+      deletedAt: null,
+      customerRelationship: { supplierOrganizationId: { in: driverOrgs } },
+      deliveries: { some: { serverUpdatedAt: { gt: since } } },
+    },
+  ];
 }
 
 /**
@@ -135,7 +164,8 @@ function orderRow(order: OrderWithParties, viewer: Viewer): Row | null {
 /**
  * `orders`: supplier view for OWNER, MANAGER and SELLER (with `sync_issue`); for a DRIVER the
  * confirmed orders with an address, the orders in delivery, the orders they delivered and those
- * carrying their deliveries, without `sync_issue`; the customer view for the customer person.
+ * carrying their deliveries (an order assigned to another driver leaves the pool, SYNC-040),
+ * without `sync_issue`; the customer view for the customer person.
  * Open orders always, closed ones of the last 90 days (CM-30). Deleted rows are listed in
  * `deleted` (C-35). Orders entered offline are created by `order.push.ts` (SYNC-012).
  */
@@ -144,7 +174,12 @@ export const ordersAdapter: SyncAdapter = {
   async pull(viewer, since, tx): Promise<Changes> {
     const rows = await tx.order.findMany({
       where: {
-        AND: [orderScope(viewer, since !== null), since ? { serverUpdatedAt: { gt: since } } : {}],
+        AND: [
+          orderScope(viewer, since !== null),
+          since
+            ? { OR: [{ serverUpdatedAt: { gt: since } }, ...deliveryChangedSince(viewer, since)] }
+            : {},
+        ],
       },
       include: { customerRelationship: PARTIES },
       orderBy: { id: 'asc' },
@@ -176,6 +211,7 @@ export const orderLinesAdapter: SyncAdapter = {
               OR: [
                 { serverUpdatedAt: { gt: since } },
                 { order: { serverUpdatedAt: { gt: since } } },
+                ...deliveryChangedSince(viewer, since).map((order) => ({ order })),
               ],
             }
           : { deletedAt: null }),
