@@ -6,6 +6,19 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 08:42 UTC: `/implement-stories SYNC-029,ORD-033 (resume of next:10)`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-029 An order line entered offline names a variant | done | 95fb56e | Lines by product_variant_id via resolveVariantForLine; 5296 tests pass |
+
+Also in this run: order.
+
+- Resumed after the user authorized fixing the SYNC-029 block: the user's go-ahead let the orchestrator add the 'Riz — sac' label expectation to the SYNC-029 "Tests to update" row (the only story edit); stash restored, SYNC-029 then done.
+- ORD-033 done after SYNC-029. Its agent did not rerun the whole suite after a lint fix; the orchestrator did: first run 5300/5301, the one failure being the random image key check in tests/integration/images/image-copy.test.ts (a random key can contain 20xx, flaky, unrelated), second run 5301/5301.
+- Follow-up for ORD-034: four column tests (order-line-variant, order-line-variant-required, line-product-optional, line-rules-variant) are allowlisted in ORD-033's scan test; ORD-034's "Tests to update" does not list them.
+- Next command: `/implement-stories next:10`.
+
 ### Run 2026-10-26 08:26 UTC: `/implement-stories next:10`
 
 | story | status | commit | note |
