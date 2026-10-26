@@ -25,7 +25,13 @@ export function refuseEveryLine(change: TableChange): LineOutcome[] {
     }));
 }
 
-/** `organizations`: the viewer's ACTIVE organizations, excluding the retired email (ORG-039). */
+/**
+ * `organizations`: the viewer's ACTIVE organizations, excluding the retired email (ORG-039).
+ * Each row carries the plan, its due date, the grace end, the limits and the payment code (SYNC-037):
+ * set by the server only (push stays refused) and sent to the team of the business only, since the
+ * query never returns an organization the viewer is not an ACTIVE member of (C-41, v5.0.0-8.2.2).
+ * The fields join an explicit list; no whole row is serialized (v5.0.0-15.3.1).
+ */
 export const organizationsAdapter: SyncAdapter = {
   table: 'organizations',
   async pull(viewer, since, tx): Promise<Changes> {
@@ -39,6 +45,12 @@ export const organizationsAdapter: SyncAdapter = {
         name: true,
         description: true,
         status: true,
+        paymentCode: true,
+        plan: true,
+        planEndsAt: true,
+        graceEndsAt: true,
+        maxCollaborators: true,
+        maxProducts: true,
         createdAt: true,
         serverUpdatedAt: true,
         deletedAt: true,
@@ -54,6 +66,12 @@ export const organizationsAdapter: SyncAdapter = {
         name: r.name,
         description: r.description,
         status: r.status,
+        payment_code: r.paymentCode,
+        plan: r.plan,
+        plan_ends_at: r.planEndsAt ? toEpoch(r.planEndsAt) : null,
+        grace_ends_at: r.graceEndsAt ? toEpoch(r.graceEndsAt) : null,
+        max_collaborators: r.maxCollaborators,
+        max_products: r.maxProducts,
         created_at: toEpoch(r.createdAt),
         server_updated_at: toEpoch(r.serverUpdatedAt),
       })

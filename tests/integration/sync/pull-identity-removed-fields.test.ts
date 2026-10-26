@@ -109,12 +109,21 @@ describe('identity pull without removed organization fields (ORG-039)', () => {
 
   it.each([OWNER, SELLER])('keeps all other keys and amount scope for %s (AC-3)', async (viewer) => {
     const { changes } = await pull(viewer);
+    const { paymentCode } = await prisma.organization.findUniqueOrThrow({
+      where: { id: ORGANIZATION },
+    });
     expect(changes['organizations']?.created).toEqual([
       {
         id: ORGANIZATION,
         name: 'Organization',
         description: 'Organization description',
         status: 'ACTIVE',
+        payment_code: paymentCode,
+        plan: 'FREE',
+        plan_ends_at: null,
+        grace_ends_at: null,
+        max_collaborators: 2,
+        max_products: 30,
         created_at: LONG_AGO.getTime(),
         server_updated_at: expect.any(Number) as unknown,
       },

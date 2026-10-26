@@ -80,6 +80,7 @@ Command: `npx vitest run tests/integration/sync/pull-plan-fields.test.ts tests/i
 | existing test | reason | new expectation |
 |---|---|---|
 | tests/integration/sync/pull-identity.test.ts | checks the ids of the organizations pulled and the keys of the people rows, not those of the organization rows | unchanged |
+| tests/integration/sync/pull-identity-removed-fields.test.ts | its ORG-039 AC-3 test "keeps all other keys and amount scope" compares the whole organization row with `toEqual` | the expected row also holds the six plan fields (`payment_code`, `plan`, `plan_ends_at`, `grace_ends_at`, `max_collaborators`, `max_products`) |
 
 ## Out of scope
 - Logo and photo addresses: SYNC-038.
