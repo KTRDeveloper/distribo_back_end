@@ -6,6 +6,23 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-10-26 07:15 UTC: `/implement-stories next:4`
+
+| story | status | commit | note |
+|---|---|---|---|
+| BIL-036 The owner is told when an administrator changes the plan | done | 1962b72 | 12 story tests and 5163 suite tests pass; typecheck clean; lint 0 errors, 221 warnings; audit passes ADR-007 waivers |
+| BIL-023 A super administrator gives days of a plan to a business | done | 7de369a | 67 targeted tests and 5182 full-suite tests pass; typecheck clean; lint 0 errors; SAST/secrets/audit clean |
+| BIL-024 A super administrator records a payment made outside the aggregator | blocked | 8e2234f | May I inspect the existing billing dependency implementations and test helpers, starting with gift.service.ts, which the story does not authorize opening? |
+| BIL-025 A super administrator refunds a payment after an error | blocked | 7805a4d | May I read the existing transaction, receipt projection and cross-module contract files needed by refundPayment, which are absent from read_first and Implementation? |
+
+Exécution terminée : toutes les stories sélectionnées ont été traitées, aucune ignorée.
+BIL-024 et BIL-025 restent bloquées : les fichiers de dépendances et contrats nécessaires ne sont pas dans le périmètre de lecture autorisé ; leur lecture requiert une autorisation explicite.
+Aucun stash créé : BIL-024 et BIL-025 ne contenaient aucun changement partiel ; set-aside a réinitialisé la base de test pour chacune.
+Rapports BIL-036, BIL-024 et BIL-025 absents : reconstitués à l'identique depuis les retours des agents, puis archivés avec leurs mesures disponibles.
+BIL-023 a repris avec le même agent après sa limite de 40 tours, puis a terminé et validé ses changements.
+BIL-036 : Semgrep et Gitleaks non exécutés, annoncés absents de l'environnement ; BIL-023 rapporte des scans propres sur son propre périmètre.
+Prochaine commande, après autorisation de lire les dépendances et contrats nécessaires sans élargir le périmètre de modification : /implement-stories BIL-024,BIL-025.
+
 ### Run 2026-10-26 06:39 UTC: `/implement-stories BIL-035,BIL-038,ORG-036`
 
 | story | status | commit | note |
