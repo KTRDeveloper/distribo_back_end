@@ -18,6 +18,9 @@ const P_FREE = '0199e005-0000-7000-8000-0000000000d3';
 const P_DELETED = '0199e005-0000-7000-8000-0000000000d4';
 const P_B = '0199e005-0000-7000-8000-0000000000d5';
 const P_PENDING = '0199e005-0000-7000-8000-0000000000d6';
+const P_SACK = '0199e005-0000-7000-8000-0000000000d7';
+const V_10KG = '0199e005-0000-7000-8000-0000000000e1';
+const V_25KG = '0199e005-0000-7000-8000-0000000000e2';
 const LONG_AGO = new Date('2026-01-01T00:00:00.000Z');
 
 type Rows = Array<Record<string, unknown>>;
@@ -91,8 +94,9 @@ async function seedProduct(
 async function seedOrderLine(
   suffix: string,
   productId: string,
-  status: 'CONFIRMED' | 'PENDING' | 'IN_DELIVERY',
-  address: string | null = 'Rue 1'
+  status: 'CONFIRMED' | 'PENDING' | 'IN_DELIVERY' | 'DELIVERED',
+  address: string | null = 'Rue 1',
+  variantId?: string
 ) {
   const orderId = `0199e005-0000-7000-8000-0000000002${suffix}`;
   await prisma.order.create({
@@ -108,6 +112,7 @@ async function seedOrderLine(
         create: {
           id: `0199e005-0000-7000-8000-0000000003${suffix}`,
           productId,
+          ...(variantId ? { productVariantId: variantId } : {}),
           labelApplied: 'x',
           quantity: '3.000',
           referencePrice: 12500n,
@@ -118,6 +123,27 @@ async function seedOrderLine(
     },
   });
 }
+
+/** A second sold level of a product, moved back in time like the seeded rows. */
+async function seedVariant(id: string, productId: string, name: string) {
+  await prisma.productVariant.create({
+    data: {
+      id,
+      productId,
+      organizationId: ORG_A,
+      name,
+      unit: 'sac',
+      price: 15000n,
+      minOrderQuantity: '2.500',
+      createdAt: LONG_AGO,
+    },
+  });
+  await prisma.$executeRaw`UPDATE product_variants SET server_updated_at = ${LONG_AGO} WHERE id = ${id}::uuid`;
+  await prisma.$executeRaw`UPDATE products SET server_updated_at = ${LONG_AGO} WHERE id = ${productId}::uuid`;
+}
+
+const DRIVER_PRODUCT_KEYS = ['id', 'name'];
+const DRIVER_VARIANT_KEYS = ['id', 'name', 'product_id', 'unit'];
 
 describe('GET /api/v1/sync/pull (catalog)', () => {
   beforeEach(async () => {
@@ -195,12 +221,15 @@ describe('GET /api/v1/sync/pull (catalog)', () => {
     expect(productsOf(body).created).toEqual([]);
   });
 
-  it('driver: only id, name and unit of products on orders to deliver (AC-2)', async () => {
+  it('driver: id and name of products, and their variants, on orders to deliver (AC-2)', async () => {
     const res = await pull(DRIVER);
     expect(res.status).toBe(200);
     const rows = productsOf(bodyOf<PullBody>(res)).created;
     expect(idsOf(rows)).toEqual([P_ORDERED, P_INACTIVE].sort());
-    for (const row of rows) expect(Object.keys(row).sort()).toEqual(['id', 'name', 'unit']);
+    for (const row of rows) expect(Object.keys(row).sort()).toEqual(DRIVER_PRODUCT_KEYS);
+    const variants = variantsOf(bodyOf<PullBody>(res)).created;
+    expect(idsOf(variants)).toEqual([P_ORDERED, P_INACTIVE].sort());
+    for (const row of variants) expect(Object.keys(row).sort()).toEqual(DRIVER_VARIANT_KEYS);
     expect(JSON.stringify(res.body)).not.toContain('secret-description');
   });
 
@@ -234,7 +263,104 @@ describe('GET /api/v1/sync/pull (catalog)', () => {
     const body = bodyOf<PullBody>(await pull(DRIVER, `?last_pulled_at=${since}`));
     const rows = [...productsOf(body).created, ...productsOf(body).updated];
     expect(idsOf(rows)).toEqual([P_FREE]);
-    expect(Object.keys(rows[0]).sort()).toEqual(['id', 'name', 'unit']);
+    expect(Object.keys(rows[0]).sort()).toEqual(DRIVER_PRODUCT_KEYS);
+    const variants = [...variantsOf(body).created, ...variantsOf(body).updated];
+    expect(idsOf(variants)).toEqual([P_FREE]);
+    expect(Object.keys(variants[0]).sort()).toEqual(DRIVER_VARIANT_KEYS);
+  });
+
+  describe('driver: variants named by lines (SYNC-025)', () => {
+    beforeEach(async () => {
+      await seedProduct(P_SACK, ORG_A, 'Ciment');
+      await seedVariant(V_10KG, P_SACK, 'sac 10 kg');
+      await seedVariant(V_25KG, P_SACK, 'sac 25 kg');
+    });
+
+    it('names only: the variant on the order, with four columns (AC-1, CM-30)', async () => {
+      await seedOrderLine('05', P_SACK, 'CONFIRMED', 'Rue 1', V_10KG);
+      const body = bodyOf<PullBody>(await pull(DRIVER));
+      const product = productsOf(body).created.find((r) => r['id'] === P_SACK)!;
+      expect(product).toEqual({ id: P_SACK, name: 'Ciment' });
+      const variants = variantsOf(body).created.filter((r) => r['product_id'] === P_SACK);
+      expect(variants).toEqual([
+        { id: V_10KG, product_id: P_SACK, name: 'sac 10 kg', unit: 'sac' },
+      ]);
+    });
+
+    it('withdrawn or paused: both still arrive with the same columns (AC-2)', async () => {
+      await seedOrderLine('05', P_SACK, 'CONFIRMED', 'Rue 1', V_10KG);
+      await prisma.$executeRaw`UPDATE product_variants SET status = 'INACTIVE' WHERE id = ${V_10KG}::uuid`;
+      await prisma.$executeRaw`UPDATE products SET paused_at = now() WHERE id = ${P_SACK}::uuid`;
+      const body = bodyOf<PullBody>(await pull(DRIVER));
+      const product = productsOf(body).created.find((r) => r['id'] === P_SACK)!;
+      expect(Object.keys(product).sort()).toEqual(DRIVER_PRODUCT_KEYS);
+      const variant = variantsOf(body).created.find((r) => r['id'] === V_10KG)!;
+      expect(Object.keys(variant).sort()).toEqual(DRIVER_VARIANT_KEYS);
+    });
+
+    it('newly visible: a line on an unchanged variant sends it with its product (AC-3)', async () => {
+      await sleep(15);
+      const since = Date.now();
+      await sleep(15);
+      await seedOrderLine('05', P_SACK, 'CONFIRMED', 'Rue 1', V_10KG);
+      const body = bodyOf<PullBody>(await pull(DRIVER, `?last_pulled_at=${since}`));
+      const variants = [...variantsOf(body).created, ...variantsOf(body).updated];
+      expect(idsOf(variants.filter((r) => r['product_id'] === P_SACK))).toEqual([V_10KG]);
+      const products = [...productsOf(body).created, ...productsOf(body).updated];
+      expect(products.map((r) => r['id'])).toContain(P_SACK);
+    });
+
+    it('delivered: the only order naming the variant is delivered, nothing is sent (AC-4)', async () => {
+      await seedOrderLine('05', P_SACK, 'CONFIRMED', 'Rue 1', V_10KG);
+      await prisma.orderLine.update({
+        where: { id: '0199e005-0000-7000-8000-000000000305' },
+        data: { deliveredQuantity: '3.000' },
+      });
+      await prisma.order.update({
+        where: { id: '0199e005-0000-7000-8000-000000000205' },
+        data: { status: 'DELIVERED', deliveredAt: new Date(), deliveredById: DRIVER },
+      });
+      const body = bodyOf<PullBody>(await pull(DRIVER));
+      expect(productsOf(body).created.map((r) => r['id'])).not.toContain(P_SACK);
+      expect(variantsOf(body).created.map((r) => r['id'])).not.toContain(V_10KG);
+    });
+
+    it('a deleted variant still named by a line is announced by id (SYNC-005 rule)', async () => {
+      await seedOrderLine('05', P_SACK, 'CONFIRMED', 'Rue 1', V_10KG);
+      await sleep(15);
+      const since = Date.now();
+      await sleep(15);
+      await prisma.productVariant.update({
+        where: { id: V_10KG },
+        data: { deletedAt: new Date() },
+      });
+      const body = bodyOf<PullBody>(await pull(DRIVER, `?last_pulled_at=${since}`));
+      expect(variantsOf(body).deleted).toEqual([V_10KG]);
+      expect(variantsOf(body).created).toEqual([]);
+    });
+
+    it('a variant of another business never reaches the driver (8.2.2)', async () => {
+      const res = await pull(DRIVER);
+      expect(JSON.stringify(res.body)).not.toContain(P_B);
+    });
+
+    it('no prices: forbidden keys are absent from every driver row (AB-1, CWE-213)', async () => {
+      await seedOrderLine('05', P_SACK, 'CONFIRMED', 'Rue 1', V_10KG);
+      const body = bodyOf<PullBody>(await pull(DRIVER));
+      const forbidden = [
+        'price',
+        'price_updated_at',
+        'min_order_quantity',
+        'status',
+        'image_urls',
+        'paused_at',
+        'description',
+        'category',
+      ];
+      const rows = [...productsOf(body).created, ...variantsOf(body).created];
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) for (const key of forbidden) expect(row).not.toHaveProperty(key);
+    });
   });
 
   it('other business: no product of B reaches a member of A, and A is invisible to B (AB-1)', async () => {

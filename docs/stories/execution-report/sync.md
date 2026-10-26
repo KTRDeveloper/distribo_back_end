@@ -882,3 +882,27 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - The code was written before the new tests ran (they passed at once, so no red phase was observed).
 <!-- end SYNC-024 -->
+
+<!-- begin SYNC-025 -->
+## SYNC-025 — A driver pull names variants without prices
+
+- Filed: 2026-10-26 08:02 UTC
+- Status: **done**: driver pull: products id+name, variants id/product_id/name/unit via line->variant->product
+- Risk: medium · story: [SYNC-025-a-driver-pull-names-variants-without-prices.md](../modules/sync/SYNC-025-a-driver-pull-names-variants-without-prices.md)
+- Agent: 46,753 tokens, 19 tool uses, 3 min 17 s
+
+### Agent report
+
+**Summary:** Driver pull now walks line -> variant -> product: products as id+name, variants as id, product_id, name, unit.
+
+**Decisions:**
+- Driver product scope moved from `Product.orderLines` (product_id, now nullable) to `variants.some(orderLines.some(...))`: the variant is the required link (ORD-026/032).
+- A driver variant is sent incrementally when it or a visible line/order changed; a deleted one only if some line still names it (same rule as products).
+- Variant adapter now builds OR branches per role, so a person who is SELLER in one business and DRIVER in another gets full rows for one and 4 columns for the other.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-catalog.test.ts` › a deleted variant still named by a line is announced by id: deleted-variant rule (Context of SYNC-025)
+- `tests/integration/sync/pull-catalog.test.ts` › a variant of another business never reaches the driver: tenant scope (v5.0.0-8.2.2); passed at once
+
+**Evidence:** story tests 14/14; full suite 5234/5234, failing: none, 0 known; typecheck clean; lint 0 errors, 224 warnings
+<!-- end SYNC-025 -->
