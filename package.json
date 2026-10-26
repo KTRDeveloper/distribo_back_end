@@ -22,6 +22,7 @@
     "test:integration": "npm run test:db:setup && vitest run tests/integration && npm run test:db:down",
     "openapi:generate": "tsx scripts/generate-openapi.ts",
     "job:reconcile": "tsx src/jobs/reconcile.ts",
+    "job:expire-forfaits": "tsx src/jobs/expire-forfaits.ts",
     "job:send-reminders": "tsx src/jobs/send-reminders.ts",
     "job:reconcile-payments": "tsx src/jobs/reconcile-payments.ts",
     "job:settle-payments": "tsx src/jobs/settle-payments.ts",

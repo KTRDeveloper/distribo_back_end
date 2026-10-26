@@ -1157,3 +1157,35 @@ BIL-037 done
 
 BIL-038 blocked
 <!-- end BIL-038 -->
+
+<!-- begin BIL-039 -->
+## BIL-039 — A daily job advances every business that needs it
+
+- Filed: 2026-10-26 06:00 UTC
+- Status: **done**: Story tests 9/9; suite 5125/5125; typecheck clean; lint 0 errors; existing dependency audit findings remain.
+- Risk: high · story: [BIL-039-a-daily-job-advances-every-business-that-needs.md](../modules/billing/BIL-039-a-daily-job-advances-every-business-that-needs.md)
+- Agent: 39,312 tokens, 38 tool uses, 7 min 42 s
+
+### Agent report
+
+**Summary:** BIL-039 implemented: paginated daily subscription advancement, independent transactions, failure isolation and counts-only job reporting; status marked done.
+
+**Decisions:**
+- Merge two ascending paginated streams, deduplicating in bounded memory; keyset pagination remains stable as advances remove candidates.
+- Select businesses through an ORM relation predicate, avoiding duplicate subscription ids and unbounded ORM DISTINCT processing.
+- Log fixed events and organization ids only; rethrow the first business failure after processing remaining candidates.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/expire-forfaits.test.ts` › rollback after writes: periods, rights and journal remain unchanged when advancement fails (ASVS 2.3.3).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/expire-forfaits.test.ts` › invalid page limits: reject sizes outside 1–500 before querying (bounded-list convention).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/expire-forfaits.test.ts` › successful runner: returns zero and logs report counts only (job contract).
+
+**Evidence:** story tests 9/9; full suite 5125/5125 across 379 files, failing: none, 0 known; typecheck clean; lint 0 errors, 219 warnings; diff check clean. Initial TDD run failed on missing implementation.
+
+**Follow-ups:**
+- Dependency audit reports 5 existing vulnerabilities (3 high, 1 moderate, 1 low); no dependency changes made. Semgrep and Gitleaks are unavailable locally.
+- Full-suite evidence: `/tmp/distribo-next13-20261026/BIL-039-suite.txt`.
+- No report file written: the latest agent instruction prohibits report Markdown files; this handback contains the complete report.
+
+BIL-039 done
+<!-- end BIL-039 -->

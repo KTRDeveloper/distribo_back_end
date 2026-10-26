@@ -6,6 +6,40 @@ import type { ExpiredPeriod } from './rights.service.js';
 
 export type PeriodRow = Subscription;
 
+export const ADVANCE_PAGE = 500;
+
+/**
+ * Selects distinct businesses with due lifecycle transitions, using an id keyset so
+ * committing an earlier page cannot shift later candidates (BIL-039, C-52).
+ * @param now Reference instant shared with the advance transaction.
+ * @param limit Page size, an integer from 1 to 500.
+ * @param afterId Last processed business id, excluded from the next page.
+ * @returns Business ids in ascending order, never individual subscription rows.
+ * @throws RangeError when the page size is outside the bounded server limit.
+ */
+export async function listBusinessesToAdvance(
+  now: Date,
+  limit: number,
+  afterId?: string,
+): Promise<string[]> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > ADVANCE_PAGE) {
+    throw new RangeError('limit must be an integer from 1 to 500');
+  }
+  const rows = await prisma.organization.findMany({
+    where: {
+      ...(afterId === undefined ? {} : { id: { gt: afterId } }),
+      subscriptions: { some: { OR: [
+        { status: 'ACTIVE', endsAt: { lte: now } },
+        { status: 'SCHEDULED', startsAt: { lte: now } },
+      ] } },
+    },
+    orderBy: { id: 'asc' },
+    take: limit,
+    select: { id: true },
+  });
+  return rows.map((row) => row.id);
+}
+
 /**
  * Loads a period for trusted internal callers; this lookup does not authorize access.
  * @param tx Caller transaction shared with the surrounding subscription operation.
