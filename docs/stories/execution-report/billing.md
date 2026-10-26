@@ -1135,6 +1135,38 @@ BIL-034 done
 - None.
 <!-- end BIL-035 -->
 
+<!-- begin BIL-036 -->
+## BIL-036 — The owner is told when an administrator changes the plan
+
+- Filed: 2026-10-26 06:52 UTC
+- Status: **done**: 12 story tests and 5163 suite tests pass; typecheck clean; lint 0 errors, 221 warnings; audit passes ADR-007 waivers
+- Risk: medium · story: [BIL-036-the-owner-is-told-when-an-administrator-changes.md](../modules/billing/BIL-036-the-owner-is-told-when-an-administrator-changes.md)
+- Agent: 26,440 tokens, 29 tool uses, 6 min 28 s
+
+### Agent report
+
+**Summary:** BIL-036 implémentée : notifications FR/EN des ajustements administratifs au propriétaire actif, dans la transaction appelante, sans identité ni motif de l’administrateur.
+
+**Decisions:**
+- Réutilisation de `findActiveOwnerId`, `recipientLanguage` et `notify` avec le même client transactionnel ; aucune route ajoutée.
+- Test du propriétaire révoqué dans une transaction qui restaure ensuite son état, afin de respecter la contrainte différée imposant un propriétaire actif.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/adjustment-notice.test.ts` : propriétaire inactif ou supprimé logiquement non notifié ; propriétaire d’un autre commerce ignoré (AC-2 et périmètre organisationnel).
+
+**Evidence:** tests story 12/12 ; suite complète 5163/5163, failing: none, 0 known ; typecheck clean ; lint 0 errors, 221 warnings.
+- TDD : échec initial sur le module absent, puis tests verts après implémentation.
+- `npm run audit` : aucune vulnérabilité haute ou critique non exemptée ; exemptions ADR-007 appliquées.
+- `git diff --check` propre ; statut enregistré avec `set-status` ; aucun commit créé.
+- Sortie de la suite : `/tmp/distribo-next4-20261026-KSzdD0/BIL-036-suite.txt`.
+
+**Follow-ups:**
+- Semgrep et Gitleaks absents de l’environnement ; contrôles SAST et secrets à exécuter en CI.
+- Rapport transmis uniquement ici, sans fichier Markdown, conformément à l’instruction finale.
+
+BIL-036 done
+<!-- end BIL-036 -->
+
 <!-- begin BIL-037 -->
 ## BIL-037 — A gift period is placed behind the paid ones
 

@@ -1,7 +1,40 @@
 import type { PeriodRow } from './subscription.repository.js';
 import type { AfterEnd } from './owner-view.service.js';
+import type { PackMonths } from '../../shared/plans.js';
+
+export type AdjustmentInput =
+  | { kind: 'GIFT'; plan: PaidPlanCode; days: number }
+  | { kind: 'PAYMENT_RECORDED'; plan: PaidPlanCode; months: PackMonths; amount: bigint }
+  | { kind: 'REFUNDED'; plan: PaidPlanCode; amount: bigint };
 
 type PaidPlanCode = PeriodRow['plan'];
+
+/**
+ * Builds an adjustment notice without exposing the administrator or their reason (BIL-036).
+ * @param language Active owner's stored language.
+ * @param input Applied gift, recorded payment or refund.
+ * @returns Localized plain text with grouped integer amounts.
+ */
+export function adjustmentNotice(language: 'FR' | 'EN', input: AdjustmentInput): string {
+  const plan = input.plan === 'ESSENTIAL'
+    ? (language === 'FR' ? 'Essentiel' : 'Essential')
+    : input.plan === 'ENTERPRISE' ? (language === 'FR' ? 'Entreprise' : 'Enterprise') : 'Pro';
+  if (input.kind === 'GIFT') {
+    return language === 'FR'
+      ? `Cadeau : ${input.days} jours de forfait ${plan} offerts à votre commerce.`
+      : `Gift: ${input.days} days of the ${plan} plan added to your business.`;
+  }
+  const amount = new Intl.NumberFormat(language === 'FR' ? 'fr-FR' : 'en-US')
+    .format(input.amount).replace(/\u202f/g, ' ');
+  if (input.kind === 'PAYMENT_RECORDED') {
+    return language === 'FR'
+      ? `Paiement de ${amount} enregistré par Distribo : forfait ${plan}, ${input.months} mois.`
+      : `Payment of ${amount} recorded by Distribo: ${plan} plan, ${input.months} ${input.months === 1 ? 'month' : 'months'}.`;
+  }
+  return language === 'FR'
+    ? `Remboursement de ${amount} : le forfait ${plan} acheté par ce paiement est arrêté.`
+    : `Refund of ${amount}: the ${plan} plan bought with that payment has ended.`;
+}
 
 /**
  * Builds the payment notice from an already masked phone, never the payer's full number.
