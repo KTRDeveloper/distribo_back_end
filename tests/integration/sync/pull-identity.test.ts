@@ -191,7 +191,7 @@ describe('GET /api/v1/sync/pull (identity tables)', () => {
     );
 
     expect([...(changes['people']?.created ?? []), ...(changes['people']?.updated ?? [])]).toEqual([
-      { id: OUTSIDER, full_name: 'Outsider', phone_number: '+237600000305' },
+      { id: OUTSIDER, full_name: 'Outsider', phone_number: '+237600000305', avatar_url: null },
     ]);
   });
 
@@ -233,11 +233,11 @@ describe('GET /api/v1/sync/pull (identity tables)', () => {
     expect(changes['people']?.created.map((r) => r['id'])).toEqual([OUTSIDER]);
   });
 
-  it('sends only id, full_name and phone_number for people (AB-2, CWE-200)', async () => {
+  it('sends only id, full_name, phone_number and avatar_url for people (AB-2, CWE-200)', async () => {
     const { changes } = bodyOf<PullBody>(await pull(SELLER_A));
 
     for (const person of changes['people']?.created ?? []) {
-      expect(Object.keys(person).sort()).toEqual(['full_name', 'id', 'phone_number']);
+      expect(Object.keys(person).sort()).toEqual(['avatar_url', 'full_name', 'id', 'phone_number']);
     }
     const serialized = JSON.stringify(changes['people']);
     expect(serialized).not.toContain('example.test');

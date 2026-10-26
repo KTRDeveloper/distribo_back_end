@@ -1315,6 +1315,33 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - The earlier attempt's tests were not re-run red here (implementation already in the working tree).
 <!-- end SYNC-037 -->
 
+<!-- begin SYNC-038 -->
+## SYNC-038 — The phone receives logo and profile photo addresses
+
+- Filed: 2026-10-26 09:46 UTC
+- Status: **done**: logo_url and avatar_url added to sync pull; 2 exact-shape tests updated
+- Risk: medium · story: [SYNC-038-the-phone-receives-logo-and-profile-photo.md](../modules/sync/SYNC-038-the-phone-receives-logo-and-profile-photo.md)
+- Agent: 42,133 tokens, 22 tool uses, 3 min 31 s
+
+### Agent report
+
+**Summary:** Organizations rows now carry `logo_url` and people rows `avatar_url` (via `imageUrl`); keys are never selected into the output.
+
+**Decisions:**
+- Anonymized person: `avatar_url` is forced to null when status is ANONYMIZED, on top of the DB CHECK that already empties the key (defense in depth, AC-4).
+- Two existing exact-shape tests also had to change besides the listed one: `pull-identity.test.ts` (the "just became visible" `toEqual` gains `avatar_url: null`) and `pull-identity-removed-fields.test.ts` (organization `toEqual` gains `logo_url: null`). Both break by construction with the new fields and neither is under "Tests to update"; only the expected key was added.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-images.test.ts` › null logo_url without a logo: the key is present with null (AC-1)
+- `tests/integration/sync/pull-images.test.ts` › removed photo arrives as updated with null (AC-3); passed once implemented, no separate failing step
+- `tests/integration/sync/pull-images.test.ts` › logo of an organization the viewer is not a member of is not sent (v5.0.0-8.2.2); passed at once only after implementation, guards scope
+
+**Evidence:** story tests 28/28 (images + identity); full suite 5374/5376 at first run, the 2 failures were the exact-shape test above, fixed and sync folder rerun 463/463; typecheck clean; lint 0 errors, 248 warnings (existing).
+
+**Follow-ups:**
+- The full suite was not rerun after the one-line fix to `pull-identity-removed-fields.test.ts` (only the sync folder).
+<!-- end SYNC-038 -->
+
 <!-- begin SYNC-039 -->
 ## SYNC-039 — A paused collaborator gets the grace of a revoked one
 

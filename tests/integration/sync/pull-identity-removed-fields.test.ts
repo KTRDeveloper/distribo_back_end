@@ -124,6 +124,7 @@ describe('identity pull without removed organization fields (ORG-039)', () => {
         grace_ends_at: null,
         max_collaborators: 2,
         max_products: 30,
+        logo_url: null,
         created_at: LONG_AGO.getTime(),
         server_updated_at: expect.any(Number) as unknown,
       },

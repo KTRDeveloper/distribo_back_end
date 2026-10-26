@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { imageUrl } from '../../../lib/image-keys.js';
 import { visibleRelationsWhere } from '../../relationship/relationship.visibility.js';
 import { classifyChanges, toEpoch } from '../sync.changes.js';
 import { registerAdapter } from '../sync.registry.js';
@@ -30,6 +31,8 @@ export function refuseEveryLine(change: TableChange): LineOutcome[] {
  * Each row carries the plan, its due date, the grace end, the limits and the payment code (SYNC-037):
  * set by the server only (push stays refused) and sent to the team of the business only, since the
  * query never returns an organization the viewer is not an ACTIVE member of (C-41, v5.0.0-8.2.2).
+ * `logo_url` is the public address of the logo or null; the key stays on the server (SYNC-038, C-49,
+ * v5.0.0-15.3.1). A replaced logo moves `server_updated_at`, so it arrives as `updated`.
  * The fields join an explicit list; no whole row is serialized (v5.0.0-15.3.1).
  */
 export const organizationsAdapter: SyncAdapter = {
@@ -51,6 +54,7 @@ export const organizationsAdapter: SyncAdapter = {
         graceEndsAt: true,
         maxCollaborators: true,
         maxProducts: true,
+        logoKey: true,
         createdAt: true,
         serverUpdatedAt: true,
         deletedAt: true,
@@ -72,6 +76,7 @@ export const organizationsAdapter: SyncAdapter = {
         grace_ends_at: r.graceEndsAt ? toEpoch(r.graceEndsAt) : null,
         max_collaborators: r.maxCollaborators,
         max_products: r.maxProducts,
+        logo_url: imageUrl(r.logoKey),
         created_at: toEpoch(r.createdAt),
         server_updated_at: toEpoch(r.serverUpdatedAt),
       })
@@ -137,10 +142,12 @@ export const collaborationsAdapter: SyncAdapter = {
 };
 
 /**
- * `people`: only the public fields `id, full_name, phone_number` of the people who appear in the
+ * `people`: only the public fields `id, full_name, phone_number, avatar_url` of the people who appear in the
  * viewer's collaborations and visible relationships, and of the viewer. A person is sent when their
  * own row changed or when the link that makes them visible (collaboration or relationship) was created since the last pull, so a person
  * who just became visible is never missing on the phone. No dates are sent (AB-2).
+ * `avatar_url` is the public address of the profile photo or null (an anonymized person has none);
+ * the key is never sent (SYNC-038, C-49, v5.0.0-15.3.1).
  */
 export const peopleAdapter: SyncAdapter = {
   table: 'people',
@@ -178,13 +185,25 @@ export const peopleAdapter: SyncAdapter = {
       : { id: { in: [...visible] } };
     const people = await tx.person.findMany({
       where,
-      select: { id: true, fullName: true, phoneNumber: true, createdAt: true },
+      select: {
+        id: true,
+        fullName: true,
+        phoneNumber: true,
+        avatarKey: true,
+        status: true,
+        createdAt: true,
+      },
       orderBy: { id: 'asc' },
     });
 
     const result: Changes = { created: [], updated: [], deleted: [] };
     for (const p of people) {
-      const row: Row = { id: p.id, full_name: p.fullName, phone_number: p.phoneNumber };
+      const row: Row = {
+        id: p.id,
+        full_name: p.fullName,
+        phone_number: p.phoneNumber,
+        avatar_url: p.status === 'ANONYMIZED' ? null : imageUrl(p.avatarKey),
+      };
       if (since === null || p.createdAt > since) result.created.push(row);
       else result.updated.push(row);
     }
