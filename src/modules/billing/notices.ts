@@ -1,3 +1,43 @@
+import type { PeriodRow } from './subscription.repository.js';
+import type { AfterEnd } from './owner-view.service.js';
+
+type PaidPlanCode = PeriodRow['plan'];
+
+/**
+ * Builds an owner reminder with aggregate pause counts only, never personal data.
+ * @param language Active owner's stored language.
+ * @param input Locked plan-chain end and optional seven-day impact preview.
+ * @returns Plain text using the Douala calendar date.
+ */
+export function reminderNotice(language: 'FR' | 'EN', input: {
+  daysBefore: 7 | 1 | 0; plan: PaidPlanCode; planEndsAt: Date; afterEnd: AfterEnd | null;
+}): string {
+  const plan = input.plan === 'ESSENTIAL'
+    ? (language === 'FR' ? 'Essentiel' : 'Essential') : 'Pro';
+  if (input.daysBefore !== 7) {
+    if (language === 'EN') return `Your ${plan} plan ends ${input.daysBefore === 1 ? 'tomorrow' : 'today'}.`;
+    return `Votre forfait ${plan} se termine ${input.daysBefore === 1 ? 'demain' : "aujourd'hui"}.`;
+  }
+  const date = new Intl.DateTimeFormat(language === 'FR' ? 'fr-FR' : 'en-US', {
+    timeZone: 'Africa/Douala', day: 'numeric', month: 'long', year: 'numeric',
+  }).format(input.planEndsAt);
+  const counts: string[] = [];
+  const collaborators = input.afterEnd?.collaborators_to_pause ?? 0;
+  const products = input.afterEnd?.products_to_pause ?? 0;
+  if (collaborators > 0) counts.push(`${collaborators} ${language === 'FR'
+    ? (collaborators === 1 ? 'collaborateur' : 'collaborateurs')
+    : (collaborators === 1 ? 'collaborator' : 'collaborators')}`);
+  if (products > 0) counts.push(`${products} ${language === 'FR'
+    ? (products === 1 ? 'produit' : 'produits')
+    : (products === 1 ? 'product' : 'products')}`);
+  if (language === 'EN') {
+    const suffix = counts.length ? `: ${counts.join(' and ')} will be paused.` : '.';
+    return `Your ${plan} plan ends on ${date}${suffix}`;
+  }
+  const suffix = counts.length ? ` : ${counts.join(' et ')} seront mis en pause.` : '.';
+  return `Votre forfait ${plan} se termine le ${date}${suffix}`;
+}
+
 /**
  * Builds a localized seat notice containing the business name, never another person's data.
  * @param kind Seat transition that actually occurred.

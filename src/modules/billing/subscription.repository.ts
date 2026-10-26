@@ -7,6 +7,31 @@ import type { ExpiredPeriod } from './rights.service.js';
 export type PeriodRow = Subscription;
 
 /**
+ * Checks the immutable reminder journal under the caller's subscription lock (ASVS 2.3.3).
+ * @param tx Transaction shared with the reminder event and notice.
+ * @param organizationId Locked business, never a client-selected recipient.
+ * @param planEndsAt End of the current same-plan chain.
+ * @param daysBefore Douala calendar-day distance.
+ * @returns Whether this exact reminder was already committed.
+ */
+export async function hasReminder(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  planEndsAt: Date,
+  daysBefore: number,
+): Promise<boolean> {
+  const details = JSON.stringify({ plan_ends_at: planEndsAt.toISOString(), days_before: daysBefore });
+  const rows = await tx.$queryRaw<Array<{ exists: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1 FROM subscription_events
+      WHERE organization_id = ${organizationId}::uuid
+        AND kind = 'REMINDER' AND details @> ${details}::jsonb
+    ) AS exists
+  `;
+  return rows[0]?.exists === true;
+}
+
+/**
  * Reads only this organization's latest owner choice; stale or foreign seat ids are
  * resolved against the tenant-scoped team list by the caller (ASVS 8.2.2).
  * @param tx Transaction shared with seat enforcement.
@@ -266,8 +291,8 @@ export async function activatePeriod(tx: Prisma.TransactionClient, id: string): 
 }
 
 /**
- * Journals a clock-driven transition without attributing it to a person or payment.
- * Period changes and their immutable events must commit together (ASVS 2.3.3).
+ * Journals a clock-driven transition or reminder without a person or payment actor.
+ * Changes, reminder checks and notices share the locked transaction (ASVS 2.3.3).
  * @param tx Caller transaction holding the organization's subscription lock.
  * @param organizationId Tenant selected by trusted server code.
  * @param kind Lifecycle or rights transition decided by the server.
@@ -278,7 +303,7 @@ export async function activatePeriod(tx: Prisma.TransactionClient, id: string): 
 export async function insertSystemEvent(
   tx: Prisma.TransactionClient,
   organizationId: string,
-  kind: 'FORFAIT_ENDED' | 'PLAN_CHANGED',
+  kind: 'FORFAIT_ENDED' | 'PLAN_CHANGED' | 'REMINDER',
   subscriptionId: string | null,
   details: Prisma.InputJsonObject,
   now: Date,

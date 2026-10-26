@@ -999,3 +999,35 @@ BIL-016 done
 
 BIL-017 done
 <!-- end BIL-017 -->
+
+<!-- begin BIL-026 -->
+## BIL-026 — The owner is reminded before the plan ends
+
+- Filed: 2026-10-26 05:18 UTC
+- Status: **done**: 18 reminder tests and 5095 suite tests pass; typecheck clean; lint 0 errors (218 existing warnings); dependency audit flags 3 high findings in unchanged dependencies.
+- Risk: medium · story: [BIL-026-the-owner-is-reminded-before-the-plan-ends.md](../modules/billing/BIL-026-the-owner-is-reminded-before-the-plan-ends.md)
+- Agent: 50,211 tokens, 49 tool uses, 9 min 4 s
+
+### Agent report
+
+**Summary:** BIL-026 implemented and marked done: daily Douala reminders, locked transactional deduplication, FR/EN notices, isolated business failures and executable job.
+
+**Decisions:**
+- Established missing dependency signatures through TypeScript diagnostics without reading unlisted implementations.
+- Reused `insertSystemEvent` with REMINDER and the existing stored same-plan-chain end; paging scans a half-open interval covering all eight eligible Douala dates.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/reminders.test.ts` › concurrent repeats: exactly one event and notice (ASVS 2.3.3); passed at once.
+- Same test file › Douala midnight boundary and 501-business pagination: calendar eligibility and 500-row pagination (story Context); passed at once.
+- Same test file › job logs counts, returns zero and propagates failure (story Context); observed missing launcher failure before implementation.
+
+**Evidence:** story tests 18/18; full suite 5095/5095, failing: none, 0 known; typecheck clean; lint 0 errors, 218 warnings.
+- Full suite output: `/tmp/distribo-next13-20261026/BIL-026-suite.txt`; `git diff --check` clean.
+
+**Follow-ups:**
+- `npm audit --audit-level=high` reports 5 vulnerabilities (3 high, 1 moderate, 1 low) in unchanged dependencies; no packages changed.
+- Semgrep and Gitleaks executables unavailable; those standalone scans were not run.
+- Report returned directly, not written to `/tmp/distribo-next13-20261026/BIL-026-report.md`, because the final developer instruction prohibits Markdown report files.
+
+BIL-026 done
+<!-- end BIL-026 -->
