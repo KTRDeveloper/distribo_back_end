@@ -360,7 +360,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-035 | done | | 7 story tests and 5132 suite tests pass; typecheck clean, lint 0 errors; npm run audit clean (waived ADR-007) |
 | BIL-036 | done | | 12 story tests and 5163 suite tests pass; typecheck clean; lint 0 errors, 221 warnings; audit passes ADR-007 waivers |
 | BIL-037 | done | | Gift queue placement and administrator journal implemented; 6 story tests and 5116 suite tests pass |
-| BIL-023 | todo | | |
+| BIL-023 | done | | 67 targeted tests and 5182 full-suite tests pass; typecheck clean; lint 0 errors; SAST/secrets/audit clean |
 | BIL-024 | todo | | |
 | BIL-038 | done | | Story tests 11/11; suite 5143/5143; typecheck clean; lint 0 errors |
 | BIL-025 | todo | | |

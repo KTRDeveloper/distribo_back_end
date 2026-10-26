@@ -3,6 +3,28 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import { phoneNumberSchema } from '../../shared/phone.js';
 import { decodeCursor, paginationQuerySchema } from '../../shared/pagination.js';
 
+/** Only the gift id, paid plan, bounded day count and reason are administrator-writable. */
+export const giftDaysBodySchema = z.object({
+  id: uuidV7Schema.transform((id) => id.toLowerCase()),
+  plan: z.enum(['ESSENTIAL', 'PRO', 'ENTERPRISE']),
+  days: z.number().int().min(1).max(365),
+  reason: z.string().min(1).max(2000),
+}).strict();
+
+export const giftDaysParamsSchema = z.object({
+  organizationId: uuidV7Schema.transform((id) => id.toLowerCase()),
+}).strict();
+
+/** Closed period projection; administrator identity and reason stay in the internal journal. */
+export const giftDaysResponseSchema = z.object({
+  id: uuidV7Schema,
+  plan: z.enum(['ESSENTIAL', 'PRO', 'ENTERPRISE']),
+  days: z.number().int().min(1).max(365),
+  status: z.enum(['ACTIVE', 'SCHEDULED', 'ENDED']),
+  starts_at: z.string().datetime(),
+  ends_at: z.string().datetime(),
+}).strict();
+
 /** Same 32 symbols as `generatePaymentCode`: no 0, O, 1 or I. */
 const PAYMENT_CODE_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/;
 

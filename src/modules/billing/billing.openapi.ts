@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { errorResponseSchema, openApiRegistry } from '../../lib/openapi/registry.js';
 import {
   createPaymentBodyOpenApiSchema,
+  giftDaysBodySchema,
+  giftDaysParamsSchema,
+  giftDaysResponseSchema,
   keepChoiceBodySchema,
   keepChoiceParamsSchema,
   keepChoiceResponseSchema,
@@ -22,6 +25,44 @@ import {
   swapSeatBodySchema,
   swapSeatResponseSchema,
 } from './billing.schemas.js';
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/organizations/{organizationId}/billing/gift-days',
+  tags: ['billing'],
+  summary: 'Give a business days of a paid plan (super administrator only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: giftDaysParamsSchema,
+    body: { required: true, content: { 'application/json': { schema: giftDaysBodySchema } } },
+  },
+  responses: {
+    201: {
+      description: 'Gift period, including an idempotent repeat',
+      content: { 'application/json': { schema: giftDaysResponseSchema } },
+    },
+    400: {
+      description: 'VALIDATION_ERROR: invalid path or body',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'UNAUTHORIZED: administration token required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'FORBIDDEN: super administrator role required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'NOT_FOUND: unknown business',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'ID_USED: the id belongs to an incompatible period',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: 'post',

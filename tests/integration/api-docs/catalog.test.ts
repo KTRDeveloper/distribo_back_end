@@ -310,6 +310,8 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/billing/shops/{code}');
     expect(paths).toContain('/api/v1/billing/shops/{code}/quote');
 
+    expect(paths).toContain('/api/v1/admin/organizations/{organizationId}/billing/gift-days');
+    expect(bodyOf<OpenApiDoc>(response).paths['/api/v1/admin/organizations/{organizationId}/billing/gift-days']).toHaveProperty('post');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/billing');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/billing/receipts');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/billing/keep-choice');

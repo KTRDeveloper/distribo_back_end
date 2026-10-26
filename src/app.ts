@@ -113,6 +113,7 @@ import { adminRoutes } from './modules/admin/admin.routes.js';
 import { reportRoutes } from './modules/admin/report.routes.js';
 import { billingRoutes } from './modules/billing/billing.routes.js';
 import { billingOwnerRoutes } from './modules/billing/billing.owner.routes.js';
+import { billingAdminRoutes } from './modules/billing/billing.admin.routes.js';
 import { apiDocsRoutes } from './modules/api-docs/api-docs.routes.js';
 import { registerBillingLifecycleHooks } from './modules/billing/lifecycle.service.js';
 
@@ -176,6 +177,7 @@ v1Router.use('/auth', authRoutes);
 v1Router.use('/billing', billingRoutes);
 v1Router.use('/organizations/:organizationId/billing', billingOwnerRoutes);
 v1Router.use('/admin/sync-archives', syncArchiveRoutes);
+v1Router.use('/admin/organizations/:organizationId/billing', billingAdminRoutes);
 v1Router.use('/admin', adminRoutes);
 v1Router.use('/reports', reportRoutes);
 v1Router.use('/notifications', notificationRoutes);

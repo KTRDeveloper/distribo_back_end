@@ -1196,6 +1196,36 @@ BIL-036 done
 BIL-037 done
 <!-- end BIL-037 -->
 
+<!-- begin BIL-023 -->
+## BIL-023 — A super administrator gives days of a plan to a business
+
+- Filed: 2026-10-26 07:08 UTC
+- Status: **done**: 67 targeted tests and 5182 full-suite tests pass; typecheck clean; lint 0 errors; SAST/secrets/audit clean
+- Risk: high · story: [BIL-023-a-super-administrator-gives-days-of-a-plan-to-a.md](../modules/billing/BIL-023-a-super-administrator-gives-days-of-a-plan-to-a.md)
+- Agent: 63,376 tokens, 57 tool uses, 14 min 57 s
+
+### Agent report
+
+**Summary:** Implemented atomic SUPER_ADMIN gifts with strict validation, replay handling, audit, rights, limits and owner notification.
+
+**Decisions:**
+- Canonicalize UUID casing at the boundary so subscription locks and replay checks identify the same business consistently.
+- Map a concurrent cross-business Subscription primary-key collision to ID_USED; propagate other failures to roll back.
+
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/gift-days.test.ts` > simultaneous repeats: one committed gift and side-effect set (AC-3).
+- Same test file > foreign/non-gift id and cross-business concurrent collision: reject incompatible periods with ID_USED (story context).
+- Same test file > notice failure: roll back audit, period, event and rights (ASVS 2.3.3).
+- Same test file > invalid moderator body: authorization precedes validation (story security).
+
+**Other additions:**
+- Generated OpenAPI artifact updated by the API-docs tooling.
+- Docker scanners: Semgrep 71 rules on 5 changed application files, 0 findings; Gitleaks billing scan, no leaks; dependency audit, no unwaived high/critical vulnerabilities.
+
+**Evidence:** story command 67/67 (gift file 18/18); full suite 5182/5182, failing: none, 0 known; typecheck clean; lint 0 errors, 222 existing warnings.
+BIL-023 done
+<!-- end BIL-023 -->
+
 <!-- begin BIL-038 -->
 ## BIL-038 — A refund cancels the receipt and ends the periods of the payment
 
