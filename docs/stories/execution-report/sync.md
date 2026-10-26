@@ -1142,3 +1142,32 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - The MERGED issue has `mergedInto` but the judge only uses it for relationships; later lines of the batch naming the folded variant are not redirected client-side (the server resolves them by `merged_into_id`).
 <!-- end SYNC-032 -->
+
+<!-- begin SYNC-033 -->
+## SYNC-033 — The owner's phone deletes variants and products
+
+- Filed: 2026-10-26 08:55 UTC
+- Status: **done**: Catalog deletions pushed through deleteVariantFromSync/deleteProductFromSync; RETIRED_INSTEAD issue
+- Risk: medium · story: [SYNC-033-the-owner-s-phone-deletes-variants-and-products.md](../modules/sync/SYNC-033-the-owner-s-phone-deletes-variants-and-products.md)
+- Agent: 57,460 tokens, 21 tool uses, 3 min 51 s
+
+### Agent report
+
+**Summary:** pushProducts and pushVariants now run `deleted` lines through the CAT-036 writers and map results to outcomes.
+
+**Decisions:**
+- Organization of a deleted line: a deleted line holds only an id, so the adapter tries each OWNER membership of the viewer; the writer answers NOT_FOUND for other organizations, and the first other answer wins. The judge has already checked scope and the `delete` right.
+- A RETIRED result on a product with several retired variants: one issue line, one message per label joined with " ; ".
+- The issue text is not in the HTTP push answer (an issue counts as accepted), so tests read the adapter outcomes directly.
+
+**Tests added beyond the story:**
+- `push-catalog-deletions.test.ts` › accepts the retired line as accepted in the batch answer: an issue counts as accepted over HTTP (AC-2); passed once implemented
+- `push-catalog-deletions.test.ts` › product deleted with its variants, variant lines ALREADY: the products-before-variants order (Context)
+- `push-catalog-deletions.test.ts` › last variant set aside as LAST_VARIANT: Out of scope note; passed at once (old DELETE_PENDING was also aside)
+- AB-1 also passed at once: the judge already refused it (SYNC-030).
+
+**Evidence:** story tests 27/27 (with push-variants, push-products); full suite 5309/5309, failing: none, 0 known; typecheck clean; lint 0 errors, 239 warnings
+
+**Follow-ups:**
+- None.
+<!-- end SYNC-033 -->
