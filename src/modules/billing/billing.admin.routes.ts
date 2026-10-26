@@ -1,10 +1,22 @@
 import { Router } from 'express';
 import { adminAuthMiddleware, requireAdminRole } from '../../middleware/admin-auth.js';
-import { giftDaysBodySchema, giftDaysParamsSchema } from './billing.schemas.js';
+import { giftDaysBodySchema, giftDaysParamsSchema, recordPaymentBodySchema } from './billing.schemas.js';
+import { recordPayment } from './record-payment.service.js';
 import { giveDays } from './gift.service.js';
 
 /** Administration-only billing routes; role checks precede boundary validation. */
 export const billingAdminRoutes = Router({ mergeParams: true });
+
+billingAdminRoutes.post(
+  '/payments',
+  adminAuthMiddleware,
+  requireAdminRole('SUPER_ADMIN'),
+  async (req, res) => {
+    const { organizationId } = giftDaysParamsSchema.parse(req.params);
+    const input = recordPaymentBodySchema.parse(req.body);
+    res.status(201).json(await recordPayment(req.admin!, organizationId, input, new Date()));
+  },
+);
 
 billingAdminRoutes.post(
   '/gift-days',

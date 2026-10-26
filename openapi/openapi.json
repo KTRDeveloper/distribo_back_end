@@ -29416,6 +29416,285 @@
         }
       }
     },
+    "/api/v1/admin/organizations/{organizationId}/billing/payments": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Record a payment made outside the aggregator (super administrator only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "ESSENTIAL",
+                      "PRO",
+                      "ENTERPRISE"
+                    ]
+                  },
+                  "months": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "enum": [
+                          1
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          3
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          6
+                        ]
+                      },
+                      {
+                        "type": "number",
+                        "enum": [
+                          12
+                        ]
+                      }
+                    ]
+                  },
+                  "customer_tax_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9]{1,20}$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "id",
+                  "plan",
+                  "months",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment and original receipt, including an idempotent repeat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "SUCCEEDED",
+                        "FAILED",
+                        "EXPIRED",
+                        "REFUNDED"
+                      ]
+                    },
+                    "business_name": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "ESSENTIAL",
+                        "PRO",
+                        "ENTERPRISE"
+                      ]
+                    },
+                    "months": {
+                      "type": "integer"
+                    },
+                    "amount": {
+                      "type": "integer"
+                    },
+                    "operator": {
+                      "type": "string",
+                      "enum": [
+                        "MTN_MOMO",
+                        "ORANGE_MONEY",
+                        "OTHER"
+                      ]
+                    },
+                    "period": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "starts_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "ends_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "starts_at",
+                        "ends_at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "receipt": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "number": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "customer_name": {
+                          "type": "string"
+                        },
+                        "customer_tax_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "amount_excl_tax": {
+                          "type": "integer"
+                        },
+                        "vat_rate_bp": {
+                          "type": "integer"
+                        },
+                        "vat_amount": {
+                          "type": "integer"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        },
+                        "issued_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "number",
+                        "label",
+                        "customer_name",
+                        "customer_tax_id",
+                        "amount_excl_tax",
+                        "vat_rate_bp",
+                        "vat_amount",
+                        "amount",
+                        "issued_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "business_name",
+                    "plan",
+                    "months",
+                    "amount",
+                    "operator",
+                    "period",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: invalid path or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: administration token required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: super administrator role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: unknown business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ID_USED: the id belongs to an incompatible payment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/organizations/{organizationId}/billing/gift-days": {
       "post": {
         "tags": [

@@ -3,6 +3,15 @@ import { uuidV7Schema } from '../../shared/ids.js';
 import { phoneNumberSchema } from '../../shared/phone.js';
 import { decodeCursor, paginationQuerySchema } from '../../shared/pagination.js';
 
+/** Recorded payments accept no client-selected amount, status, operator or actor. */
+export const recordPaymentBodySchema = z.object({
+  id: uuidV7Schema.transform((id) => id.toLowerCase()),
+  plan: z.enum(['ESSENTIAL', 'PRO', 'ENTERPRISE']),
+  months: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]),
+  customer_tax_id: z.string().regex(/^[A-Za-z0-9]{1,20}$/).optional(),
+  reason: z.string().min(1).max(2000),
+}).strict();
+
 /** Only the gift id, paid plan, bounded day count and reason are administrator-writable. */
 export const giftDaysBodySchema = z.object({
   id: uuidV7Schema.transform((id) => id.toLowerCase()),

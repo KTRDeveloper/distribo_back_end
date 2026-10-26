@@ -18,6 +18,7 @@ import {
   quoteResponseSchema,
   receiptListQuerySchema,
   receiptListResponseSchema,
+  recordPaymentBodySchema,
   shopParamsOpenApiSchema,
   shopResponseSchema,
   swapProductBodySchema,
@@ -25,6 +26,44 @@ import {
   swapSeatBodySchema,
   swapSeatResponseSchema,
 } from './billing.schemas.js';
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/admin/organizations/{organizationId}/billing/payments',
+  tags: ['billing'],
+  summary: 'Record a payment made outside the aggregator (super administrator only)',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: giftDaysParamsSchema,
+    body: { required: true, content: { 'application/json': { schema: recordPaymentBodySchema } } },
+  },
+  responses: {
+    201: {
+      description: 'Payment and original receipt, including an idempotent repeat',
+      content: { 'application/json': { schema: paymentStatusResponseSchema } },
+    },
+    400: {
+      description: 'VALIDATION_ERROR: invalid path or body',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    401: {
+      description: 'UNAUTHORIZED: administration token required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    403: {
+      description: 'FORBIDDEN: super administrator role required',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    404: {
+      description: 'NOT_FOUND: unknown business',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+    409: {
+      description: 'ID_USED: the id belongs to an incompatible payment',
+      content: { 'application/json': { schema: errorResponseSchema } },
+    },
+  },
+});
 
 openApiRegistry.registerPath({
   method: 'post',

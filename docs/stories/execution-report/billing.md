@@ -1246,26 +1246,34 @@ BIL-023 done
 <!-- begin BIL-024 -->
 ## BIL-024 — A super administrator records a payment made outside the aggregator
 
-- Filed: 2026-10-26 07:10 UTC
-- Status: **blocked**: May I inspect the existing billing dependency implementations and test helpers, starting with gift.service.ts, which the story does not authorize opening?
+- Filed: 2026-10-26 07:32 UTC
+- Status: **done**: 70 tests ciblés OK; suite 5202/5203, échec temporel sync passé à la relance (83/83); typecheck OK, lint 0 erreur
 - Risk: high · story: [BIL-024-a-super-administrator-records-a-payment-made.md](../modules/billing/BIL-024-a-super-administrator-records-a-payment-made.md)
-- Agent: 18,157 tokens, 13 tool uses, 1 min 42 s
+- Agent: 60,445 tokens, 60 tool uses, 12 min 14 s
 
 ### Agent report
 
-**Summary:** BIL-024 blocked before implementation by the explicit restriction on opening dependency files; no application code or tests changed.
+**Summary:** BIL-024 done: enregistrement SUPER_ADMIN transactionnel, tarification serveur, forfait, reçu, audit, droits, limites et notification ; aucun commit.
 
 **Decisions:**
-- Did not infer dependency signatures or bypass the story's file allowlist.
-- Did not create `/tmp/distribo-next4-20261026-KSzdD0/BIL-024-report.md`: the latest developer instruction prohibits writing report files and requires direct handback.
+- Réponse BIL-015 : type existant PaymentStatusView, plutôt que le PaymentView à six champs de création ; projection explicite et lecture dans la transaction.
+- Verrou global de paiement avant verrou d’abonnement : répétitions concurrentes et collisions entre entreprises sérialisées, également avec les paiements en ligne.
 
-**Evidence:** story tests not run; full suite not run; typecheck not run; lint not run; baseline failures not inspected.
+**Tests added beyond the story:**
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/record-payment.test.ts` › simultaneous repeats / concurrent businesses: effets uniques et conflit ID_USED (AC-2, idempotence).
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/tests/integration/billing/record-payment.test.ts` › final owner notice failure: rollback du paiement, reçu, audit et droits (ASVS 2.3.3).
+
+**Other additions:**
+- findPaymentView accepte une transaction ; helper repository pour événement PAYMENT administrateur avec références d’audit requises.
+- `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/openapi/openapi.json` régénéré automatiquement par les tests documentaires.
+
+**Evidence:** story tests 20/20 ; ciblés 70/70 ; full suite 5202/5203, failing: sync/pull-relationships AB-1, 0 known ; relance fichier échoué + ciblés 83/83 ; typecheck clean ; lint 0 errors, 223 warnings.
+- Audit : aucune vulnérabilité high/critical non dérogée ; deux dérogations ADR-007 existantes. Semgrep et Gitleaks indisponibles localement.
+- Sorties : `/tmp/distribo-bil024-bil025-20261026-hJv2db/BIL-024-suite.txt` et `/tmp/distribo-bil024-bil025-20261026-hJv2db/BIL-024-rerun.txt`.
 
 **Follow-ups:**
-- Authorize inspecting existing billing dependency implementations and test helpers, starting with `/home/rkonan/Bureau/RodrigueKONAN/SAAS/Distribo/back_end/src/modules/billing/gift.service.ts`; the story requires reusing these APIs but does not list their files among those agents may open.
-- `set-status` recorded the blocker question; no tests or implementation were attempted.
-
-BIL-024 blocked
+- Assertion sync intermittente : la chaîne interdite `7123` correspondait uniquement à un horodatage ; aucun changement hors périmètre. Rapport transmis ici, non écrit en Markdown conformément à l’instruction finale.
+BIL-024 done
 <!-- end BIL-024 -->
 
 <!-- begin BIL-038 -->

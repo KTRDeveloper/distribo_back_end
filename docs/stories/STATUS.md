@@ -361,7 +361,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | BIL-036 | done | | 12 story tests and 5163 suite tests pass; typecheck clean; lint 0 errors, 221 warnings; audit passes ADR-007 waivers |
 | BIL-037 | done | | Gift queue placement and administrator journal implemented; 6 story tests and 5116 suite tests pass |
 | BIL-023 | done | | 67 targeted tests and 5182 full-suite tests pass; typecheck clean; lint 0 errors; SAST/secrets/audit clean |
-| BIL-024 | blocked | | May I inspect the existing billing dependency implementations and test helpers, starting with gift.service.ts, which the story does not authorize opening? |
+| BIL-024 | done | | 70 tests ciblés OK; suite 5202/5203, échec temporel sync passé à la relance (83/83); typecheck OK, lint 0 erreur |
 | BIL-038 | done | | Story tests 11/11; suite 5143/5143; typecheck clean; lint 0 errors |
 | BIL-025 | blocked | | May I read the existing transaction, receipt projection and cross-module contract files needed by refundPayment, which are absent from read_first and Implementation? |
 | BIL-039 | done | | Story tests 9/9; suite 5125/5125; typecheck clean; lint 0 errors; existing dependency audit findings remain. |

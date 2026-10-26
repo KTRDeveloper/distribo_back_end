@@ -1,6 +1,7 @@
 import type { Prisma, SubscriptionPayment } from '@prisma/client';
 import { v7 as uuidv7 } from 'uuid';
 import { prisma } from '../../lib/db.js';
+import type { PackMonths, PaidPlanCode } from '../../shared/plans.js';
 
 export type PaymentRow = SubscriptionPayment;
 
@@ -41,10 +42,11 @@ export function listStalePending(before: Date, limit: number) {
  * Reads only public status fields and the original RECEIPT, never a refund credit note.
  * A repeatable snapshot prevents a concurrent confirmation from mixing PENDING with its receipt.
  * @param id The payment id held by the payer; no organization id is accepted from the caller.
+ * @param tx Optional caller transaction, so recorded-payment responses read their atomic writes.
  * @returns The payment and its purchased period, or null when absent.
  */
-export function findPaymentView(id: string) {
-  return prisma.$transaction((tx) => tx.subscriptionPayment.findUnique({
+export function findPaymentView(id: string, tx?: Prisma.TransactionClient) {
+  const read = (client: Prisma.TransactionClient) => client.subscriptionPayment.findUnique({
     where: { id },
     select: {
       id: true, status: true, plan: true, months: true, amount: true, operator: true,
@@ -59,7 +61,8 @@ export function findPaymentView(id: string) {
         },
       },
     },
-  }), { isolationLevel: 'RepeatableRead' });
+  });
+  return tx ? read(tx) : prisma.$transaction(read, { isolationLevel: 'RepeatableRead' });
 }
 
 /** Looks up the unique provider reference before any external status check. */
@@ -101,6 +104,52 @@ export async function setPaymentOutcome(
     confirmedAt: outcome.status === 'SUCCEEDED' ? outcome.now : null,
     providerPayload: outcome.payload,
   } });
+}
+
+/**
+ * Inserts the administrator's server-priced, already-confirmed payment (C-53).
+ * @param tx Transaction shared by the audit, period, receipt, rights and notice.
+ * @param data Validated pack and server-selected price, with no payer phone or provider evidence.
+ * @param now The confirmation instant used throughout the adjustment.
+ * @returns The inserted successful payment.
+ */
+export function insertRecordedPayment(
+  tx: Prisma.TransactionClient,
+  data: {
+    id: string; organizationId: string; plan: PaidPlanCode; months: PackMonths;
+    amount: bigint; customerTaxId: string | null;
+  },
+  now: Date,
+): Promise<PaymentRow> {
+  return tx.subscriptionPayment.create({ data: {
+    ...data, status: 'SUCCEEDED', operator: 'OTHER', payerPhoneNumber: null,
+    providerReference: `ADMIN-${data.id}`, termsVersion: 'ADMIN', confirmedAt: now,
+  } });
+}
+
+/**
+ * Appends an administrator PAYMENT event with C-55's required audit provenance.
+ * @param tx Transaction owning the payment, purchased period and receipt.
+ * @param payment Server-created payment, never raw request data.
+ * @param subscriptionId Purchased period linked to the payment.
+ * @param actor Authenticated administrator and the action recorded in this transaction.
+ * @param now Shared adjustment instant.
+ */
+export async function insertRecordedPaymentEvent(
+  tx: Prisma.TransactionClient,
+  payment: PaymentRow,
+  subscriptionId: string,
+  actor: { administratorId: string; adminActionId: string },
+  now: Date,
+): Promise<void> {
+  await tx.$executeRaw`
+    INSERT INTO subscription_events
+      (id, organization_id, kind, actor, administrator_id, admin_action_id,
+       payment_id, subscription_id, occurred_at)
+    VALUES (${uuidv7()}::uuid, ${payment.organizationId}::uuid, 'PAYMENT', 'ADMINISTRATOR',
+            ${actor.administratorId}::uuid, ${actor.adminActionId}::uuid,
+            ${payment.id}::uuid, ${subscriptionId}::uuid, ${now})
+  `;
 }
 
 /** Appends the PAYER payment event atomically with its purchased period and receipt. */
