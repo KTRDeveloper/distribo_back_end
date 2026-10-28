@@ -1,0 +1,67 @@
+Crée un skill Claude nommé `api-to-rn-contract`.
+
+## Objectif
+Lire les artefacts de conception d'une API backend et produire/maintenir UN fichier `FRONTEND_CONTRACT.md` contenant uniquement ce dont a besoin le front : une app mobile React Native, offline-first, ergonomique et simple, utilisant WatermelonDB.
+
+## Entrées acceptées (une ou plusieurs)
+- Dossier de user stories backend
+- Fichiers de conception (OpenAPI/Swagger, AsyncAPI, ADR, schémas DB, diagrammes, Postman, GraphQL SDL)
+- Repo backend (code source)
+
+## Règles d'économie de tokens (prioritaires)
+1. Ne jamais lire un dossier en entier. Procéder par couches, en s'arrêtant dès que l'info est suffisante :
+   a. Specs formelles (OpenAPI, SDL, AsyncAPI) → source de vérité
+   b. Schémas DB/migrations, DTO/modèles
+   c. Contrôleurs/routes, middlewares auth, gestion d'erreurs
+   d. User stories (uniquement titres + critères d'acceptation)
+2. Utiliser grep/glob/scripts bash (jq, yq, git) pour extraire ; ne jamais charger de fichiers volumineux dans le contexte. Ignorer tests, node_modules, build, lockfiles, assets, code d'infra.
+3. Mise à jour incrémentale :
+   - Maintenir `.contract-state.json` : hash (sha1) + date de chaque fichier source lu, et la section du contrat qu'il alimente.
+   - Au lancement : recalculer les hashs (ou `git diff --name-only <last_commit>` si repo git), ne retraiter QUE les fichiers modifiés/ajoutés/supprimés, et ne réécrire que les sections impactées (édition ciblée via str_replace, jamais régénération complète).
+   - Si rien n'a changé : répondre « contrat à jour » en 1 ligne.
+4. Sortie concise : tableaux compacts, pas de prose, pas d'exemples redondants, pas de duplication de ce qui est déductible de l'OpenAPI. Un changement = une ligne dans le CHANGELOG du fichier.
+5. Réponses au chat courtes : résumé du diff (sections modifiées, questions ouvertes), rien de plus.
+
+## Contenu du FRONTEND_CONTRACT.md (uniquement l'utile front)
+Fondé sur des standards : OpenAPI 3.1, RFC 9110 (sémantique HTTP), RFC 9457 (Problem Details), RFC 6749/7636/8252 (OAuth2, PKCE, apps natives), RFC 8725 (JWT), RFC 6585 (429), OWASP MASVS/API Security Top 10, doc officielle WatermelonDB (sync) et React Native.
+
+1. **Meta** : version API, base URL par environnement, versioning, date/commit source.
+2. **Auth & session** : flux, durée des tokens, refresh, révocation, stockage sécurisé recommandé (Keychain/Keystore), rôles/permissions → impact UI.
+3. **Modèle de données client** : par entité → champs, types, nullabilité, enums, contraintes de validation (pour validation locale), relations, mapping vers tables/colonnes WatermelonDB (types : string/number/boolean ; `@date`, `@json`, `@relation`, `@children`), champs indexés.
+4. **Sync offline-first** (cœur du document) : endpoints pull/push compatibles protocole WatermelonDB (`last_pulled_at`, `changes{created,updated,deleted}`), horodatage serveur, identifiants (UUID générés côté client ?), stratégie de résolution de conflits (LWW / par champ / serveur gagnant), soft-delete/tombstones, pagination/volume, idempotence (`Idempotency-Key`), ETag/If-Match, ordre de dépendance entre entités, quotas/limites.
+5. **Endpoints** (tableau) : méthode | chemin | auth | entité | usage écran | online-only ? | idempotent ? | codes d'erreur utiles. Omettre endpoints admin/internes.
+6. **Erreurs & règles de retry** : catalogue code → message UX → action (retry/backoff, 401→refresh, 409→conflit, 422→erreurs de champ, 429→Retry-After, 5xx).
+7. **Règles métier côté UI** : validations, états/transitions autorisés, calculs à répliquer hors-ligne, droits d'action. Issues des user stories, 1 ligne par règle.
+8. **Temps réel/notifications** : push (FCM/APNs), websockets, payloads.
+9. **Uploads/fichiers** : taille max, formats, upload reprenable, file d'attente hors-ligne.
+10. **UX & ergonomie** : parcours critiques déduits des stories (nombre d'étapes minimal), actions pouvant être faites hors-ligne, états (sync en attente, erreur, conflit) à afficher, optimistic UI possibles.
+11. **Questions ouvertes** : décisions en attente.
+12. **Changelog** : une ligne par mise à jour (date, sections touchées, breaking changes signalés).
+
+Exclure : détails d'implémentation serveur, infra, DB interne non exposée, logique non visible du client, tout ce qui n'influence ni l'UI, ni le modèle local, ni la sync.
+
+## Interaction avec l'utilisateur
+Ne jamais deviner sur une décision importante ou une info manquante/ambiguë. Poser des questions groupées, courtes, à choix multiples (max 3 à la fois), notamment :
+- stratégie de conflit si non documentée ; format de sync absent (pull/push dédié vs endpoints CRUD → proposer d'adapter) ;
+- génération des IDs ; politique de suppression ; durée de rétention hors-ligne ;
+- périmètre des données à synchroniser (volumétrie, filtrage par utilisateur) ;
+- contradictions entre sources (specs vs code vs stories) ;
+- breaking change détecté lors d'une mise à jour.
+Tant que non répondu, noter l'item dans « Questions ouvertes » avec la mention `[À CONFIRMER]`, sans bloquer le reste.
+
+## Structure du skill à générer
+- `SKILL.md` : frontmatter (name, description précise avec déclencheurs : « contrat front », « API → React Native », « mise à jour doc front », « sync WatermelonDB »), workflow en étapes courtes.
+- `scripts/diff_sources.sh` (ou .py) : calcule les hashs, compare à `.contract-state.json`, liste les fichiers changés, met à jour l'état.
+- `references/contract-template.md` : squelette du fichier de sortie.
+- `references/standards.md` : checklist condensée des standards ci-dessus (chargée uniquement à la demande).
+Garder SKILL.md sous 150 lignes ; tout détail dans references/ (progressive disclosure).
+
+## Workflow attendu du skill
+1. Demander (si absent) : chemins des entrées, emplacement de sortie.
+2. Lancer le script de diff → liste des sources modifiées.
+3. Extraire ciblé (couches a→d) uniquement pour ces sources.
+4. Mettre à jour les sections concernées ; consigner les questions.
+5. Poser les questions bloquantes à l'utilisateur.
+6. Mettre à jour `.contract-state.json` et le changelog ; afficher un résumé de 5 lignes max.
+
+Livre le skill complet (arborescence + contenu de chaque fichier), prêt à être installé.
