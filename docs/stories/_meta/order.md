@@ -43,358 +43,387 @@ Topological order of depends_on: modules in dependency order, then story number.
 39. NTF-002 Notify service (notification)
 40. NTF-003 Person lists their notifications (notification)
 41. NTF-004 Person marks notifications as read (notification)
-42. AUTH-001 One-time code table (auth)
-43. AUTH-002 Issue a one-time code (auth)
-44. AUTH-003 Verify a one-time code (auth)
-45. AUTH-004 Device, IP and daily caps on code sending (auth)
-46. AUTH-005 Password rules and Argon2id hashing (auth)
-47. AUTH-006 Access token carries the person and the device (auth)
-48. AUTH-007 Device and refresh token tables (auth)
-49. AUTH-008 Issue and revoke sessions (auth)
-50. AUTH-009 Visitor asks for a registration code (auth)
-51. AUTH-010 Visitor registers with the code (auth)
-52. AUTH-011 New holder of a recycled number registers (auth)
-53. AUTH-012 Failed-attempt counter and lock duration (auth)
-54. AUTH-013 Person signs in with number and password (auth)
-55. AUTH-014 Person completes sign-in with the code (auth)
-56. AUTH-015 Person whose number was taken signs in with the verified email (auth)
-57. AUTH-016 Refresh a session with rotation (auth)
-58. AUTH-017 Person signs out of this phone (auth)
-59. AUTH-018 Person manages their phones (auth)
-60. AUTH-019 Person asks for a password reset code (auth)
-61. AUTH-020 Person chooses a new password with the code (auth)
-62. AUTH-021 Person changes their password (auth)
-63. AUTH-022 Person asks for an email verification code (auth)
-64. AUTH-023 Person confirms their email (auth)
-65. AUTH-024 Person asks to change their phone number (auth)
-66. AUTH-025 Person moves their account to the new number (auth)
-67. AUTH-026 Drop the bcrypt dependency (auth)
-68. AUTH-027 Two new purposes for one-time codes (auth)
-69. AUTH-028 Sign-in tells the person what to do (auth)
-70. AUTH-029 A registered number gets no registration code (auth)
-71. AUTH-030 Registration saves the interface language (auth)
-72. AUTH-031 A recycled number can be claimed after six idle months (auth)
-73. AUTH-032 Registering on a recycled number re-checks the old holder (auth)
-74. AUTH-033 The reset code comes by SMS only (auth)
-75. AUTH-034 The new password opens the session on this phone (auth)
-76. AUTH-036 Sign-in no longer uses the email (auth)
-77. AUTH-035 Remove the verified-email lookup (auth)
-78. AUTH-037 The active holder is told someone claimed their number (auth)
-79. AUTH-038 A verified email is unique whatever the letter case (auth)
-80. BIL-008 Payment aggregator port with a fake adapter (billing)
-81. BIL-010 Plan arithmetic for upgrades, queues and grace (billing)
-82. IMG-001 Registry of copied photos (images)
-83. ORG-001 Organizations table (organization)
-84. CAT-001 Products table (catalog)
-85. CAT-012 Product variants table (catalog)
-86. CAT-013 Every existing product gets its variant (catalog)
-87. CAT-014 Products carry photos and a pause date, and old-style writes reach the variants (catalog)
-88. CAT-015 Negotiated prices point at a variant (catalog)
-89. CAT-018 Two variants of a product never share a name and a unit (catalog)
-90. CAT-016 Variant label and comparison text shared by the app and the server (catalog)
-91. CAT-021 A variant change also moves its product's server date (catalog)
-92. CAT-032 The server writes the photo keys of a product or a variant (catalog)
-93. CAT-033 A product sent by a phone is applied without failing the batch (catalog)
-94. CAT-034 A variant sent by a phone is created or edited without failing the batch (catalog)
-95. CAT-035 A variant created twice is folded into the first (catalog)
-96. CAT-044 The server reads the photo keys of a product or a variant under a lock (catalog)
-97. CAT-046 The server empties the photo keys of deleted products and variants (catalog)
-98. ORG-002 Notifications point to organizations (organization)
-99. ORG-003 Collaborations table (organization)
-100. ADM-001 Administrators table (admin)
-101. ADM-004 Two-factor codes for administrators (admin)
-102. ADM-005 Create the first super administrator from the command line (admin)
-103. FIN-011 Expenses table (finance)
-104. FIN-014 Handovers table (finance)
-105. ORG-004 Registered person creates an organization (organization)
-106. ORG-005 Actor loading and reading my organizations (organization)
-107. ORG-006 Amount held helper (organization)
-108. ORG-007 Owner invites a collaborator by phone number (organization)
-109. ORG-008 Invited person answers an invitation (organization)
-110. ORG-009 Owner changes a collaborator's role (organization)
-111. ORG-010 Owner revokes a collaborator (organization)
-112. ORG-011 Collaborator agrees to be a public contact (organization)
-113. ORG-012 Subscription table (organization)
-114. ORG-013 Owner starts a subscription (organization)
-115. ORG-014 Owner ends the subscription (organization)
-116. ORG-015 Owner transfers the ownership (organization)
-117. ORG-016 Owner closes the business (organization)
-118. ORG-017 Owner reopens the business (organization)
-119. ORG-018 Find a business by a public phone number (organization)
-120. ORG-019 Team list (organization)
-121. ORG-020 Plan fields and logo key on the organization (organization)
-122. BIL-001 Table of subscription payments (billing)
-123. BIL-003 Table of subscription receipts with gap-free numbers (billing)
-124. BIL-012 Receipts with VAT and a gap-free number (billing)
-125. ORG-021 Organization contacts table (organization)
-126. ORG-022 A collaboration can be paused (organization)
-127. ORG-023 A one-time code can be tied to a business contact (organization)
-128. ORG-028 A new business gets its payment code and the free plan (organization)
-129. ORG-030 An invitation respects the collaborator limit of the plan (organization)
-130. ORG-035 The organization lets billing write the plan and pause seats (organization)
-131. ORG-038 Server-side writer of the business logo key (organization)
-132. IMG-002 Storage and photo-processing ports with fake adapters (images)
-133. IMG-003 Receive a photo, check it and store a clean copy (images)
-134. IMG-004 A person adds, replaces or removes their profile photo (images)
-135. IMG-005 The owner adds, replaces or removes the business logo (images)
-136. IMG-006 Copy a photo under a new key and record the copy (images)
-137. IMG-007 Nightly cleanup of photo files that no card cites (images)
-138. IMG-008 A manager adds or replaces a photo of a product (images)
-139. IMG-009 A manager removes a photo of a product (images)
-140. IMG-010 A manager adds, replaces or removes the photos of a variant (images)
-141. IMG-011 A manager takes a photo from another variant of the same product (images)
-142. IMG-012 The nightly cleanup releases the photos of deleted products and variants (images)
-143. ORG-040 The owner rules for the team and the contacts are written out (organization)
-144. ORG-041 A contact code names the business and serves one contact (organization)
-145. ADM-018 The access-restore code has its fixed text (admin)
-146. ORG-024 The owner adds a public phone number to the business (organization)
-147. ORG-025 The owner confirms a contact with its code (organization)
-148. ORG-026 The owner asks for a contact code again (organization)
-149. ORG-027 The owner deletes a public contact (organization)
-150. ORG-033 A new owner is asked to review the public contacts (organization)
-151. ORG-037 A contact whose number changed holder goes back to pending (organization)
-152. ORG-029 A business is found by its verified public contacts (organization)
-153. ORG-031 Stop using the public-contact flag of a collaborator (organization)
-154. ORG-042 The owner adds a public email to the business (organization)
-155. ORG-044 Billing finds a business by its payment code and its owner (organization)
-156. BIL-007 A payer checks the business name from its payment code (billing)
-157. BIL-009 A payer starts a payment for a business (billing)
-158. ORG-045 Billing reads the plan fields and lists businesses by plan date (organization)
-159. CAT-038 The plan's product limit is checked in one place (catalog)
-160. REL-001 Relationships table (relationship)
-161. REL-002 Party and pair rules in the database (relationship)
-162. CAT-002 Negotiated prices table (catalog)
-163. ORD-001 Orders table (order)
-164. DLV-001 Deliveries table (delivery)
-165. ORD-002 Order status, cancellation and delivery rules in the database (order)
-166. ORD-003 Orders only on live relationships of active organizations (order)
-167. DLV-002 Delivery state rules in the database (delivery)
-168. ORD-004 Order lines table (order)
-169. ORD-005 Order line product and minimum quantity rules (order)
-170. ORD-006 Order total equals the sum of its lines (order)
-171. ORD-007 Order calculations and party views (order)
-172. ORD-008 Order state machine (order)
-173. ORD-018 Closing a business refuses its pending orders (order)
-174. ORD-022 Orders carry the date they were accepted (order)
-175. ORD-024 Order lines can name a variant (order)
-176. ORD-025 Every order line names its variant (order)
-177. ORD-026 Order line rules read the variant (order)
-178. ORD-029 A supplier's orders are counted by variant over a period (order)
-179. ORD-030 The order module says which variants order lines cite (order)
-180. REL-003 Credit limit journal table (relationship)
-181. REL-004 Credit limit rules and journal trigger (relationship)
-182. REL-005 Visibility predicate and party projections (relationship)
-183. DLV-003 Driver sees the orders to deliver (delivery)
-184. DLV-004 Manager assigns an order to a driver (delivery)
-185. DLV-005 Driver departs with an order (delivery)
-186. DLV-006 Driver reports a failed delivery (delivery)
-187. DLV-013 An order assigned to a driver leaves the pool of the other drivers (delivery)
-188. REL-006 Every new organization gets its first counter (relationship)
-189. CAT-003 Reference price and active product lookup (catalog)
-190. CAT-004 Manager creates a product (catalog)
-191. CAT-005 Manager edits and retires a product (catalog)
-192. CAT-006 Seller lists the catalog (catalog)
-193. CAT-007 Customer browses a supplier's catalog (catalog)
-194. CAT-017 Reference price is read by variant (catalog)
-195. CAT-019 An active variant is read with its product name (catalog)
-196. CAT-020 The server can count, list and pause the products on sale (catalog)
-197. CAT-022 Manager creates a product with its variants (catalog)
-198. CAT-023 Manager edits a product's name, description and category (catalog)
-199. CAT-024 Manager adds a variant to a product (catalog)
-200. CAT-025 Manager changes a variant's price, unit or availability (catalog)
-201. CAT-026 Manager deletes a variant or a whole product (catalog)
-202. CAT-027 Seller lists the catalog with its variants (catalog)
-203. CAT-028 Customer browses a supplier's catalog by product and variant (catalog)
-204. CAT-036 A deletion sent by a phone retires what was sold instead (catalog)
-205. CAT-037 A sale sent for a deleted or merged variant finds its variant again (catalog)
-206. ORD-027 Order lines are priced from the variant (order)
-207. DLV-014 The rest of a delivery and a counter sale keep the variant of each line (delivery)
-208. ORD-028 Order lines name their variant in requests and answers (order)
-209. REL-007 Seller adds a customer by phone number (relationship)
-210. ORD-009 Customer places an order (order)
-211. ORD-010 Organization manager orders from a supplier (order)
-212. ORD-011 Supplier accepts an order, lowering prices if needed (order)
-213. ORD-012 Supplier refuses an order (order)
-214. ORD-015 Seller writes a note on an order at any time (order)
-215. ORD-016 Supplier cancels an order before departure (order)
-216. ORD-017 Customer cancels an order before departure (order)
-217. ORD-023 Accepting an order records its date (order)
-218. REL-008 Seller lists the customers (relationship)
-219. REL-009 Seller opens one customer (relationship)
-220. CAT-008 Owner or manager sets a negotiated price (catalog)
-221. CAT-009 Owner or manager removes a negotiated price and reads them (catalog)
-222. CAT-010 Manager copies negotiated prices between customers (catalog)
-223. CAT-029 Negotiated prices are set and copied by variant (catalog)
-224. CAT-030 Negotiated prices are listed and removed by variant (catalog)
-225. CAT-039 A negotiated price sent or removed by a phone is applied without failing the batch (catalog)
-226. ORD-013 Seller enters an order for a customer (order)
-227. ORD-014 Seller edits an order they entered, before departure (order)
-228. ORD-019 Seller lists the orders (order)
-229. ORD-020 Seller opens one order (order)
-230. ORD-021 Customer lists and opens their orders (order)
-231. REL-010 Seller edits the supplier-side fields (relationship)
-232. REL-011 Manager adds a counter (relationship)
-233. REL-012 Owner or manager sets a credit limit (relationship)
-234. REL-013 Owner reads the credit limit history (relationship)
-235. REL-014 Reassignment journal table (relationship)
-236. ADM-002 Administration journal table (admin)
-237. ADM-003 Reports table (admin)
-238. ADM-006 Administrator signs in with password and authenticator code (admin)
-239. ADM-007 Administrator registers a recovery email (admin)
-240. ADM-008 Administrator reinstalls the authenticator through the recovery email (admin)
-241. ADM-009 Super administrator appoints an administrator (admin)
-242. ADM-010 Super administrator removes an administrator (admin)
-243. ADM-011 Person reports another person or a business (admin)
-244. ADM-012 Administrator lists and opens reports (admin)
-245. ADM-013 Administrator resolves a report (admin)
-246. ADM-014 Administrator suspends or reactivates without a report (admin)
-247. ADM-015 Administrators read the action journal (admin)
-248. ADM-016 The journal accepts five more actions (admin)
-249. ADM-017 Support releases the number of a person (admin)
-250. ADM-019 Support sends the two codes to restore an access (admin)
-251. ADM-020 Support gives the account back on the new number (admin)
-252. FIN-001 Ledger entries table (finance)
-253. FIN-002 Ledger sale and reversal rules in the database (finance)
-254. REL-015 Manager ends and reopens a relationship as supplier (relationship)
-255. REL-016 Customer lists their suppliers (relationship)
-256. CAT-011 Reseller copies a purchased article into their catalog (catalog)
-257. CAT-031 Reseller copies purchased variants into their catalog (catalog)
-258. CAT-040 Catalog tests seed products through one helper (catalog)
-259. CAT-042 Price tests name the variant of a negotiated price (catalog)
-260. CAT-045 Copied variants and new products take copies of the photos (catalog)
-261. DLV-016 Delivery and finance tests seed products through the catalog helper (delivery)
-262. ORD-031 Order tests seed products through the catalog helper (order)
-263. ORD-032 An order line may be saved without its product (order)
-264. REL-017 Customer names, ends and reopens a supplier (relationship)
-265. REL-018 Organization lists and names its suppliers (relationship)
-266. REL-019 Organization ends and reopens a supplier (relationship)
-267. REL-020 Customer invites a supplier by phone number (relationship)
-268. REL-021 Invited supplier accepts or declines (relationship)
-269. REL-022 Newly registered person sees what is attached to their number (relationship)
-270. REL-023 Customer contests a relationship ("this is not me") (relationship)
-271. REL-024 Owner or manager corrects a customer's number (relationship)
-272. REL-025 Merge a duplicate customer record (relationship)
-273. FIN-003 Append a ledger entry and update the caches (finance)
-274. FIN-004 Seller records a payment (finance)
-275. DLV-007 "Commande livrée": deliver a whole order and record the sale and the payment (delivery)
-276. DLV-008 Deliver only part of an order and settle the rest (delivery)
-277. DLV-009 Seller validates a counter sale (delivery)
-278. DLV-010 Cancelled or shop-delivered orders drop their unstarted deliveries (delivery)
-279. FIN-005 Manager returns money to a customer (finance)
-280. FIN-006 Manager grants a credit note (finance)
-281. FIN-007 Manager records an opening balance from a paper notebook (finance)
-282. FIN-008 Manager records a refunded return (finance)
-283. FIN-009 Manager reverses a ledger entry (finance)
-284. FIN-010 Parties read the ledger of a relationship (finance)
-285. FIN-012 Manager records an expense (finance)
-286. FIN-013 Manager cancels an expense (finance)
-287. FIN-015 Owner or manager records a handover received (finance)
-288. FIN-016 Cancel a handover and dispute the noted amount (finance)
-289. FIN-017 Ownership transfer hands over the former owner's money (finance)
-290. FIN-018 Nightly check of balances and held money (finance)
-291. FIN-019 Owner reads the money exceptions (finance)
-292. DLV-011 Owner reviews unsettled deliveries of the day (delivery)
-293. DLV-012 Abandoned rests join the owner's money exceptions (delivery)
-294. DLV-015 Find the drivers who still have deliveries on the road (delivery)
-295. FIN-020 Owner reads the treasury and expenses (finance)
-296. FIN-021 Expenses and handovers accept a paused member (finance)
-297. FIN-022 The dispute notice says versement (finance)
-298. REL-026 Relationship answers document the photo of a person (relationship)
-299. REL-027 The contested mark column and the end of the one-contestation rule (relationship)
-300. REL-028 Contesting marks the record instead of moving it to a ghost person (relationship)
-301. REL-029 Customer takes back a contestation ("this is me") (relationship)
-302. REL-030 Both parties see the contested mark and the customer's hidden list (relationship)
-303. REL-031 A correction on a contested record targets another number and clears the mark (relationship)
-304. SYNC-001 Sync types, adapter registry and viewer (sync)
-305. SYNC-002 Sync archive table (sync)
-306. SYNC-003 Pull endpoint and identity tables (sync)
-307. ORG-039 The identity pull stops sending the removed fields (organization)
-308. ORG-032 The business email column is dropped (organization)
-309. ORG-043 The public-contact flag column and its database rule are dropped (organization)
-310. ORG-034 Closing and reopening a business run the lifecycle hooks (organization)
-311. BIL-005 The owner can no longer write a subscription (billing)
-312. BIL-002 The subscriptions table holds prepaid periods (billing)
-313. BIL-004 Table of subscription events (billing)
-314. BIL-006 The rules table has no subscription row and gains the keep rows (billing)
-315. BIL-032 Two periods of one business can never overlap (billing)
-316. BIL-011 A purchased period starts at once or joins the queue (billing)
-317. BIL-013 The server computes the rights of a business (billing)
-318. BIL-018 The owner chooses who and what to keep when a plan ends (billing)
-319. BIL-019 Collaborators beyond the plan are paused and come back when it allows (billing)
-320. BIL-020 Products beyond the plan are paused and come back when it allows (billing)
-321. BIL-027 A higher plan starts at once and converts the days left (billing)
-322. BIL-014 A confirmed payment activates one period and its receipt (billing)
-323. BIL-015 A payer follows a payment and gets the receipt (billing)
-324. BIL-021 Old pending payments are settled with the aggregator (billing)
-325. BIL-022 The nightly check compares payments with the aggregator's statement (billing)
-326. BIL-028 A business's periods and rights follow the clock (billing)
-327. BIL-029 The owner swaps a paused collaborator with an active one (billing)
-328. BIL-030 The owner swaps a paused product with one on sale (billing)
-329. BIL-031 Closing a business ends its plans and reopening restarts from free (billing)
-330. BIL-033 A payer sees the price and the start date before paying (billing)
-331. BIL-016 The owner reads the subscription screen (billing)
-332. BIL-017 The owner lists the receipts (billing)
-333. BIL-026 The owner is reminded before the plan ends (billing)
-334. BIL-034 The aggregator confirms a payment through a verified call (billing)
-335. BIL-035 The owner is told when a payment is confirmed (billing)
-336. BIL-036 The owner is told when an administrator changes the plan (billing)
-337. BIL-037 A gift period is placed behind the paid ones (billing)
-338. BIL-023 A super administrator gives days of a plan to a business (billing)
-339. BIL-024 A super administrator records a payment made outside the aggregator (billing)
-340. BIL-038 A refund cancels the receipt and ends the periods of the payment (billing)
-341. BIL-025 A super administrator refunds a payment after an error (billing)
-342. BIL-039 A daily job advances every business that needs it (billing)
-343. ORG-036 A paused team member is listed, can be changed or revoked, and has no access (organization)
-344. SYNC-004 Pull relationships and negotiated prices (sync)
-345. SYNC-005 Pull the catalog (sync)
-346. SYNC-006 Pull orders, lines and deliveries (sync)
-347. SYNC-007 Pull the ledger, money records and notifications (sync)
-348. SYNC-008 Device tracking and full resynchronization (sync)
-349. SYNC-009 Push endpoint, archive and envelope (sync)
-350. SYNC-010 Judge pipeline: scope, field rights, computed fields (sync)
-351. SYNC-011 Push new and edited customers, and merge duplicates (sync)
-352. SYNC-012 Push orders entered offline (sync)
-353. SYNC-013 Push order status changes and deliveries (sync)
-354. SYNC-014 Push the closing of an order with its sale and payments (sync)
-355. SYNC-015 Push payments and notification reads (sync)
-356. SYNC-016 Controls on arrival: prices, articles and dates (sync)
-357. SYNC-017 Controls on arrival: credit, restricted mode and long absence (sync)
-358. SYNC-018 Forbidden sends are refused, recorded and trigger a resync (sync)
-359. SYNC-019 First push after a rights change (sync)
-360. SYNC-020 The list of things to resolve (sync)
-361. SYNC-021 Owner reads the synchronization exceptions grouped by cause (sync)
-362. SYNC-022 Super administrator replays an archived batch (sync)
-363. SYNC-023 Administrators list and open archived batches (sync)
-364. SYNC-024 The catalog pull speaks products and variants (sync)
-365. SYNC-025 A driver pull names variants without prices (sync)
-366. SYNC-026 A customer pull holds the supplier's articles on sale (sync)
-367. SYNC-027 Negotiated prices and order lines are pulled by variant (sync)
-368. SYNC-028 Controls on arrival and the list to resolve read the variant (sync)
-369. SYNC-029 An order line entered offline names a variant (sync)
-370. ORD-033 Orders, rests and synced lines are saved without a product (order)
-371. SYNC-030 The judge knows products, variants and negotiated prices (sync)
-372. SYNC-031 The owner's phone creates and edits products (sync)
-373. SYNC-032 The owner's phone creates and edits variants (sync)
-374. SYNC-033 The owner's phone deletes variants and products (sync)
-375. SYNC-034 The owner's phone sets and removes negotiated prices (sync)
-376. SYNC-035 Products added beyond the plan are paused after a push (sync)
-377. SYNC-036 The phone receives the contacts of its business and of the businesses it deals with (sync)
-378. SYNC-037 The team's phone knows the plan, its due date and its limits (sync)
-379. SYNC-038 The phone receives logo and profile photo addresses (sync)
-380. SYNC-039 A paused collaborator gets the grace of a revoked one (sync)
-381. SYNC-040 An order given to another driver leaves the pool on the phone (sync)
-382. SYNC-041 A phone cannot write the fields only the server writes (sync)
-383. SYNC-042 The driver receives the contacts of the client businesses to deliver (sync)
-384. SYNC-043 Synchronization tests seed products through the catalog helper (sync)
-385. CAT-041 Products lose their old price, unit, minimum and status (catalog)
-386. CAT-043 Negotiated prices lose their product column (catalog)
-387. ORD-034 Order lines lose their product column (order)
-388. SYNC-044 The contested mark is a server field in synchronization (sync)
-389. PRIV-001 Person checks whether they can delete their account (privacy)
-390. PRIV-002 Person deletes their account by anonymization (privacy)
-391. PRIV-003 Daily purge of expired data (privacy)
-392. PRIV-004 Account deletion also clears and removes the profile photo (privacy)
-393. PRIV-005 The purge deletes failed and expired payment requests after 90 days (privacy)
+42. NTF-005 Notifications about one entity can be pointed at its replacement (notification)
+43. AUTH-001 One-time code table (auth)
+44. AUTH-002 Issue a one-time code (auth)
+45. AUTH-003 Verify a one-time code (auth)
+46. AUTH-004 Device, IP and daily caps on code sending (auth)
+47. AUTH-005 Password rules and Argon2id hashing (auth)
+48. AUTH-006 Access token carries the person and the device (auth)
+49. AUTH-007 Device and refresh token tables (auth)
+50. AUTH-008 Issue and revoke sessions (auth)
+51. AUTH-009 Visitor asks for a registration code (auth)
+52. AUTH-010 Visitor registers with the code (auth)
+53. AUTH-011 New holder of a recycled number registers (auth)
+54. AUTH-012 Failed-attempt counter and lock duration (auth)
+55. AUTH-013 Person signs in with number and password (auth)
+56. AUTH-014 Person completes sign-in with the code (auth)
+57. AUTH-015 Person whose number was taken signs in with the verified email (auth)
+58. AUTH-016 Refresh a session with rotation (auth)
+59. AUTH-017 Person signs out of this phone (auth)
+60. AUTH-018 Person manages their phones (auth)
+61. AUTH-019 Person asks for a password reset code (auth)
+62. AUTH-020 Person chooses a new password with the code (auth)
+63. AUTH-021 Person changes their password (auth)
+64. AUTH-022 Person asks for an email verification code (auth)
+65. AUTH-023 Person confirms their email (auth)
+66. AUTH-024 Person asks to change their phone number (auth)
+67. AUTH-025 Person moves their account to the new number (auth)
+68. AUTH-026 Drop the bcrypt dependency (auth)
+69. AUTH-027 Two new purposes for one-time codes (auth)
+70. AUTH-028 Sign-in tells the person what to do (auth)
+71. AUTH-029 A registered number gets no registration code (auth)
+72. AUTH-030 Registration saves the interface language (auth)
+73. AUTH-031 A recycled number can be claimed after six idle months (auth)
+74. AUTH-032 Registering on a recycled number re-checks the old holder (auth)
+75. AUTH-033 The reset code comes by SMS only (auth)
+76. AUTH-034 The new password opens the session on this phone (auth)
+77. AUTH-036 Sign-in no longer uses the email (auth)
+78. AUTH-035 Remove the verified-email lookup (auth)
+79. AUTH-037 The active holder is told someone claimed their number (auth)
+80. AUTH-038 A verified email is unique whatever the letter case (auth)
+81. AUTH-039 A device stores the fingerprint of its Android id (auth)
+82. AUTH-040 The server computes an Android id fingerprint with its own key (auth)
+83. AUTH-041 A new login on the same Android phone closes its old session (auth)
+84. AUTH-042 Only open sessions are listed and alerted (auth)
+85. AUTH-043 A lock refusal can tell the time left (auth)
+86. AUTH-044 A password lock lasts one minute and says when it ends (auth)
+87. BIL-008 Payment aggregator port with a fake adapter (billing)
+88. BIL-010 Plan arithmetic for upgrades, queues and grace (billing)
+89. IMG-001 Registry of copied photos (images)
+90. ORG-001 Organizations table (organization)
+91. CAT-001 Products table (catalog)
+92. CAT-012 Product variants table (catalog)
+93. CAT-013 Every existing product gets its variant (catalog)
+94. CAT-014 Products carry photos and a pause date, and old-style writes reach the variants (catalog)
+95. CAT-015 Negotiated prices point at a variant (catalog)
+96. CAT-018 Two variants of a product never share a name and a unit (catalog)
+97. CAT-016 Variant label and comparison text shared by the app and the server (catalog)
+98. CAT-021 A variant change also moves its product's server date (catalog)
+99. CAT-032 The server writes the photo keys of a product or a variant (catalog)
+100. CAT-033 A product sent by a phone is applied without failing the batch (catalog)
+101. CAT-034 A variant sent by a phone is created or edited without failing the batch (catalog)
+102. CAT-035 A variant created twice is folded into the first (catalog)
+103. CAT-044 The server reads the photo keys of a product or a variant under a lock (catalog)
+104. CAT-046 The server empties the photo keys of deleted products and variants (catalog)
+105. ORG-002 Notifications point to organizations (organization)
+106. ORG-003 Collaborations table (organization)
+107. ADM-001 Administrators table (admin)
+108. ADM-004 Two-factor codes for administrators (admin)
+109. ADM-005 Create the first super administrator from the command line (admin)
+110. FIN-011 Expenses table (finance)
+111. FIN-014 Handovers table (finance)
+112. ORG-004 Registered person creates an organization (organization)
+113. ORG-005 Actor loading and reading my organizations (organization)
+114. ORG-006 Amount held helper (organization)
+115. ORG-007 Owner invites a collaborator by phone number (organization)
+116. ORG-008 Invited person answers an invitation (organization)
+117. ORG-009 Owner changes a collaborator's role (organization)
+118. ORG-010 Owner revokes a collaborator (organization)
+119. ORG-011 Collaborator agrees to be a public contact (organization)
+120. ORG-012 Subscription table (organization)
+121. ORG-013 Owner starts a subscription (organization)
+122. ORG-014 Owner ends the subscription (organization)
+123. ORG-015 Owner transfers the ownership (organization)
+124. ORG-016 Owner closes the business (organization)
+125. ORG-017 Owner reopens the business (organization)
+126. ORG-018 Find a business by a public phone number (organization)
+127. ORG-019 Team list (organization)
+128. ORG-020 Plan fields and logo key on the organization (organization)
+129. BIL-001 Table of subscription payments (billing)
+130. BIL-003 Table of subscription receipts with gap-free numbers (billing)
+131. BIL-012 Receipts with VAT and a gap-free number (billing)
+132. ORG-021 Organization contacts table (organization)
+133. ORG-022 A collaboration can be paused (organization)
+134. ORG-023 A one-time code can be tied to a business contact (organization)
+135. ORG-028 A new business gets its payment code and the free plan (organization)
+136. ORG-030 An invitation respects the collaborator limit of the plan (organization)
+137. ORG-035 The organization lets billing write the plan and pause seats (organization)
+138. ORG-038 Server-side writer of the business logo key (organization)
+139. IMG-002 Storage and photo-processing ports with fake adapters (images)
+140. IMG-003 Receive a photo, check it and store a clean copy (images)
+141. IMG-004 A person adds, replaces or removes their profile photo (images)
+142. IMG-005 The owner adds, replaces or removes the business logo (images)
+143. IMG-006 Copy a photo under a new key and record the copy (images)
+144. IMG-007 Nightly cleanup of photo files that no card cites (images)
+145. IMG-008 A manager adds or replaces a photo of a product (images)
+146. IMG-009 A manager removes a photo of a product (images)
+147. IMG-010 A manager adds, replaces or removes the photos of a variant (images)
+148. IMG-011 A manager takes a photo from another variant of the same product (images)
+149. IMG-012 The nightly cleanup releases the photos of deleted products and variants (images)
+150. ORG-040 The owner rules for the team and the contacts are written out (organization)
+151. ORG-041 A contact code names the business and serves one contact (organization)
+152. ADM-018 The access-restore code has its fixed text (admin)
+153. ORG-024 The owner adds a public phone number to the business (organization)
+154. ORG-025 The owner confirms a contact with its code (organization)
+155. ORG-026 The owner asks for a contact code again (organization)
+156. ORG-027 The owner deletes a public contact (organization)
+157. ORG-033 A new owner is asked to review the public contacts (organization)
+158. ORG-037 A contact whose number changed holder goes back to pending (organization)
+159. ORG-029 A business is found by its verified public contacts (organization)
+160. ORG-031 Stop using the public-contact flag of a collaborator (organization)
+161. ORG-042 The owner adds a public email to the business (organization)
+162. ORG-044 Billing finds a business by its payment code and its owner (organization)
+163. BIL-007 A payer checks the business name from its payment code (billing)
+164. BIL-009 A payer starts a payment for a business (billing)
+165. ORG-045 Billing reads the plan fields and lists businesses by plan date (organization)
+166. CAT-038 The plan's product limit is checked in one place (catalog)
+167. REL-001 Relationships table (relationship)
+168. REL-002 Party and pair rules in the database (relationship)
+169. CAT-002 Negotiated prices table (catalog)
+170. ORD-001 Orders table (order)
+171. DLV-001 Deliveries table (delivery)
+172. ORD-002 Order status, cancellation and delivery rules in the database (order)
+173. ORD-003 Orders only on live relationships of active organizations (order)
+174. DLV-002 Delivery state rules in the database (delivery)
+175. ORD-004 Order lines table (order)
+176. ORD-005 Order line product and minimum quantity rules (order)
+177. ORD-006 Order total equals the sum of its lines (order)
+178. ORD-007 Order calculations and party views (order)
+179. ORD-008 Order state machine (order)
+180. ORD-018 Closing a business refuses its pending orders (order)
+181. ORD-022 Orders carry the date they were accepted (order)
+182. ORD-024 Order lines can name a variant (order)
+183. ORD-025 Every order line names its variant (order)
+184. ORD-026 Order line rules read the variant (order)
+185. ORD-029 A supplier's orders are counted by variant over a period (order)
+186. ORD-030 The order module says which variants order lines cite (order)
+187. REL-003 Credit limit journal table (relationship)
+188. REL-004 Credit limit rules and journal trigger (relationship)
+189. REL-005 Visibility predicate and party projections (relationship)
+190. DLV-003 Driver sees the orders to deliver (delivery)
+191. DLV-004 Manager assigns an order to a driver (delivery)
+192. DLV-005 Driver departs with an order (delivery)
+193. DLV-006 Driver reports a failed delivery (delivery)
+194. DLV-013 An order assigned to a driver leaves the pool of the other drivers (delivery)
+195. REL-006 Every new organization gets its first counter (relationship)
+196. CAT-003 Reference price and active product lookup (catalog)
+197. CAT-004 Manager creates a product (catalog)
+198. CAT-005 Manager edits and retires a product (catalog)
+199. CAT-006 Seller lists the catalog (catalog)
+200. CAT-007 Customer browses a supplier's catalog (catalog)
+201. CAT-017 Reference price is read by variant (catalog)
+202. CAT-019 An active variant is read with its product name (catalog)
+203. CAT-020 The server can count, list and pause the products on sale (catalog)
+204. CAT-022 Manager creates a product with its variants (catalog)
+205. CAT-023 Manager edits a product's name, description and category (catalog)
+206. CAT-024 Manager adds a variant to a product (catalog)
+207. CAT-025 Manager changes a variant's price, unit or availability (catalog)
+208. CAT-026 Manager deletes a variant or a whole product (catalog)
+209. CAT-027 Seller lists the catalog with its variants (catalog)
+210. CAT-028 Customer browses a supplier's catalog by product and variant (catalog)
+211. CAT-036 A deletion sent by a phone retires what was sold instead (catalog)
+212. CAT-037 A sale sent for a deleted or merged variant finds its variant again (catalog)
+213. ORD-027 Order lines are priced from the variant (order)
+214. DLV-014 The rest of a delivery and a counter sale keep the variant of each line (delivery)
+215. ORD-028 Order lines name their variant in requests and answers (order)
+216. REL-007 Seller adds a customer by phone number (relationship)
+217. ORD-009 Customer places an order (order)
+218. ORD-010 Organization manager orders from a supplier (order)
+219. ORD-011 Supplier accepts an order, lowering prices if needed (order)
+220. ORD-012 Supplier refuses an order (order)
+221. ORD-015 Seller writes a note on an order at any time (order)
+222. ORD-016 Supplier cancels an order before departure (order)
+223. ORD-017 Customer cancels an order before departure (order)
+224. ORD-023 Accepting an order records its date (order)
+225. ORD-038 An order is refused when its total changed since the customer saw it (order)
+226. REL-008 Seller lists the customers (relationship)
+227. REL-009 Seller opens one customer (relationship)
+228. CAT-008 Owner or manager sets a negotiated price (catalog)
+229. CAT-009 Owner or manager removes a negotiated price and reads them (catalog)
+230. CAT-010 Manager copies negotiated prices between customers (catalog)
+231. CAT-029 Negotiated prices are set and copied by variant (catalog)
+232. CAT-030 Negotiated prices are listed and removed by variant (catalog)
+233. CAT-039 A negotiated price sent or removed by a phone is applied without failing the batch (catalog)
+234. ORD-013 Seller enters an order for a customer (order)
+235. ORD-014 Seller edits an order they entered, before departure (order)
+236. ORD-019 Seller lists the orders (order)
+237. ORD-020 Seller opens one order (order)
+238. ORD-021 Customer lists and opens their orders (order)
+239. REL-010 Seller edits the supplier-side fields (relationship)
+240. REL-011 Manager adds a counter (relationship)
+241. REL-012 Owner or manager sets a credit limit (relationship)
+242. REL-013 Owner reads the credit limit history (relationship)
+243. REL-014 Reassignment journal table (relationship)
+244. ADM-002 Administration journal table (admin)
+245. ADM-003 Reports table (admin)
+246. ADM-006 Administrator signs in with password and authenticator code (admin)
+247. ADM-007 Administrator registers a recovery email (admin)
+248. ADM-008 Administrator reinstalls the authenticator through the recovery email (admin)
+249. ADM-009 Super administrator appoints an administrator (admin)
+250. ADM-010 Super administrator removes an administrator (admin)
+251. ADM-011 Person reports another person or a business (admin)
+252. ADM-012 Administrator lists and opens reports (admin)
+253. ADM-013 Administrator resolves a report (admin)
+254. ADM-014 Administrator suspends or reactivates without a report (admin)
+255. ADM-015 Administrators read the action journal (admin)
+256. ADM-016 The journal accepts five more actions (admin)
+257. ADM-017 Support releases the number of a person (admin)
+258. ADM-019 Support sends the two codes to restore an access (admin)
+259. ADM-020 Support gives the account back on the new number (admin)
+260. FIN-001 Ledger entries table (finance)
+261. FIN-002 Ledger sale and reversal rules in the database (finance)
+262. REL-015 Manager ends and reopens a relationship as supplier (relationship)
+263. REL-016 Customer lists their suppliers (relationship)
+264. CAT-011 Reseller copies a purchased article into their catalog (catalog)
+265. CAT-031 Reseller copies purchased variants into their catalog (catalog)
+266. CAT-040 Catalog tests seed products through one helper (catalog)
+267. CAT-042 Price tests name the variant of a negotiated price (catalog)
+268. CAT-045 Copied variants and new products take copies of the photos (catalog)
+269. DLV-016 Delivery and finance tests seed products through the catalog helper (delivery)
+270. ORD-031 Order tests seed products through the catalog helper (order)
+271. ORD-032 An order line may be saved without its product (order)
+272. PRIV-001 Person checks whether they can delete their account (privacy)
+273. PRIV-002 Person deletes their account by anonymization (privacy)
+274. PRIV-004 Account deletion also clears and removes the profile photo (privacy)
+275. PRIV-006 Account deletion also clears the phones' Android fingerprints (privacy)
+276. REL-017 Customer names, ends and reopens a supplier (relationship)
+277. REL-018 Organization lists and names its suppliers (relationship)
+278. REL-019 Organization ends and reopens a supplier (relationship)
+279. REL-020 Customer invites a supplier by phone number (relationship)
+280. REL-021 Invited supplier accepts or declines (relationship)
+281. REL-022 Newly registered person sees what is attached to their number (relationship)
+282. REL-023 Customer contests a relationship ("this is not me") (relationship)
+283. REL-024 Owner or manager corrects a customer's number (relationship)
+284. REL-025 Merge a duplicate customer record (relationship)
+285. FIN-003 Append a ledger entry and update the caches (finance)
+286. FIN-004 Seller records a payment (finance)
+287. DLV-007 "Commande livrée": deliver a whole order and record the sale and the payment (delivery)
+288. DLV-008 Deliver only part of an order and settle the rest (delivery)
+289. DLV-009 Seller validates a counter sale (delivery)
+290. DLV-010 Cancelled or shop-delivered orders drop their unstarted deliveries (delivery)
+291. DLV-017 A delivery paid in full is accepted even when the credit limit is already exceeded (delivery)
+292. FIN-005 Manager returns money to a customer (finance)
+293. FIN-006 Manager grants a credit note (finance)
+294. FIN-007 Manager records an opening balance from a paper notebook (finance)
+295. FIN-008 Manager records a refunded return (finance)
+296. FIN-009 Manager reverses a ledger entry (finance)
+297. FIN-010 Parties read the ledger of a relationship (finance)
+298. FIN-012 Manager records an expense (finance)
+299. FIN-013 Manager cancels an expense (finance)
+300. FIN-015 Owner or manager records a handover received (finance)
+301. FIN-016 Cancel a handover and dispute the noted amount (finance)
+302. FIN-017 Ownership transfer hands over the former owner's money (finance)
+303. FIN-018 Nightly check of balances and held money (finance)
+304. FIN-019 Owner reads the money exceptions (finance)
+305. DLV-011 Owner reviews unsettled deliveries of the day (delivery)
+306. DLV-012 Abandoned rests join the owner's money exceptions (delivery)
+307. DLV-015 Find the drivers who still have deliveries on the road (delivery)
+308. FIN-020 Owner reads the treasury and expenses (finance)
+309. FIN-021 Expenses and handovers accept a paused member (finance)
+310. FIN-022 The dispute notice says versement (finance)
+311. REL-026 Relationship answers document the photo of a person (relationship)
+312. REL-027 The contested mark column and the end of the one-contestation rule (relationship)
+313. REL-028 Contesting marks the record instead of moving it to a ghost person (relationship)
+314. REL-029 Customer takes back a contestation ("this is me") (relationship)
+315. REL-030 Both parties see the contested mark and the customer's hidden list (relationship)
+316. REL-031 A correction on a contested record targets another number and clears the mark (relationship)
+317. REL-032 A driver's available credit never goes below zero (relationship)
+318. SYNC-001 Sync types, adapter registry and viewer (sync)
+319. SYNC-002 Sync archive table (sync)
+320. PRIV-003 Daily purge of expired data (privacy)
+321. PRIV-005 The purge deletes failed and expired payment requests after 90 days (privacy)
+322. SYNC-003 Pull endpoint and identity tables (sync)
+323. ORG-039 The identity pull stops sending the removed fields (organization)
+324. ORG-032 The business email column is dropped (organization)
+325. ORG-043 The public-contact flag column and its database rule are dropped (organization)
+326. ORG-034 Closing and reopening a business run the lifecycle hooks (organization)
+327. BIL-005 The owner can no longer write a subscription (billing)
+328. BIL-002 The subscriptions table holds prepaid periods (billing)
+329. BIL-004 Table of subscription events (billing)
+330. BIL-006 The rules table has no subscription row and gains the keep rows (billing)
+331. BIL-032 Two periods of one business can never overlap (billing)
+332. BIL-011 A purchased period starts at once or joins the queue (billing)
+333. BIL-013 The server computes the rights of a business (billing)
+334. BIL-018 The owner chooses who and what to keep when a plan ends (billing)
+335. BIL-019 Collaborators beyond the plan are paused and come back when it allows (billing)
+336. BIL-020 Products beyond the plan are paused and come back when it allows (billing)
+337. BIL-027 A higher plan starts at once and converts the days left (billing)
+338. BIL-014 A confirmed payment activates one period and its receipt (billing)
+339. BIL-015 A payer follows a payment and gets the receipt (billing)
+340. BIL-021 Old pending payments are settled with the aggregator (billing)
+341. BIL-022 The nightly check compares payments with the aggregator's statement (billing)
+342. BIL-028 A business's periods and rights follow the clock (billing)
+343. BIL-029 The owner swaps a paused collaborator with an active one (billing)
+344. BIL-030 The owner swaps a paused product with one on sale (billing)
+345. BIL-031 Closing a business ends its plans and reopening restarts from free (billing)
+346. BIL-033 A payer sees the price and the start date before paying (billing)
+347. BIL-016 The owner reads the subscription screen (billing)
+348. BIL-017 The owner lists the receipts (billing)
+349. BIL-026 The owner is reminded before the plan ends (billing)
+350. BIL-034 The aggregator confirms a payment through a verified call (billing)
+351. BIL-035 The owner is told when a payment is confirmed (billing)
+352. BIL-036 The owner is told when an administrator changes the plan (billing)
+353. BIL-037 A gift period is placed behind the paid ones (billing)
+354. BIL-023 A super administrator gives days of a plan to a business (billing)
+355. BIL-024 A super administrator records a payment made outside the aggregator (billing)
+356. BIL-038 A refund cancels the receipt and ends the periods of the payment (billing)
+357. BIL-025 A super administrator refunds a payment after an error (billing)
+358. BIL-039 A daily job advances every business that needs it (billing)
+359. ORG-036 A paused team member is listed, can be changed or revoked, and has no access (organization)
+360. SYNC-004 Pull relationships and negotiated prices (sync)
+361. SYNC-005 Pull the catalog (sync)
+362. SYNC-006 Pull orders, lines and deliveries (sync)
+363. SYNC-007 Pull the ledger, money records and notifications (sync)
+364. SYNC-008 Device tracking and full resynchronization (sync)
+365. SYNC-009 Push endpoint, archive and envelope (sync)
+366. SYNC-010 Judge pipeline: scope, field rights, computed fields (sync)
+367. SYNC-011 Push new and edited customers, and merge duplicates (sync)
+368. SYNC-012 Push orders entered offline (sync)
+369. SYNC-013 Push order status changes and deliveries (sync)
+370. SYNC-014 Push the closing of an order with its sale and payments (sync)
+371. SYNC-015 Push payments and notification reads (sync)
+372. SYNC-016 Controls on arrival: prices, articles and dates (sync)
+373. SYNC-017 Controls on arrival: credit, restricted mode and long absence (sync)
+374. SYNC-018 Forbidden sends are refused, recorded and trigger a resync (sync)
+375. SYNC-019 First push after a rights change (sync)
+376. SYNC-020 The list of things to resolve (sync)
+377. SYNC-021 Owner reads the synchronization exceptions grouped by cause (sync)
+378. SYNC-022 Super administrator replays an archived batch (sync)
+379. SYNC-023 Administrators list and open archived batches (sync)
+380. SYNC-024 The catalog pull speaks products and variants (sync)
+381. SYNC-025 A driver pull names variants without prices (sync)
+382. SYNC-026 A customer pull holds the supplier's articles on sale (sync)
+383. SYNC-027 Negotiated prices and order lines are pulled by variant (sync)
+384. SYNC-028 Controls on arrival and the list to resolve read the variant (sync)
+385. SYNC-029 An order line entered offline names a variant (sync)
+386. ORD-033 Orders, rests and synced lines are saved without a product (order)
+387. SYNC-030 The judge knows products, variants and negotiated prices (sync)
+388. SYNC-031 The owner's phone creates and edits products (sync)
+389. SYNC-032 The owner's phone creates and edits variants (sync)
+390. SYNC-033 The owner's phone deletes variants and products (sync)
+391. SYNC-034 The owner's phone sets and removes negotiated prices (sync)
+392. SYNC-035 Products added beyond the plan are paused after a push (sync)
+393. SYNC-036 The phone receives the contacts of its business and of the businesses it deals with (sync)
+394. SYNC-037 The team's phone knows the plan, its due date and its limits (sync)
+395. SYNC-038 The phone receives logo and profile photo addresses (sync)
+396. SYNC-039 A paused collaborator gets the grace of a revoked one (sync)
+397. SYNC-040 An order given to another driver leaves the pool on the phone (sync)
+398. SYNC-041 A phone cannot write the fields only the server writes (sync)
+399. SYNC-042 The driver receives the contacts of the client businesses to deliver (sync)
+400. SYNC-043 Synchronization tests seed products through the catalog helper (sync)
+401. CAT-041 Products lose their old price, unit, minimum and status (catalog)
+402. CAT-043 Negotiated prices lose their product column (catalog)
+403. ORD-034 Order lines lose their product column (order)
+404. ORD-035 An order records the version that replaced it (order)
+405. ORD-036 An order records delivery or pickup (order)
+406. DLV-018 The order for the rest keeps the reception mode of the first order (delivery)
+407. ORD-037 Orders are placed and edited as delivery or pickup (order)
+408. ORD-039 Customer changes a pending order (order)
+409. ORD-040 Orders get the frozen receipt fields (order)
+410. DLV-019 A delivery writes its receipt once, in the transaction that delivers the order (delivery)
+411. ORD-041 Order views show the frozen receipt fields (order)
+412. ORD-042 Delivered orders get their receipt from the server's history, then it is frozen (order)
+413. ORD-043 Test fixtures give every delivered order its receipt (order)
+414. ORD-044 A business changes a pending purchase (order)
+415. ORD-045 A delivered order always has its receipt (order)
+416. SYNC-044 The contested mark is a server field in synchronization (sync)
+417. SYNC-045 Lines of a deleted order are pulled as deletions (sync)
+418. SYNC-046 An offline gesture on a replaced order is settled (sync)
+419. SYNC-047 Relationship rows carry the other side's public name (sync)
+420. REL-033 A renamed party resends its relationships to phones (relationship)
+421. SYNC-048 Pulled orders carry the frozen receipt, which a phone never writes (sync)
+422. SYNC-049 Orders entered offline carry their reception mode (sync)
 
 ```mermaid
 graph TD
@@ -439,6 +468,7 @@ graph TD
   NTF_002["NTF-002"]
   NTF_003["NTF-003"]
   NTF_004["NTF-004"]
+  NTF_005["NTF-005"]
   AUTH_001["AUTH-001"]
   AUTH_002["AUTH-002"]
   AUTH_003["AUTH-003"]
@@ -477,6 +507,12 @@ graph TD
   AUTH_035["AUTH-035"]
   AUTH_037["AUTH-037"]
   AUTH_038["AUTH-038"]
+  AUTH_039["AUTH-039"]
+  AUTH_040["AUTH-040"]
+  AUTH_041["AUTH-041"]
+  AUTH_042["AUTH-042"]
+  AUTH_043["AUTH-043"]
+  AUTH_044["AUTH-044"]
   BIL_008["BIL-008"]
   BIL_010["BIL-010"]
   IMG_001["IMG-001"]
@@ -615,6 +651,7 @@ graph TD
   ORD_016["ORD-016"]
   ORD_017["ORD-017"]
   ORD_023["ORD-023"]
+  ORD_038["ORD-038"]
   REL_008["REL-008"]
   REL_009["REL-009"]
   CAT_008["CAT-008"]
@@ -661,6 +698,10 @@ graph TD
   DLV_016["DLV-016"]
   ORD_031["ORD-031"]
   ORD_032["ORD-032"]
+  PRIV_001["PRIV-001"]
+  PRIV_002["PRIV-002"]
+  PRIV_004["PRIV-004"]
+  PRIV_006["PRIV-006"]
   REL_017["REL-017"]
   REL_018["REL-018"]
   REL_019["REL-019"]
@@ -676,6 +717,7 @@ graph TD
   DLV_008["DLV-008"]
   DLV_009["DLV-009"]
   DLV_010["DLV-010"]
+  DLV_017["DLV-017"]
   FIN_005["FIN-005"]
   FIN_006["FIN-006"]
   FIN_007["FIN-007"]
@@ -701,8 +743,11 @@ graph TD
   REL_029["REL-029"]
   REL_030["REL-030"]
   REL_031["REL-031"]
+  REL_032["REL-032"]
   SYNC_001["SYNC-001"]
   SYNC_002["SYNC-002"]
+  PRIV_003["PRIV-003"]
+  PRIV_005["PRIV-005"]
   SYNC_003["SYNC-003"]
   ORG_039["ORG-039"]
   ORG_032["ORG-032"]
@@ -785,12 +830,25 @@ graph TD
   CAT_041["CAT-041"]
   CAT_043["CAT-043"]
   ORD_034["ORD-034"]
+  ORD_035["ORD-035"]
+  ORD_036["ORD-036"]
+  DLV_018["DLV-018"]
+  ORD_037["ORD-037"]
+  ORD_039["ORD-039"]
+  ORD_040["ORD-040"]
+  DLV_019["DLV-019"]
+  ORD_041["ORD-041"]
+  ORD_042["ORD-042"]
+  ORD_043["ORD-043"]
+  ORD_044["ORD-044"]
+  ORD_045["ORD-045"]
   SYNC_044["SYNC-044"]
-  PRIV_001["PRIV-001"]
-  PRIV_002["PRIV-002"]
-  PRIV_003["PRIV-003"]
-  PRIV_004["PRIV-004"]
-  PRIV_005["PRIV-005"]
+  SYNC_045["SYNC-045"]
+  SYNC_046["SYNC-046"]
+  SYNC_047["SYNC-047"]
+  REL_033["REL-033"]
+  SYNC_048["SYNC-048"]
+  SYNC_049["SYNC-049"]
   FND_000 --> FND_001
   FND_001 --> FND_002
   FND_000 --> FND_003
@@ -849,6 +907,7 @@ graph TD
   NTF_002 --> NTF_003
   FND_009 --> NTF_003
   NTF_003 --> NTF_004
+  NTF_001 --> NTF_005
   PER_003 --> AUTH_001
   FND_005 --> AUTH_001
   AUTH_001 --> AUTH_002
@@ -949,6 +1008,13 @@ graph TD
   NTF_002 --> AUTH_037
   AUTH_023 --> AUTH_038
   PER_003 --> AUTH_038
+  AUTH_007 --> AUTH_039
+  AUTH_039 --> AUTH_040
+  AUTH_039 --> AUTH_041
+  AUTH_040 --> AUTH_041
+  AUTH_041 --> AUTH_042
+  AUTH_012 --> AUTH_043
+  AUTH_043 --> AUTH_044
   FND_003 --> BIL_008
   FND_014 --> BIL_010
   FND_013 --> IMG_001
@@ -1275,6 +1341,7 @@ graph TD
   ORD_016 --> ORD_017
   ORD_022 --> ORD_023
   ORD_011 --> ORD_023
+  ORD_010 --> ORD_038
   REL_007 --> REL_008
   FND_009 --> REL_008
   REL_008 --> REL_009
@@ -1420,6 +1487,16 @@ graph TD
   ORD_026 --> ORD_032
   ORD_027 --> ORD_032
   ORD_031 --> ORD_032
+  ORG_005 --> PRIV_001
+  REL_016 --> PRIV_001
+  PRIV_001 --> PRIV_002
+  AUTH_008 --> PRIV_002
+  AUTH_005 --> PRIV_002
+  PRIV_002 --> PRIV_004
+  PER_013 --> PRIV_004
+  IMG_002 --> PRIV_004
+  PRIV_002 --> PRIV_006
+  AUTH_039 --> PRIV_006
   REL_016 --> REL_017
   ACC_007 --> REL_017
   REL_006 --> REL_017
@@ -1485,6 +1562,7 @@ graph TD
   ORD_009 --> DLV_009
   DLV_007 --> DLV_010
   ORD_017 --> DLV_010
+  DLV_007 --> DLV_017
   FIN_004 --> FIN_005
   ACC_004 --> FIN_005
   NTF_002 --> FIN_005
@@ -1540,12 +1618,21 @@ graph TD
   REL_028 --> REL_029
   REL_027 --> REL_030
   REL_028 --> REL_031
+  DLV_017 --> REL_032
   ORG_005 --> SYNC_001
   AUTH_006 --> SYNC_001
   ACC_001 --> SYNC_001
   AUTH_007 --> SYNC_002
   ADM_002 --> SYNC_002
   FND_002 --> SYNC_002
+  SYNC_002 --> PRIV_003
+  AUTH_007 --> PRIV_003
+  ACC_007 --> PRIV_003
+  NTF_001 --> PRIV_003
+  FND_002 --> PRIV_003
+  FIN_018 --> PRIV_003
+  PRIV_003 --> PRIV_005
+  BIL_001 --> PRIV_005
   SYNC_001 --> SYNC_003
   FND_008 --> SYNC_003
   ORG_029 --> ORG_039
@@ -1792,21 +1879,35 @@ graph TD
   CAT_039 --> CAT_043
   ORD_033 --> ORD_034
   CAT_041 --> ORD_034
+  ORD_034 --> ORD_035
+  ORD_034 --> ORD_036
+  DLV_008 --> DLV_018
+  ORD_036 --> DLV_018
+  ORD_036 --> ORD_037
+  ORD_035 --> ORD_039
+  ORD_037 --> ORD_039
+  ORD_038 --> ORD_039
+  NTF_005 --> ORD_039
+  ORD_034 --> ORD_040
+  ORD_040 --> DLV_019
+  DLV_007 --> DLV_019
+  DLV_009 --> DLV_019
+  ORD_040 --> ORD_041
+  ORD_040 --> ORD_042
+  DLV_019 --> ORD_042
+  DLV_019 --> ORD_043
+  ORD_039 --> ORD_044
+  ORD_042 --> ORD_045
+  ORD_043 --> ORD_045
   REL_027 --> SYNC_044
-  ORG_005 --> PRIV_001
-  REL_016 --> PRIV_001
-  PRIV_001 --> PRIV_002
-  AUTH_008 --> PRIV_002
-  AUTH_005 --> PRIV_002
-  SYNC_002 --> PRIV_003
-  AUTH_007 --> PRIV_003
-  ACC_007 --> PRIV_003
-  NTF_001 --> PRIV_003
-  FND_002 --> PRIV_003
-  FIN_018 --> PRIV_003
-  PRIV_002 --> PRIV_004
-  PER_013 --> PRIV_004
-  IMG_002 --> PRIV_004
-  PRIV_003 --> PRIV_005
-  BIL_001 --> PRIV_005
+  SYNC_006 --> SYNC_045
+  ORD_039 --> SYNC_045
+  ORD_039 --> SYNC_046
+  SYNC_045 --> SYNC_046
+  SYNC_004 --> SYNC_047
+  SYNC_047 --> REL_033
+  SYNC_006 --> SYNC_048
+  ORD_041 --> SYNC_048
+  SYNC_012 --> SYNC_049
+  ORD_036 --> SYNC_049
 ```

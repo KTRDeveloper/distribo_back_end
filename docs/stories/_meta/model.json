@@ -473,7 +473,18 @@
     },
     {
       "entity": "Order",
-      "hash": "7442df52daa1e2f1",
+      "hash": "1471d98d437e6bd1",
+      "id": "Order.reception_mode:enum",
+      "kind": "enum",
+      "line": 1997,
+      "refs": [
+        "Order.reception_mode"
+      ],
+      "rule": "one of DELIVERY, PICKUP"
+    },
+    {
+      "entity": "Order",
+      "hash": "4e4ebb2bc9b1c1c7",
       "id": "Order:fk",
       "kind": "fk",
       "line": 553,
@@ -482,9 +493,10 @@
         "Order.entered_by_id",
         "Order.delivered_by_id",
         "Order.cancelled_by_id",
-        "Order.parent_order_id"
+        "Order.parent_order_id",
+        "Order.replaced_by_order_id"
       ],
-      "rule": "references customer_relationship_id → CustomerRelationship; entered_by_id → Person; delivered_by_id → Person; cancelled_by_id → Person; parent_order_id → Order"
+      "rule": "references customer_relationship_id → CustomerRelationship; entered_by_id → Person; delivered_by_id → Person; cancelled_by_id → Person; parent_order_id → Order; replaced_by_order_id → Order"
     },
     {
       "entity": "OrderLine",
@@ -1993,6 +2005,64 @@
         "SubscriptionEvent"
       ],
       "rule": "Tables immuables (`LedgerEntry`, `SyncArchive`, `PhoneNumberChangeLog`, `CustomerRelationshipReassignment`, `CreditLimitChange`, `AdminAction`, `ImageCopy`, `SubscriptionReceipt`, `SubscriptionEvent`) : le compte applicatif n'a que les droits `INSERT` et `SELECT`"
+    },
+    {
+      "entity": "Order",
+      "hash": "40f5b4e0fcf9ae00",
+      "id": "C-58",
+      "kind": "rule",
+      "line": 1911,
+      "refs": [
+        "Order.replaced_by_order_id"
+      ],
+      "rule": "`replaced_by_order_id` : unique parmi les valeurs renseignées ; jamais l'identifiant de la commande elle-même ; renseigné seulement sur une commande passée par le client ; la remplaçante est sur la même relation."
+    },
+    {
+      "entity": null,
+      "hash": "f149c7f00b7fa323",
+      "id": "C-59",
+      "kind": "rule",
+      "line": 1950,
+      "refs": [
+        "*"
+      ],
+      "rule": "Au plus une session non fermée par personne et par empreinte."
+    },
+    {
+      "entity": null,
+      "hash": "37a411efa50e6394",
+      "id": "C-60",
+      "kind": "rule",
+      "line": 2009,
+      "refs": [
+        "*"
+      ],
+      "rule": "Une commande `PICKUP` n'a pas d'adresse."
+    },
+    {
+      "entity": "Order",
+      "hash": "5874fb3a61ecd174",
+      "id": "C-61",
+      "kind": "rule",
+      "line": 2090,
+      "refs": [
+        "Order.supplier_name_applied",
+        "Order.collected_applied",
+        "Order.balance_after_applied",
+        "Order.customer_name_applied"
+      ],
+      "rule": "`supplier_name_applied`, `collected_applied` et `balance_after_applied` sont renseignés ⟺ la commande est livrée ; `customer_name_applied` peut rester vide. Posée après la reprise des commandes déjà livrées."
+    },
+    {
+      "entity": null,
+      "hash": "be627590363f1199",
+      "id": "C-62",
+      "kind": "rule",
+      "line": 2091,
+      "refs": [
+        "*"
+      ],
+      "rule": "Une fois remplis, la base refuse toute modification de ces quatre champs."
     }
   ],
   "entities": {
@@ -2652,6 +2722,13 @@
           "name": "revoked_at",
           "nullable": true,
           "type": "datetime, nullable"
+        },
+        {
+          "base": "string",
+          "line": 1931,
+          "name": "android_id_hash",
+          "nullable": true,
+          "type": "string, nullable"
         }
       ],
       "line": 1364
@@ -3164,6 +3241,53 @@
           "name": "sync_issue",
           "nullable": true,
           "type": "string, nullable"
+        },
+        {
+          "base": "FK",
+          "fk": "Order",
+          "line": 1884,
+          "name": "replaced_by_order_id",
+          "nullable": true,
+          "type": "FK → Order, nullable"
+        },
+        {
+          "base": "enum",
+          "enum": [
+            "DELIVERY",
+            "PICKUP"
+          ],
+          "line": 1997,
+          "name": "reception_mode",
+          "nullable": true,
+          "type": "enum [DELIVERY / PICKUP], nullable"
+        },
+        {
+          "base": "string",
+          "line": 2065,
+          "name": "supplier_name_applied",
+          "nullable": true,
+          "type": "string, nullable"
+        },
+        {
+          "base": "string",
+          "line": 2066,
+          "name": "customer_name_applied",
+          "nullable": true,
+          "type": "string, nullable"
+        },
+        {
+          "base": "bigint",
+          "line": 2067,
+          "name": "collected_applied",
+          "nullable": true,
+          "type": "bigint, nullable"
+        },
+        {
+          "base": "bigint",
+          "line": 2068,
+          "name": "balance_after_applied",
+          "nullable": true,
+          "type": "bigint, nullable"
         }
       ],
       "line": 547

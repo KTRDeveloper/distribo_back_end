@@ -21,4 +21,5 @@ What this module provides to other modules, and what it consumes from them. A co
 - catalog: getReferencePrice, getActiveVariant, variantLabel (docs/stories/modules/catalog/contracts.md)
 - relationship: ensureCustomerRelationship, visibleRelationsWhere, projectForSupplier (docs/stories/modules/relationship/contracts.md)
 - organization: loadActor, assertOrganizationActive (docs/stories/modules/organization/contracts.md)
+- notification: notify, recipientLanguage, retargetNotifications (docs/stories/modules/notification/contracts.md)
 - access: requireAbility, abilityFor, idempotent (docs/stories/modules/access/contracts.md)

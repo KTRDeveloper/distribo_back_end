@@ -7,6 +7,9 @@ What this module provides to other modules, and what it consumes from them. A co
 - `notify(input: NotifyInput, tx?: Prisma.TransactionClient): Promise<void>`: stores one unread notification
 - `recipientLanguage(personId: string): Promise<'FR' | 'EN'>`: preferred language, FR when empty
 - Used by: `auth`, `organization`, `relationship`, `order`, `finance`, `delivery`, `admin`, `sync`
+### retargetNotifications (`src/modules/notification/notification.service.ts`, created by NTF-005)
+- `retargetNotifications(tx: Prisma.TransactionClient, input: { type: string; fromId: string; toId: string }): Promise<number>`: points every notification about one entity at its replacement; returns how many moved
+- Used by: `order`
 
 ## Consumes
 - person: PER-008 require_registered_person trigger (docs/stories/modules/person/contracts.md)

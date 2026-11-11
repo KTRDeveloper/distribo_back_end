@@ -133,3 +133,51 @@ stories:
       - "Settling payments that stay pending (BIL-021). Purging commercial data after 10 years (not in v1)."
     tests_to_update:
       - "tests/integration/privacy/purge.test.ts | the expected counts list five tables | add `subscription_payments: 0` (no payment is seeded there)"
+---
+kind: stories
+module: privacy
+constraints: {}
+stories:
+  - id: PRIV-006
+    title: Account deletion also clears the phones' Android fingerprints
+    kind: change
+    size: S
+    risk: medium
+    amends: [PRIV-002]
+    depends_on: [PRIV-002, AUTH-039]
+    read_first: [src/modules/privacy/privacy.repository.ts, tests/integration/privacy/anonymize-avatar.test.ts]
+    design_refs: [a2-reconnaitre-un-telephone-android/ce-que-le-serveur-garde-champ-ajoute-a]
+    constraints: []
+    asvs: [v5.0.0-14.2.4]
+    story: As a customer, I want deleting my account to erase my phones' fingerprints, so that nothing keeps linking a phone to me.
+    context: |
+      - In the anonymization transaction (`privacy.repository.ts`), the update that clears `push_token` on the person's devices also sets `android_id_hash` to null, revoked devices included.
+      - Nothing else changes in the deletion.
+    acceptance: |
+      Scenario: AC-1 The fingerprints are erased
+        Given person P with an open device and a revoked device, both with a fingerprint
+        When P deletes their account
+        Then both devices have android_id_hash and push_token empty
+    abuse: |
+      Scenario: AB-1 Another person's devices
+        Given person Q with a device that has a fingerprint
+        When P deletes their account
+        Then Q's device keeps its fingerprint
+    implementation:
+      create: [tests/integration/privacy/anonymize-android-id.test.ts]
+      modify: [src/modules/privacy/privacy.repository.ts]
+      pattern: tests/integration/auth/devices.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-14.2.4: the fingerprint is personal data and is erased with the account, like the push token."
+    tests: |
+      erased | integration | AC-1 | both devices without fingerprint or push token
+      other person | security | AB-1, CWE-639 | Q's fingerprint kept
+    tests_to_update:
+      - "tests/integration/privacy/anonymize.test.ts | one more device field is cleared | unchanged: passes without edits"
+    command: npx vitest run tests/integration/privacy/anonymize-android-id.test.ts
+    out_of_scope:
+      - "Writing the fingerprint (AUTH-041)."

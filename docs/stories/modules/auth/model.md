@@ -45,6 +45,7 @@ Design: `acces-et-securite/device`
 | integrity_verdict | string, nullable |  |
 | created_at | datetime |  |
 | revoked_at | datetime, nullable |  |
+| android_id_hash | string, nullable |  |
 
 - `Device:required`: NOT NULL: `person_id`, `platform`, `app_version`, `scope_version_seen`, `created_at`
 - `Device.platform:enum`: one of ANDROID, IOS

@@ -1,6 +1,6 @@
 # Constraints
 
-One line per constraint, from `data-model/modele-donnees-livraisons-v16.md`. Extracted rows are rebuilt by extract_model.py; the Manual section is never touched by scripts.
+One line per constraint, from `data-model/conception.md`. Extracted rows are rebuilt by extract_model.py; the Manual section is never touched by scripts.
 
 ## Extracted
 
@@ -43,7 +43,8 @@ One line per constraint, from `data-model/modele-donnees-livraisons-v16.md`. Ext
 | Order.placed_by_party:enum | Order.placed_by_party | one of CUSTOMER, SUPPLIER |
 | Order.status:enum | Order.status | one of PENDING, CONFIRMED, IN_DELIVERY, DELIVERED, CANCELLED |
 | Order.cancelled_by_party:enum | Order.cancelled_by_party | one of CUSTOMER, SUPPLIER |
-| Order:fk | Order.customer_relationship_id, Order.entered_by_id, Order.delivered_by_id, Order.cancelled_by_id, Order.parent_order_id | references customer_relationship_id → CustomerRelationship; entered_by_id → Person; delivered_by_id → Person; cancelled_by_id → Person; parent_order_id → Order |
+| Order.reception_mode:enum | Order.reception_mode | one of DELIVERY, PICKUP |
+| Order:fk | Order.customer_relationship_id, Order.entered_by_id, Order.delivered_by_id, Order.cancelled_by_id, Order.parent_order_id, Order.replaced_by_order_id | references customer_relationship_id → CustomerRelationship; entered_by_id → Person; delivered_by_id → Person; cancelled_by_id → Person; parent_order_id → Order; replaced_by_order_id → Order |
 | OrderLine:required | OrderLine.order_id, OrderLine.product_variant_id, OrderLine.label_applied, OrderLine.quantity, OrderLine.reference_price, OrderLine.unit_price_applied, OrderLine.amount | NOT NULL |
 | OrderLine:fk | OrderLine.order_id, OrderLine.product_variant_id, OrderLine.price_set_by_id | references order_id → Order; product_variant_id → ProductVariant; price_set_by_id → Person |
 | Delivery:required | Delivery.order_id, Delivery.assigned_to_id | NOT NULL |
@@ -159,6 +160,11 @@ One line per constraint, from `data-model/modele-donnees-livraisons-v16.md`. Ext
 | C-37 | CustomerRelationship.balance, Collaboration.amount_held | Caches `CustomerRelationship.balance` et `Collaboration.amount_held` : mis à jour par ajout de l'effet de chaque opération, dans sa transaction ; deux caches toujours dans l'ordre client puis collaborateur ; contrôle de nuit contre la somme des effets |
 | C-38 | * | Routes en ligne : chaque geste porte l'identifiant créé par le téléphone ; un identifiant déjà reçu ne refait rien |
 | C-39 | LedgerEntry, SyncArchive, PhoneNumberChangeLog, CustomerRelationshipReassignment, CreditLimitChange, AdminAction, ImageCopy, SubscriptionReceipt, SubscriptionEvent | Tables immuables (`LedgerEntry`, `SyncArchive`, `PhoneNumberChangeLog`, `CustomerRelationshipReassignment`, `CreditLimitChange`, `AdminAction`, `ImageCopy`, `SubscriptionReceipt`, `SubscriptionEvent`) : le compte applicatif n'a que les droits `INSERT` et `SELECT` |
+| C-58 | Order.replaced_by_order_id | `replaced_by_order_id` : unique parmi les valeurs renseignées ; jamais l'identifiant de la commande elle-même ; renseigné seulement sur une commande passée par le client ; la remplaçante est sur la même relation. |
+| C-59 | * | Au plus une session non fermée par personne et par empreinte. |
+| C-60 | * | Une commande `PICKUP` n'a pas d'adresse. |
+| C-61 | Order.supplier_name_applied, Order.collected_applied, Order.balance_after_applied, Order.customer_name_applied | `supplier_name_applied`, `collected_applied` et `balance_after_applied` sont renseignés ⟺ la commande est livrée ; `customer_name_applied` peut rester vide. Posée après la reprise des commandes déjà livrées. |
+| C-62 | * | Une fois remplis, la base refuse toute modification de ces quatre champs. |
 
 ## Manual
 

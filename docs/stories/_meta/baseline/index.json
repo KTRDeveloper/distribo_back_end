@@ -245,6 +245,26 @@
       "hash": "a8ef869f74d5aeac",
       "line": 1581
     },
+    "constraint:C-58": {
+      "hash": "40f5b4e0fcf9ae00",
+      "line": 1911
+    },
+    "constraint:C-59": {
+      "hash": "f149c7f00b7fa323",
+      "line": 1950
+    },
+    "constraint:C-60": {
+      "hash": "37a411efa50e6394",
+      "line": 2009
+    },
+    "constraint:C-61": {
+      "hash": "5874fb3a61ecd174",
+      "line": 2090
+    },
+    "constraint:C-62": {
+      "hash": "be627590363f1199",
+      "line": 2091
+    },
     "constraint:Collaboration.role:enum": {
       "hash": "d47ea19ad903eeaa",
       "line": 201
@@ -381,12 +401,16 @@
       "hash": "d6cb4b7340ac6bd2",
       "line": 554
     },
+    "constraint:Order.reception_mode:enum": {
+      "hash": "1471d98d437e6bd1",
+      "line": 1997
+    },
     "constraint:Order.status:enum": {
       "hash": "bd3a36d9199b37bc",
       "line": 559
     },
     "constraint:Order:fk": {
-      "hash": "7442df52daa1e2f1",
+      "hash": "4e4ebb2bc9b1c1c7",
       "line": 553
     },
     "constraint:Order:required": {
@@ -1187,6 +1211,11 @@
       "line": 696,
       "type": "string, nullable"
     },
+    "field:Device.android_id_hash": {
+      "hash": "f9edc10925473f75",
+      "line": 1931,
+      "type": "string, nullable"
+    },
     "field:Device.app_version": {
       "hash": "6dc04b8e16b11497",
       "line": 1374,
@@ -1486,6 +1515,11 @@
       "line": 563,
       "type": "datetime, nullable"
     },
+    "field:Order.balance_after_applied": {
+      "hash": "6785c8daa8937d9e",
+      "line": 2068,
+      "type": "bigint, nullable"
+    },
     "field:Order.cancellation_reason": {
       "hash": "6899d7711c39a142",
       "line": 568,
@@ -1510,10 +1544,20 @@
       "line": 565,
       "type": "enum [CUSTOMER / SUPPLIER], nullable"
     },
+    "field:Order.collected_applied": {
+      "hash": "2a3ffe5e2345dd54",
+      "line": 2067,
+      "type": "bigint, nullable"
+    },
     "field:Order.created_at": {
       "hash": "896655a15fdc702a",
       "line": 562,
       "type": "datetime"
+    },
+    "field:Order.customer_name_applied": {
+      "hash": "38e09da32f4e2c0b",
+      "line": 2066,
+      "type": "string, nullable"
     },
     "field:Order.customer_note": {
       "hash": "d9d41b7b5f94e86a",
@@ -1574,6 +1618,20 @@
       "line": 554,
       "type": "enum [CUSTOMER / SUPPLIER]"
     },
+    "field:Order.reception_mode": {
+      "enum": [
+        "DELIVERY",
+        "PICKUP"
+      ],
+      "hash": "0a931860ab5cb129",
+      "line": 1997,
+      "type": "enum [DELIVERY / PICKUP], nullable"
+    },
+    "field:Order.replaced_by_order_id": {
+      "hash": "84579a29fcb012b3",
+      "line": 1884,
+      "type": "FK → Order, nullable"
+    },
     "field:Order.status": {
       "enum": [
         "PENDING",
@@ -1585,6 +1643,11 @@
       "hash": "2e133d102b5d863e",
       "line": 559,
       "type": "enum [PENDING / CONFIRMED / IN_DELIVERY / DELIVERED / CANCELLED]"
+    },
+    "field:Order.supplier_name_applied": {
+      "hash": "f8187748fe0a774d",
+      "line": 2065,
+      "type": "string, nullable"
     },
     "field:Order.supplier_note": {
       "hash": "31cfac06e9d90601",
@@ -2502,8 +2565,8 @@
       "type": "datetime"
     }
   },
-  "lines": 1840,
-  "path": "data-model/modele-donnees-livraisons-v16.md",
+  "lines": 2095,
+  "path": "data-model/conception.md",
   "retired": [
     "constraint:C-17",
     "constraint:C-31",
@@ -2520,13 +2583,310 @@
   ],
   "sections": {
     "_doc": {
-      "end": 1840,
-      "full_hash": "9cf182ea339eb14a",
+      "end": 2095,
+      "full_hash": "72e5aaf57b668f2b",
       "hash": "e3b0c44298fc1c14",
       "level": 1,
       "own_end": 2,
       "start": 1,
       "title": "Modèle de données — Application SaaS de gestion de livraisons"
+    },
+    "a1-modifier-remplacer-une-commande-en": {
+      "end": 1912,
+      "full_hash": "73b430757d2cbffb",
+      "hash": "752c2918bb476355",
+      "level": 2,
+      "own_end": 1865,
+      "start": 1861,
+      "title": "A1. « Modifier » : remplacer une commande en attente (demande 2)"
+    },
+    "a1-modifier-remplacer-une-commande-en/contraintes-de-base-de-donnees-complete": {
+      "end": 1912,
+      "full_hash": "b0e4352a7b828664",
+      "hash": "b0e4352a7b828664",
+      "level": 3,
+      "own_end": 1912,
+      "start": 1909,
+      "title": "Contraintes de base de données (complète « Contraintes à poser au niveau base de données »)"
+    },
+    "a1-modifier-remplacer-une-commande-en/etapes-complete-a-2": {
+      "end": 1908,
+      "full_hash": "5ad6fab4ba82e152",
+      "hash": "5ad6fab4ba82e152",
+      "level": 3,
+      "own_end": 1908,
+      "start": 1903,
+      "title": "Étapes (complète A.2)"
+    },
+    "a1-modifier-remplacer-une-commande-en/gestes-hors-ligne-arrives-apres-le": {
+      "end": 1902,
+      "full_hash": "8800ad4e10801e9c",
+      "hash": "8800ad4e10801e9c",
+      "level": 3,
+      "own_end": 1902,
+      "start": 1896,
+      "title": "Gestes hors ligne arrivés après le remplacement (complète 9.2)"
+    },
+    "a1-modifier-remplacer-une-commande-en/le-geste": {
+      "end": 1875,
+      "full_hash": "65fb803c8012282d",
+      "hash": "65fb803c8012282d",
+      "level": 3,
+      "own_end": 1875,
+      "start": 1866,
+      "title": "Le geste"
+    },
+    "a1-modifier-remplacer-une-commande-en/le-lien-et-la-suppression-champ-ajoute": {
+      "end": 1891,
+      "full_hash": "b4d3570e7cac9682",
+      "hash": "b4d3570e7cac9682",
+      "level": 3,
+      "own_end": 1891,
+      "start": 1880,
+      "title": "Le lien et la suppression : champ ajouté à Order"
+    },
+    "a1-modifier-remplacer-une-commande-en/le-total-vu-par-le-client": {
+      "end": 1879,
+      "full_hash": "306b567a0398d0be",
+      "hash": "306b567a0398d0be",
+      "level": 3,
+      "own_end": 1879,
+      "start": 1876,
+      "title": "Le total vu par le client"
+    },
+    "a1-modifier-remplacer-une-commande-en/notification-complete-8-1": {
+      "end": 1895,
+      "full_hash": "65b6346aab0f9104",
+      "hash": "65b6346aab0f9104",
+      "level": 3,
+      "own_end": 1895,
+      "start": 1892,
+      "title": "Notification (complète 8.1)"
+    },
+    "a2-reconnaitre-un-telephone-android": {
+      "end": 1951,
+      "full_hash": "449da7cdf44fd69f",
+      "hash": "0363c23853db5c64",
+      "level": 2,
+      "own_end": 1916,
+      "start": 1913,
+      "title": "A2. Reconnaître un téléphone Android dans « Mes appareils » (demande 3)"
+    },
+    "a2-reconnaitre-un-telephone-android/a-l-ouverture-d-une-session": {
+      "end": 1938,
+      "full_hash": "7c53da3465f3ceb1",
+      "hash": "7c53da3465f3ceb1",
+      "level": 3,
+      "own_end": 1938,
+      "start": 1933,
+      "title": "À l'ouverture d'une session"
+    },
+    "a2-reconnaitre-un-telephone-android/ce-que-le-serveur-garde-champ-ajoute-a": {
+      "end": 1932,
+      "full_hash": "f17a6a6cdff6c438",
+      "hash": "f17a6a6cdff6c438",
+      "level": 3,
+      "own_end": 1932,
+      "start": 1927,
+      "title": "Ce que le serveur garde : champ ajouté à Device (complète 10.3)"
+    },
+    "a2-reconnaitre-un-telephone-android/contraintes-de-base-de-donnees-complete": {
+      "end": 1951,
+      "full_hash": "0cbd21c8b853d820",
+      "hash": "0cbd21c8b853d820",
+      "level": 3,
+      "own_end": 1951,
+      "start": 1948,
+      "title": "Contraintes de base de données (complète « Contraintes à poser au niveau base de données »)"
+    },
+    "a2-reconnaitre-un-telephone-android/fiches-existantes": {
+      "end": 1947,
+      "full_hash": "b377d11016c938c8",
+      "hash": "b377d11016c938c8",
+      "level": 3,
+      "own_end": 1947,
+      "start": 1944,
+      "title": "Fiches existantes"
+    },
+    "a2-reconnaitre-un-telephone-android/le-champ-envoye": {
+      "end": 1926,
+      "full_hash": "7084011ab2bca17e",
+      "hash": "7084011ab2bca17e",
+      "level": 3,
+      "own_end": 1926,
+      "start": 1921,
+      "title": "Le champ envoyé"
+    },
+    "a2-reconnaitre-un-telephone-android/le-principe": {
+      "end": 1920,
+      "full_hash": "d7fc49364ee2cd6a",
+      "hash": "d7fc49364ee2cd6a",
+      "level": 3,
+      "own_end": 1920,
+      "start": 1917,
+      "title": "Le principe"
+    },
+    "a2-reconnaitre-un-telephone-android/sessions-ouvertes-precise-1-1-et-10-3": {
+      "end": 1943,
+      "full_hash": "7cb38c94a213eb10",
+      "hash": "7cb38c94a213eb10",
+      "level": 3,
+      "own_end": 1943,
+      "start": 1939,
+      "title": "Sessions ouvertes (précise 1.1 et 10.3)"
+    },
+    "a3-plafond-de-credit-deja-depasse": {
+      "end": 1988,
+      "full_hash": "c444e481086db493",
+      "hash": "a4e57c1e9b72ff30",
+      "level": 2,
+      "own_end": 1955,
+      "start": 1952,
+      "title": "A3. Plafond de crédit déjà dépassé (demande 4)"
+    },
+    "a3-plafond-de-credit-deja-depasse/ce-que-recoit-le-livreur-precise-9-6": {
+      "end": 1988,
+      "full_hash": "8a2108430b7aea79",
+      "hash": "8a2108430b7aea79",
+      "level": 3,
+      "own_end": 1988,
+      "start": 1985,
+      "title": "Ce que reçoit le livreur (précise 9.6)"
+    },
+    "a3-plafond-de-credit-deja-depasse/exemples-montants-en-xaf": {
+      "end": 1984,
+      "full_hash": "8827971831dd65b5",
+      "hash": "8827971831dd65b5",
+      "level": 3,
+      "own_end": 1984,
+      "start": 1973,
+      "title": "Exemples (montants en XAF)"
+    },
+    "a3-plafond-de-credit-deja-depasse/la-regle": {
+      "end": 1964,
+      "full_hash": "71d7de727a024f48",
+      "hash": "71d7de727a024f48",
+      "level": 3,
+      "own_end": 1964,
+      "start": 1956,
+      "title": "La règle"
+    },
+    "a3-plafond-de-credit-deja-depasse/le-controle-complete-4-1-commande": {
+      "end": 1972,
+      "full_hash": "0144a0efec2950e8",
+      "hash": "0144a0efec2950e8",
+      "level": 3,
+      "own_end": 1972,
+      "start": 1965,
+      "title": "Le contrôle (complète 4.1, « Commande livrée », et 9.2)"
+    },
+    "a4-livraison-ou-retrait-reception-mode": {
+      "end": 2010,
+      "full_hash": "abf29d9046fd3740",
+      "hash": "833f41d63ca5adb8",
+      "level": 2,
+      "own_end": 1992,
+      "start": 1989,
+      "title": "A4. Livraison ou retrait : reception_mode (demande 5)"
+    },
+    "a4-livraison-ou-retrait-reception-mode/champ-ajoute-a-order": {
+      "end": 2006,
+      "full_hash": "ecf54bea910adea3",
+      "hash": "ecf54bea910adea3",
+      "level": 3,
+      "own_end": 2006,
+      "start": 1993,
+      "title": "Champ ajouté à Order"
+    },
+    "a4-livraison-ou-retrait-reception-mode/contraintes-de-base-de-donnees-complete": {
+      "end": 2010,
+      "full_hash": "4d766e8969ba4da6",
+      "hash": "4d766e8969ba4da6",
+      "level": 3,
+      "own_end": 2010,
+      "start": 2007,
+      "title": "Contraintes de base de données (complète « Contraintes à poser au niveau base de données »)"
+    },
+    "a5-nom-public-du-client-chez-le": {
+      "end": 2024,
+      "full_hash": "daa13fa5ee88b39f",
+      "hash": "daa13fa5ee88b39f",
+      "level": 2,
+      "own_end": 2024,
+      "start": 2011,
+      "title": "A5. Nom public du client chez le fournisseur : customer_public_name (demande 6)"
+    },
+    "a6-nom-public-du-fournisseur-chez-le": {
+      "end": 2039,
+      "full_hash": "0d475a2c841f15dc",
+      "hash": "0d475a2c841f15dc",
+      "level": 2,
+      "own_end": 2039,
+      "start": 2025,
+      "title": "A6. Nom public du fournisseur chez le client : supplier_public_name (demande 7)"
+    },
+    "a7-blocage-apres-5-erreurs-de-mot-de": {
+      "end": 2053,
+      "full_hash": "8ebfbd5a7a794429",
+      "hash": "8ebfbd5a7a794429",
+      "level": 2,
+      "own_end": 2053,
+      "start": 2040,
+      "title": "A7. Blocage après 5 erreurs de mot de passe (demande 8)"
+    },
+    "a8-le-recu-ne-change-plus-point-9": {
+      "end": 2095,
+      "full_hash": "039ad7959a91ef8f",
+      "hash": "a98498fcc49d6ab7",
+      "level": 2,
+      "own_end": 2060,
+      "start": 2054,
+      "title": "A8. Le reçu ne change plus (point 9)"
+    },
+    "a8-le-recu-ne-change-plus-point-9/apres-la-suppression-d-un-compte": {
+      "end": 2080,
+      "full_hash": "1ea550c840c84a37",
+      "hash": "1ea550c840c84a37",
+      "level": 3,
+      "own_end": 2080,
+      "start": 2077,
+      "title": "Après la suppression d'un compte (précise 11.2)"
+    },
+    "a8-le-recu-ne-change-plus-point-9/champs-figes-champs-ajoutes-a-order": {
+      "end": 2076,
+      "full_hash": "80ca473cc3882c3e",
+      "hash": "80ca473cc3882c3e",
+      "level": 3,
+      "own_end": 2076,
+      "start": 2061,
+      "title": "Champs figés : champs ajoutés à Order (complète 4.1)"
+    },
+    "a8-le-recu-ne-change-plus-point-9/contraintes-de-base-de-donnees-complete": {
+      "end": 2092,
+      "full_hash": "c4f081d447051956",
+      "hash": "c4f081d447051956",
+      "level": 3,
+      "own_end": 2092,
+      "start": 2088,
+      "title": "Contraintes de base de données (complète « Contraintes à poser au niveau base de données »)"
+    },
+    "a8-le-recu-ne-change-plus-point-9/cote-front": {
+      "end": 2095,
+      "full_hash": "ed1cacc0ef904f44",
+      "hash": "ed1cacc0ef904f44",
+      "level": 3,
+      "own_end": 2095,
+      "start": 2093,
+      "title": "Côté front"
+    },
+    "a8-le-recu-ne-change-plus-point-9/mise-en-service": {
+      "end": 2087,
+      "full_hash": "2bee84e544071ca8",
+      "hash": "2bee84e544071ca8",
+      "level": 3,
+      "own_end": 2087,
+      "start": 2081,
+      "title": "Mise en service"
     },
     "acces-et-securite": {
       "end": 1427,
@@ -2590,6 +2950,15 @@
       "own_end": 1405,
       "start": 1387,
       "title": "10.4 RefreshToken"
+    },
+    "addendum-au-modele-de-donnees-v16": {
+      "end": 1846,
+      "full_hash": "5fe40554feeaaf51",
+      "hash": "5fe40554feeaaf51",
+      "level": 2,
+      "own_end": 1846,
+      "start": 1841,
+      "title": "Addendum au modèle de données v16"
     },
     "annexe-la-table-des-regles": {
       "end": 1840,
@@ -2761,6 +3130,15 @@
       "own_end": 1623,
       "start": 1560,
       "title": "Contraintes à poser au niveau base de données"
+    },
+    "decisions": {
+      "end": 1860,
+      "full_hash": "517f3605c4b9e6ad",
+      "hash": "517f3605c4b9e6ad",
+      "level": 2,
+      "own_end": 1860,
+      "start": 1847,
+      "title": "Décisions"
     },
     "donnees-personnelles-et-conservation": {
       "end": 1464,
@@ -3348,5 +3726,5 @@
       "title": "9.4 SyncArchive"
     }
   },
-  "sha256": "df1d3ad500d8cb837941bafc4c5ca1682ad30c01163efa80a26092c967a18cbb"
+  "sha256": "9b9acc0c417cd1121574a7800bf412490868f69018a139fb5dfaefef8850df66"
 }

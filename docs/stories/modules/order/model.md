@@ -28,11 +28,18 @@ Design: `commandes-et-livraisons/order`
 | customer_note | string, nullable |  |
 | supplier_note | string, nullable | C-18 |
 | sync_issue | string, nullable |  |
+| replaced_by_order_id | FK → Order, nullable | Order:fk, C-58 |
+| reception_mode | enum [DELIVERY / PICKUP], nullable | Order.reception_mode:enum |
+| supplier_name_applied | string, nullable | C-61 |
+| customer_name_applied | string, nullable | C-61 |
+| collected_applied | bigint, nullable | C-61 |
+| balance_after_applied | bigint, nullable | C-61 |
 
 - `Order:required`: NOT NULL: `customer_relationship_id`, `placed_by_party`, `entered_by_id`, `total_amount`, `delivery_cost`, `status`, `created_at`
 - `Order.placed_by_party:enum`: one of CUSTOMER, SUPPLIER
 - `Order.status:enum`: one of PENDING, CONFIRMED, IN_DELIVERY, DELIVERED, CANCELLED
 - `Order.cancelled_by_party:enum`: one of CUSTOMER, SUPPLIER
+- `Order.reception_mode:enum`: one of DELIVERY, PICKUP
 - `Order:fk`: references customer_relationship_id → CustomerRelationship; entered_by_id → Person; delivered_by_id → Person; cancelled_by_id → Person; parent_order_id → Order
 - `C-14`: An order is created only on an ACTIVE relationship whose supplier is an ACTIVE organization (not suspended, not closed).
 - `C-15`: Every order line is for an ACTIVE variant of the relationship's supplier, of a product that is not paused; on a customer-placed order the quantity is at least the variant's `min_order_quantity` when sent.
@@ -41,6 +48,8 @@ Design: `commandes-et-livraisons/order`
 - `C-18`: Status changes follow the permitted steps; delivery wins; a delivered or cancelled order is frozen except `supplier_note`.
 - `C-19`: `delivered_at` and `delivered_by_id` are set if and only if `status` is DELIVERED; every line then has `delivered_quantity`; `total_amount` equals the sum of line amounts plus `delivery_cost`.
 - `C-24`: A SALE ledger entry has `order_id` set and `amount` equal to `Order.total_amount` (server-fixed), and there is at most one non-reversed sale per order; the payment born of 'Commande livrée' also carries `order_id`.
+- `C-58`: `replaced_by_order_id` is unique among set values, never the order's own id, set only on an order placed by the CUSTOMER, and names an order of the same relationship.
+- `C-61`: `supplier_name_applied`, `collected_applied` and `balance_after_applied` are set exactly when the order is DELIVERED; `customer_name_applied` may stay empty. Enforced after the backfill of the orders already delivered.
 - `CM-12`: Allowed transitions only: PENDING to CONFIRMED or CANCELLED; CONFIRMED to IN_DELIVERY, DELIVERED or CANCELLED; IN_DELIVERY to DELIVERED or CONFIRMED (failed attempt); DELIVERED wins over CANCELLED; DELIVERED and CANCELLED are frozen except supplier_note.
 - `CM-13`: The amount of a sale is always Order.total_amount computed by the server on delivered quantities; the amount sent by the phone is ignored.
 - `CM-22`: Partial delivery: 'later' creates a CONFIRMED order for the remainder at the original order's prices, linked by parent_order_id; 'abandon' closes the order on what was delivered; abandon by a non-owner joins the owner's exceptions (design lines 503-504)

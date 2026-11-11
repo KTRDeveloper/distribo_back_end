@@ -398,3 +398,32 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-030 | done | | contested_at in supplier and customer views; GET /suppliers contested filter; 46 tests green; 2 correct-number failures until REL-031 |
 | REL-031 | done | | contested correction clears mark, SAME_NUMBER, confirm_same_customer removed |
 | SYNC-044 | done | | contested_at server-only on push, pulled as epoch ms on supplier and customer rows |
+| NTF-005 | todo | | |
+| AUTH-039 | todo | | |
+| AUTH-040 | todo | | |
+| AUTH-041 | todo | | |
+| AUTH-042 | todo | | |
+| AUTH-043 | todo | | |
+| AUTH-044 | todo | | |
+| ORD-038 | todo | | |
+| PRIV-006 | todo | | |
+| DLV-017 | todo | | |
+| REL-032 | todo | | |
+| ORD-035 | todo | | |
+| ORD-036 | todo | | |
+| DLV-018 | todo | | |
+| ORD-037 | todo | | |
+| ORD-039 | todo | | |
+| ORD-040 | todo | | |
+| DLV-019 | todo | | |
+| ORD-041 | todo | | |
+| ORD-042 | todo | | |
+| ORD-043 | todo | | |
+| ORD-044 | todo | | |
+| ORD-045 | todo | | |
+| SYNC-045 | todo | | |
+| SYNC-046 | todo | | |
+| SYNC-047 | todo | | |
+| REL-033 | todo | | |
+| SYNC-048 | todo | | |
+| SYNC-049 | todo | | |

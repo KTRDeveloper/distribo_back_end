@@ -802,3 +802,712 @@ stories:
     tests_to_update:
       - "tests/integration/order/order-line-table.test.ts | asserts the `product_id` column, its key, its index and the filling trigger | those assertions go; the rest stays"
       - "tests/integration/order/line-rules.test.ts | has tests on a product that differs from the variant's, and on a line saved without a variant | the first is removed with the column; the second expects 23502"
+---
+kind: stories
+module: order
+constraints:
+  C-58: "`replaced_by_order_id` is unique among set values, never the order's own id, set only on an order placed by the CUSTOMER, and names an order of the same relationship."
+  C-60: "A `PICKUP` order has no delivery address."
+  C-61: "`supplier_name_applied`, `collected_applied` and `balance_after_applied` are set exactly when the order is DELIVERED; `customer_name_applied` may stay empty. Enforced after the backfill of the orders already delivered."
+  C-62: "Once set, the database refuses any change to `supplier_name_applied`, `customer_name_applied`, `collected_applied` and `balance_after_applied`."
+stories:
+  - id: ORD-035
+    title: An order records the version that replaced it
+    kind: migration
+    size: S
+    risk: high
+    amends: [ORD-001]
+    depends_on: [ORD-034]
+    read_first: [prisma/schema.prisma, tests/integration/organization/amount-held.test.ts]
+    design_refs: [a1-modifier-remplacer-une-commande-en/le-lien-et-la-suppression-champ-ajoute, a1-modifier-remplacer-une-commande-en/contraintes-de-base-de-donnees-complete]
+    constraints: [C-58]
+    asvs: [v5.0.0-2.2.1]
+    fields: ["Order.{replaced_by_order_id}"]
+    story: "Technical story: add `replaced_by_order_id` to orders, so that a version the customer changed points at the version that replaced it."
+    context: |
+      - Additive migration: a nullable `uuid` column, a foreign key to `orders(id)` with the same delete rule as `parent_order_id`, and a unique index on the set values only.
+      - Two CHECKs: the link differs from the order's own `id`; a set link requires `placed_by_party` CUSTOMER.
+      - A trigger before insert or update of the link: when set, the linked order must have the same `customer_relationship_id`, else it raises SQLSTATE 23514.
+      - `prisma/schema.prisma`: `Order` gets `replacedByOrderId` and a self-relation whose back relation is a list (the index is partial, so no `@unique`). Add the four rules to the `//` comment above `Order` in plain words, with this migration's name.
+      - No code writes the link yet (ORD-039).
+    acceptance: |
+      Scenario: AC-1 The column exists and stays empty
+        When the columns of `orders` are read
+        Then `replaced_by_order_id` is a nullable uuid and every existing order has it empty
+      Scenario Outline: AC-2 The database guards the link
+        Given an order placed by the CUSTOMER on relationship R
+        When its `replaced_by_order_id` is set to <target>
+        Then the database <result>
+        Examples:
+          | target                                       | result          |
+          | another order of R                           | accepts         |
+          | its own id                                   | rejects (23514) |
+          | an order another order of R already links to | rejects (23505) |
+          | an unknown id                                | rejects (23503) |
+      Scenario: AC-3 Only customer orders carry a link
+        When the link is set on an order placed by the SUPPLIER, to another order of its relationship
+        Then the database rejects it with 23514
+    abuse: |
+      Scenario: AB-1 A link to another customer's order (horizontal)
+        When a raw update links an order of relationship R to an order of relationship S
+        Then the database rejects it with 23514 and the link stays empty
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_ord_035_replaced_by_order_id/migration.sql
+        - tests/integration/order/order-replaced-by-column.test.ts
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the database refuses a link that leaves the relationship, even when the code is bypassed."
+    tests: |
+      column | integration | AC-1 | read the column → nullable uuid, existing rows empty
+      link rules | integration | AC-2, C-58 | each Examples row → accepted, 23514, 23505 or 23503
+      supplier order | integration | AC-3, C-58 | link on a SUPPLIER-placed order → 23514
+      other relationship | security | AB-1, CWE-639 | link to an order of relationship S → 23514
+    command: npx vitest run tests/integration/order/order-replaced-by-column.test.ts
+    out_of_scope:
+      - "Writing the link (ORD-039)."
+
+  - id: ORD-036
+    title: An order records delivery or pickup
+    kind: migration
+    size: XS
+    risk: high
+    amends: [ORD-001]
+    depends_on: [ORD-034]
+    read_first: [prisma/schema.prisma, tests/integration/organization/amount-held.test.ts]
+    design_refs: [a4-livraison-ou-retrait-reception-mode/champ-ajoute-a-order, a4-livraison-ou-retrait-reception-mode/contraintes-de-base-de-donnees-complete]
+    constraints: [C-60, 'Order.reception_mode:enum']
+    asvs: [v5.0.0-2.2.1]
+    fields: ["Order.{reception_mode}"]
+    story: "Technical story: add `reception_mode` to orders, so that an order says whether it is delivered or picked up."
+    context: |
+      - Additive migration: enum type `ReceptionMode` (DELIVERY, PICKUP) and a nullable column `reception_mode`. Existing orders stay empty (not stated): no backfill from the address.
+      - A CHECK: when `reception_mode` is PICKUP, `delivery_address_applied` is empty.
+      - `prisma/schema.prisma`: the enum and `receptionMode ReceptionMode? @map("reception_mode")` on `Order`; add the rule to the `//` comment above `Order` in plain words, with this migration's name.
+      - No code writes the field yet (ORD-037).
+    acceptance: |
+      Scenario: AC-1 The column exists and stays empty
+        When the columns of `orders` are read
+        Then `reception_mode` is nullable with values DELIVERY and PICKUP, and every existing order has it empty
+      Scenario Outline: AC-2 A pickup has no address
+        When an order is saved with mode <mode> and address <address>
+        Then the database <result>
+        Examples:
+          | mode     | address        | result          |
+          | PICKUP   | empty          | accepts         |
+          | PICKUP   | "Rue 12, Akwa" | rejects (23514) |
+          | DELIVERY | "Rue 12, Akwa" | accepts         |
+          | DELIVERY | empty          | accepts         |
+          | empty    | "Rue 12, Akwa" | accepts         |
+    abuse: |
+      Scenario: AB-1 A pickup that keeps its address (bypass)
+        Given an order with address "Rue 12, Akwa"
+        When a raw update sets `reception_mode` to PICKUP without clearing the address
+        Then the database rejects it with 23514 and the order is unchanged
+      Scenario: AB-2 An unknown mode
+        When a raw insert sets `reception_mode` to 'SHIP'
+        Then PostgreSQL rejects it with 22P02
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_ord_036_reception_mode/migration.sql
+        - tests/integration/order/reception-mode-column.test.ts
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the database keeps a pickup without an address, even when the code is bypassed."
+    tests: |
+      column | integration | AC-1 | read the column → nullable enum, existing rows empty
+      pickup rule | integration | AC-2, C-60 | each Examples row → accepted or 23514
+      bypass | security | AB-1, CWE-20 | raw update to PICKUP keeping the address → 23514
+      unknown mode | security | AB-2, Order.reception_mode:enum, CWE-20 | 'SHIP' → 22P02
+    command: npx vitest run tests/integration/order/reception-mode-column.test.ts
+    out_of_scope:
+      - "Reading or writing the field through the API (ORD-037)."
+
+  - id: ORD-037
+    title: Orders are placed and edited as delivery or pickup
+    kind: change
+    size: S
+    risk: medium
+    amends: [ORD-007, ORD-009, ORD-010, ORD-013, ORD-014]
+    depends_on: [ORD-036]
+    read_first: [src/modules/order/order.schemas.ts, tests/integration/order/order-line-variant-required.test.ts]
+    design_refs: [a4-livraison-ou-retrait-reception-mode/champ-ajoute-a-order]
+    constraints: [C-60]
+    asvs: [v5.0.0-2.2.1, v5.0.0-15.3.3]
+    story: As a customer, I want to say whether my order is delivered or picked up, so that nobody delivers an order I come to fetch.
+    context: |
+      - Exists: column `reception_mode` and its check (ORD-036); bodies of POST /api/v1/orders (ORD-009), POST /api/v1/organizations/{organizationId}/purchases (ORD-010), POST /api/v1/organizations/{organizationId}/orders (ORD-013), PATCH /api/v1/organizations/{organizationId}/orders/{orderId} (ORD-014); views (ORD-007).
+      - The four bodies get an optional `reception_mode`, DELIVERY or PICKUP. Absent at creation, the order keeps it empty (older app versions).
+      - Creation: PICKUP stores no address and never applies the relationship's usual address; PICKUP with a `delivery_address` that is not null → 400 VALIDATION_ERROR; DELIVERY or absent → today's address rule.
+      - Edit: absent → the mode does not change; PICKUP clears the address; DELIVERY on an order whose stored mode is not DELIVERY, with no address sent, applies the usual address; an address sent while the resulting mode is PICKUP → 400 VALIDATION_ERROR, nothing changes.
+      - One pure helper decides mode and address for both gestures. The customer and supplier views show `reception_mode` (null when not stated).
+      - The field informs only: departure, driver and delivery rules do not change.
+    acceptance: |
+      Scenario Outline: AC-1 Placing an order with a reception mode
+        Given a relationship whose usual address is "Rue 12, Akwa"
+        When the customer places an order with <mode> and <address>
+        Then the response is <response>
+        Examples:
+          | mode                 | address            | response                                              |
+          | PICKUP               | none               | 201, reception_mode PICKUP, no address                |
+          | PICKUP               | "Rue 7, Bonapriso" | 400 VALIDATION_ERROR, nothing stored                  |
+          | DELIVERY             | none               | 201, reception_mode DELIVERY, address "Rue 12, Akwa"  |
+          | no reception_mode    | none               | 201, reception_mode null, address "Rue 12, Akwa"      |
+      Scenario: AC-2 Same rules for a purchase and a seller's entry
+        When a manager places a purchase, or a seller enters an order, with PICKUP and no address
+        Then the order is stored with PICKUP and no address
+      Scenario: AC-3 Editing to pickup clears the address
+        When the seller edits an order with address "Rue 12, Akwa" to PICKUP
+        Then the order has PICKUP and no address
+      Scenario: AC-4 Editing back to delivery applies the usual address
+        When the seller edits a PICKUP order to DELIVERY without an address
+        Then the order has DELIVERY and address "Rue 12, Akwa"
+      Scenario: AC-5 An address on a pickup is refused
+        When the seller edits a PICKUP order sending only `delivery_address`
+        Then the response is 400 VALIDATION_ERROR and the order is unchanged
+    abuse: |
+      Scenario: AB-1 An unknown mode
+        When a body carries `reception_mode` 'SHIP'
+        Then the response is 400 VALIDATION_ERROR whose details name the field and the rule, never the value
+    implementation:
+      create: [tests/integration/order/reception-mode.test.ts]
+      modify: [src/modules/order/order.schemas.ts, src/modules/order/order.service.ts, src/modules/order/order.repository.ts, src/modules/order/order.views.ts, src/modules/order/order.openapi.ts]
+      pattern: tests/integration/order/order-line-variant-required.test.ts
+      signatures:
+        - "resolveReception(sent: { mode?: ReceptionMode; address?: string | null }, stored: { mode: ReceptionMode | null; address: string | null } | null, usualAddress: string | null): { receptionMode: ReceptionMode | null; deliveryAddressApplied: string | null }"
+      types: []
+      errors: ["VALIDATION_ERROR 400"]
+      dependencies: [zod, "@prisma/client"]
+    security:
+      - "v5.0.0-15.3.3: `reception_mode` is added to the listed writable fields; the strict schemas still reject any other field."
+      - "v5.0.0-2.2.1: the mode and address rule is checked on the server for every gesture, the check of ORD-036 backing it."
+    tests: |
+      place modes | integration | AC-1, C-60 | each Examples row → stored mode and address, or 400
+      other routes | integration | AC-2, C-60 | purchase and seller entry with PICKUP → no address
+      edit to pickup | integration | AC-3 | address cleared
+      edit to delivery | integration | AC-4 | usual address applied
+      address on pickup | integration | AC-5, C-60 | 400, order unchanged
+      unknown mode | security | AB-1, WSTG-INPV-20 | 'SHIP' → 400, details without the value
+    command: npx vitest run tests/integration/order/reception-mode.test.ts tests/unit/order/calculations-and-views.test.ts
+    out_of_scope:
+      - "Reorder (« Reprendre une commande ») is built on the phone: no server change."
+      - "The rest order (DLV-018), the replaced version (ORD-039) and orders created through sync (SYNC-049)."
+    tests_to_update:
+      - "tests/unit/order/calculations-and-views.test.ts | asserts the exact keys of the order views | the keys also include `reception_mode`"
+
+  - id: ORD-038
+    title: An order is refused when its total changed since the customer saw it
+    kind: change
+    size: XS
+    risk: medium
+    amends: [ORD-009, ORD-010]
+    depends_on: [ORD-010]
+    read_first: [src/modules/order/order.schemas.ts, tests/integration/order/order-line-variant-required.test.ts]
+    design_refs: [a1-modifier-remplacer-une-commande-en/le-total-vu-par-le-client, a1-modifier-remplacer-une-commande-en/etapes-complete-a-2]
+    constraints: [CM-16]
+    asvs: [v5.0.0-2.2.1, v5.0.0-2.3.1]
+    story: As a customer, I want my order refused when its total is not the one I saw, so that I never pay a price I did not accept.
+    context: |
+      - Exists: POST /api/v1/orders (ORD-009) and POST /api/v1/organizations/{organizationId}/purchases (ORD-010) price every line on the server.
+      - Both bodies get an optional `expected_total`: the total the customer saw, an integer of XAF from 0 to 9007199254740991. It sets no price and is never stored.
+      - After pricing, when `expected_total` is given and differs from the server total: 409 `TOTAL_CHANGED`, message "The total changed.", `details: { total }` with the server total; nothing is written (no order, line or notification).
+      - `idempotent()` replays that 409 for the same `id`: the phone shows the new total, then sends a new gesture with a new `id`.
+      - Absent: today's behavior (older app versions).
+      - The check is a pure helper, reused by ORD-039.
+    acceptance: |
+      Scenario Outline: AC-1 The total the customer saw
+        Given lines whose server total is 12500
+        When the customer places the order with expected_total <sent>
+        Then the response is <response>
+        Examples:
+          | sent   | response                                                        |
+          | 12500  | 201                                                             |
+          | absent | 201                                                             |
+          | 12000  | 409 TOTAL_CHANGED, details.total 12500, no order, line or notification |
+      Scenario: AC-2 The same rule on a purchase
+        When a manager places a purchase whose expected_total differs from the server total
+        Then the response is 409 TOTAL_CHANGED with details.total and nothing is stored
+      Scenario: AC-3 Confirming the new total
+        Given a first try answered 409 TOTAL_CHANGED with details.total 12500
+        When the customer sends the same lines with a new id and expected_total 12500
+        Then the response is 201
+    abuse: |
+      Scenario: AB-1 A lower total to pay less
+        When the customer sends expected_total 1 for lines worth 12500
+        Then the response is 409 TOTAL_CHANGED and no price comes from the client
+      Scenario Outline: AB-2 A malformed total
+        When expected_total is <value>
+        Then the response is 400 VALIDATION_ERROR
+        Examples:
+          | value     |
+          | -5        |
+          | "12500"   |
+          | 12500.5   |
+    implementation:
+      create: [tests/integration/order/expected-total.test.ts]
+      modify: [src/modules/order/order.schemas.ts, src/modules/order/order.service.ts, src/modules/order/order.openapi.ts]
+      pattern: tests/integration/order/order-line-variant-required.test.ts
+      signatures:
+        - "assertExpectedTotal(total: bigint, expected: number | undefined): void"
+      types: []
+      errors: ["TOTAL_CHANGED 409", "VALIDATION_ERROR 400"]
+      dependencies: [zod]
+    security:
+      - "v5.0.0-2.2.1: `expected_total` is compared, never used as a price; prices stay server-computed (CM-16)."
+      - "v5.0.0-2.3.1: the gesture applies only when the customer confirmed the total the server computes."
+    tests: |
+      place | integration | AC-1, CM-16 | each Examples row → 201, or 409 with details.total and nothing stored
+      purchase | integration | AC-2 | different total → 409, nothing stored
+      new id | integration | AC-3 | new id with the server total → 201
+      lower total | security | AB-1, WSTG-BUSL-01 | expected_total 1 → 409, prices unchanged
+      malformed | security | AB-2, WSTG-INPV-20 | each Examples row → 400
+    tests_to_update:
+      - "tests/integration/order/place-order.test.ts | its bodies send no expected_total | unchanged: passes without edits"
+      - "tests/integration/order/place-purchase.test.ts | its bodies send no expected_total | unchanged: passes without edits"
+    command: npx vitest run tests/integration/order/expected-total.test.ts
+    out_of_scope:
+      - "The replace gesture (ORD-039) and orders created through sync."
+
+  - id: ORD-039
+    title: Customer changes a pending order
+    kind: feature
+    size: M
+    risk: high
+    depends_on: [ORD-035, ORD-037, ORD-038, NTF-005]
+    read_first: [docs/stories/modules/order/contracts.md]
+    design_refs: [a1-modifier-remplacer-une-commande-en/le-geste, a1-modifier-remplacer-une-commande-en/le-lien-et-la-suppression-champ-ajoute]
+    constraints: [C-58, CM-16]
+    asvs: [v5.0.0-8.2.2, v5.0.0-15.3.3]
+    story: As a customer, I want to change my order while it is pending, so that the supplier gets the right order without a cancellation and a new order.
+    context: |
+      - New route POST /api/v1/orders/{orderId}/replace, `idempotent()` on the body `id` (the new order); strict body of POST /api/v1/orders without `supplier_organization_id`, `expected_total` required.
+      - One transaction: `lockCustomerOrder` (null → 404); not PENDING → 409 INVALID_TRANSITION; the checks and pricing of placing (extract them from `placeOrderFor` into one function both use); `assertExpectedTotal`.
+      - New version: PENDING, placed by the CUSTOMER, same relationship, `entered_by_id` the caller, reception by `resolveReception`; only `supplier_note` is copied.
+      - Old version: `transitionOrder` to CANCELLED, party CUSTOMER, then `markOrderReplaced` sets `deleted_at` and `replaced_by_order_id`; its lines stay.
+      - Then `retargetNotifications(tx, { type: 'order', fromId: old, toId: new })` and one `order.replaced` per person of `listOrderTeamIds`, about the new order, FR "Commande modifiée par le client.", EN "Order changed by the customer."; no `order.placed` nor `order.status_changed`.
+      - 201 `{ order: <customer view>, replaced_order_id }`; lists and detail already skip deleted orders.
+      - Add the path to `order.openapi.ts`, `catalog.test.ts`, `per-001.test.ts`.
+    acceptance: |
+      Scenario: AC-1 The customer changes a pending order
+        Given a PENDING order O1 of the customer with supplier_note "Livrer après 10 h"
+        When the customer replaces O1 with id O2, new lines and their server total as expected_total
+        Then the response is 201: O2 PENDING at today's prices with that supplier_note, replaced_order_id O1
+        And O1 is CANCELLED by the CUSTOMER, deleted and linked to O2, its lines unchanged, absent from both sides' lists and counts, and answers 404
+      Scenario: AC-2 The supplier team is told once
+        Given the team got an order.placed about O1
+        When O1 is replaced by O2
+        Then each OWNER, MANAGER and SELLER gets one order.replaced about O2, the order.placed now names O2, and nothing else is added
+      Scenario Outline: AC-3 Refused, nothing changes
+        When the customer replaces O1 while <state>
+        Then the response is <response> and nothing changes
+        Examples:
+          | state                  | response               |
+          | O1 is CONFIRMED        | 409 INVALID_TRANSITION |
+          | expected_total differs | 409 TOTAL_CHANGED      |
+      Scenario: AC-4 A repeat changes nothing
+        When the same request is sent again with the same id
+        Then the response is the first 201 and one new version exists
+    abuse: |
+      Scenario: AB-1 Another customer's order (horizontal)
+        When a customer replaces an order of another customer
+        Then the response is 404 NOT_FOUND and nothing changes
+      Scenario: AB-2 A version already replaced
+        When the customer replaces O1 again
+        Then the response is 404 NOT_FOUND and no third version exists
+      Scenario: AB-3 Fields the customer may not choose
+        When the body adds status or unit_price_applied
+        Then the response is 400 VALIDATION_ERROR and nothing changes
+    implementation:
+      create: [tests/integration/order/replace-order.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.schemas.ts, src/modules/order/order.service.ts, src/modules/order/order.repository.ts, src/modules/order/order.openapi.ts, tests/integration/api-docs/catalog.test.ts, tests/integration/per-001.test.ts]
+      pattern: tests/integration/order/order-line-variant-required.test.ts
+      signatures:
+        - "replaceOrder(customer: { personId: string; organizationId?: string }, orderId: string, input: ReplaceOrderInput): Promise<ReplacedOrderView>"
+        - "markOrderReplaced(tx: Prisma.TransactionClient, orderId: string, replacedById: string): Promise<void>"
+      types:
+        - "ReplaceOrderInput = Omit<PlaceOrderInput, 'supplier_organization_id' | 'expected_total'> & { expected_total: number }"
+        - "ReplacedOrderView = { order: CustomerOrderView; replaced_order_id: string }"
+      errors: ["NOT_FOUND 404", "INVALID_TRANSITION 409", "TOTAL_CHANGED 409", "VALIDATION_ERROR 400"]
+      dependencies: [express, zod, "@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: the old version is found through the caller's own relationship; any other id answers 404."
+      - "v5.0.0-15.3.3: strict body; the supplier, status and prices never come from the client."
+    tests: |
+      replace | integration | AC-1, C-58, CM-16 | O1 cancelled, deleted, linked, hidden; O2 priced, note copied
+      notifications | integration | AC-2 | one order.replaced each; the old one names O2
+      refusals | integration | AC-3 | each Examples row, nothing changed
+      repeat | integration | AC-4 | same 201, one O2
+      other customer | security | AB-1, WSTG-ATHZ-04 | 404, unchanged
+      replaced twice | security | AB-2, WSTG-BUSL-06 | 404
+      extra fields | security | AB-3, WSTG-INPV-20 | 400, unchanged
+    command: npx vitest run tests/integration/order/replace-order.test.ts
+    out_of_scope:
+      - "ORD-044, SYNC-045, SYNC-046."
+
+  - id: ORD-040
+    title: Orders get the frozen receipt fields
+    kind: migration
+    size: XS
+    risk: high
+    amends: [ORD-001]
+    depends_on: [ORD-034]
+    read_first: [prisma/schema.prisma, tests/integration/organization/amount-held.test.ts]
+    design_refs: [a8-le-recu-ne-change-plus-point-9/champs-figes-champs-ajoutes-a-order]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    fields: ["Order.{supplier_name_applied,customer_name_applied,collected_applied,balance_after_applied}"]
+    story: "Technical story: add the four receipt fields to orders, empty for now, so that the server can write a receipt that never changes."
+    context: |
+      - Expand step: four nullable columns with no default and no check yet: `supplier_name_applied` text, `customer_name_applied` text, `collected_applied` bigint, `balance_after_applied` bigint.
+      - `prisma/schema.prisma`: `supplierNameApplied String?`, `customerNameApplied String?`, `collectedApplied BigInt?`, `balanceAfterApplied BigInt?`, each with its `@map`.
+      - Writer: DLV-019. Backfill and freeze: ORD-042; the rule tying them to DELIVERED: ORD-043.
+    acceptance: |
+      Scenario: AC-1 Four empty columns
+        When the columns of `orders` are read
+        Then the four fields exist and are nullable, two text and two bigint, and every existing order has them empty
+      Scenario: AC-2 Amounts keep their size
+        When `collected_applied` is set to 9007199254740993
+        Then it reads back unchanged
+    abuse: |
+      Scenario: AB-1 A text amount
+        When a raw insert sets `collected_applied` to '12 500'
+        Then PostgreSQL rejects it with 22P02
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_ord_040_receipt_fields/migration.sql
+        - tests/integration/order/receipt-columns.test.ts
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: amounts are integers of XAF in `bigint` columns."
+    tests: |
+      columns | integration | AC-1 | read the columns → four nullable columns, existing rows empty
+      bigint | integration | AC-2 | 9007199254740993 round-trips
+      text amount | security | AB-1, CWE-20 | '12 500' → 22P02
+    command: npx vitest run tests/integration/order/receipt-columns.test.ts
+    out_of_scope:
+      - "Writing, showing or freezing the fields (DLV-019, ORD-041, ORD-042, ORD-043)."
+
+  - id: ORD-041
+    title: Order views show the frozen receipt fields
+    kind: change
+    size: XS
+    risk: medium
+    amends: [ORD-007]
+    depends_on: [ORD-040]
+    read_first: [src/modules/order/order.views.ts, tests/unit/sync/controls-words.test.ts]
+    design_refs: [a8-le-recu-ne-change-plus-point-9/champs-figes-champs-ajoutes-a-order]
+    constraints: []
+    asvs: [v5.0.0-15.3.1]
+    story: As a customer, I want an order to show its receipt as it was written at delivery, so that every copy of the receipt is the same.
+    context: |
+      - Exists: the four columns (ORD-040); `projectOrderForSupplier(order, role)` and `projectOrderForCustomer(order)` in `order.views.ts` (ORD-007).
+      - Both views add `supplier_name_applied`, `customer_name_applied`, `collected_applied` and `balance_after_applied`, amounts as numbers like the other amounts, null until delivery.
+      - In the supplier view, `balance_after_applied` is present for OWNER, MANAGER and SELLER only; for DRIVER and any other or unknown role the key is absent (deny by default).
+      - `order.openapi.ts`: both view schemas list the four fields as read-only.
+    acceptance: |
+      Scenario: AC-1 A delivered order shows its receipt
+        Given a DELIVERED order with supplier "Dépôt Test", customer "Boutique Test", collected 5000 and balance after 10500
+        When the customer view is built
+        Then it carries these four values
+      Scenario Outline: AC-2 The debt after delivery by role
+        When the supplier view is built for <role>
+        Then `balance_after_applied` is <shown>
+        Examples:
+          | role    | shown   |
+          | OWNER   | 10500   |
+          | MANAGER | 10500   |
+          | SELLER  | 10500   |
+          | DRIVER  | absent  |
+      Scenario: AC-3 Not delivered yet
+        When a PENDING order's views are built
+        Then the four fields are null
+      Scenario: AC-4 Documented
+        When the OpenAPI document is generated
+        Then both order view schemas list the four fields
+    abuse: |
+      Scenario: AB-1 An unexpected role
+        When the supplier view is built for a role that is not OWNER, MANAGER or SELLER
+        Then `balance_after_applied` is absent
+    implementation:
+      create: [tests/unit/order/receipt-views.test.ts]
+      modify: [src/modules/order/order.views.ts, src/modules/order/order.openapi.ts]
+      pattern: tests/unit/sync/controls-words.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-15.3.1: views list their fields explicitly; the driver never receives the customer's debt."
+    tests: |
+      customer view | unit | AC-1 | four values present
+      roles | unit | AC-2 | each Examples row → value or absent key
+      not delivered | unit | AC-3 | four nulls
+      documented | unit | AC-4 | generated document lists the four fields in both view schemas
+      unexpected role | security | AB-1, WSTG-ATHZ-02 | key absent
+    command: npx vitest run tests/unit/order/receipt-views.test.ts tests/unit/order/calculations-and-views.test.ts
+    out_of_scope:
+      - "Sync rows (SYNC-048) and writing the fields (DLV-019)."
+    tests_to_update:
+      - "tests/unit/order/calculations-and-views.test.ts | asserts the exact keys of the order views | the keys also include the four receipt fields; a DRIVER view has no `balance_after_applied`"
+
+  - id: ORD-044
+    title: A business changes a pending purchase
+    kind: feature
+    size: S
+    risk: high
+    depends_on: [ORD-039]
+    read_first: [src/modules/order/order.routes.ts, tests/integration/order/order-line-variant-required.test.ts]
+    design_refs: [a1-modifier-remplacer-une-commande-en/le-geste]
+    constraints: [C-58]
+    asvs: [v5.0.0-8.2.1, v5.0.0-8.2.2]
+    story: As a manager, I want to change a pending purchase of my business, so that the supplier gets the right order without a cancellation and a new order.
+    context: |
+      - New route POST /api/v1/organizations/{organizationId}/purchases/{orderId}/replace, built like the purchase cancel route: `requireAbility('order_from_supplier', 'CustomerRelationship')`, strict validation, then `idempotent()`.
+      - Same body and answer as POST /api/v1/orders/{orderId}/replace (ORD-039); it calls `replaceOrder` with the path's organization, so the order is found through the business's own relationship.
+      - Register the path in `order.openapi.ts`, `catalog.test.ts` and `per-001.test.ts`.
+    acceptance: |
+      Scenario: AC-1 A manager changes a purchase
+        Given a PENDING purchase P1 of business B
+        When a MANAGER of B replaces P1 with id P2 and its server total as expected_total
+        Then the response is 201 with order.id P2 and replaced_order_id P1, and P1 is CANCELLED by the CUSTOMER, deleted and linked to P2
+      Scenario: AC-2 A repeat changes nothing
+        When the same request is sent again with the same id
+        Then the response is the first 201 and one new version exists
+    abuse: |
+      Scenario: AB-1 A member without the ordering ability
+        When a member of B without that ability replaces P1
+        Then the response is 403 FORBIDDEN and nothing changes
+      Scenario: AB-2 Another business's purchase
+        When a MANAGER of B replaces a purchase of business C through B's path
+        Then the response is 404 NOT_FOUND and nothing changes
+    implementation:
+      create: [tests/integration/order/replace-purchase.test.ts]
+      modify: [src/modules/order/order.routes.ts, src/modules/order/order.openapi.ts, tests/integration/api-docs/catalog.test.ts, tests/integration/per-001.test.ts]
+      pattern: tests/integration/order/order-line-variant-required.test.ts
+      signatures: []
+      types: []
+      errors: ["FORBIDDEN 403", "NOT_FOUND 404"]
+      dependencies: [express]
+    security:
+      - "v5.0.0-8.2.1: the ordering ability is checked on the server before any change."
+      - "v5.0.0-8.2.2: the purchase is found through the path organization's relationship; any other id answers 404."
+    tests: |
+      replace | integration | AC-1, C-58 | P1 replaced by P2
+      repeat | integration | AC-2 | same 201, one P2
+      no ability | security | AB-1, WSTG-ATHZ-02 | 403, unchanged
+      other business | security | AB-2, WSTG-ATHZ-04 | 404, unchanged
+    command: npx vitest run tests/integration/order/replace-purchase.test.ts tests/integration/api-docs/catalog.test.ts tests/integration/per-001.test.ts
+    out_of_scope:
+      - "Rules shared with ORD-039 (pricing, notifications, refusals), tested there."
+---
+kind: stories
+module: order
+constraints: {}
+stories:
+  - id: ORD-042
+    title: Delivered orders get their receipt from the server's history, then it is frozen
+    kind: migration
+    size: S
+    risk: high
+    amends: [ORD-001]
+    depends_on: [ORD-040, DLV-019]
+    read_first: [prisma/schema.prisma, tests/integration/organization/amount-held.test.ts]
+    design_refs: [a8-le-recu-ne-change-plus-point-9/mise-en-service, a8-le-recu-ne-change-plus-point-9/contraintes-de-base-de-donnees-complete, a8-le-recu-ne-change-plus-point-9/apres-la-suppression-d-un-compte]
+    constraints: [C-62]
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: fill the receipt fields of the orders already delivered from the server's history, then make the database keep every receipt frozen."
+    context: |
+      - Exists: four empty columns (ORD-040); since DLV-019 every delivery writes them in the statement that sets DELIVERED.
+      - One migration, in order. Audit: when a DELIVERED order has no SALE ledger entry, raise an exception listing those order ids; nothing is applied.
+      - Backfill each DELIVERED order with an empty `supplier_name_applied`: the supplier organization's `name`; the customer organization's `name`, else the customer person's `full_name` (empty for an anonymized person or a customer without an account), never `customer_label`.
+      - `collected_applied`: the sum of the order's PAYMENT entries whose `server_updated_at` equals its SALE's (one transaction stamps them alike), 0 when none. `balance_after_applied`: the sum of `balance_effect` of the entries of the order's relationship with `server_updated_at` up to its SALE's. Several SALE entries: take the earliest.
+      - Freeze: a trigger before update on `orders` raises 23514 when `OLD.supplier_name_applied` is set and any of the four fields changes.
+      - `prisma/schema.prisma`: add the freeze to the `//` comment above `Order` in plain words, with this migration's name; the receipt is an accounting record kept after account deletion.
+      - Test: on one `pg` connection, BEGIN, drop this trigger, insert the fixture, run this migration's SQL file, assert, ROLLBACK.
+    acceptance: |
+      Scenario: AC-1 A delivered order gets its receipt
+        Given a DELIVERED order of supplier "Dépôt Test" to customer organization "Boutique Test", a balance of 3000 before it, its SALE of 12500 and a PAYMENT of 5000 in the same transaction
+        When the migration runs
+        Then its receipt is "Dépôt Test", "Boutique Test", collected 5000 and balance after 10500
+      Scenario Outline: AC-2 The customer's public name
+        When the customer is <customer>
+        Then `customer_name_applied` is <name>
+        Examples:
+          | customer                                         | name           |
+          | organization "Boutique Test"                     | "Boutique Test" |
+          | person with full_name "Awa Test" and label "Tata" | "Awa Test"     |
+          | anonymized person with label "Tata"              | empty          |
+      Scenario: AC-3 Later entries do not count
+        Given a PAYMENT of 2000 recorded after the delivery
+        When the migration runs
+        Then collected stays 5000 and balance after stays 10500
+      Scenario: AC-4 A delivered order without a sale stops the migration
+        When a DELIVERED order has no SALE entry
+        Then the migration fails with a message listing its id and no order is changed
+      Scenario: AC-5 The receipt is frozen
+        When an update changes any of the four fields of an order whose receipt is set
+        Then the database rejects it with 23514, while an update of `supplier_note` succeeds
+    abuse: |
+      Scenario: AB-1 Rewriting an accounting record
+        When a raw update lowers `collected_applied` of a delivered order
+        Then the database rejects it with 23514 and the receipt is unchanged
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_ord_042_backfill_and_freeze_receipt/migration.sql
+        - tests/integration/order/receipt-backfill.test.ts
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client", pg]
+    security:
+      - "v5.0.0-2.2.1: a written receipt cannot be rewritten, even by code that bypasses the application."
+    tests: |
+      backfill | integration | AC-1 | names, collected 5000, balance after 10500
+      public name | integration | AC-2 | each Examples row → name or empty, never the label
+      later entries | integration | AC-3 | later payment changes neither field
+      audit | integration | AC-4 | error naming the order, nothing changed
+      frozen | integration | AC-5, C-62 | each field → 23514; supplier_note → accepted
+      rewrite | security | AB-1, CWE-471 | lowered collected_applied → 23514
+    command: npx vitest run tests/integration/order/receipt-backfill.test.ts
+    out_of_scope:
+      - "The rule tying the fields to DELIVERED (ORD-045)."
+
+  - id: ORD-043
+    title: Test fixtures give every delivered order its receipt
+    kind: technical
+    size: S
+    risk: low
+    depends_on: [DLV-019]
+    read_first: [src/modules/order/order.state.ts, tests/integration/order/order-line-variant-required.test.ts]
+    design_refs: [a8-le-recu-ne-change-plus-point-9/contraintes-de-base-de-donnees-complete]
+    constraints: []
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: test fixtures that write a delivered order also write its receipt, so that the suite stays green once the database requires it (ORD-045)."
+    context: |
+      - Since DLV-019 the delivery code writes the four receipt fields with DELIVERED; ORD-045 will make the database refuse a DELIVERED order without them.
+      - Create `tests/helpers/receipt-fields.ts` exporting `RECEIPT_FIELDS` (`supplierNameApplied: 'Test supplier'`, `customerNameApplied: null`, `collectedApplied: 0n`, `balanceAfterApplied: 0n`).
+      - In each test under Tests to update, a fixture that creates or updates an order as DELIVERED spreads `RECEIPT_FIELDS`, and a direct `transitionOrder` call to DELIVERED passes `{ receipt: RECEIPT_FIELDS }`. A file without such a fixture stays as it is.
+      - No assertion and no production file changes.
+    acceptance: |
+      Scenario: AC-1 The helper
+        When an order is created as DELIVERED with RECEIPT_FIELDS
+        Then its four receipt fields hold the helper's values
+      Scenario: AC-2 The suite is unchanged
+        When npm test runs
+        Then the same tests pass as before, with the same assertions
+    implementation:
+      create: [tests/helpers/receipt-fields.ts, tests/integration/order/receipt-fields-helper.test.ts]
+      modify: []
+      pattern: tests/integration/order/order-line-variant-required.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: fixtures follow the rule the database will enforce, so no test needs it relaxed."
+    tests: |
+      helper | integration | AC-1 | the four values stored
+      suite | integration | AC-2 | npm test green, assertions unchanged
+    command: npx vitest run tests/integration/order/receipt-fields-helper.test.ts
+    out_of_scope:
+      - "The database rule (ORD-045)."
+    tests_to_update:
+      - "tests/integration/delivery/abandoned-rests.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/delivery/counter-sale.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/delivery/deliver.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/delivery/depart.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/delivery/driver-lists.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/delivery/fail.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/delivery/partial-delivery.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/delivery/unsettled.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/accept-order.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/accepted-at.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/cancel-order-customer.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/cancel-order-supplier.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/close-refuses-pending.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/edit-order.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/order-note.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/order-table.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/refuse-order.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/state-machine.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/status-rules.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/order/total-check.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/sync/controls-credit.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/sync/exceptions.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/sync/issues.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/sync/pull-catalog.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/sync/pull-orders.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/sync/push-closing.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/sync/push-deliveries.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/sync/rights-change.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+      - "tests/integration/sync/rights-paused.test.ts | may write a DELIVERED order | its fixture gives the receipt"
+
+  - id: ORD-045
+    title: A delivered order always has its receipt
+    kind: migration
+    size: S
+    risk: high
+    amends: [ORD-001]
+    depends_on: [ORD-042, ORD-043]
+    read_first: [prisma/schema.prisma, tests/integration/organization/amount-held.test.ts]
+    design_refs: [a8-le-recu-ne-change-plus-point-9/contraintes-de-base-de-donnees-complete]
+    constraints: [C-61]
+    asvs: [v5.0.0-2.2.1]
+    story: "Technical story: the database refuses a delivered order without its receipt fields, and receipt fields on an order that is not delivered."
+    context: |
+      - Exists: deliveries write the four fields with DELIVERED (DLV-019); delivered orders are backfilled (ORD-042); test fixtures give the receipt (ORD-043).
+      - One migration: an audit that raises an exception listing the ids of orders breaking the rule, then a CHECK: `supplier_name_applied`, `collected_applied` and `balance_after_applied` are all set when `status` is DELIVERED, and all four fields are empty otherwise.
+      - `prisma/schema.prisma`: add the rule to the `//` comment above `Order` in plain words, with this migration's name.
+    acceptance: |
+      Scenario Outline: AC-1 The receipt goes with the delivered status
+        When an order is saved with status <status> and <fields>
+        Then the database <result>
+        Examples:
+          | status    | fields                                        | result          |
+          | DELIVERED | the three fields set, customer name empty     | accepts         |
+          | DELIVERED | no `supplier_name_applied`                    | rejects (23514) |
+          | PENDING   | `collected_applied` 0, the other fields empty | rejects (23514) |
+          | CANCELLED | the four fields empty                         | accepts         |
+      Scenario: AC-2 The audit
+        When an order breaks the rule before the check is added
+        Then the migration fails with a message listing its id and nothing is applied
+    abuse: |
+      Scenario: AB-1 A delivered status written around the delivery code
+        When a raw update sets `status` DELIVERED on an order without its receipt
+        Then the database rejects it with 23514
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_ord_045_delivered_needs_receipt/migration.sql
+        - tests/integration/order/receipt-required.test.ts
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client", pg]
+    security:
+      - "v5.0.0-2.2.1: no order is delivered without the receipt the server wrote."
+    tests: |
+      rule | integration | AC-1, C-61 | each Examples row → accepted or 23514
+      audit | integration | AC-2 | error naming the order, nothing applied
+      bypass | security | AB-1, CWE-471 | raw DELIVERED without receipt → 23514
+    command: npx vitest run tests/integration/order/receipt-required.test.ts
+    out_of_scope:
+      - "Production code: every delivery path already writes the receipt (DLV-019)."

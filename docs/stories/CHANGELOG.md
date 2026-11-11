@@ -35,3 +35,8 @@ One entry per skill run that changed the backlog. Newest last.
 - Design: `data-model/modele-donnees-livraisons-v16.md` (sha256 df1d3ad500d8cb83)
 - Stories added (6): REL-027..REL-031, SYNC-044
 - Design changed since the previous baseline
+
+## 2026-11-11: sync
+- Design: `data-model/conception.md` (sha256 9b9acc0c417cd112)
+- Stories added (29): AUTH-039..AUTH-044, DLV-017..DLV-019, NTF-005, ORD-035..ORD-045, PRIV-006, REL-032..REL-033, SYNC-045..SYNC-049
+- Design changed since the previous baseline

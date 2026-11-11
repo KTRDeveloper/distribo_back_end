@@ -1260,3 +1260,297 @@ stories:
       - "The online gestures that write the mark: REL-028, REL-029, REL-031."
     tests_to_update:
       - "tests/integration/sync/judge.test.ts | the server-field list (SYNC-010) gains `contested_at` | a pushed `contested_at` is stripped like `ended_by_party`"
+---
+kind: stories
+module: sync
+constraints: {C-60: "A `PICKUP` order has no delivery address."}
+stories:
+  - id: SYNC-045
+    title: Lines of a deleted order are pulled as deletions
+    kind: change
+    size: S
+    risk: medium
+    amends: [SYNC-006]
+    depends_on: [SYNC-006, ORD-039]
+    read_first: [src/modules/sync/adapters/order.adapter.ts, src/modules/sync/sync.changes.ts]
+    design_refs: [a1-modifier-remplacer-une-commande-en/le-lien-et-la-suppression-champ-ajoute, a1-modifier-remplacer-une-commande-en/gestes-hors-ligne-arrives-apres-le]
+    constraints: []
+    asvs: [v5.0.0-8.2.2]
+    story: As a seller, I want the lines of an order the customer replaced to leave my phone, so that I never work on an old version.
+    context: |
+      - `orderLinesAdapter.pull` (order.adapter.ts) filters on `orderScope(viewer, false)`: once an order is deleted (replaced, ORD-039), its lines never reach `deleted` and phones keep them.
+      - With `since`, it also takes the lines of the viewer's orders deleted after `since` (the deleted branch of `orderScope(viewer, true)`); such a line goes to `deleted`, the order's `deleted_at` and `server_updated_at` counting as the line's.
+      - A first pull (`since` null) still sends only live lines; live lines are pulled as today.
+    acceptance: |
+      Scenario: AC-1 The lines follow their deleted order
+        Given a phone that pulled order O1 with lines L1 and L2
+        When O1 is replaced and the phone pulls again
+        Then order_lines.deleted holds L1 and L2, and orders.deleted holds O1
+      Scenario: AC-2 First pull
+        When a phone pulls for the first time after O1 was replaced
+        Then neither O1 nor its lines are sent
+      Scenario: AC-3 Live lines unchanged
+        When a line of a live order changes
+        Then it is pulled as today, not as a deletion
+    abuse: |
+      Scenario: AB-1 Another business's deleted order
+        When a member of business B pulls after an order of business A was replaced
+        Then no line of that order appears, even in deleted
+    implementation:
+      create: [tests/integration/sync/pull-deleted-order-lines.test.ts]
+      modify: [src/modules/sync/adapters/order.adapter.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-8.2.2: deletions are listed only within the viewer's own order scope."
+    tests: |
+      deleted lines | integration | AC-1 | L1 and L2 in order_lines.deleted, O1 in orders.deleted
+      first pull | integration | AC-2 | nothing of O1
+      live lines | integration | AC-3 | changed line in updated
+      other business | security | AB-1, WSTG-ATHZ-04 | no line of A's order
+    tests_to_update:
+      - "tests/integration/sync/pull-orders.test.ts | only lines of deleted orders are added to deleted | unchanged: passes without edits"
+    command: npx vitest run tests/integration/sync/pull-deleted-order-lines.test.ts
+    out_of_scope:
+      - "Gestures pushed on a replaced version (SYNC-046)."
+
+  - id: SYNC-046
+    title: An offline gesture on a replaced order is settled
+    kind: change
+    size: M
+    risk: high
+    amends: [SYNC-012, SYNC-014]
+    depends_on: [ORD-039, SYNC-045]
+    read_first: [src/modules/sync/adapters/closing.push.ts, src/modules/sync/sync.push.ts]
+    design_refs: [a1-modifier-remplacer-une-commande-en/gestes-hors-ligne-arrives-apres-le]
+    constraints: [C-58]
+    asvs: [v5.0.0-2.3.1, v5.0.0-8.2.2]
+    story: As a seller, I want an offline gesture on an order the customer changed meanwhile to be settled clearly, so that a delivery is never lost and nothing else touches the old version.
+    context: |
+      - A replaced version has `deleted_at` and `replaced_by_order_id` set (ORD-039). Its current version: follow `replaced_by_order_id` to the first order without `deleted_at`, at most 20 links (`currentVersionOf`, order.push.ts).
+      - A delivery wins (closing.push.ts): when the closed order is a replaced version in the viewer's scope, set its `deleted_at` back to null (link kept), then deliver it as today (`deliverOrder` with `viaSync`, entries written normally). The current version is not changed.
+      - Then `setIssue` on both versions: "Livrée alors que le client l'avait modifiée : vérifiez la nouvelle version".
+      - Any other gesture on a replaced version (orders and order_lines in order.push.ts, deliveries in delivery.push.ts): nothing is written on it; the row is answered as an `issue` with code `ORDER_REPLACED` and message "Changement hors ligne sans effet : le client avait déjà modifié cette commande", and `setIssue` puts that message on the current version.
+      - The phone receives the deletion at its next pull (SYNC-045).
+    acceptance: |
+      Scenario: AC-1 A delivery of the old version wins
+        Given order O1 replaced by O2 while a driver's phone was offline
+        When the phone pushes the delivery of O1 with its sale and payment
+        Then O1 is DELIVERED, not deleted, still linked to O2, with its sale and payment entries
+        And O2 keeps its status and lines, and both carry the delivery issue
+      Scenario Outline: AC-2 Any other gesture has no effect
+        Given order O1 replaced by O2
+        When a phone pushes <gesture> on O1
+        Then O1 is unchanged, the row is answered ORDER_REPLACED, and O2 carries the no-effect issue
+        Examples:
+          | gesture            |
+          | an acceptance      |
+          | a lower line price |
+          | a departure        |
+          | a refusal          |
+          | a supplier note    |
+      Scenario: AC-3 A chain of replacements
+        Given O1 replaced by O2, itself replaced by O3
+        When a phone pushes a supplier note on O1
+        Then O3 carries the no-effect issue
+    abuse: |
+      Scenario: AB-1 Restoring another business's order
+        When a phone of business B pushes the delivery of a replaced version of business A
+        Then the row is refused OUT_OF_SCOPE and nothing changes
+    implementation:
+      create: [tests/integration/sync/replaced-version.test.ts]
+      modify: [src/modules/sync/adapters/closing.push.ts, src/modules/sync/adapters/order.push.ts, src/modules/sync/adapters/delivery.push.ts]
+      pattern: src/modules/sync/sync.push.ts
+      signatures:
+        - "isReplacedVersion(tx: Prisma.TransactionClient, orderId: string): Promise<boolean>"
+        - "currentVersionOf(tx: Prisma.TransactionClient, orderId: string): Promise<string | null>"
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.3.1: only a delivery may change a replaced version; every other gesture is refused on the server."
+      - "v5.0.0-8.2.2: the replaced version must be in the viewer's scope before anything is restored."
+    tests: |
+      delivery wins | integration | AC-1, C-58 | O1 delivered, restored, linked, entries written; both flagged
+      other gestures | integration | AC-2 | each Examples row → O1 unchanged, ORDER_REPLACED, O2 flagged
+      chain | integration | AC-3 | O3 flagged
+      other business | security | AB-1, WSTG-ATHZ-04 | OUT_OF_SCOPE, nothing changed
+    tests_to_update:
+      - "tests/integration/sync/push-orders.test.ts | only gestures on a replaced version change | unchanged: passes without edits"
+      - "tests/integration/sync/push-closing.test.ts | only closings of a replaced version change | unchanged: passes without edits"
+    command: npx vitest run tests/integration/sync/replaced-version.test.ts
+    out_of_scope:
+      - "Pulling the deletion (SYNC-045)."
+
+  - id: SYNC-047
+    title: Relationship rows carry the other side's public name
+    kind: change
+    size: S
+    risk: medium
+    amends: [SYNC-004]
+    depends_on: [SYNC-004]
+    read_first: [src/modules/sync/adapters/relationship.adapter.ts, src/modules/sync/sync.changes.ts]
+    design_refs: [a5-nom-public-du-client-chez-le, a6-nom-public-du-fournisseur-chez-le]
+    constraints: []
+    asvs: [v5.0.0-15.3.1, v5.0.0-15.3.3]
+    story: As a seller, I want each relationship on my phone to carry the customer's public name, so that a customer I gave no label still has a name.
+    context: |
+      - `toSyncRow` (relationship.adapter.ts) adds one field, computed at each pull and never stored:
+        - supplier and driver rows: `customer_public_name` = the customer organization's `name`, else the customer person's `full_name`, else null;
+        - the customer person's row: `supplier_public_name` = the supplier organization's `name`, else the invited supplier person's `full_name`, else null.
+      - Never from `customer_label` or `supplier_label`; each side gets only its own field.
+      - `WITH_PARTIES` also loads the supplier person and the supplier organization's `name`.
+      - Both fields join the `customer_relationships` computed list in `sync.judge.ts`, so a phone never writes them.
+    acceptance: |
+      Scenario Outline: AC-1 The customer's public name for the supplier team
+        Given a relationship whose customer is <customer>, with customer_label "Tata"
+        When an OWNER and a DRIVER of the supplier pull relationships
+        Then both rows have customer_public_name <name> and no supplier_public_name
+        Examples:
+          | customer                         | name            |
+          | organization "Boutique Test"     | "Boutique Test" |
+          | person with full_name "Awa Kone" | "Awa Kone"      |
+          | person without full_name         | null            |
+      Scenario Outline: AC-2 The supplier's public name for the customer
+        Given a relationship of customer person P with supplier <supplier>, with supplier_label "Mon grossiste"
+        When P pulls relationships
+        Then the row has supplier_public_name <name> and no customer_public_name
+        Examples:
+          | supplier                                  | name         |
+          | organization "Dépôt Test"                 | "Dépôt Test" |
+          | invited person with full_name "Paul Test" | "Paul Test"  |
+          | invited person without full_name          | null         |
+    abuse: |
+      Scenario: AB-1 A phone writes a public name
+        When a phone pushes a relationship update with customer_public_name "Faux nom"
+        Then nothing is stored from it and the next pull returns the real name
+    implementation:
+      create: [tests/integration/sync/relationship-public-names.test.ts]
+      modify: [src/modules/sync/adapters/relationship.adapter.ts, src/modules/sync/sync.judge.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-15.3.1: explicit fields per viewer; the private labels never feed a public name."
+      - "v5.0.0-15.3.3: both names are server-computed, never written by a phone."
+    tests: |
+      customer name | integration | AC-1 | each Examples row, OWNER and DRIVER rows
+      supplier name | integration | AC-2 | each Examples row
+      written by a phone | security | AB-1, WSTG-BUSL-01 | ignored, real name pulled
+    tests_to_update:
+      - "tests/integration/sync/pull-relationships.test.ts | one computed field is added to relationship rows | unchanged: passes without edits"
+    command: npx vitest run tests/integration/sync/relationship-public-names.test.ts
+    out_of_scope:
+      - "Sending rows again after a rename (REL-033)."
+
+  - id: SYNC-048
+    title: Pulled orders carry the frozen receipt, which a phone never writes
+    kind: change
+    size: S
+    risk: medium
+    amends: [SYNC-006]
+    depends_on: [SYNC-006, ORD-041]
+    read_first: [src/modules/sync/adapters/order.adapter.ts, src/modules/sync/sync.changes.ts]
+    design_refs: [a8-le-recu-ne-change-plus-point-9/champs-figes-champs-ajoutes-a-order]
+    constraints: []
+    asvs: [v5.0.0-15.3.1, v5.0.0-15.3.3]
+    story: As a seller, I want the receipt on my phone to be the one the server wrote, so that every copy of a receipt is the same.
+    context: |
+      - `orderRow` (order.adapter.ts) builds rows from the order views, which carry the four receipt fields since ORD-041; the DRIVER view has no `balance_after_applied`. Amounts travel as numbers, like `total_amount`.
+      - Add the four fields to the `orders` computed list in `sync.judge.ts`: a pushed value is dropped and never stored, even in a conflict.
+    acceptance: |
+      Scenario Outline: AC-1 Who receives what
+        Given a DELIVERED order with its receipt
+        When <viewer> pulls orders
+        Then the row has <fields>
+        Examples:
+          | viewer                   | fields                                           |
+          | an OWNER of the supplier | the four receipt fields                          |
+          | the customer person      | the four receipt fields                          |
+          | a DRIVER of the supplier | the receipt fields without balance_after_applied |
+      Scenario: AC-2 Before delivery
+        When an order not yet delivered is pulled
+        Then its receipt fields are null
+    abuse: |
+      Scenario: AB-1 A phone rewrites the receipt
+        When a phone pushes an update of that order with collected_applied 0 and supplier_name_applied "Faux"
+        Then the stored receipt is unchanged and the next pull returns it
+    implementation:
+      create: [tests/integration/sync/pull-receipt.test.ts]
+      modify: [src/modules/sync/sync.judge.ts, src/modules/sync/adapters/order.adapter.ts]
+      pattern: src/modules/sync/sync.changes.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-15.3.1: a driver never receives the customer's debt."
+      - "v5.0.0-15.3.3: the receipt is server-only in the push."
+    tests: |
+      viewers | integration | AC-1 | each Examples row
+      before delivery | integration | AC-2 | null fields
+      rewrite | security | AB-1, WSTG-BUSL-01 | stored receipt unchanged
+    tests_to_update:
+      - "tests/integration/sync/pull-orders.test.ts | receipt fields are added to order rows | unchanged: passes without edits"
+    command: npx vitest run tests/integration/sync/pull-receipt.test.ts
+    out_of_scope:
+      - "Writing the receipt at delivery (DLV-019)."
+
+  - id: SYNC-049
+    title: Orders entered offline carry their reception mode
+    kind: change
+    size: S
+    risk: medium
+    amends: [SYNC-012]
+    depends_on: [SYNC-012, ORD-036]
+    read_first: [src/modules/sync/adapters/order.push.ts, src/modules/sync/sync.push.ts]
+    design_refs: [a4-livraison-ou-retrait-reception-mode/champ-ajoute-a-order, a4-livraison-ou-retrait-reception-mode/contraintes-de-base-de-donnees-complete]
+    constraints: [C-60]
+    asvs: [v5.0.0-2.2.1]
+    story: As a seller, I want an order I enter offline to keep whether it is delivered or picked up, so that nobody delivers an order the customer comes to fetch.
+    context: |
+      - A created `orders` row (order.push.ts, the branch that reads `delivery_address_applied`) also reads `reception_mode`: `DELIVERY` or `PICKUP`; absent or null (older apps) is stored empty.
+      - Any other value, or `PICKUP` with a non-empty `delivery_address_applied`, is refused through `invalidOrder` and nothing is stored.
+      - An update never changes `reception_mode`: only `supplier_note` and a cancellation apply, as today.
+      - Pulled rows already carry `reception_mode` through the order views (ORD-037).
+    acceptance: |
+      Scenario Outline: AC-1 Creating an order offline
+        When a phone pushes a new order with reception_mode <mode> and delivery_address_applied <address>
+        Then <result>
+        Examples:
+          | mode     | address | result                             |
+          | DELIVERY | "Rue 1" | it is stored DELIVERY with Rue 1   |
+          | PICKUP   | absent  | it is stored PICKUP with no address |
+          | absent   | "Rue 1" | it is stored empty with Rue 1      |
+          | PICKUP   | "Rue 1" | it is refused and nothing stored   |
+      Scenario: AC-2 An update keeps the mode
+        When a phone pushes an update of a DELIVERY order with reception_mode PICKUP
+        Then the order stays DELIVERY
+    abuse: |
+      Scenario: AB-1 An unknown mode
+        When a phone pushes a new order with reception_mode "COURIER"
+        Then it is refused and nothing is stored
+    implementation:
+      create: [tests/integration/sync/push-reception-mode.test.ts]
+      modify: [src/modules/sync/adapters/order.push.ts]
+      pattern: src/modules/sync/sync.push.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the mode is checked against its two values and the address rule before anything is stored."
+    tests: |
+      create | integration | AC-1, C-60 | each Examples row
+      update | integration | AC-2 | mode unchanged
+      unknown mode | security | AB-1, WSTG-INPV-20 | refused, nothing stored
+    tests_to_update:
+      - "tests/integration/sync/push-orders.test.ts | its rows send no reception_mode, which is stored empty | unchanged: passes without edits"
+    command: npx vitest run tests/integration/sync/push-reception-mode.test.ts
+    out_of_scope:
+      - "Orders placed online (ORD-037)."

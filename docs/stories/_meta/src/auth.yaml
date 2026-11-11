@@ -31,6 +31,7 @@ constraints:
   CM-08: "Access token (JWT) lives 15 minutes and is not stored; refresh token lives 90 days, extended at each use, replaced at each use; a reused token revokes only its own device session (REUSE_DETECTED)."
   CM-04: "Releasing a number moves it from phone_number to released_phone_number and clears phone_verified_at; lookups, SMS and registration read only the active number."
   C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
+  C-59: "At most one open (not revoked) device per person and `android_id_hash`."
 contracts:
   provides:
     - name: OtpService

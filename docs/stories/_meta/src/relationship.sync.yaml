@@ -392,3 +392,120 @@ stories:
     tests_to_update:
       - "tests/integration/relationship/correct-number.test.ts | same customer (AC-3 of REL-024): the confirmation flow is gone | own number on a contested record → 409 SAME_NUMBER; confirm_same_customer → 400"
       - "tests/integration/relationship/correct-number.test.ts | innocent person (AB-1 of REL-024): contestation no longer limited | the moved person can contest, and contest again after taking it back"
+---
+kind: stories
+module: relationship
+constraints: {}
+stories:
+  - id: REL-032
+    title: A driver's available credit never goes below zero
+    kind: change
+    size: S
+    risk: medium
+    amends: [REL-005]
+    depends_on: [DLV-017]
+    read_first: [src/modules/relationship/relationship.visibility.ts, src/shared/credit.ts]
+    design_refs: [a3-plafond-de-credit-deja-depasse/ce-que-recoit-le-livreur-precise-9-6]
+    constraints: []
+    asvs: [v5.0.0-15.3.1]
+    story: As a driver, I want the available credit of a customer over their limit to read zero, so that I collect everything without learning the customer's debt.
+    context: |
+      - `relationship.visibility.ts` computes `available_credit` as `creditLimit - balance`: a customer over the limit gives a negative number, which reveals the overrun, and with limit 0 the whole debt.
+      - Compute it with `availableCredit(limit, balance)` from `src/shared/credit.ts` (DLV-017): never below 0, null with no limit.
+      - `projectForDriver` is pure and exported: test it directly with built rows.
+      - The same value feeds the driver's sync row (`relationship.adapter.ts`) and the delivery API; neither changes.
+      - The offline check is unchanged: at 0 the customer pays everything.
+    acceptance: |
+      Scenario Outline: AC-1 The driver's available credit
+        Given a relationship with credit_limit <limit> and balance <balance>
+        When a DRIVER of the supplier reads it
+        Then available_credit is <available>
+        Examples:
+          | limit | balance | available |
+          | 50000 | 20000   | 30000     |
+          | 50000 | 50000   | 0         |
+          | 50000 | 80000   | 0         |
+          | 0     | 15000   | 0         |
+          | none  | 15000   | null      |
+    abuse: |
+      Scenario: AB-1 Deducing the debt
+        Given a customer with limit 0 and balance 15000
+        When it is projected for a DRIVER (`projectForDriver`, also used by the sync row)
+        Then the view holds no negative number, no balance and no limit
+    implementation:
+      create: [tests/unit/relationship/driver-available-credit.test.ts]
+      modify: [src/modules/relationship/relationship.visibility.ts]
+      pattern: tests/unit/shared/money.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-15.3.1: the driver's view returns only the clamped available credit, never a value from which the debt can be read."
+    tests: |
+      clamp | unit | AC-1 | each Examples row → available
+      no debt leak | security | AB-1, CWE-200 | no negative value, no balance, no limit
+    tests_to_update:
+      - "tests/integration/relationship/visibility.test.ts | its driver cases have a balance within the limit | unchanged: passes without edits"
+    command: npx vitest run tests/unit/relationship/driver-available-credit.test.ts
+    out_of_scope:
+      - "The credit check at delivery (DLV-017)."
+
+  - id: REL-033
+    title: A renamed party resends its relationships to phones
+    kind: migration
+    size: S
+    risk: high
+    amends: []
+    depends_on: [SYNC-047]
+    read_first: [prisma/schema.prisma, tests/integration/organization/amount-held.test.ts]
+    design_refs: [a5-nom-public-du-client-chez-le, a6-nom-public-du-fournisseur-chez-le]
+    constraints: []
+    asvs: [v5.0.0-15.3.1]
+    story: "Technical story: mark a relationship changed when a party's name changes, so that phones pull the new public name."
+    context: |
+      - The public names (SYNC-047) are computed at each pull from `persons.full_name` and `organizations.name`; a phone pulls a relationship again only when its `server_updated_at` moves, which the database sets on every change of the row.
+      - Trigger after update of `persons.full_name` (rename, anonymization), when the value changes: touch every `customer_relationships` row whose `customer_person_id` or `supplier_person_id` is that person.
+      - Trigger after update of `organizations.name`, when the value changes: touch every row whose `customer_organization_id` or `supplier_organization_id` is that organization.
+      - The migration also touches every existing row once, so phones receive the new fields.
+      - Add both triggers to the `//` comment above `CustomerRelationship` in `schema.prisma`, in plain words, with this migration's name.
+    acceptance: |
+      Scenario: AC-1 A person's new name
+        Given a relationship whose customer is person P
+        When P's full_name changes
+        Then the relationship's server_updated_at moves forward
+      Scenario: AC-2 An organization's new name
+        Given a relationship whose supplier is organization S
+        When S's name changes
+        Then the relationship's server_updated_at moves forward
+      Scenario: AC-3 Nothing changes, nothing moves
+        When P's phone or S's city changes, or a name is set to the same value
+        Then server_updated_at stays the same
+      Scenario: AC-4 Put into service
+        Then after the migration every relationship has a server_updated_at later than before it
+    abuse: |
+      Scenario: AB-1 Another party's rows
+        Given person Q in no relationship with S
+        When Q's full_name changes
+        Then no relationship of S moves
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_rel_033_public_name_touch/migration.sql
+        - tests/integration/relationship/public-name-touch.test.ts
+      modify: [prisma/schema.prisma]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-15.3.1: an anonymized name reaches phones at their next pull instead of staying on them."
+    tests: |
+      person rename | integration | AC-1 | server_updated_at later
+      organization rename | integration | AC-2 | server_updated_at later
+      no name change | integration | AC-3 | server_updated_at unchanged
+      put into service | integration | AC-4 | every row touched by the migration
+      other party | security | AB-1, CWE-639 | S's rows unchanged
+    command: npx vitest run tests/integration/relationship/public-name-touch.test.ts
+    out_of_scope:
+      - "Computing the public names (SYNC-047)."

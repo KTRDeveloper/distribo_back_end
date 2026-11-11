@@ -760,3 +760,394 @@ stories:
     command: npx vitest run tests/integration/auth/email-verify-case.test.ts tests/integration/auth/email-verify-confirm.test.ts
     out_of_scope:
       - "Changing the confirmation route: AUTH-023. The unique index: PER-003."
+---
+kind: stories
+module: auth
+constraints: {C-59: "At most one open (not revoked) device per person and `android_id_hash`."}
+stories:
+  - id: AUTH-039
+    title: A device stores the fingerprint of its Android id
+    kind: migration
+    size: S
+    risk: high
+    amends: [AUTH-007]
+    depends_on: [AUTH-007]
+    read_first: [prisma/schema.prisma, tests/integration/organization/amount-held.test.ts]
+    design_refs: [a2-reconnaitre-un-telephone-android/ce-que-le-serveur-garde-champ-ajoute-a, a2-reconnaitre-un-telephone-android/contraintes-de-base-de-donnees-complete]
+    constraints: [C-59]
+    asvs: [v5.0.0-2.2.1]
+    fields: ["Device.{android_id_hash}"]
+    story: "Technical story: add `android_id_hash` to devices and the `REPLACED` revocation reason, so that a new login can close the session the same phone left open."
+    context: |
+      - Additive migration: `devices.android_id_hash`, nullable `text`; existing rows keep it empty.
+      - A partial unique index on (`person_id`, `android_id_hash`) where `revoked_at` is null and the hash is set: at most one open device per person and fingerprint.
+      - Add `REPLACED` to the enum `RefreshTokenRevokedReason` and to the `RevokedReason` type in `session.repository.ts`.
+      - `prisma/schema.prisma`: `Device` gets `androidIdHash` (`@map`). Write the `//` comment above `Device` in plain words: one open device per person and phone fingerprint, why it is not in `@@unique` (it ignores closed devices), and this migration's name.
+      - No code writes the hash yet (AUTH-041).
+    acceptance: |
+      Scenario: AC-1 The column exists and stays empty
+        When the columns of `devices` are read
+        Then `android_id_hash` is a nullable text and every existing device has it empty
+      Scenario Outline: AC-2 One open device per person and fingerprint
+        Given an open device of person P with fingerprint H
+        When <second> is inserted
+        Then the database <result>
+        Examples:
+          | second                                   | result          |
+          | an open device of P with fingerprint H   | rejects (23505) |
+          | a revoked device of P with fingerprint H | accepts         |
+          | an open device of Q with fingerprint H   | accepts         |
+          | an open device of P without fingerprint  | accepts         |
+      Scenario: AC-3 The new reason
+        When a refresh token is revoked with reason REPLACED
+        Then the database accepts it
+    abuse: |
+      Scenario: AB-1 Two open sessions by a raw insert
+        When a raw insert adds a second open device of P with fingerprint H
+        Then the database rejects it with 23505
+    implementation:
+      create:
+        - prisma/migrations/<timestamp>_auth_039_android_id_hash/migration.sql
+        - tests/integration/auth/android-id-hash-column.test.ts
+      modify: [prisma/schema.prisma, src/modules/auth/session.repository.ts]
+      pattern: tests/integration/organization/amount-held.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: [prisma, "@prisma/client"]
+    security:
+      - "v5.0.0-2.2.1: the database refuses a second open session for the same phone, even when the code is bypassed."
+    tests: |
+      column | integration | AC-1 | nullable text, existing rows empty
+      uniqueness | integration | AC-2, C-59 | each Examples row → 23505 or accepted
+      reason | integration | AC-3 | REPLACED accepted
+      raw insert | security | AB-1, CWE-841 | 23505
+    command: npx vitest run tests/integration/auth/android-id-hash-column.test.ts
+    out_of_scope:
+      - "Computing and writing the fingerprint (AUTH-040, AUTH-041)."
+
+  - id: AUTH-040
+    title: The server computes an Android id fingerprint with its own key
+    kind: technical
+    size: S
+    risk: high
+    amends: []
+    depends_on: [AUTH-039]
+    read_first: [src/config/env.ts, src/lib/crypto.ts]
+    design_refs: [a2-reconnaitre-un-telephone-android/ce-que-le-serveur-garde-champ-ajoute-a, a2-reconnaitre-un-telephone-android/le-principe]
+    constraints: []
+    asvs: [v5.0.0-11.2.1, v5.0.0-13.3.1]
+    story: "Technical story: compute the fingerprint of an Android id with a server key and the person id, so that it tells only whether two logins of the same person come from the same phone."
+    context: |
+      - New environment variable `ANDROID_ID_HASH_KEY`: required, at least 32 characters, declared like `JWT_SECRET` in `src/config/env.ts`; a missing or short key stops the app.
+      - Map it in `src/config/index.ts` (`config.auth.androidIdHashKey`); add a placeholder line to `.env.example` and a fake value in `tests/setup.ts` next to `JWT_SECRET`.
+      - New `src/lib/android-id.ts`: `hashAndroidId(personId, androidId)` = HMAC-SHA256 with `node:crypto`, keyed by the server key, over the person id and the Android id joined by `:`, as lowercase hex.
+      - The same Android id gives different fingerprints for two persons, so fingerprints never link two accounts.
+      - Never log the key, the Android id or the fingerprint.
+    acceptance: |
+      Scenario: AC-1 Same person, same phone
+        When the fingerprint of person P and Android id "a1b2c3d4e5f60718" is computed twice
+        Then both results are equal, 64 lowercase hex characters
+      Scenario: AC-2 Two persons, same phone
+        When the fingerprints of P and Q for the same Android id are computed
+        Then they differ
+      Scenario: AC-3 Another key
+        When the key changes
+        Then the fingerprint of P and the same Android id differs from before
+      Scenario Outline: AC-4 The key is required
+        Given ANDROID_ID_HASH_KEY is <value>
+        When the configuration loads
+        Then it <result>
+        Examples:
+          | value         | result |
+          | absent        | fails  |
+          | 31 characters | fails  |
+          | 32 characters | loads  |
+    abuse: |
+      Scenario: AB-1 Recovering the id from the fingerprint
+        Given a fingerprint taken from the database without the key
+        When an attacker computes a plain SHA-256 of every 16-hex Android id with the person id
+        Then none matches, because the fingerprint needs the server key
+    implementation:
+      create: [src/lib/android-id.ts, tests/unit/lib/android-id.test.ts]
+      modify: [src/config/env.ts, src/config/index.ts, .env.example, tests/setup.ts]
+      pattern: tests/unit/auth/attempt-counter.test.ts
+      signatures:
+        - "hashAndroidId(personId: string, androidId: string): string"
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-11.2.1: the fingerprint uses the HMAC of `node:crypto`, never a hand-made hash."
+      - "v5.0.0-13.3.1: the key comes only from the environment, validated at startup, never logged."
+    tests: |
+      same input | unit | AC-1 | equal, 64 hex
+      two persons | unit | AC-2 | different
+      key change | unit | AC-3 | different
+      key required | unit | AC-4 | each Examples row → fails or loads
+      no key | security | AB-1, CWE-916 | plain SHA-256 differs from the fingerprint
+    command: npx vitest run tests/unit/lib/android-id.test.ts
+    out_of_scope:
+      - "Receiving the Android id at login (AUTH-041)."
+
+  - id: AUTH-041
+    title: A new login on the same Android phone closes its old session
+    kind: feature
+    size: M
+    risk: high
+    amends: [AUTH-008]
+    depends_on: [AUTH-039, AUTH-040]
+    read_first: [src/modules/auth/session.service.ts, src/modules/auth/session.repository.ts]
+    design_refs: [a2-reconnaitre-un-telephone-android, a2-reconnaitre-un-telephone-android/le-champ-envoye, a2-reconnaitre-un-telephone-android/a-l-ouverture-d-une-session, a2-reconnaitre-un-telephone-android/fiches-existantes]
+    constraints: [C-59]
+    asvs: [v5.0.0-7.2.4, v5.0.0-7.4.1, v5.0.0-16.2.5]
+    story: As a customer, I want my phone to appear once in my devices after I log in again, so that I recognize every session listed.
+    context: |
+      - `device.android_id`: optional, 1 to 16 lowercase hex characters (`^[0-9a-f]{1,16}$`); any other form gets 400. Add it to `deviceSchema` (`auth.schemas.ts`: register, login verify, reset confirm) and to `deviceInfoSchema` and `DeviceInfo` (`session.service.ts`).
+      - In the transaction of `issueSession`, when it is present: compute `hashAndroidId(personId, android_id)`; revoke the person's devices with that hash and `revoked_at` null, expired or not, and their live refresh tokens with reason `REPLACED` (like `revokeDevice`); then create the device with the hash.
+      - Two crossed logins of the same phone: the second hits the unique index (Prisma P2002); map it to 409 `SESSION_CONFLICT`, nothing applied, the gesture can be retried.
+      - Absent field (iPhone, old app): unchanged. Devices without a hash are never merged; a changed key simply recognizes nothing.
+      - The raw id is never stored, returned or logged; the new-login code and alert stay required.
+    acceptance: |
+      Scenario: AC-1 The same phone replaces its session
+        Given person P logged in on a phone sending android_id "a1b2c3d4"
+        When P logs in again on it
+        Then the old device is revoked, its refresh token revoked with REPLACED, and P has one open device for that phone
+      Scenario: AC-2 An expired old session is also closed
+        Given P's old device with that fingerprint and an expired refresh token
+        When P logs in again on that phone
+        Then the old device is revoked
+      Scenario: AC-3 No id, nothing merged
+        When P logs in without android_id, or an old device of P has no fingerprint
+        Then no device of P is revoked
+      Scenario Outline: AC-4 The id's form
+        When a login verify sends android_id <value>
+        Then the answer is <status>
+        Examples:
+          | value               | status |
+          | "a1b2c3d4"          | 200    |
+          | "A1B2C3D4"          | 400    |
+          | "a1b2c3d4e5f607182" | 400    |
+          | ""                  | 400    |
+      Scenario: AC-5 Crossed logins
+        When two login verifies of the same phone run at the same time
+        Then one succeeds and the other gets 409 SESSION_CONFLICT with nothing written
+    abuse: |
+      Scenario: AB-1 Closing another person's session
+        Given person Q has an open session on a phone with android_id "a1b2c3d4"
+        When P logs in sending android_id "a1b2c3d4"
+        Then Q's session stays open
+      Scenario: AB-2 The raw id leaks
+        When a login with android_id is answered and logged
+        Then neither the answer, the logs nor the devices row hold "a1b2c3d4"
+    implementation:
+      create: [tests/integration/auth/same-android-phone.test.ts]
+      modify: [src/modules/auth/auth.schemas.ts, src/modules/auth/session.service.ts, src/modules/auth/session.repository.ts]
+      pattern: tests/integration/auth/devices.test.ts
+      signatures:
+        - "revokeByAndroidIdHash(tx: Prisma.TransactionClient, personId: string, hash: string): Promise<void>"
+      types: []
+      errors:
+        - "409 SESSION_CONFLICT: another login of the same phone is in progress"
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-7.2.4: every login still issues new tokens; the old session's tokens are revoked in the same transaction."
+      - "v5.0.0-7.4.1: a replaced session's refresh token is refused at once."
+      - "v5.0.0-16.2.5: the Android id is never stored, returned or logged; only its keyed fingerprint is stored."
+    tests: |
+      replace | integration | AC-1 | old device revoked, REPLACED, one open device
+      expired old | integration | AC-2 | revoked
+      no id | integration | AC-3 | nothing revoked
+      form | integration | AC-4 | each Examples row → status
+      crossed | integration | AC-5, C-59 | one 200, one 409, one open device
+      other person | security | AB-1, CWE-639 | Q still open
+      no raw id | security | AB-2, CWE-532 | id absent from body, logs, row
+    command: npx vitest run tests/integration/auth/same-android-phone.test.ts
+    out_of_scope:
+      - "Which sessions count as open, and the alert (AUTH-042)."
+      - "Clearing the fingerprint at account deletion (PRIV-006)."
+
+  - id: AUTH-042
+    title: Only open sessions are listed and alerted
+    kind: change
+    size: S
+    risk: medium
+    amends: [AUTH-014, AUTH-018]
+    depends_on: [AUTH-041]
+    read_first: [src/modules/auth/session.repository.ts, src/modules/auth/auth.service.ts]
+    design_refs: [a2-reconnaitre-un-telephone-android/sessions-ouvertes-precise-1-1-et-10-3]
+    constraints: []
+    asvs: [v5.0.0-7.5.2]
+    story: As a customer, I want my devices list and new-login alerts to cover only my open sessions, so that a closed or expired phone never shows up or gets an alert.
+    context: |
+      - An open session is a device with `revoked_at` null whose current refresh token (`rotated_at` and `revoked_at` null) has `expires_at` in the future.
+      - Filter `listLive` (`session.repository.ts`) and `listLiveDeviceIds` (`auth.repository.ts`) on it.
+      - `completeLogin` (`auth.service.ts`) lists the devices to alert before `issueSession`: list them after it, excluding the device it just opened, so a device that login replaced (AUTH-041) gets no alert.
+      - The alert goes at every login, even on a recognized phone; its text is unchanged.
+    acceptance: |
+      Scenario: AC-1 Expired sessions leave the list
+        Given P has device D1 open and device D2 whose refresh token expired
+        When P lists their devices
+        Then only D1 is listed
+      Scenario: AC-2 The alert goes to the other open sessions
+        Given P has open device D1 and expired device D2
+        When P logs in on a new phone
+        Then D1 gets the new-login alert and D2 does not
+      Scenario: AC-3 The replaced session gets no alert
+        Given P has open device D1 and device D3 with android_id "a1b2c3d4"
+        When P logs in again on the phone of D3
+        Then D1 gets the alert, D3 is revoked and gets none
+    abuse: |
+      Scenario: AB-1 Another person's devices
+        When P lists their devices
+        Then no device of Q appears
+    implementation:
+      create: [tests/integration/auth/open-sessions.test.ts]
+      modify: [src/modules/auth/session.repository.ts, src/modules/auth/auth.repository.ts, src/modules/auth/auth.service.ts]
+      pattern: tests/integration/auth/devices.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: ["@prisma/client"]
+    security:
+      - "v5.0.0-7.5.2: the person sees exactly the sessions that can still be used, to end the ones they do not know."
+    tests: |
+      expired | integration | AC-1 | only D1
+      alert | integration | AC-2 | D1 alerted, D2 not
+      replaced | integration | AC-3 | D1 alerted, D3 not
+      other person | security | AB-1, WSTG-ATHZ-04 | no device of Q
+    tests_to_update:
+      - "tests/integration/auth/devices.test.ts | its listed devices all hold a live refresh token | unchanged: passes without edits"
+      - "tests/integration/auth/login-verify.test.ts | the devices to alert are read after the session opens, excluding the new one | unchanged: passes without edits"
+    command: npx vitest run tests/integration/auth/open-sessions.test.ts
+    out_of_scope:
+      - "Closing the replaced session (AUTH-041)."
+
+  - id: AUTH-043
+    title: A lock refusal can tell the time left
+    kind: technical
+    size: S
+    risk: medium
+    amends: []
+    depends_on: [AUTH-012]
+    read_first: [src/lib/rate-limit.ts, src/lib/http-error.ts]
+    design_refs: [a7-blocage-apres-5-erreurs-de-mot-de]
+    constraints: []
+    asvs: [v5.0.0-6.3.1]
+    story: "Technical story: read the time left on a counter and send headers with an application error, so that a lock refusal can carry `Retry-After`."
+    context: |
+      - `checkAndConsume` keeps its result; a refusal does not touch the key's expiry.
+      - New `secondsLeft(key, windowSeconds, client = redis)` in `src/lib/rate-limit.ts`: the key's remaining time from PTTL, in whole seconds rounded up, at least 1. `RateLimitClient` gets an optional `pttl`; a client without it gives `windowSeconds`.
+      - `httpError(status, code, message, details?, headers?)`: the optional `headers` (a string map) is kept on the error; `src/middleware/error-handler.ts` sets them on the response before the JSON body.
+      - Existing calls and tests do not change.
+    acceptance: |
+      Scenario Outline: AC-1 Time left
+        Given a counter key whose remaining time is <pttl> ms
+        When secondsLeft reads it
+        Then it returns <seconds>
+        Examples:
+          | pttl  | seconds |
+          | 60000 | 60      |
+          | 1200  | 2       |
+          | 1     | 1       |
+          | -2    | 1       |
+      Scenario: AC-2 Headers on an error
+        When a route throws httpError(429, "LOGIN_LOCKED", "Too many failed attempts", undefined, {"Retry-After": "42"})
+        Then the response is 429 with header Retry-After 42 and the usual error body
+      Scenario: AC-3 No headers
+        When a route throws httpError without headers
+        Then the response is as before
+    abuse: |
+      Scenario: AB-1 A header carrying data
+        When an error carries headers
+        Then the error body has no headers field and the log entry holds no header value
+    implementation:
+      create: [tests/unit/lib/seconds-left.test.ts, tests/unit/middleware/error-headers.test.ts]
+      modify: [src/lib/rate-limit.ts, src/lib/http-error.ts, src/middleware/error-handler.ts]
+      pattern: tests/unit/lib/http-error.test.ts
+      signatures:
+        - "secondsLeft(key: string, windowSeconds: number, client?: RateLimitClient): Promise<number>"
+        - "httpError(status: number, code: string, message: string, details?: Record<string, unknown>, headers?: Record<string, string>): HttpError"
+      types: []
+      errors: []
+      dependencies: [ioredis]
+    security:
+      - "v5.0.0-6.3.1: the lock keeps its fixed duration; reading the time left never extends it."
+    tests: |
+      time left | unit | AC-1 | each Examples row → seconds
+      headers | unit | AC-2 | 429, Retry-After 42, body unchanged
+      no headers | unit | AC-3 | as before
+      no leak | security | AB-1, CWE-209 | no headers field in body
+    command: npx vitest run tests/unit/lib/seconds-left.test.ts tests/unit/middleware/error-headers.test.ts
+    out_of_scope:
+      - "Using it on the lock refusals (AUTH-044)."
+
+  - id: AUTH-044
+    title: A password lock lasts one minute and says when it ends
+    kind: change
+    size: M
+    risk: high
+    amends: [AUTH-012]
+    depends_on: [AUTH-043]
+    read_first: [src/modules/auth/auth.service.ts, tests/integration/auth/attempt-lock-concurrency.test.ts]
+    design_refs: [a7-blocage-apres-5-erreurs-de-mot-de]
+    constraints: []
+    asvs: [v5.0.0-6.3.1]
+    story: As a customer, I want a password lock to last one minute and tell me the time left, so that I can wait for exactly that long.
+    context: |
+      - `LOGIN_LOCK_MINUTES` defaults to 1 (`src/config/env.ts`; drop "provisional Q-005" from its comment) and `.env.example` sets 1. The duration is fixed and one for every password lock.
+      - Every 429 `LOGIN_LOCKED` carries `Retry-After` = `secondsLeft(key, loginLockMinutes * 60)` on the counter key that refused: `takeAttempt` (`auth.service.ts`, login and password change), `deleteAccount` (`privacy.service.ts`), and both lock checks in `admin.service.ts`.
+      - Unchanged rules: the right password is refused during the lock; a refused try does not extend it; after it the right password passes and resets the counter; the SMS reset stays possible and lifts it.
+      - Tests may shorten a lock by setting the key's remaining time in Redis instead of waiting.
+    acceptance: |
+      Scenario: AC-1 Retry-After on the lock
+        Given 5 wrong passwords in a row for phone N
+        When a 6th login is tried
+        Then the answer is 429 LOGIN_LOCKED with Retry-After between 1 and 60
+      Scenario: AC-2 The right password is refused, the time keeps falling
+        Given N is locked with Retry-After R
+        When the right password is tried after 2 seconds
+        Then it gets 429 with Retry-After lower than R
+      Scenario: AC-3 After the lock
+        Given N's lock has ended
+        When the right password is tried
+        Then it passes and the counter is back to zero
+      Scenario: AC-4 The SMS reset lifts the lock
+        Given N is locked
+        When the password is reset with the SMS code
+        Then the reset succeeds and the new password passes at once
+      Scenario Outline: AC-5 Every lock carries the header
+        When <gesture> is locked
+        Then the 429 LOGIN_LOCKED carries Retry-After
+        Examples:
+          | gesture             |
+          | a password change   |
+          | an account deletion |
+          | an admin login      |
+    abuse: |
+      Scenario: AB-1 Extending a lock by hammering
+        Given N is locked
+        When 20 more passwords are tried
+        Then the lock still ends within 60 seconds of the 5th failure
+    implementation:
+      create: [tests/integration/auth/lock-retry-after.test.ts]
+      modify: [src/config/env.ts, src/modules/auth/auth.service.ts, src/modules/privacy/privacy.service.ts, src/modules/admin/admin.service.ts, .env.example]
+      pattern: tests/integration/auth/attempt-lock-concurrency.test.ts
+      signatures: []
+      types: []
+      errors: []
+      dependencies: []
+    security:
+      - "v5.0.0-6.3.1: 5 failures lock the password for a fixed minute that refused tries cannot extend; the code asked at every login stays the main protection."
+    tests: |
+      header | integration | AC-1 | 429, Retry-After 1..60
+      falling | integration | AC-2 | lower Retry-After
+      after lock | integration | AC-3 | 200, counter reset
+      sms reset | integration | AC-4 | reset 200, login passes
+      other locks | integration | AC-5 | each Examples row → Retry-After
+      hammering | security | AB-1, WSTG-ATHN-03 | Retry-After never above the first
+    command: npx vitest run tests/integration/auth/lock-retry-after.test.ts
+    out_of_scope:
+      - "Documenting the header in OpenAPI."
+    tests_to_update:
+      - "tests/unit/auth/attempt-counter.test.ts | the default lock is now 1 minute (A7) | 'defaults to 5' becomes 'defaults to 1' and expects 1"

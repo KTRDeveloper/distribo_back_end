@@ -38,6 +38,10 @@ constraints:
   CM-10: "CLOSED (by the owner, reopenable): no new order or customer, not findable by number, pending orders refused with reason 'Commerce fermé', team revoked, subscription stopped; relations, balances and history stay visible and payments stay possible."
   C-01: "Identifiers use `uuid` columns (UUIDv7), amounts `bigint`, quantities `numeric(12,3)`, timestamps `timestamptz`."
   C-35: "Synchronized tables carry `server_updated_at`, set by the server on every write, and `deleted_at` for deletion; unique constraints ignore deleted rows."
+  C-58: "`replaced_by_order_id` is unique among set values, never the order's own id, set only on an order placed by the CUSTOMER, and names an order of the same relationship."
+  C-60: "A `PICKUP` order has no delivery address."
+  C-61: "`supplier_name_applied`, `collected_applied` and `balance_after_applied` are set exactly when the order is DELIVERED; `customer_name_applied` may stay empty. Enforced after the backfill of the orders already delivered."
+  C-62: "Once set, the database refuses any change to `supplier_name_applied`, `customer_name_applied`, `collected_applied` and `balance_after_applied`."
 contracts:
   provides:
     - name: OrderCalculations
@@ -69,6 +73,7 @@ contracts:
     - "catalog: getReferencePrice, getActiveVariant, variantLabel (docs/stories/modules/catalog/contracts.md)"
     - "relationship: ensureCustomerRelationship, visibleRelationsWhere, projectForSupplier (docs/stories/modules/relationship/contracts.md)"
     - "organization: loadActor, assertOrganizationActive (docs/stories/modules/organization/contracts.md)"
+    - "notification: notify, recipientLanguage, retargetNotifications (docs/stories/modules/notification/contracts.md)"
     - "access: requireAbility, abilityFor, idempotent (docs/stories/modules/access/contracts.md)"
 stories:
   - id: ORD-001

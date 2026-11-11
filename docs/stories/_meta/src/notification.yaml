@@ -25,6 +25,12 @@ contracts:
         - "notify(input: NotifyInput, tx?: Prisma.TransactionClient): Promise<void> — stores one unread notification"
         - "recipientLanguage(personId: string): Promise<'FR' | 'EN'> — preferred language, FR when empty"
       used_by: [auth, organization, relationship, order, finance, delivery, admin, sync]
+    - name: retargetNotifications
+      file: src/modules/notification/notification.service.ts
+      story: NTF-005
+      items:
+        - "retargetNotifications(tx: Prisma.TransactionClient, input: { type: string; fromId: string; toId: string }): Promise<number> — points every notification about one entity at its replacement; returns how many moved"
+      used_by: [order]
   consumes:
     - "person: PER-008 require_registered_person trigger (docs/stories/modules/person/contracts.md)"
     - "foundation: newId, paginationQuerySchema, httpError (docs/stories/modules/foundation/contracts.md)"
