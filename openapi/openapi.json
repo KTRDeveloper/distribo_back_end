@@ -16341,6 +16341,589 @@
         }
       }
     },
+    "/api/v1/orders": {
+      "post": {
+        "tags": [
+          "order"
+        ],
+        "summary": "A person places an order with a supplier, for themselves as customer (ORD-009)",
+        "description": "Rights and scope: any signed-in person orders for themselves. The customer is always the\ncaller, never a body field. The relationship with the supplier is found, or created ACTIVE\nwith credit limit 0 on the first order. To order for a business, use\n`POST /api/v1/organizations/{organizationId}/purchases` (ORD-010).\n\nIds made by the phone: `id` is a UUIDv7 that is both the new order id and the gesture id.\nEach line `id` is a UUIDv7 that becomes the line id, unique within the body.\n\nBody: `supplier_organization_id`; 1 to 100 `lines`, each with `product_variant_id` and\n`quantity` (greater than 0, at most 3 decimals, a decimal string or a number); optional\n`delivery_address` (1 to 2000 characters), `desired_delivery_date` (YYYY-MM-DD) and\n`customer_note` (up to 2000 characters). Any other field is refused: prices, labels,\namounts, totals, status, customer and relationship are never accepted.\n\nThe server computes the rest from its own data: each line label, the reference price\n(negotiated price, else catalog price), the applied unit price (equal to it), the line\namounts and the total. `delivery_address_applied` is the body address, else the usual\naddress of the relationship; `delivery_cost` is 0; the order is PENDING and placed by the\nCUSTOMER. Relationship, order, lines and the `order.placed` notification to the supplier\nOWNER, MANAGERs and SELLERs are one transaction: a refusal writes nothing.\n\nRepeat: the same `id` sent again by the same person changes nothing and returns the first\nresponse (status and body) with the header `Idempotent-Replay: true`, for 30 days. A refusal\nby the server (404, 409, quantity below the minimum) is replayed the same way, so a new\nattempt needs a new `id`. A body refused by validation reserves nothing. While the first\nrequest is still running, a repeat gets 409 `REQUEST_IN_PROGRESS`. A 5xx keeps nothing:\nthe same `id` can be sent again.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "supplier_organization_id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "delivery_address": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "desired_delivery_date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "customer_note": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                        },
+                        "product_variant_id": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                        },
+                        "quantity": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "maxLength": 32
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "product_variant_id",
+                        "quantity"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "id",
+                  "supplier_organization_id",
+                  "lines"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The PENDING order, customer view, lines in the order sent",
+            "headers": {
+              "Idempotent-Replay": {
+                "description": "Present, with the value true, only on a repeat of an earlier gesture",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "customer_relationship_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "placed_by_party": {
+                      "type": "string",
+                      "enum": [
+                        "CUSTOMER",
+                        "SUPPLIER"
+                      ]
+                    },
+                    "delivery_address_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "total_amount": {
+                      "type": "integer"
+                    },
+                    "delivery_cost": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "accepted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "delivered_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "desired_delivery_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cancelled_by_party": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "cancelled_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "cancellation_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "parent_order_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "customer_note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "supplier_note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "product_variant_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "label_applied": {
+                            "type": "string"
+                          },
+                          "quantity": {
+                            "type": "string"
+                          },
+                          "delivered_quantity": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "reference_price": {
+                            "type": "integer"
+                          },
+                          "unit_price_applied": {
+                            "type": "integer"
+                          },
+                          "amount": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "product_variant_id",
+                          "label_applied",
+                          "quantity",
+                          "delivered_quantity",
+                          "reference_price",
+                          "unit_price_applied",
+                          "amount"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "customer_relationship_id",
+                    "placed_by_party",
+                    "delivery_address_applied",
+                    "total_amount",
+                    "delivery_cost",
+                    "status",
+                    "accepted_at",
+                    "delivered_at",
+                    "created_at",
+                    "desired_delivery_date",
+                    "cancelled_by_party",
+                    "cancelled_at",
+                    "cancellation_reason",
+                    "parent_order_id",
+                    "customer_note",
+                    "supplier_note",
+                    "lines"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: invalid body (unknown or missing field, malformed id, 0 or over 100 lines, duplicate line id, quantity 0, negative or with over 3 decimals, text too long, impossible date), or a quantity below the minimum order quantity of the product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: unknown supplier, or a product variant that is not ACTIVE, is paused or belongs to another supplier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ORGANIZATION_NOT_ACTIVE (supplier suspended or closed), RELATIONSHIP_NOT_ACTIVE (relationship ended by either party) or REQUEST_IN_PROGRESS (same id still running)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "order"
+        ],
+        "summary": "A person lists their own orders, newest first, with lines (ORD-021)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "IN_DELIVERY",
+                "DELIVERED",
+                "CANCELLED"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": false,
+            "name": "supplier_relationship_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of orders, customer view, and the cursor of the next page or null",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "customer_relationship_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "placed_by_party": {
+                            "type": "string",
+                            "enum": [
+                              "CUSTOMER",
+                              "SUPPLIER"
+                            ]
+                          },
+                          "delivery_address_applied": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "total_amount": {
+                            "type": "integer"
+                          },
+                          "delivery_cost": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "accepted_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "delivered_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "desired_delivery_date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cancelled_by_party": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cancelled_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "cancellation_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "parent_order_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "customer_note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "supplier_note": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "product_variant_id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "label_applied": {
+                                  "type": "string"
+                                },
+                                "quantity": {
+                                  "type": "string"
+                                },
+                                "delivered_quantity": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "reference_price": {
+                                  "type": "integer"
+                                },
+                                "unit_price_applied": {
+                                  "type": "integer"
+                                },
+                                "amount": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "product_variant_id",
+                                "label_applied",
+                                "quantity",
+                                "delivered_quantity",
+                                "reference_price",
+                                "unit_price_applied",
+                                "amount"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "customer_relationship_id",
+                          "placed_by_party",
+                          "delivery_address_applied",
+                          "total_amount",
+                          "delivery_cost",
+                          "status",
+                          "accepted_at",
+                          "delivered_at",
+                          "created_at",
+                          "desired_delivery_date",
+                          "cancelled_by_party",
+                          "cancelled_at",
+                          "cancellation_reason",
+                          "parent_order_id",
+                          "customer_note",
+                          "supplier_note",
+                          "lines"
+                        ]
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query (unknown field, status, id or cursor)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/purchases": {
       "post": {
         "tags": [
@@ -20186,280 +20769,6 @@
           },
           "404": {
             "description": "Not a member or order outside the business",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/orders": {
-      "get": {
-        "tags": [
-          "order"
-        ],
-        "summary": "A person lists their own orders, newest first, with lines (ORD-021)",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "string"
-                }
-              ],
-              "default": 50
-            },
-            "required": false,
-            "name": "limit",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": false,
-            "name": "cursor",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "PENDING",
-                "CONFIRMED",
-                "IN_DELIVERY",
-                "DELIVERED",
-                "CANCELLED"
-              ]
-            },
-            "required": false,
-            "name": "status",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "required": false,
-            "name": "supplier_relationship_id",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A page of orders, customer view, and the cursor of the next page or null",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "format": "uuid"
-                          },
-                          "customer_relationship_id": {
-                            "type": "string",
-                            "format": "uuid"
-                          },
-                          "placed_by_party": {
-                            "type": "string",
-                            "enum": [
-                              "CUSTOMER",
-                              "SUPPLIER"
-                            ]
-                          },
-                          "delivery_address_applied": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "total_amount": {
-                            "type": "integer"
-                          },
-                          "delivery_cost": {
-                            "type": "integer"
-                          },
-                          "status": {
-                            "type": "string"
-                          },
-                          "accepted_at": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "format": "date-time"
-                          },
-                          "delivered_at": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "format": "date-time"
-                          },
-                          "created_at": {
-                            "type": "string",
-                            "format": "date-time"
-                          },
-                          "desired_delivery_date": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "cancelled_by_party": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "cancelled_at": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "format": "date-time"
-                          },
-                          "cancellation_reason": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "parent_order_id": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "format": "uuid"
-                          },
-                          "customer_note": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "supplier_note": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "lines": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string",
-                                  "format": "uuid"
-                                },
-                                "product_variant_id": {
-                                  "type": "string",
-                                  "format": "uuid"
-                                },
-                                "label_applied": {
-                                  "type": "string"
-                                },
-                                "quantity": {
-                                  "type": "string"
-                                },
-                                "delivered_quantity": {
-                                  "type": [
-                                    "string",
-                                    "null"
-                                  ]
-                                },
-                                "reference_price": {
-                                  "type": "integer"
-                                },
-                                "unit_price_applied": {
-                                  "type": "integer"
-                                },
-                                "amount": {
-                                  "type": "integer"
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "product_variant_id",
-                                "label_applied",
-                                "quantity",
-                                "delivered_quantity",
-                                "reference_price",
-                                "unit_price_applied",
-                                "amount"
-                              ]
-                            }
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "customer_relationship_id",
-                          "placed_by_party",
-                          "delivery_address_applied",
-                          "total_amount",
-                          "delivery_cost",
-                          "status",
-                          "accepted_at",
-                          "delivered_at",
-                          "created_at",
-                          "desired_delivery_date",
-                          "cancelled_by_party",
-                          "cancelled_at",
-                          "cancellation_reason",
-                          "parent_order_id",
-                          "customer_note",
-                          "supplier_note",
-                          "lines"
-                        ]
-                      }
-                    },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "items",
-                    "next_cursor"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid query (unknown field, status, id or cursor)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid token",
             "content": {
               "application/json": {
                 "schema": {

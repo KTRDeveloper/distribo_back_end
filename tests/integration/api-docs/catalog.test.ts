@@ -368,4 +368,20 @@ describe('GET /docs/openapi.json', () => {
     expect(usersOp.security).toBeDefined();
     expect(usersOp.responses?.['200']).toBeDefined();
   });
+
+  it('describes the place-order gesture POST /api/v1/orders (ORD-009, front request 1)', async () => {
+    const response = await request(app).get('/api/v1/docs/openapi.json');
+    const placeOrderOp = bodyOf<OpenApiDoc>(response).paths['/api/v1/orders'].post;
+
+    expect(placeOrderOp).toBeDefined();
+    expect(placeOrderOp.tags).toContain('order');
+    expect(placeOrderOp.security).toBeDefined();
+    expect(placeOrderOp.requestBody?.content['application/json']?.schema).toBeDefined();
+    expect(Object.keys(placeOrderOp.responses ?? {})).toEqual(
+      expect.arrayContaining(['201', '400', '401', '404', '409'])
+    );
+    expect(placeOrderOp.responses?.['201']).toMatchObject({
+      headers: { 'Idempotent-Replay': { schema: { type: 'string', enum: ['true'] } } },
+    });
+  });
 });

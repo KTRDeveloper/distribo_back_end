@@ -9,6 +9,7 @@ import {
   enterOrderSchema,
   listCustomerOrdersQuerySchema,
   listOrdersQuerySchema,
+  placeOrderSchema,
   placePurchaseSchema,
   refuseOrderSchema,
   setSupplierNoteSchema,
@@ -47,6 +48,78 @@ const customerOrderViewSchema = z.object({
   customer_note: z.string().nullable(),
   supplier_note: z.string().nullable(),
   lines: z.array(orderLineViewSchema),
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/orders',
+  tags: ['order'],
+  summary: 'A person places an order with a supplier, for themselves as customer (ORD-009)',
+  description: [
+    'Rights and scope: any signed-in person orders for themselves. The customer is always the',
+    'caller, never a body field. The relationship with the supplier is found, or created ACTIVE',
+    'with credit limit 0 on the first order. To order for a business, use',
+    '`POST /api/v1/organizations/{organizationId}/purchases` (ORD-010).',
+    '',
+    'Ids made by the phone: `id` is a UUIDv7 that is both the new order id and the gesture id.',
+    'Each line `id` is a UUIDv7 that becomes the line id, unique within the body.',
+    '',
+    'Body: `supplier_organization_id`; 1 to 100 `lines`, each with `product_variant_id` and',
+    '`quantity` (greater than 0, at most 3 decimals, a decimal string or a number); optional',
+    '`delivery_address` (1 to 2000 characters), `desired_delivery_date` (YYYY-MM-DD) and',
+    '`customer_note` (up to 2000 characters). Any other field is refused: prices, labels,',
+    'amounts, totals, status, customer and relationship are never accepted.',
+    '',
+    'The server computes the rest from its own data: each line label, the reference price',
+    '(negotiated price, else catalog price), the applied unit price (equal to it), the line',
+    'amounts and the total. `delivery_address_applied` is the body address, else the usual',
+    'address of the relationship; `delivery_cost` is 0; the order is PENDING and placed by the',
+    'CUSTOMER. Relationship, order, lines and the `order.placed` notification to the supplier',
+    "OWNER, MANAGERs and SELLERs are one transaction: a refusal writes nothing.",
+    '',
+    'Repeat: the same `id` sent again by the same person changes nothing and returns the first',
+    'response (status and body) with the header `Idempotent-Replay: true`, for 30 days. A refusal',
+    'by the server (404, 409, quantity below the minimum) is replayed the same way, so a new',
+    'attempt needs a new `id`. A body refused by validation reserves nothing. While the first',
+    'request is still running, a repeat gets 409 `REQUEST_IN_PROGRESS`. A 5xx keeps nothing:',
+    'the same `id` can be sent again.',
+  ].join('\n'),
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: { content: { 'application/json': { schema: placeOrderSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The PENDING order, customer view, lines in the order sent',
+      headers: {
+        'Idempotent-Replay': {
+          description: 'Present, with the value true, only on a repeat of an earlier gesture',
+          schema: { type: 'string', enum: ['true'] },
+        },
+      },
+      content: { 'application/json': { schema: customerOrderViewSchema } },
+    },
+    400: {
+      description:
+        'VALIDATION_ERROR: invalid body (unknown or missing field, malformed id, 0 or over 100 ' +
+        'lines, duplicate line id, quantity 0, negative or with over 3 decimals, text too long, ' +
+        'impossible date), or a quantity below the minimum order quantity of the product',
+      content: errorContent,
+    },
+    401: { description: 'UNAUTHORIZED: missing or invalid token', content: errorContent },
+    404: {
+      description:
+        'NOT_FOUND: unknown supplier, or a product variant that is not ACTIVE, is paused or ' +
+        'belongs to another supplier',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'ORGANIZATION_NOT_ACTIVE (supplier suspended or closed), RELATIONSHIP_NOT_ACTIVE ' +
+        '(relationship ended by either party) or REQUEST_IN_PROGRESS (same id still running)',
+      content: errorContent,
+    },
+  },
 });
 
 openApiRegistry.registerPath({
