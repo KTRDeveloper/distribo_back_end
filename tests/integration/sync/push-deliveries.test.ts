@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e013-0000-7000-8000-000000000001';
@@ -97,7 +98,11 @@ async function seedOrder(
 ) {
   const closing =
     status === 'DELIVERED'
-      ? { deliveredAt: new Date('2026-09-30T10:30:00.000Z'), deliveredById: DRIVER_2 }
+      ? {
+          deliveredAt: new Date('2026-09-30T10:30:00.000Z'),
+          deliveredById: DRIVER_2,
+          ...RECEIPT_FIELDS,
+        }
       : status === 'CANCELLED'
         ? {
             cancelledByParty: 'SUPPLIER' as const,

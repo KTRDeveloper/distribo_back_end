@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199e020-0000-7000-8000-000000000001';
@@ -99,6 +100,7 @@ async function seedOrder(
       totalAmount: 0n,
       status: delivered ? 'DELIVERED' : 'CONFIRMED',
       deliveredAt: delivered ? createdAt : null,
+      ...(delivered ? RECEIPT_FIELDS : {}),
       deliveredById: extra.deliveredById ?? null,
       syncIssue,
       createdAt,

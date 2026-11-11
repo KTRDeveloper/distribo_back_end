@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c017-0000-7000-8000-000000000001';
@@ -144,7 +145,7 @@ async function setStatus(status: 'IN_DELIVERY' | 'DELIVERED' | 'CANCELLED', id =
             cancellationReason: 'Out of stock',
           }
         : status === 'DELIVERED'
-          ? { status, deliveredAt: REG, deliveredById: SELLER }
+          ? { status, deliveredAt: REG, deliveredById: SELLER, ...RECEIPT_FIELDS }
           : { status },
   });
 }

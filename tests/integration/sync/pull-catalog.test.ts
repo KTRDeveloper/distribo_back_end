@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { seedProduct as seedCatalogProduct } from '../../helpers/catalog-fixtures';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199e005-0000-7000-8000-000000000001';
@@ -321,7 +322,12 @@ describe('GET /api/v1/sync/pull (catalog)', () => {
       });
       await prisma.order.update({
         where: { id: '0199e005-0000-7000-8000-000000000205' },
-        data: { status: 'DELIVERED', deliveredAt: new Date(), deliveredById: DRIVER },
+        data: {
+          status: 'DELIVERED',
+          deliveredAt: new Date(),
+          deliveredById: DRIVER,
+          ...RECEIPT_FIELDS,
+        },
       });
       const body = bodyOf<PullBody>(await pull(DRIVER));
       expect(productsOf(body).created.map((r) => r['id'])).not.toContain(P_SACK);

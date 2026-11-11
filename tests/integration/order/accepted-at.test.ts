@@ -4,6 +4,7 @@ import { app } from '../../../src/app.js';
 import { transitionOrder } from '../../../src/modules/order/order.state.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199c023-0000-7000-8000-000000000001';
@@ -62,7 +63,7 @@ async function seedOrder(
             cancellationReason: 'Out of stock',
           }
         : {}),
-      ...(delivered ? { deliveredAt: REG, deliveredById: SELLER } : {}),
+      ...(delivered ? { deliveredAt: REG, deliveredById: SELLER, ...RECEIPT_FIELDS } : {}),
     },
   });
 }

@@ -1383,3 +1383,27 @@ ORD-032 done
 **Follow-ups:**
 - ORD-043/045 (rule tying fields to DELIVERED) not touched; a DELIVERED order whose supplier has no organization would stay unfilled.
 <!-- end ORD-042 -->
+
+<!-- begin ORD-043 -->
+## ORD-043 — Test fixtures give every delivered order its receipt
+
+- Filed: 2026-11-11 09:23 UTC
+- Status: **done**: Fixtures give DELIVERED orders RECEIPT_FIELDS; suite 5590/5590
+- Risk: low · story: [ORD-043-test-fixtures-give-every-delivered-order-its.md](../modules/order/ORD-043-test-fixtures-give-every-delivered-order-its.md)
+- Agent: 67,118 tokens, 29 tool uses, 10 min 42 s
+
+### Agent report
+
+**Summary:** Added the RECEIPT_FIELDS helper and its test; DELIVERED fixtures in 17 listed test files now carry the receipt.
+
+**Decisions:**
+- Raw-SQL fixtures (close-refuses-pending, order-table, state-machine, status-rules, total-check): added the four receipt columns, filled only when the row is DELIVERED, null otherwise.
+- state-machine: every direct transitionOrder call to DELIVERED passes `{ receipt: RECEIPT_FIELDS }`; the generic step loop always passes it (only used when the target is DELIVERED).
+- Files with no DELIVERED fixture (accept-order, refuse-order, counter-sale, partial-delivery, controls-credit, rights-change, rights-paused) left as is.
+- credit-already-exceeded and list-orders (not listed) untouched: no DELIVERED fixture there.
+
+**Evidence:** story tests 1/1; full suite 5590/5590, failing: none, 0 known; typecheck clean; lint 0 errors, 268 warnings (existing)
+
+**Follow-ups:**
+- ORD-045 must be checked against status-rules cases that insert DELIVERED without delivered_at (still 23514).
+<!-- end ORD-043 -->

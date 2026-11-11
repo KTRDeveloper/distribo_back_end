@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { seedProduct } from '../../helpers/catalog-fixtures';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199e006-0000-7000-8000-000000000001';
@@ -104,6 +105,7 @@ async function seedOrder(
       deliveryAddressApplied: data.address ?? null,
       deliveredAt: data.deliveredAt ?? null,
       deliveredById: data.deliveredById ?? null,
+      ...(data.status === 'DELIVERED' ? RECEIPT_FIELDS : {}),
       cancelledAt: cancelled ? (data.cancelledAt ?? new Date()) : null,
       cancelledByParty: cancelled ? 'SUPPLIER' : null,
       cancelledById: cancelled ? OWNER : null,

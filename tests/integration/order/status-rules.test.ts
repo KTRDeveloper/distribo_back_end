@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields';
 import { prisma } from '../../setup';
 
 const SUPPLIER_ORG_ID = '0199c005-0000-7000-8000-000000000001';
@@ -59,11 +60,13 @@ type Row = {
 
 /** Inserts an order with the given status columns; the defaults make a valid CONFIRMED order. */
 function insertOrder(row: Row = {}): Promise<number> {
+  const receipt = row.status === 'DELIVERED' ? RECEIPT_FIELDS : null;
   return prisma.$executeRaw`
     INSERT INTO orders (
       id, customer_relationship_id, placed_by_party, entered_by_id, total_amount, status,
       cancelled_by_party, cancelled_by_id, cancelled_at, cancellation_reason,
-      delivered_at, delivered_by_id, sync_issue
+      delivered_at, delivered_by_id, sync_issue, supplier_name_applied, customer_name_applied,
+      collected_applied, balance_after_applied
     )
     VALUES (
       ${ORDER_ID}::uuid, ${REL_ID}::uuid,
@@ -72,7 +75,9 @@ function insertOrder(row: Row = {}): Promise<number> {
       ${row.cancelledByParty ?? null}::text::public."OrderParty", ${row.cancelledById ?? null}::uuid,
       ${row.cancelledAt ?? null}::timestamptz, ${row.cancellationReason ?? null}::text,
       ${row.deliveredAt ?? null}::timestamptz, ${row.deliveredById ?? null}::uuid,
-      ${row.syncIssue ?? null}::text
+      ${row.syncIssue ?? null}::text,
+      ${receipt?.supplierNameApplied ?? null}::text, ${receipt?.customerNameApplied ?? null}::text,
+      ${receipt?.collectedApplied ?? null}::bigint, ${receipt?.balanceAfterApplied ?? null}::bigint
     )
   `;
 }
@@ -103,6 +108,10 @@ function stepUpdate(to: Status, syncIssue: string | null = null) {
       cancelled_at = ${cancelled ? AT : null}::timestamptz,
       delivered_at = ${delivered ? AT : null}::timestamptz,
       delivered_by_id = ${delivered ? OWNER_ID : null}::uuid,
+      supplier_name_applied = ${delivered ? RECEIPT_FIELDS.supplierNameApplied : null}::text,
+      customer_name_applied = ${delivered ? RECEIPT_FIELDS.customerNameApplied : null}::text,
+      collected_applied = ${delivered ? RECEIPT_FIELDS.collectedApplied : null}::bigint,
+      balance_after_applied = ${delivered ? RECEIPT_FIELDS.balanceAfterApplied : null}::bigint,
       sync_issue = COALESCE(${syncIssue}::text, sync_issue)
     WHERE id = ${ORDER_ID}::uuid
   `;
@@ -265,7 +274,11 @@ describe('status steps (AC-4, C-18, CM-12)', () => {
     await expect(
       prisma.$executeRaw`
         UPDATE orders SET status = 'DELIVERED', delivered_at = ${AT}::timestamptz,
-          delivered_by_id = ${OWNER_ID}::uuid, sync_issue = 'delivered while cancelled'
+          delivered_by_id = ${OWNER_ID}::uuid, sync_issue = 'delivered while cancelled',
+          supplier_name_applied = ${RECEIPT_FIELDS.supplierNameApplied}::text,
+          customer_name_applied = ${RECEIPT_FIELDS.customerNameApplied}::text,
+          collected_applied = ${RECEIPT_FIELDS.collectedApplied}::bigint,
+          balance_after_applied = ${RECEIPT_FIELDS.balanceAfterApplied}::bigint
         WHERE id = ${ORDER_ID}::uuid
       `
     ).resolves.toBe(1);

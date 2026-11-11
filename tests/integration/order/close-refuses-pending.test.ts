@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../../../src/app.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const failing = vi.hoisted(() => ({ notifyOnStatusChange: false }));
@@ -77,12 +78,17 @@ async function seedOrder(id: string, relationshipId: string, status: Status) {
   await prisma.$executeRaw`
     INSERT INTO orders (
       id, customer_relationship_id, placed_by_party, entered_by_id, total_amount, status,
-      delivered_at, delivered_by_id
+      delivered_at, delivered_by_id, supplier_name_applied, customer_name_applied,
+      collected_applied, balance_after_applied
     )
     VALUES (
       ${id}::uuid, ${relationshipId}::uuid, 'CUSTOMER'::public."OrderParty", ${OWNER}::uuid, 0,
       ${status}::text::public."OrderStatus",
-      ${delivered ? REG : null}::timestamptz, ${delivered ? OWNER : null}::uuid
+      ${delivered ? REG : null}::timestamptz, ${delivered ? OWNER : null}::uuid,
+      ${delivered ? RECEIPT_FIELDS.supplierNameApplied : null}::text,
+      ${delivered ? RECEIPT_FIELDS.customerNameApplied : null}::text,
+      ${delivered ? RECEIPT_FIELDS.collectedApplied : null}::bigint,
+      ${delivered ? RECEIPT_FIELDS.balanceAfterApplied : null}::bigint
     )
   `;
 }

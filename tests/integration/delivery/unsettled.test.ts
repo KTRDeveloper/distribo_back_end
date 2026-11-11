@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c0d7-0000-7000-8000-000000000001';
@@ -117,6 +118,7 @@ async function seedDelivered(
       enteredById: by,
       placedByParty: 'SUPPLIER',
       status: 'DELIVERED',
+      ...RECEIPT_FIELDS,
       deliveredAt,
       deliveredById: by,
       deliveryCost: BigInt(total),

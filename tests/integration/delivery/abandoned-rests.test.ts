@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf } from '../../helpers/body.js';
 import { createAuthenticatedRequest } from '../../helpers/request.js';
 import { seedProduct } from '../../helpers/catalog-fixtures.js';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const OWNER = '0199c0f7-0000-7000-8000-000000000001';
@@ -84,6 +85,7 @@ async function deliveredOrder(options: Seeded = {}): Promise<string> {
       enteredById: OWNER,
       placedByParty: 'SUPPLIER',
       status: 'DELIVERED',
+      ...RECEIPT_FIELDS,
       deliveredAt: options.at ?? daysAgo(1),
       deliveredById: options.by ?? PAUL,
       parentOrderId: options.parent,

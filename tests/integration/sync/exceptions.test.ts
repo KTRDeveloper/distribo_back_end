@@ -3,6 +3,7 @@ import { app } from '../../../src/app.js';
 import { bodyOf, type ErrorBody } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { seedProduct } from '../../helpers/catalog-fixtures';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const idOf = (n: number) => `0199e021-0000-7000-8000-${String(n).padStart(12, '0')}`;
@@ -92,6 +93,7 @@ async function seedOrder(
       deliveredById: options.deliveredById ?? null,
       status: options.deliveredById ? 'DELIVERED' : 'CONFIRMED',
       deliveredAt: options.deliveredById ? createdAt : null,
+      ...(options.deliveredById ? RECEIPT_FIELDS : {}),
       totalAmount: (options.lines ?? []).reduce((sum, [q, , a]) => sum + lineAmount(q, a), 0n),
       syncIssue,
       createdAt,

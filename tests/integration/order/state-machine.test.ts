@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields';
 import { prisma } from '../../setup';
 import { transitionOrder } from '../../../src/modules/order/order.state.js';
 
@@ -22,7 +23,8 @@ async function insertOrder(status: Status): Promise<void> {
     INSERT INTO orders (
       id, customer_relationship_id, placed_by_party, entered_by_id, total_amount, status,
       cancelled_by_party, cancelled_by_id, cancelled_at, cancellation_reason,
-      delivered_at, delivered_by_id
+      delivered_at, delivered_by_id, supplier_name_applied, customer_name_applied,
+      collected_applied, balance_after_applied
     )
     VALUES (
       ${ORDER_ID}::uuid, ${REL_ID}::uuid, 'CUSTOMER'::public."OrderParty", ${OWNER_ID}::uuid, 0,
@@ -30,7 +32,11 @@ async function insertOrder(status: Status): Promise<void> {
       ${cancelled ? 'CUSTOMER' : null}::text::public."OrderParty",
       ${cancelled ? CUSTOMER_ID : null}::uuid, ${cancelled ? AT : null}::timestamptz,
       ${cancelled ? 'Changed mind' : null}::text,
-      ${delivered ? AT : null}::timestamptz, ${delivered ? OWNER_ID : null}::uuid
+      ${delivered ? AT : null}::timestamptz, ${delivered ? OWNER_ID : null}::uuid,
+      ${delivered ? RECEIPT_FIELDS.supplierNameApplied : null}::text,
+      ${delivered ? RECEIPT_FIELDS.customerNameApplied : null}::text,
+      ${delivered ? RECEIPT_FIELDS.collectedApplied : null}::bigint,
+      ${delivered ? RECEIPT_FIELDS.balanceAfterApplied : null}::bigint
     )
   `;
 }
@@ -84,7 +90,10 @@ describe('steps (AC-1, CM-12, C-18)', () => {
   it.each(examples)('%s to %s is %s', async (from, to, result) => {
     await insertOrder(from);
     const call = run((tx) =>
-      transitionOrder(tx, ORDER_ID, to, SUPPLIER, { cancellationReason: 'Out of stock' })
+      transitionOrder(tx, ORDER_ID, to, SUPPLIER, {
+        cancellationReason: 'Out of stock',
+        receipt: RECEIPT_FIELDS,
+      })
     );
     if (result === 'updated') {
       const order = await call;
@@ -102,7 +111,9 @@ describe('steps (AC-1, CM-12, C-18)', () => {
 
   it('sets delivered_at and delivered_by_id on delivery', async () => {
     await insertOrder('CONFIRMED');
-    const order = await run((tx) => transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER));
+    const order = await run((tx) =>
+      transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER, { receipt: RECEIPT_FIELDS })
+    );
     expect(order.deliveredById).toBe(OWNER_ID);
     expect(order.deliveredAt).toBeInstanceOf(Date);
     expect(order.syncIssue).toBeNull();
@@ -159,7 +170,9 @@ describe('parallel steps (AC-3, v5.0.0-2.3.4)', () => {
       run((tx) =>
         transitionOrder(tx, ORDER_ID, 'CANCELLED', SUPPLIER, { cancellationReason: 'Out of stock' })
       ),
-      run((tx) => transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER)),
+      run((tx) =>
+        transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER, { receipt: RECEIPT_FIELDS })
+      ),
     ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const failed = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
@@ -174,7 +187,14 @@ describe('delivery wins through sync (AC-4)', () => {
   it('delivers a CANCELLED order with sync_issue and no cancellation columns', async () => {
     await insertOrder('CANCELLED');
     const order = await run((tx) =>
-      transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER, undefined, { viaSync: true })
+      transitionOrder(
+        tx,
+        ORDER_ID,
+        'DELIVERED',
+        SUPPLIER,
+        { receipt: RECEIPT_FIELDS },
+        { viaSync: true }
+      )
     );
     expect(order).toMatchObject({
       status: 'DELIVERED',
@@ -203,7 +223,14 @@ describe('delivery wins through sync (AC-4)', () => {
   it('does not set sync_issue when sync delivers a CONFIRMED order normally', async () => {
     await insertOrder('CONFIRMED');
     const order = await run((tx) =>
-      transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER, undefined, { viaSync: true })
+      transitionOrder(
+        tx,
+        ORDER_ID,
+        'DELIVERED',
+        SUPPLIER,
+        { receipt: RECEIPT_FIELDS },
+        { viaSync: true }
+      )
     );
     expect(order.status).toBe('DELIVERED');
     expect(order.syncIssue).toBeNull();
@@ -212,7 +239,7 @@ describe('delivery wins through sync (AC-4)', () => {
   it('refuses the same delivery-after-cancellation without viaSync', async () => {
     await insertOrder('CANCELLED');
     await expect(
-      run((tx) => transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER))
+      run((tx) => transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER, { receipt: RECEIPT_FIELDS }))
     ).rejects.toMatchObject({ statusCode: 409, code: 'INVALID_TRANSITION' });
     expect((await reload()).status).toBe('CANCELLED');
   });
@@ -241,7 +268,7 @@ describe('skipping a step (AB-1, WSTG-BUSL-06)', () => {
     await insertOrder('PENDING');
     const before = await reload();
     await expect(
-      run((tx) => transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER))
+      run((tx) => transitionOrder(tx, ORDER_ID, 'DELIVERED', SUPPLIER, { receipt: RECEIPT_FIELDS }))
     ).rejects.toMatchObject({ statusCode: 409, code: 'INVALID_TRANSITION' });
     expect(await reload()).toEqual(before);
   });

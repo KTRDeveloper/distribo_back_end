@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields';
 import { prisma } from '../../setup';
 import { expectColumnType } from '../../helpers/db-schema';
 
@@ -67,11 +68,13 @@ function insertOrder(row: Row = {}): Promise<number> {
   const placedBy = 'placedByParty' in row ? row.placedByParty : 'SUPPLIER';
   const enteredBy = 'enteredById' in row ? row.enteredById : OWNER_ID;
   const total = 'totalAmount' in row ? row.totalAmount : 0n;
+  const receipt = row.status === 'DELIVERED' ? RECEIPT_FIELDS : null;
   return prisma.$executeRaw`
     INSERT INTO orders (
       id, customer_relationship_id, placed_by_party, entered_by_id, total_amount,
       status, cancelled_by_party, delivered_by_id, cancelled_by_id, parent_order_id,
-      delivered_at, cancelled_at, cancellation_reason
+      delivered_at, cancelled_at, cancellation_reason, supplier_name_applied,
+      customer_name_applied, collected_applied, balance_after_applied
     )
     VALUES (
       ${row.id ?? ORDER_ID}::uuid, ${row.customerRelationshipId ?? REL_ID}::uuid,
@@ -81,7 +84,9 @@ function insertOrder(row: Row = {}): Promise<number> {
       ${row.deliveredById ?? null}::uuid, ${row.cancelledById ?? null}::uuid,
       ${row.parentOrderId ?? null}::uuid,
       ${row.deliveredAt ?? null}::timestamptz, ${row.cancelledAt ?? null}::timestamptz,
-      ${row.cancellationReason ?? null}::text
+      ${row.cancellationReason ?? null}::text,
+      ${receipt?.supplierNameApplied ?? null}::text, ${receipt?.customerNameApplied ?? null}::text,
+      ${receipt?.collectedApplied ?? null}::bigint, ${receipt?.balanceAfterApplied ?? null}::bigint
     )
   `;
 }

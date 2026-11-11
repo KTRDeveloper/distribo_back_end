@@ -5,6 +5,7 @@ import { bodyOf } from '../../helpers/body';
 import { createAuthenticatedRequest } from '../../helpers/request';
 import { pulledAtAfterSeeding } from '../../helpers/sync-clock';
 import { seedProduct } from '../../helpers/catalog-fixtures';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields.js';
 import { prisma } from '../../setup.js';
 
 const SELLER = '0199e014-0000-7000-8000-000000000001';
@@ -133,7 +134,11 @@ async function seedOrder(
       totalAmount: total,
       createdAt: LONG_AGO,
       ...(status === 'DELIVERED'
-        ? { deliveredAt: new Date('2026-09-30T10:30:00.000Z'), deliveredById: DRIVER_2 }
+        ? {
+            deliveredAt: new Date('2026-09-30T10:30:00.000Z'),
+            deliveredById: DRIVER_2,
+            ...RECEIPT_FIELDS,
+          }
         : {}),
       ...(status === 'CANCELLED'
         ? {

@@ -418,7 +418,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-019 | done | | receipt written once in transitionOrder; 10 story tests pass |
 | ORD-041 | done | | views add the four receipt fields; balance_after_applied only for OWNER/MANAGER/SELLER |
 | ORD-042 | done | | Migration 20261026130000 backfills receipts and freezes them; 17 tests, suite green |
-| ORD-043 | todo | | |
+| ORD-043 | done | | Fixtures give DELIVERED orders RECEIPT_FIELDS; suite 5590/5590 |
 | ORD-044 | todo | | |
 | ORD-045 | todo | | |
 | SYNC-045 | todo | | |

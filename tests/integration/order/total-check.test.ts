@@ -1,6 +1,7 @@
 import { seedProduct } from '../../helpers/catalog-fixtures.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
+import { RECEIPT_FIELDS } from '../../helpers/receipt-fields';
 import { prisma } from '../../setup';
 
 const SUPPLIER_ORG_ID = '0199c007-0000-7000-8000-000000000001';
@@ -210,7 +211,11 @@ describe('delivered quantities (AC-3, C-19)', () => {
     const code = await commitCode(async (tx) => {
       await tx.$executeRaw`
         UPDATE orders
-        SET status = 'DELIVERED', delivered_at = now(), delivered_by_id = ${OWNER_ID}::uuid
+        SET status = 'DELIVERED', delivered_at = now(), delivered_by_id = ${OWNER_ID}::uuid,
+          supplier_name_applied = ${RECEIPT_FIELDS.supplierNameApplied}::text,
+          customer_name_applied = ${RECEIPT_FIELDS.customerNameApplied}::text,
+          collected_applied = ${RECEIPT_FIELDS.collectedApplied}::bigint,
+          balance_after_applied = ${RECEIPT_FIELDS.balanceAfterApplied}::bigint
         WHERE id = ${ORDER_ID}::uuid
       `;
     });
@@ -222,7 +227,11 @@ describe('delivered quantities (AC-3, C-19)', () => {
     const code = await commitCode(async (tx) => {
       await tx.$executeRaw`
         UPDATE orders
-        SET status = 'DELIVERED', delivered_at = now(), delivered_by_id = ${OWNER_ID}::uuid
+        SET status = 'DELIVERED', delivered_at = now(), delivered_by_id = ${OWNER_ID}::uuid,
+          supplier_name_applied = ${RECEIPT_FIELDS.supplierNameApplied}::text,
+          customer_name_applied = ${RECEIPT_FIELDS.customerNameApplied}::text,
+          collected_applied = ${RECEIPT_FIELDS.collectedApplied}::bigint,
+          balance_after_applied = ${RECEIPT_FIELDS.balanceAfterApplied}::bigint
         WHERE id = ${ORDER_ID}::uuid
       `;
     });
