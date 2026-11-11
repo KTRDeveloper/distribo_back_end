@@ -18,6 +18,9 @@ export const registerRequestResponseSchema = z
   })
   .strict();
 
+/** Android id as sent by the app: 1 to 16 lowercase hex characters. Never stored raw (AUTH-041). */
+const androidIdSchema = z.string().regex(/^[0-9a-f]{1,16}$/);
+
 /** Device information sent at registration (mirrors AUTH-008 DeviceInfo). */
 const deviceSchema = z
   .object({
@@ -26,6 +29,7 @@ const deviceSchema = z
     app_version: z.string().min(1).max(32),
     push_token: z.string().min(1).max(512).optional(),
     integrity_verdict: z.string().min(1).max(100).optional(),
+    android_id: androidIdSchema.optional(),
   })
   .strict();
 

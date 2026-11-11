@@ -6,6 +6,7 @@ import { httpError } from '../../lib/http-error.js';
 import { signAccessToken, getAccessTokenExpiresInSeconds } from '../../lib/jwt.js';
 import { generateRefreshToken, hashRefreshToken } from '../../lib/refresh-token.js';
 import { newId } from '../../shared/ids.js';
+import { hashAndroidId } from '../../lib/android-id.js';
 import { logger } from '../../lib/logger.js';
 import { sessionRepository, type RevokedReason } from './session.repository.js';
 
@@ -17,6 +18,7 @@ export type DeviceInfo = {
   app_version: string;
   push_token?: string;
   integrity_verdict?: string;
+  android_id?: string;
 };
 
 const deviceInfoSchema = z
@@ -26,6 +28,10 @@ const deviceInfoSchema = z
     app_version: z.string().min(1).max(32),
     push_token: z.string().min(1).max(512).optional(),
     integrity_verdict: z.string().min(1).max(100).optional(),
+    android_id: z
+      .string()
+      .regex(/^[0-9a-f]{1,16}$/)
+      .optional(),
   })
   .strict();
 
@@ -35,7 +41,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * Open a session (v5.0.0-7.2.4): a new device, a refresh token (32 random bytes,
  * only its SHA-256 stored, v5.0.0-7.2.2) and an access token. Device info is
  * validated before anything is written; pass `tx` to join a caller's transaction.
+ * With an `android_id`, the person's devices carrying the same keyed fingerprint are
+ * revoked (REPLACED, expired or not) in the same transaction before the new one is
+ * created, so the phone appears once (C-59). The raw id is never stored or logged
+ * (v5.0.0-16.2.5).
  * @throws httpError 400 VALIDATION_ERROR on invalid device info
+ * @throws httpError 409 SESSION_CONFLICT when another login of the same phone won the race
  */
 export async function issueSession(
   personId: string,
@@ -50,16 +61,29 @@ export async function issueSession(
   const deviceId = newId();
   const refreshToken = generateRefreshToken();
 
+  const androidIdHash = d.android_id ? hashAndroidId(personId, d.android_id) : null;
+
   const write = async (client: Prisma.TransactionClient) => {
-    await sessionRepository.createDevice(client, {
-      id: deviceId,
-      personId,
-      platform: d.platform,
-      model: d.model ?? null,
-      appVersion: d.app_version,
-      pushToken: d.push_token ?? null,
-      integrityVerdict: d.integrity_verdict ?? null,
-    });
+    if (androidIdHash)
+      await sessionRepository.revokeByAndroidIdHash(client, personId, androidIdHash);
+    try {
+      await sessionRepository.createDevice(client, {
+        id: deviceId,
+        personId,
+        platform: d.platform,
+        model: d.model ?? null,
+        appVersion: d.app_version,
+        pushToken: d.push_token ?? null,
+        integrityVerdict: d.integrity_verdict ?? null,
+        androidIdHash,
+      });
+    } catch (e) {
+      // Unique index on open devices per fingerprint: a crossed login of the same phone.
+      if (androidIdHash && (e as { code?: string }).code === 'P2002') {
+        throw httpError(409, 'SESSION_CONFLICT', 'Another login of this phone is in progress');
+      }
+      throw e;
+    }
     await sessionRepository.createRefreshToken(client, {
       id: newId(),
       personId,

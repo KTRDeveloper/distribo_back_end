@@ -1292,6 +1292,10 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 100
+                      },
+                      "android_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{1,16}$"
                       }
                     },
                     "required": [
@@ -1925,6 +1929,10 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 100
+                      },
+                      "android_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{1,16}$"
                       }
                     },
                     "required": [
@@ -2205,6 +2213,10 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 100
+                      },
+                      "android_id": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{1,16}$"
                       }
                     },
                     "required": [

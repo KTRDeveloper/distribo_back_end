@@ -23,6 +23,29 @@ export const sessionRepository = {
   },
 
   /**
+   * Ends the person's open devices carrying this fingerprint (expired or not) and their
+   * live refresh tokens with reason REPLACED, inside the caller's transaction. Filtered by
+   * person, so another account's session is never touched (v5.0.0-8.2.2).
+   */
+  async revokeByAndroidIdHash(client: Client, personId: string, hash: string): Promise<void> {
+    const now = new Date();
+    const devices = await client.device.findMany({
+      where: { personId, androidIdHash: hash, revokedAt: null },
+      select: { id: true },
+    });
+    if (devices.length === 0) return;
+    const deviceId = { in: devices.map((d) => d.id) };
+    await client.refreshToken.updateMany({
+      where: { personId, deviceId, revokedAt: null },
+      data: { revokedAt: now, revokedReason: 'REPLACED' },
+    });
+    await client.device.updateMany({
+      where: { personId, id: deviceId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+  },
+
+  /**
    * Ends the person's live devices and tokens in one transaction (the caller's `tx`
    * when given); returns devices ended.
    */

@@ -410,3 +410,26 @@ Also in this run: access.
 
 **Evidence:** story tests 7/7; full suite 5428/5428, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings (existing)
 <!-- end AUTH-040 -->
+
+<!-- begin AUTH-041 -->
+## AUTH-041 — A new login on the same Android phone closes its old session
+
+- Filed: 2026-11-11 07:32 UTC
+- Status: **done**: login with android_id revokes same-fingerprint devices (REPLACED), P2002 -> 409 SESSION_CONFLICT
+- Risk: high · story: [AUTH-041-a-new-login-on-the-same-android-phone-closes.md](../modules/auth/AUTH-041-a-new-login-on-the-same-android-phone-closes.md)
+- Agent: 38,036 tokens, 15 tool uses, 4 min 51 s
+
+### Agent report
+
+**Summary:** `android_id` accepted in `deviceSchema` and `DeviceInfo`; `issueSession` revokes the person's open same-fingerprint devices (REPLACED), then creates the device with the hash; P2002 maps to 409 SESSION_CONFLICT.
+
+**Decisions:**
+- `revokeByAndroidIdHash` selects the matching open device ids first, then updates tokens and devices by those ids: the token update needs the device ids, and the person filter is kept on both updates.
+- Crossed-login test: holds an uncommitted `issueSession(tx)` open while a second one runs, then commits. This gives a deterministic 409 and avoids a flaky real race.
+- P2002 is mapped only when a hash is present, so other unique violations still reach the global handler.
+
+**Evidence:** story tests 10/10; full suite 5438/5438, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings (existing)
+
+**Follow-ups:**
+- `openapi/openapi.json` was not regenerated; the new `android_id` field appears there only after `npm run openapi:generate`.
+<!-- end AUTH-041 -->
