@@ -398,7 +398,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | REL-030 | done | | contested_at in supplier and customer views; GET /suppliers contested filter; 46 tests green; 2 correct-number failures until REL-031 |
 | REL-031 | done | | contested correction clears mark, SAME_NUMBER, confirm_same_customer removed |
 | SYNC-044 | done | | contested_at server-only on push, pulled as epoch ms on supplier and customer rows |
-| NTF-005 | todo | | |
+| NTF-005 | done | | retargetNotifications added; 3 tests pass, suite green |
 | AUTH-039 | todo | | |
 | AUTH-040 | todo | | |
 | AUTH-041 | todo | | |

@@ -108,4 +108,16 @@ export const notificationRepository = {
       data: { readStatus: 'READ' },
     });
   },
+
+  /** Points every notification about one entity at another; returns how many moved. */
+  async retargetRelated(
+    tx: Prisma.TransactionClient,
+    input: { type: string; fromId: string; toId: string }
+  ): Promise<number> {
+    const result = await tx.notification.updateMany({
+      where: { relatedEntityType: input.type, relatedEntityId: input.fromId },
+      data: { relatedEntityId: input.toId },
+    });
+    return result.count;
+  },
 };

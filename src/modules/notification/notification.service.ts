@@ -107,3 +107,29 @@ export async function markRead(personId: string, id: string): Promise<void> {
 export async function markAllRead(personId: string): Promise<void> {
   await notificationRepository.markAllRead(personId);
 }
+
+const retargetInputSchema = z
+  .object({
+    type: z.string().max(LABEL_MAX).refine(nonblank),
+    fromId: uuidV7Schema,
+    toId: uuidV7Schema,
+  })
+  .strict();
+
+/**
+ * Points every notification about one entity (every recipient, read or not) at the entity that
+ * replaced it, so an old notification opens the current version. Only `related_entity_id` changes;
+ * recipient, content and read status stay, and the database bumps `server_updated_at` (SYNC-007).
+ *
+ * @param tx - The caller's transaction, so the move commits with the replacement.
+ * @returns The number of notifications moved.
+ * @throws An HTTP 400 `VALIDATION_ERROR` when the input is invalid.
+ */
+export async function retargetNotifications(
+  tx: Prisma.TransactionClient,
+  input: { type: string; fromId: string; toId: string }
+): Promise<number> {
+  const parsed = retargetInputSchema.safeParse(input);
+  if (!parsed.success) throw validationError();
+  return notificationRepository.retargetRelated(tx, parsed.data);
+}
