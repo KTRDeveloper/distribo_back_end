@@ -1204,3 +1204,27 @@ ORD-032 done
 **Follow-ups:**
 - A human may want to confirm that editing the unlisted tests above is acceptable; they were unavoidable once the column went.
 <!-- end ORD-034 -->
+
+<!-- begin ORD-035 -->
+## ORD-035 — An order records the version that replaced it
+
+- Filed: 2026-11-11 08:12 UTC
+- Status: **done**: orders.replaced_by_order_id: FK, partial unique, 2 CHECKs, same-relationship trigger
+- Risk: high · story: [ORD-035-an-order-records-the-version-that-replaced-it.md](../modules/order/ORD-035-an-order-records-the-version-that-replaced-it.md)
+- Agent: 34,198 tokens, 15 tool uses, 5 min 51 s
+
+### Agent report
+
+**Summary:** Added orders.replaced_by_order_id (migration 20261026100000_ord_035_replaced_by_order_id) with FK, partial unique index, two CHECKs and a same-relationship trigger; schema and Order comment updated.
+
+**Decisions:**
+- Trigger lets an unknown target and a self link through: the FK (23503) and the not-self CHECK (23514) refuse them, so the SQLSTATEs match the AC.
+- FK delete rule ON DELETE SET NULL ON UPDATE CASCADE, same as parent_order_id.
+- Trigger fires BEFORE INSERT OR UPDATE OF replaced_by_order_id.
+
+**Evidence:** story tests 7/7; full suite 5500/5500, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings (existing)
+
+**Follow-ups:**
+- The test never failed before the migration existed (first run failed on a fixture error, not the missing column).
+- ORD-002 frozen-order trigger will refuse linking a DELIVERED/CANCELLED order; ORD-039 should keep that in mind.
+<!-- end ORD-035 -->

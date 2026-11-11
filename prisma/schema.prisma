@@ -1337,6 +1337,14 @@ model CustomerPrice {
 //   Anything else fails with a check error (SQLSTATE 23514). Once set, the date
 //   stays when the order is later cancelled, which tells a refused order from one
 //   cancelled after acceptance. (Migration 20261019130000_ord_022_accepted_at)
+// - A customer's order that was changed points at the version that replaced it
+//   (replaced_by_order_id). The link is empty on most orders; an order can be the
+//   replacement of at most one order (a unique index on the filled values only,
+//   which is why the field has no @unique here); an order is never replaced by
+//   itself; only an order the customer placed can carry the link; and the
+//   replacement must belong to the same customer relationship. A broken rule
+//   fails with a check error (SQLSTATE 23514), a second order pointing at the
+//   same replacement with 23505. (Migration 20261026100000_ord_035_replaced_by_order_id)
 model Order {
   id                     String      @id @db.Uuid
   customerRelationshipId String      @map("customer_relationship_id") @db.Uuid
@@ -1356,6 +1364,7 @@ model Order {
   cancelledAt            DateTime?   @map("cancelled_at") @db.Timestamptz
   cancellationReason     String?     @map("cancellation_reason") @db.Text
   parentOrderId          String?     @map("parent_order_id") @db.Uuid
+  replacedByOrderId      String?     @map("replaced_by_order_id") @db.Uuid
   customerNote           String?     @map("customer_note") @db.Text
   supplierNote           String?     @map("supplier_note") @db.Text
   syncIssue              String?     @map("sync_issue") @db.Text
@@ -1368,6 +1377,8 @@ model Order {
   cancelledBy          Person?              @relation("OrderCancelledBy", fields: [cancelledById], references: [id])
   parentOrder          Order?               @relation("OrderParent", fields: [parentOrderId], references: [id])
   childOrders          Order[]              @relation("OrderParent")
+  replacedByOrder      Order?               @relation("OrderReplacedBy", fields: [replacedByOrderId], references: [id])
+  replacedOrders       Order[]              @relation("OrderReplacedBy")
   ledgerEntries        LedgerEntry[]
   deliveries           Delivery[]
   lines                OrderLine[]
