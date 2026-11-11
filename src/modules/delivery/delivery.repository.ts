@@ -426,6 +426,7 @@ export type OrderToDeliver = {
   customerRelationshipId: string;
   deliveryCost: bigint;
   deliveryAddress: string | null;
+  receptionMode: 'DELIVERY' | 'PICKUP' | null;
 };
 
 /**
@@ -447,10 +448,11 @@ export async function lockOrderToDeliver(
       customer_relationship_id: string;
       delivery_cost: bigint;
       delivery_address_applied: string | null;
+      reception_mode: 'DELIVERY' | 'PICKUP' | null;
     }>
   >`
     SELECT o.status::text AS status, o.customer_relationship_id, o.delivery_cost,
-      o.delivery_address_applied
+      o.delivery_address_applied, o.reception_mode::text AS reception_mode
     FROM orders o
     JOIN customer_relationships r ON r.id = o.customer_relationship_id
     WHERE o.id = ${orderId}::uuid
@@ -465,6 +467,7 @@ export async function lockOrderToDeliver(
         customerRelationshipId: row.customer_relationship_id,
         deliveryCost: row.delivery_cost,
         deliveryAddress: row.delivery_address_applied,
+        receptionMode: row.reception_mode,
       }
     : null;
 }
@@ -551,7 +554,8 @@ export type RestLine = {
 /**
  * Inserts the CONFIRMED order for the undelivered rest of a partially delivered order, with its
  * lines (CM-22). Placed by the SUPPLIER party, linked to its parent, with no delivery cost; the
- * caller computes every amount and the database checks the total at commit (ORD-006).
+ * caller computes every amount and the database checks the total at commit (ORD-006). The rest keeps
+ * the reception mode of the first order, read from the stored order (DLV-018, C-60).
  */
 export async function insertRestOrder(
   tx: Prisma.TransactionClient,
@@ -561,6 +565,7 @@ export async function insertRestOrder(
     customerRelationshipId: string;
     enteredById: string;
     deliveryAddressApplied: string | null;
+    receptionMode: 'DELIVERY' | 'PICKUP' | null;
     totalAmount: bigint;
     lines: Array<RestLine & { id: string }>;
   }

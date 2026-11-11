@@ -520,6 +520,7 @@ export function deliverOrder(
         customerRelationshipId: order.customerRelationshipId,
         enteredById: actor.personId,
         deliveryAddressApplied: order.deliveryAddress,
+        receptionMode: order.receptionMode,
         totalAmount: orderTotal(
           restLines.map(({ amount }) => amount),
           0n

@@ -637,3 +637,22 @@ DLV-016 done
 
 DLV-015 done
 <!-- end DLV-015 -->
+
+<!-- begin DLV-018 -->
+## DLV-018 — The order for the rest keeps the reception mode of the first order
+
+- Filed: 2026-11-11 08:20 UTC
+- Status: **done**: Rest order copies reception_mode from the locked first order; 3 AC rows pass
+- Risk: low · story: [DLV-018-the-order-for-the-rest-keeps-the-reception-mode.md](../modules/delivery/DLV-018-the-order-for-the-rest-keeps-the-reception-mode.md)
+- Agent: 31,743 tokens, 12 tool uses, 3 min 47 s
+
+### Agent report
+
+**Summary:** The order for the rest now copies reception_mode from the first order, read under the order lock.
+
+**Decisions:**
+- Where the mode is read: added `receptionMode` to `lockOrderToDeliver` (OrderToDeliver), so it comes from the stored order, never the request (v5.0.0-2.3.1).
+- The PICKUP address stays null: the first order has no address, so the copy is already empty (C-60 check satisfied).
+
+**Evidence:** story tests 3/3; full suite 5511/5511, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
+<!-- end DLV-018 -->
