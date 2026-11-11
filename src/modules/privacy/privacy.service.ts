@@ -2,7 +2,7 @@ import { config } from '../../config/index.js';
 import { httpError, type HttpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
-import { checkAndConsume, resetKey } from '../../lib/rate-limit.js';
+import { checkAndConsume, resetKey, secondsLeft } from '../../lib/rate-limit.js';
 import { revokeSessions } from '../auth/session.service.js';
 import { deleteImageFiles } from '../images/image.service.js';
 import { setAvatarKey } from '../person/person.repository.js';
@@ -90,10 +90,14 @@ export async function deleteAccount(personId: string, input: DeleteAccountInput)
   if (!identity) throw httpError(404, 'NOT_FOUND', 'Not found');
 
   const key = `login:fail:${identity.phoneNumber}`;
-  const slot = await checkAndConsume(key, MAX_PASSWORD_FAILURES, config.auth.loginLockMinutes * 60);
+  const windowSeconds = config.auth.loginLockMinutes * 60;
+  const slot = await checkAndConsume(key, MAX_PASSWORD_FAILURES, windowSeconds);
   if (!slot.allowed) {
     logger.warn({ event: 'account_deletion_locked', personId }, 'Attempts locked');
-    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
+    const left = await secondsLeft(key, windowSeconds);
+    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts', undefined, {
+      'Retry-After': String(left),
+    });
   }
   const ok = await verifyPassword(identity.passwordHash ?? (await getDummyHash()), input.password);
   if (!ok || identity.passwordHash === null) {

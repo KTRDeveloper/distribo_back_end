@@ -50,8 +50,8 @@ describe('environment', () => {
     return import('../../../src/config/index.js');
   }
 
-  it('defaults to 5', async () => {
-    expect((await load(undefined)).config.auth.loginLockMinutes).toBe(5);
+  it('defaults to 1', async () => {
+    expect((await load(undefined)).config.auth.loginLockMinutes).toBe(1);
   });
   it('reads 10', async () => {
     expect((await load('10')).config.auth.loginLockMinutes).toBe(10);

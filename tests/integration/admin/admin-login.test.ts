@@ -15,6 +15,7 @@ vi.mock('../../../src/lib/rate-limit.js', () => ({
     return Promise.resolve({ allowed: true, remaining: limit - c - 1 });
   },
   getCount: (key: string) => Promise.resolve(store.get(key) ?? 0),
+  secondsLeft: (_key: string, windowSeconds: number) => Promise.resolve(windowSeconds),
   resetKey: (key: string) => {
     store.delete(key);
     return Promise.resolve();

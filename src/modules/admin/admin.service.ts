@@ -4,7 +4,7 @@ import { httpError } from '../../lib/http-error.js';
 import { ADMIN_TOKEN_EXPIRES_IN_SECONDS, signAdminToken } from '../../lib/jwt.js';
 import { logger } from '../../lib/logger.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
-import { checkAndConsume, resetKey } from '../../lib/rate-limit.js';
+import { checkAndConsume, resetKey, secondsLeft } from '../../lib/rate-limit.js';
 import { createTotpSecret, decryptSecret, encryptSecret, verifyTotp } from '../../lib/totp.js';
 import { normalizeE164 } from '../../shared/phone.js';
 import { issueCode, spendCode, verifyCode } from '../auth/otp.service.js';
@@ -75,6 +75,23 @@ function getDummyHash(): Promise<string> {
   return dummyHash;
 }
 
+/**
+ * Takes one attempt from the admin counter `key` (v5.0.0-6.3.1).
+ *
+ * @throws 429 LOGIN_LOCKED with `Retry-After` = seconds left on the counter (AUTH-044)
+ */
+async function takeAdminAttempt(key: string): Promise<void> {
+  const windowSeconds = config.auth.loginLockMinutes * 60;
+  const slot = await checkAndConsume(key, MAX_LOGIN_FAILURES, windowSeconds);
+  if (!slot.allowed) {
+    logger.warn({ event: 'admin_login_locked' }, 'Admin attempts locked');
+    const left = await secondsLeft(key, windowSeconds);
+    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts', undefined, {
+      'Retry-After': String(left),
+    });
+  }
+}
+
 function invalidCredentials(personId?: string) {
   logger.warn(
     { event: 'admin_login_failed', ...(personId ? { personId } : {}) },
@@ -105,11 +122,7 @@ export async function adminLogin(
   }
 
   const key = `admin:${phone}`;
-  const slot = await checkAndConsume(key, MAX_LOGIN_FAILURES, config.auth.loginLockMinutes * 60);
-  if (!slot.allowed) {
-    logger.warn({ event: 'admin_login_locked' }, 'Admin attempts locked');
-    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
-  }
+  await takeAdminAttempt(key);
 
   const person = await findByActivePhone(phone);
   const hash = person?.registeredAt && person.passwordHash ? person.passwordHash : null;
@@ -158,15 +171,7 @@ async function checkRecoveryPassword(phoneNumber: string, password: string): Pro
     await verifyPassword(await getDummyHash(), password);
     throw invalidCredentials();
   }
-  const slot = await checkAndConsume(
-    `admin:${phone}`,
-    MAX_LOGIN_FAILURES,
-    config.auth.loginLockMinutes * 60
-  );
-  if (!slot.allowed) {
-    logger.warn({ event: 'admin_login_locked' }, 'Admin attempts locked');
-    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
-  }
+  await takeAdminAttempt(`admin:${phone}`);
   const person = await findByActivePhone(phone);
   const hash = person?.registeredAt && person.passwordHash ? person.passwordHash : null;
   const passwordOk = await verifyPassword(hash ?? (await getDummyHash()), password);

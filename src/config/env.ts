@@ -29,12 +29,12 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).transform(Number).default('900000'),
   RATE_LIMIT_MAX: z.string().regex(/^\d+$/).transform(Number).default('100'),
 
-  // Login lock (CM-05, provisional Q-005): minutes to wait after 5 failed attempts
+  // Login lock (CM-05, A7): minutes a password stays locked after 5 failed attempts
   LOGIN_LOCK_MINUTES: z
     .string()
     .regex(/^[1-9]\d*$/)
     .transform(Number)
-    .default('5'),
+    .default('1'),
 
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),

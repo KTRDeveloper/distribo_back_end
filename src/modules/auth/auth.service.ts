@@ -3,7 +3,7 @@ import { httpError } from '../../lib/http-error.js';
 import { normalizeE164 } from '../../shared/phone.js';
 import { findByActivePhone } from '../person/person.repository.js';
 import { hashPassword, validatePasswordRules, verifyPassword } from '../../lib/password.js';
-import { checkAndConsume, resetKey } from '../../lib/rate-limit.js';
+import { checkAndConsume, resetKey, secondsLeft } from '../../lib/rate-limit.js';
 import { config } from '../../config/index.js';
 import { logger } from '../../lib/logger.js';
 import { enqueueOtpDelivery } from '../../lib/otp-delivery-queue.js';
@@ -260,13 +260,18 @@ function getDummyHash(): Promise<string> {
  * cannot all pass a stale count (v5.0.0-6.3.1). The counter is atomic in Redis; the
  * caller resets the key on success.
  *
- * @throws 429 LOGIN_LOCKED once MAX_LOGIN_FAILURES attempts are taken
+ * @throws 429 LOGIN_LOCKED once MAX_LOGIN_FAILURES attempts are taken, with `Retry-After` set to
+ *   the seconds left on the counter (read only, so a refused try never extends the lock; AUTH-044)
  */
 async function takeAttempt(key: string, event: string, personId?: string): Promise<void> {
-  const slot = await checkAndConsume(key, MAX_LOGIN_FAILURES, config.auth.loginLockMinutes * 60);
+  const windowSeconds = config.auth.loginLockMinutes * 60;
+  const slot = await checkAndConsume(key, MAX_LOGIN_FAILURES, windowSeconds);
   if (!slot.allowed) {
     logger.warn({ event, ...(personId ? { personId } : {}) }, 'Attempts locked');
-    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts');
+    const left = await secondsLeft(key, windowSeconds);
+    throw httpError(429, 'LOGIN_LOCKED', 'Too many failed attempts', undefined, {
+      'Retry-After': String(left),
+    });
   }
 }
 
