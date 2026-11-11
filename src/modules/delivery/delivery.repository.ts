@@ -496,6 +496,34 @@ export async function lockRelationshipForCredit(
 }
 
 /**
+ * The names a receipt freezes, read in the delivering transaction (A8 point 9): the supplier
+ * organization's name, and the customer's public name: the customer organization's name, else the
+ * customer person's full name, else null (counter, guest, anonymized). Never `customer_label`.
+ *
+ * @param relationshipId - The order's customer relationship (resolved, not merged away).
+ * @throws when the relationship or its supplier is missing (an unexpected state: the delivery aborts).
+ */
+export async function findReceiptNames(
+  tx: Prisma.TransactionClient,
+  relationshipId: string
+): Promise<{ supplierName: string; customerName: string | null }> {
+  const row = await tx.customerRelationship.findUniqueOrThrow({
+    where: { id: relationshipId },
+    select: {
+      supplierOrganization: { select: { name: true } },
+      customerOrganization: { select: { name: true } },
+      customerPerson: { select: { fullName: true } },
+    },
+  });
+  // A delivery needs its supplier: a relationship without one is an unexpected state (fail closed).
+  if (!row.supplierOrganization) throw new Error('Relationship has no supplier organization.');
+  return {
+    supplierName: row.supplierOrganization.name,
+    customerName: row.customerOrganization?.name ?? row.customerPerson?.fullName ?? null,
+  };
+}
+
+/**
  * What a closing already wrote: the order, its SALE and its first PAYMENT, when the order is
  * DELIVERED by this person. Null when another person delivered it or no sale exists. Used to answer
  * a repeated closing with the first result (SYNC-014).

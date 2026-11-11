@@ -2,7 +2,20 @@ import type { Order, OrderStatus, Prisma } from '@prisma/client';
 import { httpError } from '../../lib/http-error.js';
 import { findOrderById, updateStatusIfIn, type StatusStepData } from './order.repository.js';
 
-export type TransitionFields = { cancellationReason?: string; acceptedAt?: Date };
+/** The receipt a delivery freezes on its order (A8 point 9): server data only, written once. */
+export type ReceiptFields = {
+  supplierNameApplied: string;
+  customerNameApplied: string | null;
+  collectedApplied: bigint;
+  balanceAfterApplied: bigint;
+};
+
+export type TransitionFields = {
+  cancellationReason?: string;
+  acceptedAt?: Date;
+  /** Written in the same update that sets DELIVERED, including from CANCELLED through sync. */
+  receipt?: ReceiptFields;
+};
 
 export type TransitionActor = { personId: string; party: 'CUSTOMER' | 'SUPPLIER' };
 
@@ -40,6 +53,9 @@ const NO_CANCELLATION = {
  * win and a second one never rewrites the date (ORD-023, C-51). Without it (a failed delivery
  * attempt, IN_DELIVERY to CONFIRMED) the date is left as it was.
  *
+ * With `receipt`, a step to DELIVERED writes the four receipt fields in the same conditional
+ * update, so they are set once, by the step that delivers (v5.0.0-2.3.1).
+ *
  * With `viaSync`, delivery wins over cancellation: CANCELLED to DELIVERED is accepted and
  * flagged in `sync_issue`, and cancelling a DELIVERED order leaves it unchanged except for
  * `sync_issue` (the unchanged order is returned, no error).
@@ -74,6 +90,7 @@ export async function transitionOrder(
     });
   } else if (to === 'DELIVERED') {
     Object.assign(data, { deliveredAt: now, deliveredById: actor.personId });
+    if (fields.receipt) Object.assign(data, fields.receipt);
   }
 
   const isAcceptance = to === 'CONFIRMED' && fields.acceptedAt !== undefined;

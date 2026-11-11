@@ -11,11 +11,12 @@ import { lineAmountOf, orderTotal } from '../order/order.calculations.js';
 import { priceEnteredLine } from '../order/order.service.js';
 import { projectOrderForSupplier, type SupplierOrderView } from '../order/order.views.js';
 import { findSupplierRelationshipLocked } from '../relationship/relationship.repository.js';
-import { transitionOrder } from '../order/order.state.js';
+import { transitionOrder, type ReceiptFields } from '../order/order.state.js';
 import { notify, recipientLanguage } from '../notification/notification.service.js';
 import {
   findDeliveredOrdersWithCollection,
   findDeliveryInProgress,
+  findReceiptNames,
   findRegisteredCustomerRecipient,
   insertDelivery,
   insertCounterSaleOrder,
@@ -485,7 +486,13 @@ export function deliverOrder(
       orderId,
       'DELIVERED',
       { personId: actor.personId, party: 'SUPPLIER' },
-      {},
+      {
+        receipt: await receiptOf(tx, relationship.id, {
+          collected,
+          balance: relationship.balance,
+          total,
+        }),
+      },
       { viaSync: options.viaSync }
     );
     if (inProgress && !(await markArrived(tx, inProgress.id, closed.deliveredAt ?? new Date()))) {
@@ -587,6 +594,24 @@ export function deliverOrder(
   return options.tx ? work(options.tx) : runInTransaction(work);
 }
 
+/**
+ * The receipt of a delivery, from server data only (v5.0.0-2.3.1): the names read in the
+ * transaction and `balanceAfterApplied` = the locked balance + total - collected.
+ */
+async function receiptOf(
+  tx: Prisma.TransactionClient,
+  relationshipId: string,
+  amounts: { collected: bigint; balance: bigint; total: bigint }
+): Promise<ReceiptFields> {
+  const { supplierName, customerName } = await findReceiptNames(tx, relationshipId);
+  return {
+    supplierNameApplied: supplierName,
+    customerNameApplied: customerName,
+    collectedApplied: amounts.collected,
+    balanceAfterApplied: amounts.balance + amounts.total - amounts.collected,
+  };
+}
+
 export type CounterSaleResult = {
   order: SupplierOrderView;
   sale: DeliveredEntryView;
@@ -660,10 +685,19 @@ export function sellAtCounter(
       totalAmount: total,
       lines: priced.map((line) => ({ ...line, deliveredQuantity: line.quantity })),
     });
-    const closed = await transitionOrder(tx, created.id, 'DELIVERED', {
-      personId: actor.personId,
-      party: 'SUPPLIER',
-    });
+    const closed = await transitionOrder(
+      tx,
+      created.id,
+      'DELIVERED',
+      { personId: actor.personId, party: 'SUPPLIER' },
+      {
+        receipt: await receiptOf(tx, relationship.id, {
+          collected: total,
+          balance: relationship.balance,
+          total,
+        }),
+      }
+    );
 
     const occurredAt = new Date();
     const sale = await appendLedgerEntry(tx, {

@@ -656,3 +656,34 @@ DLV-015 done
 
 **Evidence:** story tests 3/3; full suite 5511/5511, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
 <!-- end DLV-018 -->
+
+<!-- begin DLV-019 -->
+## DLV-019 — A delivery writes its receipt once, in the transaction that delivers the order
+
+- Filed: 2026-11-11 08:54 UTC
+- Status: **done**: receipt written once in transitionOrder; 10 story tests pass
+- Risk: high · story: [DLV-019-a-delivery-writes-its-receipt-once-in-the.md](../modules/delivery/DLV-019-a-delivery-writes-its-receipt-once-in-the.md)
+- Agent: 63,311 tokens, 21 tool uses, 9 min 6 s
+
+### Agent report
+
+**Summary:** Delivery (online, sync, counter) now writes the four receipt fields in the DELIVERED update of `transitionOrder`; all story tests green.
+
+**Decisions:**
+- `order.repository.ts` not modified: `StatusStepData` already allows the four columns.
+- `ReceiptFields` is exported from `order.state.ts`; a private `receiptOf` helper in `delivery.service.ts` is shared by `deliverOrder` and `sellAtCounter`.
+- `findReceiptNames` throws a plain Error when the supplier organization is missing (nullable relation in Prisma): fail closed, rolls back.
+- Test customer without `full_name` is a guest (unregistered), since a registered person must have a name (DB check).
+
+**Tests added beyond the story:**
+- `receipt-fields.test.ts` › phone receipt: each of the four fields is tested separately in AB-1 (story lists one row); passed at once (strict schema already rejects unknown fields)
+
+**Other additions:**
+- Sync repeat in "once" is tested through `deliverOrder` with `viaSync`, as `push-closing.test.ts` does.
+
+**Evidence:** story tests 10/10; full suite 5550/5552 passing, failing: `no-bcrypt` and `quality-gates` typecheck checks, caused by a typecheck error I fixed right after (rerun together with the delivery tests: 296/296); 0 known; typecheck clean; lint 0 errors, 264 warnings (existing)
+
+**Follow-ups:**
+- I wrote the code before the tests (TDD order not followed); I did not rerun the tests against the old code to see them fail.
+- The full suite was not rerun after the typecheck fix (change limited to `delivery.repository.ts`).
+<!-- end DLV-019 -->
