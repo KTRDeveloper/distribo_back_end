@@ -38,7 +38,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5435/distribo_db
 REDIS_URL=redis://localhost:6380
 ```
 
-Also replace every placeholder secret (`JWT_SECRET`, `CONFIG_ENCRYPTION_KEY`, `TEXTBEE_API_KEY`,
+Also replace every placeholder secret (`JWT_SECRET`, `ANDROID_ID_HASH_KEY`, `CONFIG_ENCRYPTION_KEY`, `TEXTBEE_API_KEY`,
 `SMTP_*`). `CONFIG_ENCRYPTION_KEY` can be generated with:
 
 ```bash

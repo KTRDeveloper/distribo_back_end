@@ -389,3 +389,24 @@ Also in this run: access.
 
 **Evidence:** story tests 7/7; full suite 5421/5421, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
 <!-- end AUTH-039 -->
+
+<!-- begin AUTH-040 -->
+## AUTH-040 — The server computes an Android id fingerprint with its own key
+
+- Filed: 2026-11-11 07:26 UTC
+- Status: **done**: HMAC-SHA256 fingerprint, ANDROID_ID_HASH_KEY required (min 32)
+- Risk: high · story: [AUTH-040-the-server-computes-an-android-id-fingerprint.md](../modules/auth/AUTH-040-the-server-computes-an-android-id-fingerprint.md)
+- Agent: 25,370 tokens, 10 tool uses, 3 min 48 s
+
+### Agent report
+
+**Summary:** Added hashAndroidId (HMAC-SHA256 over `personId:androidId`, lowercase hex) and the required ANDROID_ID_HASH_KEY (min 32 chars) in env, config, .env.example and tests/setup.ts.
+
+**Decisions:**
+- Key-change and config-load tests reload modules with `vi.resetModules` and `vi.stubEnv`, as in attempt-counter.test.ts.
+
+**Other additions:**
+- README.md: added `ANDROID_ID_HASH_KEY` to the list of placeholder secrets to replace, since the key is a new secret.
+
+**Evidence:** story tests 7/7; full suite 5428/5428, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings (existing)
+<!-- end AUTH-040 -->

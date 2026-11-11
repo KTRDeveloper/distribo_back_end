@@ -34,6 +34,7 @@ export const config = {
   // Auth
   auth: {
     loginLockMinutes: env.LOGIN_LOCK_MINUTES,
+    androidIdHashKey: env.ANDROID_ID_HASH_KEY,
   },
 
   // CORS

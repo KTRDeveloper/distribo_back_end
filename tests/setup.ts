@@ -6,6 +6,7 @@ process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = workerDatabaseUrl();
 process.env.LOG_LEVEL = 'fatal'; // Valid enum: trace, debug, info, warn, error, fatal (fatal is highest/quietest)
 process.env.JWT_SECRET = 'test-secret-key-must-be-at-least-32-characters-long';
+process.env.ANDROID_ID_HASH_KEY = 'test-android-id-hash-key-at-least-32-characters';
 process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.CONFIG_ENCRYPTION_KEY = 'TnLiHyYNuboynP/t2+mZAj3QLrIgX8zS12hGPqVELH0='; // base64 encoded 32-byte key for tests
 process.env.CORS_ORIGINS = process.env.CORS_ORIGINS || 'http://localhost:3000';
