@@ -433,3 +433,24 @@ Also in this run: access.
 **Follow-ups:**
 - `openapi/openapi.json` was not regenerated; the new `android_id` field appears there only after `npm run openapi:generate`.
 <!-- end AUTH-041 -->
+
+<!-- begin AUTH-042 -->
+## AUTH-042 — Only open sessions are listed and alerted
+
+- Filed: 2026-11-11 07:36 UTC
+- Status: **done**: open sessions filter on list and alert; alert after issueSession excluding new device
+- Risk: medium · story: [AUTH-042-only-open-sessions-are-listed-and-alerted.md](../modules/auth/AUTH-042-only-open-sessions-are-listed-and-alerted.md)
+- Agent: 36,421 tokens, 15 tool uses, 4 min 29 s
+
+### Agent report
+
+**Summary:** listLive and listLiveDeviceIds now return only open sessions; completeLogin alerts after issueSession, excluding the new device.
+
+**Decisions:**
+- Shared filter `openDevicesWhere(personId)` exported from session.repository.ts, reused by auth.repository.ts: one definition of "open session".
+
+**Tests added beyond the story:**
+- `tests/integration/auth/open-sessions.test.ts` › recognized phone: the new session is never alerted about itself, even when the replaced session had the same Android id (story Context: alert at every login, excluding the opened device); failed first, because the old code alerted the replaced device.
+
+**Evidence:** story tests 5/5; full suite 5443/5443, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
+<!-- end AUTH-042 -->

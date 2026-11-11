@@ -454,8 +454,10 @@ export async function completeLogin(input: LoginVerifyInput): Promise<SessionRes
       ? `New sign-in on ${model ?? 'a new device'}. Wasn't you? Sign it out.`
       : `Nouvelle connexion sur ${model ?? 'un nouvel appareil'}. Ce n'était pas vous ? Déconnectez-le.`;
   const session = await inTransaction(async (tx) => {
-    const others = await listLiveDeviceIds(tx, holder.id);
+    // After issueSession: a device it replaced (same Android phone) is already closed, and
+    // the new one is excluded, so neither gets the alert (AUTH-042).
     const opened = await issueSession(holder.id, input.device, tx);
+    const others = (await listLiveDeviceIds(tx, holder.id)).filter((id) => id !== opened.deviceId);
     for (const deviceId of others) {
       await notify(
         {

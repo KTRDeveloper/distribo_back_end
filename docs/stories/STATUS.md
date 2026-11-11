@@ -402,7 +402,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-039 | done | | REPLACED reason, android_id_hash column and partial unique index added; 7 tests pass |
 | AUTH-040 | done | | HMAC-SHA256 fingerprint, ANDROID_ID_HASH_KEY required (min 32) |
 | AUTH-041 | done | | login with android_id revokes same-fingerprint devices (REPLACED), P2002 -> 409 SESSION_CONFLICT |
-| AUTH-042 | todo | | |
+| AUTH-042 | done | | open sessions filter on list and alert; alert after issueSession excluding new device |
 | AUTH-043 | todo | | |
 | AUTH-044 | todo | | |
 | ORD-038 | todo | | |

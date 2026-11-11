@@ -12,6 +12,20 @@ export type RevokedReason =
   | 'ACCOUNT_SUSPENDED'
   | 'REPLACED';
 
+/**
+ * Filter for a person's open sessions: device not revoked and its current refresh token
+ * (not rotated, not revoked) not yet expired. The person filter keeps it scoped (v5.0.0-8.2.2).
+ */
+export function openDevicesWhere(personId: string): Prisma.DeviceWhereInput {
+  return {
+    personId,
+    revokedAt: null,
+    refreshTokens: {
+      some: { rotatedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+    },
+  };
+}
+
 /** Session persistence: the only place the session service touches prisma. */
 export const sessionRepository = {
   createDevice(client: Client, data: Prisma.DeviceUncheckedCreateInput) {
@@ -142,10 +156,10 @@ export const sessionRepository = {
     });
   },
 
-  /** Live devices of one person, newest first (person filter, v5.0.0-8.2.2). */
+  /** Open sessions of one person, newest first (v5.0.0-7.5.2, v5.0.0-8.2.2). */
   listLive(personId: string) {
     return prisma.device.findMany({
-      where: { personId, revokedAt: null },
+      where: openDevicesWhere(personId),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: {
         id: true,

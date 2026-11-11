@@ -1,5 +1,6 @@
 import type { Person, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
+import { openDevicesWhere } from './session.repository.js';
 import { findOrCreateByPhone } from '../person/person.repository.js';
 
 /** Runs `fn` in one transaction so person and session writes succeed or fail together. */
@@ -97,13 +98,13 @@ export function findEmailState(
   });
 }
 
-/** Lists the ids of a person's live (not revoked) devices. */
+/** Lists the ids of a person's open sessions (not revoked, current refresh token unexpired). */
 export async function listLiveDeviceIds(
   tx: Prisma.TransactionClient,
   personId: string
 ): Promise<string[]> {
   const rows = await tx.device.findMany({
-    where: { personId, revokedAt: null },
+    where: openDevicesWhere(personId),
     select: { id: true },
   });
   return rows.map((r) => r.id);
