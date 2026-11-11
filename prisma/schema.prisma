@@ -266,6 +266,11 @@ enum SubscriptionEndReason {
   REFUNDED
 }
 
+enum ReceptionMode {
+  DELIVERY
+  PICKUP
+}
+
 enum OrderParty {
   CUSTOMER
   SUPPLIER
@@ -1345,31 +1350,38 @@ model CustomerPrice {
 //   replacement must belong to the same customer relationship. A broken rule
 //   fails with a check error (SQLSTATE 23514), a second order pointing at the
 //   same replacement with 23505. (Migration 20261026100000_ord_035_replaced_by_order_id)
+// - An order can say whether it is delivered or picked up (reception_mode); the
+//   field stays empty on older orders. An order picked up (PICKUP) has no
+//   delivery address: saving one with an address, or setting PICKUP on an order
+//   that still has its address, fails with a check error (SQLSTATE 23514), so
+//   code must clear the address in the same write. (Migration
+//   20261026110000_ord_036_reception_mode)
 model Order {
-  id                     String      @id @db.Uuid
-  customerRelationshipId String      @map("customer_relationship_id") @db.Uuid
-  placedByParty          OrderParty  @map("placed_by_party")
-  enteredById            String      @map("entered_by_id") @db.Uuid
-  deliveryAddressApplied String?     @map("delivery_address_applied")
-  totalAmount            BigInt      @map("total_amount")
-  deliveryCost           BigInt      @default(0) @map("delivery_cost")
-  status                 OrderStatus @default(CONFIRMED)
-  deliveredAt            DateTime?   @map("delivered_at") @db.Timestamptz
-  deliveredById          String?     @map("delivered_by_id") @db.Uuid
-  acceptedAt             DateTime?   @map("accepted_at") @db.Timestamptz
-  createdAt              DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  desiredDeliveryDate    DateTime?   @map("desired_delivery_date") @db.Date
-  cancelledByParty       OrderParty? @map("cancelled_by_party")
-  cancelledById          String?     @map("cancelled_by_id") @db.Uuid
-  cancelledAt            DateTime?   @map("cancelled_at") @db.Timestamptz
-  cancellationReason     String?     @map("cancellation_reason") @db.Text
-  parentOrderId          String?     @map("parent_order_id") @db.Uuid
-  replacedByOrderId      String?     @map("replaced_by_order_id") @db.Uuid
-  customerNote           String?     @map("customer_note") @db.Text
-  supplierNote           String?     @map("supplier_note") @db.Text
-  syncIssue              String?     @map("sync_issue") @db.Text
-  serverUpdatedAt        DateTime    @default(now()) @map("server_updated_at") @db.Timestamptz
-  deletedAt              DateTime?   @map("deleted_at") @db.Timestamptz
+  id                     String         @id @db.Uuid
+  customerRelationshipId String         @map("customer_relationship_id") @db.Uuid
+  placedByParty          OrderParty     @map("placed_by_party")
+  enteredById            String         @map("entered_by_id") @db.Uuid
+  deliveryAddressApplied String?        @map("delivery_address_applied")
+  receptionMode          ReceptionMode? @map("reception_mode")
+  totalAmount            BigInt         @map("total_amount")
+  deliveryCost           BigInt         @default(0) @map("delivery_cost")
+  status                 OrderStatus    @default(CONFIRMED)
+  deliveredAt            DateTime?      @map("delivered_at") @db.Timestamptz
+  deliveredById          String?        @map("delivered_by_id") @db.Uuid
+  acceptedAt             DateTime?      @map("accepted_at") @db.Timestamptz
+  createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  desiredDeliveryDate    DateTime?      @map("desired_delivery_date") @db.Date
+  cancelledByParty       OrderParty?    @map("cancelled_by_party")
+  cancelledById          String?        @map("cancelled_by_id") @db.Uuid
+  cancelledAt            DateTime?      @map("cancelled_at") @db.Timestamptz
+  cancellationReason     String?        @map("cancellation_reason") @db.Text
+  parentOrderId          String?        @map("parent_order_id") @db.Uuid
+  replacedByOrderId      String?        @map("replaced_by_order_id") @db.Uuid
+  customerNote           String?        @map("customer_note") @db.Text
+  supplierNote           String?        @map("supplier_note") @db.Text
+  syncIssue              String?        @map("sync_issue") @db.Text
+  serverUpdatedAt        DateTime       @default(now()) @map("server_updated_at") @db.Timestamptz
+  deletedAt              DateTime?      @map("deleted_at") @db.Timestamptz
 
   customerRelationship CustomerRelationship @relation(fields: [customerRelationshipId], references: [id])
   enteredBy            Person               @relation("OrderEnteredBy", fields: [enteredById], references: [id])

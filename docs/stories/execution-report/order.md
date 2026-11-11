@@ -1228,3 +1228,25 @@ ORD-032 done
 - The test never failed before the migration existed (first run failed on a fixture error, not the missing column).
 - ORD-002 frozen-order trigger will refuse linking a DELIVERED/CANCELLED order; ORD-039 should keep that in mind.
 <!-- end ORD-035 -->
+
+<!-- begin ORD-036 -->
+## ORD-036 — An order records delivery or pickup
+
+- Filed: 2026-11-11 08:16 UTC
+- Status: **done**: reception_mode enum column + pickup-no-address CHECK migration
+- Risk: high · story: [ORD-036-an-order-records-delivery-or-pickup.md](../modules/order/ORD-036-an-order-records-delivery-or-pickup.md)
+- Agent: 29,199 tokens, 12 tool uses, 3 min 42 s
+
+### Agent report
+
+**Summary:** Added the ReceptionMode enum, nullable orders.reception_mode and a CHECK (PICKUP implies no delivery address) in a new migration; schema comment updated.
+
+**Decisions:**
+- CHECK written as `reception_mode IS DISTINCT FROM 'PICKUP' OR delivery_address_applied IS NULL`: a null mode never trips it (AC-2 last row).
+- Migration named 20261026110000_ord_036_reception_mode, constraint orders_pickup_no_address_check.
+
+**Other additions:**
+- `prisma format` realigned the Order model columns in schema.prisma (whitespace only).
+
+**Evidence:** story tests 8/8; full suite 5508/5508, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
+<!-- end ORD-036 -->

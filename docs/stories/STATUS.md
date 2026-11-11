@@ -410,7 +410,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-017 | done | | creditCheck in src/shared/credit.ts, deliverOrder uses it |
 | REL-032 | done | | available_credit clamped at 0 via availableCredit; 6 unit tests, suite green |
 | ORD-035 | done | | orders.replaced_by_order_id: FK, partial unique, 2 CHECKs, same-relationship trigger |
-| ORD-036 | todo | | |
+| ORD-036 | done | | reception_mode enum column + pickup-no-address CHECK migration |
 | DLV-018 | todo | | |
 | ORD-037 | todo | | |
 | ORD-039 | todo | | |
