@@ -7,13 +7,17 @@ import { flagCreditExceeded } from '../sync.controls.js';
 import type { LineOutcome, PushContext, Row, SyncTable, TableChange } from '../sync.types.js';
 import { TAKEN_BY_PREFIX, takenBy } from './delivery.push.js';
 import {
+  currentVersionOf,
+  DELIVERED_REPLACED_NOTE,
   forbidden,
+  isReplacedVersion,
   OUT_OF_SCOPE,
   outcome,
   scopeOfOrder,
   SERVER_CONTEXT,
   setIssue,
   STATUS_WORDS,
+  type OrderScope,
 } from './order.push.js';
 
 /** Largest amount of money a line may carry: 13 digits, as the other adapters read it. */
@@ -380,7 +384,7 @@ const isHttpError = (error: unknown): error is Error & { statusCode: number; cod
 
 /** Closes one order: the outcome of its row and of every row that came with it. */
 async function closeOrder(ctx: PushContext, closing: Closing): Promise<LineOutcome[]> {
-  const { tx, viewer } = ctx;
+  const { tx } = ctx;
   const { orderId } = closing;
   const everyRow: Related[] = [
     ...(closing.child ? [{ table: 'orders' as const, id: closing.child }] : []),
@@ -424,6 +428,60 @@ async function closeOrder(ctx: PushContext, closing: Closing): Promise<LineOutco
     );
   }
 
+  if (!(await isReplacedVersion(tx, orderId))) {
+    return closeInScope(ctx, closing, scope, answer);
+  }
+  return closeReplaced(ctx, closing, scope, answer);
+}
+
+/** Builds the outcomes of a closing's rows from one refusal (see `closeOrder`). */
+type Answer = (
+  refusal: Refusal,
+  withPayments: ClosingPayment[],
+  extra: LineOutcome[]
+) => LineOutcome[];
+
+/**
+ * A delivery wins over the customer's change (SYNC-046): the replaced version, already found in the
+ * viewer's scope with the right to deliver, is restored (`deleted_at` back to null, link kept)
+ * and delivered as any order. Everything runs in a savepoint: when the delivery is not accepted,
+ * the order is deleted again, so a refused row never leaves a replaced version restored. After a
+ * delivery both the old and the current version carry the note for the supplier; the current one
+ * is read first, while the old one is still deleted, and is not changed otherwise.
+ */
+async function closeReplaced(
+  ctx: PushContext,
+  closing: Closing,
+  scope: OrderScope,
+  answer: Answer
+): Promise<LineOutcome[]> {
+  const { tx } = ctx;
+  const { orderId } = closing;
+  const current = await currentVersionOf(tx, orderId);
+  await tx.$executeRaw`SAVEPOINT restoring_replaced`;
+  await tx.order.update({ where: { id: orderId }, data: { deletedAt: null } });
+  const outcomes = await closeInScope(ctx, closing, scope, answer);
+  const delivered = outcomes.find((line) => line.table === 'orders' && line.id === orderId);
+  if (delivered?.kind !== 'accepted') {
+    await tx.$executeRaw`ROLLBACK TO SAVEPOINT restoring_replaced`;
+    await tx.$executeRaw`RELEASE SAVEPOINT restoring_replaced`;
+    return outcomes;
+  }
+  await tx.$executeRaw`RELEASE SAVEPOINT restoring_replaced`;
+  await setIssue(ctx, orderId, DELIVERED_REPLACED_NOTE);
+  if (current !== null) await setIssue(ctx, current, DELIVERED_REPLACED_NOTE);
+  return outcomes;
+}
+
+/** The part of a closing after the scope and role checks: the pushed rows, the lock, the delivery. */
+async function closeInScope(
+  ctx: PushContext,
+  closing: Closing,
+  scope: OrderScope,
+  answer: Answer
+): Promise<LineOutcome[]> {
+  const { tx, viewer } = ctx;
+  const { orderId } = closing;
   const { payments, answers: paymentAnswers } = await readPayments(ctx, closing);
   const lines = readLines(closing);
   const takenSaleIds = await tx.ledgerEntry.findMany({

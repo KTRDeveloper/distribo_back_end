@@ -1321,6 +1321,10 @@ model CustomerPrice {
 // - A DELIVERED or CANCELLED order is frozen: only supplier_note, sync_issue and
 //   server_updated_at may change. Any other change fails with a check error
 //   (SQLSTATE 23514), so code must not try to edit a finished order.
+//   One exception: an order a customer replaced (it carries replaced_by_order_id)
+//   may have its deleted mark cleared, so a delivery pushed from a phone that
+//   was offline can restore it and deliver it (SYNC-046). The link never
+//   changes. (Migration 20261111100000_sync_046_restore_replaced_version)
 // These are CHECK constraints and a trigger, which Prisma cannot express.
 // - An order can only be created on a relationship that is ACTIVE, not deleted
 //   and has an organization as supplier, and that organization must be ACTIVE

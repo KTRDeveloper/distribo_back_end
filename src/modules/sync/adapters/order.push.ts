@@ -268,6 +268,71 @@ export function formatMoment(moment: Date): string {
 export const setIssue = (ctx: PushContext, id: string, message: string) =>
   ctx.tx.order.update({ where: { id }, data: { syncIssue: message } });
 
+/** Most links of `replaced_by_order_id` followed to find the current version (SYNC-046). */
+const MAX_REPLACEMENT_LINKS = 20;
+
+/** The answer to any offline gesture, other than a delivery, on a version the customer replaced. */
+export const REPLACED_NOTE =
+  'Changement hors ligne sans effet : le client avait déjà modifié cette commande';
+
+/** The note both versions carry when a delivery restored a replaced version (SYNC-046). */
+export const DELIVERED_REPLACED_NOTE =
+  "Livrée alors que le client l'avait modifiée : vérifiez la nouvelle version";
+
+/**
+ * True when the order is a version the customer replaced: deleted, with the link to its
+ * replacement (ORD-039, C-58). An order deleted without a link is not one.
+ */
+export async function isReplacedVersion(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<boolean> {
+  const found = await tx.order.findUnique({
+    where: { id: orderId },
+    select: { deletedAt: true, replacedByOrderId: true },
+  });
+  return found !== null && found.deletedAt !== null && found.replacedByOrderId !== null;
+}
+
+/**
+ * The version that stands today: follows `replaced_by_order_id` from the order to the first order
+ * not deleted, in at most 20 links. Null when the order is missing or the chain is broken or too
+ * long (fail closed: the caller then flags nothing).
+ */
+export async function currentVersionOf(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<string | null> {
+  let id = orderId;
+  for (let links = 0; links <= MAX_REPLACEMENT_LINKS; links += 1) {
+    const found = await tx.order.findUnique({
+      where: { id },
+      select: { deletedAt: true, replacedByOrderId: true },
+    });
+    if (!found) return null;
+    if (found.deletedAt === null) return id;
+    if (found.replacedByOrderId === null) return null;
+    id = found.replacedByOrderId;
+  }
+  return null;
+}
+
+/**
+ * Answers a gesture on a replaced version: nothing is written on it, the row is an `issue`
+ * ORDER_REPLACED and the current version carries the same note for the supplier (SYNC-046,
+ * ASVS v5.0.0-2.3.1). The caller has checked the order is in the viewer's scope.
+ */
+export async function refuseOnReplaced(
+  ctx: PushContext,
+  table: SyncTable,
+  id: string,
+  orderId: string
+): Promise<LineOutcome> {
+  const current = await currentVersionOf(ctx.tx, orderId);
+  if (current !== null) await setIssue(ctx, current, REPLACED_NOTE);
+  return outcome(table, id, 'issue', 'ORDER_REPLACED', REPLACED_NOTE);
+}
+
 /** The business problem of a status step: the order keeps its status and carries the message. */
 async function orderIssue(
   ctx: PushContext,
@@ -335,6 +400,7 @@ async function updateOrder(ctx: PushContext, row: Row): Promise<LineOutcome> {
   const id = String(row['id']);
   const scope = await scopeOfOrder(ctx, id);
   if (!scope) return forbidden('orders', id, 'OUT_OF_SCOPE', OUT_OF_SCOPE);
+  if (await isReplacedVersion(tx, id)) return refuseOnReplaced(ctx, 'orders', id, id);
   const stored = await tx.order.findUniqueOrThrow({
     where: { id },
     select: { status: true, supplierNote: true },
@@ -499,6 +565,9 @@ async function createLine(
   if (!order || !viewer.memberships.some((m) => m.organizationId === supplier)) {
     return { line: forbidden('order_lines', id, 'OUT_OF_SCOPE', OUT_OF_SCOPE) };
   }
+  if (await isReplacedVersion(tx, orderId)) {
+    return { line: await refuseOnReplaced(ctx, 'order_lines', id, orderId) };
+  }
   // Only the order the viewer entered, still open, takes a new line: its total must stay editable.
   if (
     order.status !== 'CONFIRMED' ||
@@ -591,6 +660,24 @@ export async function pushOrderLines(
     }
   }
   for (const [orderId, flags] of touched) await settleOrder(ctx.tx, orderId, flags);
-  outcomes.push(...refuseEveryLine({ ...change, created: [] }));
+  // An edit of a line of a replaced version has no effect; every other edit stays refused.
+  const refused: Row[] = [];
+  for (const row of change.updated) {
+    const lineId = row['id'];
+    const stored =
+      typeof lineId === 'string'
+        ? await ctx.tx.orderLine.findUnique({ where: { id: lineId }, select: { orderId: true } })
+        : null;
+    if (
+      stored &&
+      (await scopeOfOrder(ctx, stored.orderId)) &&
+      (await isReplacedVersion(ctx.tx, stored.orderId))
+    ) {
+      outcomes.push(await refuseOnReplaced(ctx, 'order_lines', String(lineId), stored.orderId));
+    } else {
+      refused.push(row);
+    }
+  }
+  outcomes.push(...refuseEveryLine({ ...change, created: [], updated: refused }));
   return outcomes;
 }

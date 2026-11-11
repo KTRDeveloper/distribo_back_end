@@ -1525,3 +1525,38 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 
 **Evidence:** story tests 5/5; full suite 5601/5601, failing: none, 0 known; typecheck clean; lint 0 errors, 269 warnings
 <!-- end SYNC-045 -->
+
+<!-- begin SYNC-046 -->
+## SYNC-046 — An offline gesture on a replaced order is settled
+
+- Filed: 2026-11-11 09:49 UTC
+- Status: **done**: Replaced-version gestures settled; delivery restores via trigger exception (migration sync_046)
+- Risk: high · story: [SYNC-046-an-offline-gesture-on-a-replaced-order-is.md](../modules/sync/SYNC-046-an-offline-gesture-on-a-replaced-order-is.md)
+- Agent: 119,442 tokens, 45 tool uses, 10 min 54 s
+
+### Agent report
+
+**Summary:** A delivery of a replaced version restores and delivers it; every other gesture is answered ORDER_REPLACED and flags the current version.
+
+**Decisions:**
+- Restoring `deleted_at` on a CANCELLED order was blocked by the status-rules trigger (ORD-002), so the story could not work as written: added migration `20261111100000_sync_046_restore_replaced_version`. It lets only `deleted_at` go from set to empty on an order with `replaced_by_order_id`; the schema.prisma comment is updated. The story lists no migration, so a human should confirm this route.
+- The restore runs in a savepoint (`closeReplaced`, closing.push.ts): if the delivery is not accepted, the order is deleted again.
+- The current version is read before the restore, otherwise the restored order would be its own current version.
+- `isReplacedVersion` and `currentVersionOf` did not exist in order.push.ts, so I created them there.
+- A line edit on a replaced order (order_lines updated) is answered ORDER_REPLACED; other line edits stay refused.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/replaced-version.test.ts` › keeps the old version deleted when the delivery is refused: fail closed, the restore is undone (Agent rules, fail closed); passed at once
+- same file › lets the database clear only the deleted mark of a replaced order: the trigger exception stays narrow (C-58, frozen CANCELLED order); passed at once
+- same file › leaves the old version untouched on %s: the same five gestures through the real endpoint, so the judge is exercised; the adapter-level test checks the ORDER_REPLACED outcome
+
+**Other additions:**
+- Migration and schema comment, as above.
+- `REPLACED_NOTE`, `DELIVERED_REPLACED_NOTE` and `refuseOnReplaced` in order.push.ts, shared by the three adapters.
+
+**Evidence:** story tests 15/15; full suite 5616/5616, failing: none, 0 known; typecheck clean; lint 0 errors, 272 warnings (existing security warnings)
+
+**Follow-ups:**
+- The local test template DB already had my first draft of the migration applied. I re-applied the corrected SQL by hand with `prisma db execute`. A fresh database applies the file from scratch, but I did not run that.
+- A phone whose `last_pulled_at` predates the replacement may get 409 SYNC_CONFLICT on its updated `orders` rows (the replaced order is pulled as a deletion). Tests use a fresh pull time. I did not verify this; it is outside the story.
+<!-- end SYNC-046 -->

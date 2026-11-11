@@ -16,9 +16,11 @@ import {
   forbidden,
   INVALID,
   isRefusedStep,
+  isReplacedVersion,
   outcome,
   OUT_OF_SCOPE,
   readText,
+  refuseOnReplaced,
   scopeOfOrder,
   SERVER_CONTEXT,
   setIssue,
@@ -254,6 +256,9 @@ async function createDelivery(ctx: PushContext, row: Row): Promise<LineOutcome> 
 
   const scope = await scopeOfOrder(ctx, orderId);
   if (!scope) return forbidden('deliveries', id, 'OUT_OF_SCOPE', OUT_OF_SCOPE);
+  if (await isReplacedVersion(tx, orderId)) {
+    return refuseOnReplaced(ctx, 'deliveries', id, orderId);
+  }
   const ability = abilityFor(scope.role, SERVER_CONTEXT);
   if (!ability.can('depart', 'Order') || (failure && !ability.can('fail_delivery', 'Order'))) {
     return forbidden('deliveries', id, 'FIELD_NOT_ALLOWED', NOT_ALLOWED);
@@ -278,6 +283,9 @@ async function updateDelivery(ctx: PushContext, row: Row): Promise<LineOutcome> 
     (scope.role === 'MANAGER' || scope.role === 'OWNER' || stored.assignedToId === viewer.personId);
   if (!stored || !scope || !mayAct)
     return forbidden('deliveries', id, 'OUT_OF_SCOPE', OUT_OF_SCOPE);
+  if (await isReplacedVersion(tx, stored.orderId)) {
+    return refuseOnReplaced(ctx, 'deliveries', id, stored.orderId);
+  }
 
   const now = new Date();
   const departedAt = readMoment(row, 'departed_at', now);
