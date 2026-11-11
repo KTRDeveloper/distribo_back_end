@@ -815,6 +815,14 @@ model Collaboration {
 // - A counter (no customer person and no customer organization) is never
 //   marked as contested: contested_at stays empty for it. Migration
 //   20261025090000_rel_027_contested_at holds this rule.
+// - When a person's full name changes (rename or anonymization), every
+//   relationship where that person is the customer or the supplier is touched,
+//   so its server_updated_at moves and phones pull the new public name. The
+//   same happens when an organization's name changes, for the relationships
+//   where it is the customer or the supplier. A change of any other field, or
+//   a name set to the same value, touches nothing. Both are database triggers
+//   (migration 20261111120000_rel_033_public_name_touch), so code never touches
+//   these rows itself.
 model CustomerRelationship {
   id                     String             @id @db.Uuid
   supplierOrganizationId String?            @map("supplier_organization_id") @db.Uuid

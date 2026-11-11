@@ -1189,3 +1189,23 @@ REL-026 done
 
 **Evidence:** story tests 6/6; full suite 5493/5493, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
 <!-- end REL-032 -->
+
+<!-- begin REL-033 -->
+## REL-033 — A renamed party resends its relationships to phones
+
+- Filed: 2026-11-11 10:07 UTC
+- Status: **done**: two rename triggers and one-time touch in rel_033_public_name_touch
+- Risk: high · story: [REL-033-a-renamed-party-resends-its-relationships-to.md](../modules/relationship/REL-033-a-renamed-party-resends-its-relationships-to.md)
+- Agent: 40,272 tokens, 13 tool uses, 4 min 12 s
+
+### Agent report
+
+**Summary:** Migration 20261111120000_rel_033_public_name_touch adds two AFTER UPDATE triggers (people.full_name, organizations.name) that touch the party's relationships, plus a one-time touch of all rows; schema comment updated.
+
+**Decisions:**
+- Touch method: `UPDATE ... SET server_updated_at = server_updated_at`; the existing set_server_updated_at BEFORE trigger moves it, so no duplicated clock logic.
+- Migration is re-runnable (CREATE OR REPLACE, DROP TRIGGER IF EXISTS): lets the AC-4 test execute the migration file against fixture rows.
+- Triggers use WHEN (OLD IS DISTINCT FROM NEW) and UPDATE OF column, so a same-value name touches nothing.
+
+**Evidence:** story tests 5/5; full suite 5639/5639, failing: none, 0 known; typecheck clean; lint 0 errors, 299 warnings (none from the new files)
+<!-- end REL-033 -->
