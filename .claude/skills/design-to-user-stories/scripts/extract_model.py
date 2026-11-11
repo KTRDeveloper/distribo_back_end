@@ -22,7 +22,7 @@ import re
 import sys
 from pathlib import Path
 
-from common import DtusError, ascii_fold, dump_json, project_root_for, read_text, rel_to, write_text
+from common import DtusError, ascii_fold, dump_json, project_root_for, read_design, read_text, rel_to, write_text
 from designparse import analyze, manual_block_of, model_json, render_constraints_md
 
 HINT_WORDS = re.compile(
@@ -63,7 +63,7 @@ def main(argv=None) -> int:
     design, out = Path(args.design).resolve(), Path(args.out).resolve()
     meta = out / "_meta"
     try:
-        text = read_text(design)
+        text = read_design(design)
         previous_path = meta / "constraints.md"
         previous = read_text(previous_path) if previous_path.exists() else None
         analysis = analyze(text, previous)

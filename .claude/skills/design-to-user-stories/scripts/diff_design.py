@@ -38,8 +38,8 @@ from pathlib import Path
 import yaml
 
 from common import (FROZEN_STATUSES, SYNC_FILE, STORY_ID_RE, DtusError, dump_json, load_json, manual_blocks,
-                    normalize, out_paths, parse_status, pending_items, pending_section, read_text,
-                    rel_to, replace_pending, sha256_bytes, sha256_file, short_hash, split_front_matter,
+                    normalize, out_paths, parse_status, pending_items, pending_section, read_design, read_text,
+                    rel_to, replace_pending, sha256_file, design_sha256, INCLUDE_LINE, short_hash, split_front_matter,
                     write_text, yaml_inline)
 from designparse import analyze, design_index, manual_block_of, model_json, render_constraints_md
 
@@ -72,7 +72,8 @@ def load_baseline(out: Path, root: Path, facts: dict):
                                   capture_output=True, timeout=20)
             if proc.returncode == 0:
                 text = proc.stdout.decode("utf-8").replace("\r\n", "\n")
-                return text, f"git {commit[:12]}:{facts['design']}"
+                if not INCLUDE_LINE.search(text):   # an entry file: its expanded copy is below
+                    return text, f"git {commit[:12]}:{facts['design']}"
         except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
             pass
     path = out / "_meta" / "baseline" / "design.md"
@@ -520,10 +521,9 @@ def main(argv=None) -> int:
     try:
         facts = story_map_facts(out)
         root, out_rel, _ = out_paths(out)
-        raw = design.read_bytes() if design.exists() else None
-        if raw is None:
+        if not design.exists():
             raise DtusError(f"design file not found: {design}")
-        design_sha = sha256_bytes(raw)
+        design_sha = design_sha256(design)
         open_items = [i for i in pending_items(facts["text"]) if not i[1]]
         if design_sha == facts["sha256"] and not pending_section(facts["text"]).startswith("Sync from"):
             print("in sync: the design is the baseline; nothing to do")
@@ -532,7 +532,7 @@ def main(argv=None) -> int:
         old = Snapshot(analyze(base_text, None, baseline_rule_ids(out)))
         cpath = meta / "constraints.md"
         current_constraints = read_text(cpath) if cpath.exists() else None
-        new_analysis = analyze(read_text(design), current_constraints)
+        new_analysis = analyze(read_design(design), current_constraints)
         new = Snapshot(new_analysis)
         index = load_json(meta / "index.json", default={}) or {}
         modules = index.get("modules") or {}
@@ -596,6 +596,8 @@ def main(argv=None) -> int:
         if sid in stories_index:
             stories_index[sid]["sha256"] = sha
     write_text(meta / "index.json", dump_json(index))
+    if INCLUDE_LINE.search(read_text(design)):   # the text that line numbers refer to
+        write_text(meta / "design.md", read_design(design))
     write_text(cpath, render_constraints_md(new_analysis.constraints, rel_to(design, root),
                                             manual_block_of(current_constraints) if current_constraints else None))
     write_text(meta / "model.json", dump_json(model_json(new_analysis)))

@@ -1,6 +1,6 @@
 # Story map
 
-- Design: `{{design}}` · sha256 `{{design_sha256}}` · commit `{{design_commit}}`
+- Design: `{{design}}` · sha256 `{{design_sha256}}` · commit `{{design_commit}}`{{included}}
 - Template version: {{template_version}} · Stories folder: `{{out}}`
 - Stories: {{totals}}
 

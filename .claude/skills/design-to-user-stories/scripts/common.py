@@ -119,6 +119,41 @@ def sha256_file(path: Path) -> str:
     return sha256_bytes(Path(path).read_bytes())
 
 
+# A design may be an entry file whose `<!-- include: path -->` lines name the
+# files that make it up (path relative to the entry file). The scripts read the
+# expanded text; line numbers refer to it (index_design.py writes it).
+INCLUDE_LINE = re.compile(r"^<!-- include: (\S+) -->[ \t]*$", re.M)
+
+
+def included_files(design: Path) -> list:
+    """Files named by the design's include lines, in order; empty for a plain design."""
+    design = Path(design).resolve()
+    return [(design.parent / rel).resolve() for rel in INCLUDE_LINE.findall(read_text(design))]
+
+
+def read_design(design: Path) -> str:
+    """The design text with each include line replaced by the file it names. Raises DtusError."""
+    design = Path(design).resolve()
+    root = project_root_for(design)
+
+    def expand(m):
+        path = (design.parent / m.group(1)).resolve()
+        if path.suffix.lower() != ".md" or not path.is_relative_to(root):
+            raise DtusError(f"{design.name}: include `{m.group(1)}` must name a .md file inside the project")
+        part = read_text(path)
+        if INCLUDE_LINE.search(part):
+            raise DtusError(f"{rel_to(path, root)}: an included file cannot include others; list them in {design.name}")
+        return part.rstrip("\n")
+    return INCLUDE_LINE.sub(expand, read_text(design))
+
+
+def design_sha256(design: Path) -> str:
+    """sha256 of the design file, or of its expanded text when it includes files."""
+    if included_files(design):
+        return sha256_bytes(read_design(design).encode("utf-8"))
+    return sha256_file(design)
+
+
 # ---------------------------------------------------------------- normalizing
 
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.S)

@@ -1,4 +1,4 @@
-# Addendum au modèle de données v16
+## Addendum au modèle de données v16
 
 Complète `modele-donnees-livraisons-v16.md` sans le modifier. Pour les points qu'il traite, l'addendum l'emporte sur le modèle ; chaque section cite les passages qu'elle remplace ou précise.
 
@@ -37,7 +37,7 @@ Tant que sa commande est en attente (`PENDING`), le client la remplace d'un seul
 
 Le geste porte le total que le client a vu (`expected_total`). Ce champ ne fixe aucun prix et n'est jamais enregistré : le serveur recalcule tout, et si son total diffère, il refuse sans rien appliquer et renvoie le nouveau total. Le client le voit, puis valide par un nouveau geste, avec un nouvel identifiant. Un prix changé n'annule donc jamais l'ancienne version à l'insu du client. L'envoi d'une commande (4.1, point 1) accepte le même champ, facultatif, avec le même contrôle.
 
-### Le lien et la suppression
+### Le lien et la suppression : champ ajouté à `Order`
 
 | Champ | Type | Description |
 |---|---|---|
@@ -84,7 +84,7 @@ Chaque connexion demande toujours le mot de passe et le code SMS, et ouvre une n
 - Forme : de 1 à 16 caractères hexadécimaux en minuscules, celle que donne Android. Le serveur refuse toute autre forme (400) ; un téléphone qui ne lit pas un identifiant de cette forme ne l'envoie pas.
 - Absent (iPhone, ancienne version de l'application) : tout se passe comme avant.
 
-### Ce que le serveur garde (complète 10.3)
+### Ce que le serveur garde : champ ajouté à `Device` (complète 10.3)
 
 | Champ | Type | Description |
 |---|---|---|
@@ -149,6 +149,8 @@ Le crédit disponible envoyé au téléphone du livreur, à la place du solde et
 ## A4. Livraison ou retrait : `reception_mode` (demande 5)
 
 Précise : 4.1 (champs de `Order`, « Reprendre une commande », commande du reste), A1, synchronisation des commandes. Le mode n'est plus déduit de l'adresse (4.1, `delivery_address_applied`).
+
+### Champ ajouté à `Order`
 
 | Champ | Type | Description |
 |---|---|---|
@@ -216,7 +218,7 @@ Précise : 4.1 (champs de `Order`), 9.6 (livreur), 11.2 (suppression du compte),
 
 **Principe** : un reçu est émis une fois et ne change plus. Une copie faite plus tard, sur n'importe quel téléphone et des deux côtés, est identique. Une erreur se corrige par une nouvelle opération (paiement, remboursement, avoir, annulation d'écriture), jamais en retouchant le reçu.
 
-### Champs figés (complète 4.1)
+### Champs figés : champs ajoutés à `Order` (complète 4.1)
 
 | Champ | Type | Description |
 |---|---|---|

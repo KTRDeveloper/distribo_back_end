@@ -16,7 +16,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from common import DtusError, dump_json, load_json, project_root_for, read_text, rel_to, sha256_file, write_text
+from common import (DtusError, design_sha256, dump_json, included_files, load_json, project_root_for, read_design,
+                    read_text, rel_to, write_text)
 from designparse import analyze, design_index
 
 
@@ -40,13 +41,13 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     design, out = Path(args.design).resolve(), Path(args.out).resolve()
     try:
-        text = read_text(design)
+        text = read_design(design)
         previous = out / "_meta" / "constraints.md"
         analysis = analyze(text, read_text(previous) if previous.exists() else None)
         root = project_root_for(design)
         index = load_json(out / "_meta" / "index.json", default={}) or {}
         design_part = design_index(analysis)
-        design_part.update({"path": rel_to(design, root), "sha256": sha256_file(design),
+        design_part.update({"path": rel_to(design, root), "sha256": design_sha256(design),
                             "lines": len(analysis.lines)})
         for key in ("aliases", "retired"):   # written by diff_design.py in SYNC
             kept = (index.get("design") or {}).get(key)
@@ -59,6 +60,8 @@ def main(argv=None) -> int:
         status = "not written (--print)"
         if not args.print:
             status = write_text(out / "_meta" / "index.json", dump_json(index))
+            if included_files(design):   # the text that line numbers refer to
+                write_text(out / "_meta" / "design.md", text)
     except DtusError as exc:
         print(f"ERROR: {exc}")
         return 1

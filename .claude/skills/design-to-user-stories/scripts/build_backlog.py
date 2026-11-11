@@ -28,6 +28,7 @@ from pathlib import Path
 
 from common import (STATUSES, STORY_ID_RE, SYNC_FILE, DtusError, dump_json, fill_template, git_commit_for,
                     load_json, load_template, out_paths, parse_status, pending_section, read_text, sha256_file,
+                    design_sha256, included_files, read_design, rel_to,
                     skill_version, split_front_matter, status_row, write_text)
 from designparse import parse_constraints_md, split_row
 
@@ -251,23 +252,28 @@ def main(argv=None) -> int:
             section = pending_section(text)
             if "- [ ]" in section:
                 pending = section
-                m = re.search(r"^- Design: `[^`]*` · sha256 `([0-9a-f]*)` · commit `([^`]*)`", text, re.M)
-                recorded = (m.group(1), m.group(2)) if m else None
+                m = re.search(r"^- Design: `([^`]*)` · sha256 `([0-9a-f]*)` · commit `([^`]*)`", text, re.M)
+                recorded = (m.group(1), m.group(2), m.group(3),
+                            "".join("\n" + line for line in re.findall(r"^- Included: .*$", text, re.M))) if m else None
         sync_open = pending != "None."
         totals = f"{len(stories)} (" + ", ".join(f"{s} {sum(1 for i in stories if state(i) == s)}" for s in STATUSES) + ")"
-        design_sha = sha256_file(design_path) if design_path.exists() else index["design"].get("sha256", "")
-        commit = git_commit_for(root, design_rel or index["design"]["path"]) or "none (design not committed)"
-        if recorded:   # stories still describe the baseline: keep its hash and commit
-            design_sha, commit = recorded
+        design_shown = design_rel or index["design"]["path"]
+        design_sha = design_sha256(design_path) if design_path.exists() else index["design"].get("sha256", "")
+        commit = git_commit_for(root, design_shown) or "none (design not committed)"
+        included = "".join(f"\n- Included: `{rel_to(p, root)}` · sha256 `{sha256_file(p)}` · commit "
+                           f"`{git_commit_for(root, rel_to(p, root)) or 'none'}`"
+                           for p in (included_files(design_path) if design_path.exists() else []))
+        if recorded:   # stories still describe the baseline: keep its path, hash, commit and files
+            design_shown, design_sha, commit, included = recorded
         write_text(story_map, fill_template(load_template("STORY_MAP.md"), {
-            "design": design_rel or index["design"]["path"], "design_sha256": design_sha, "design_commit": commit,
+            "design": design_shown, "design_sha256": design_sha, "design_commit": commit, "included": included,
             "template_version": version, "out": out_rel, "totals": totals, "modules": "\n".join(table),
             "next": nexts, "pending": pending}, "STORY_MAP.md"))
 
         # baseline (kept while a sync is in progress)
         if not sync_open:
             if design_path.exists():
-                write_text(meta / "baseline" / "design.md", read_text(design_path))
+                write_text(meta / "baseline" / "design.md", read_design(design_path))
             write_text(meta / "baseline" / "index.json", dump_json(index["design"]))
 
         # _meta/sync.json: close the sync once every pending change is applied

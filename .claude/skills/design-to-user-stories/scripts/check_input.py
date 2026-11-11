@@ -22,7 +22,8 @@ from pathlib import Path
 import yaml
 
 from common import (ASSETS, SKILL_DIR, DtusError, detect_existing_code, find_ai_instructions,
-                    find_secrets, git_root, load_json, read_text, rel_to, sha256_bytes)
+                    find_secrets, git_root, included_files, load_json, read_design, read_text, rel_to,
+                    design_sha256)
 from designparse import analyze
 
 
@@ -43,12 +44,15 @@ def load_design(design: Path):
     raw = design.read_bytes()
     if b"\x00" in raw:
         raise DtusError(f"{design} is binary, not Markdown")
-    text = read_text(design)
+    text = read_design(design)
     if not text.strip():
         raise DtusError(f"{design} is empty")
     analysis = analyze(text)
     if not [s for s in analysis.sections if s.level >= 1]:
         raise DtusError(f"{design} has no Markdown heading")
+    if included_files(design) and sum(1 for s in analysis.sections if s.level == 1) > 1:
+        raise DtusError(f"{design.name}: only the first included file may have a level-1 heading (#); start the "
+                        "others at ##, otherwise every anchor of the first file changes")
     if not analysis.model.entities and not analysis.model.other_formats:
         raise DtusError(
             f"{design} has no recognizable data model: expected one table per entity "
@@ -83,7 +87,7 @@ def main(argv=None) -> int:
     out = Path(args.out).resolve() if args.out else (root / default_out()).resolve()
     model = analysis.model
     nfields = sum(len(e.fields) for e in model.entities.values())
-    print(f"OK design={rel_to(design, root)} ({len(analysis.lines)} lines, sha256 {sha256_bytes(raw)[:16]})")
+    print(f"OK design={rel_to(design, root)} ({len(analysis.lines)} lines, sha256 {design_sha256(design)[:16]})")
     if model.entities:
         print(f"model: {len(model.entities)} entities, {nfields} fields, {len(analysis.constraints)} constraints "
               f"extractable (format {model.format}, nullability {model.nullability})")

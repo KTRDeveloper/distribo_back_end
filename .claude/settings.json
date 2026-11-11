@@ -15,7 +15,7 @@
       "Bash(sleep 60)"
     ],
     "deny": [
-      "Edit(./data-model/**)",
+      "Edit(./data-model/modele-donnees-livraisons-v16.md)",
       "Read(./.env)",
       "Read(./.env.local)",
       "Read(./.env.*.local)",

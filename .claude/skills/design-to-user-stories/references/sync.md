@@ -26,7 +26,7 @@ Contents: 1 Invariants · 2 Workflow · 3 Triage · 4 Status rules · 5 Data-mod
    - prints the next free story ID of each module.
    When it prints `in sync`, there is nothing semantic: release the lock, report, and stop.
 4. Read STORY_MAP.md first. Then open only what each item needs:
-   - design text: the item's line range only, `sed -n '112,121p' $DESIGN`, when the `was:` / `now:` excerpts are not enough; for context around it, the outline from `index_design.py $DESIGN --out $OUT --print`;
+   - design text: the item's line range only, `sed -n '112,121p' $DESIGN` (`$OUT/_meta/design.md` when the design includes files), when the `was:` / `now:` excerpts are not enough; for context around it, the outline from `index_design.py $DESIGN --out $OUT --print`;
    - the impacted story files listed in the item;
    - the affected module's files: MODULE.md, contracts.md, model.md, and the header of `_meta/src/<module>.yaml` (`sed -n '1,/^stories:/p'`).
    Never open the whole design, `_meta/index.json`, or a story no item lists, not even as a style example or to copy a dependency. Why: every unrelated file costs tokens and invites unrelated edits. Use these instead:

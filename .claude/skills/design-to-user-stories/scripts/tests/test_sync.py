@@ -13,6 +13,8 @@ from helpers import FIXTURES, SCRIPTS, Project, needs_git, run
 
 import build_backlog
 import check_input
+import common
+import check_input
 import diff_design
 import render_stories
 import validate
@@ -396,6 +398,60 @@ class SyncBacklogValidateTest(SyncCase):
         self.edit_story("CAT-001", "asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3]", f"asvs: [v5.0.0-8.2.1, v5.0.0-15.3.3, {l3}]")
         self.close()
         self.assertIn(f"cites {l3} above the module's ASVS L2", self.validate()[1])
+
+
+@needs_git
+class IncludedDesignTest(SyncCase):
+    """An entry file whose include lines name the plain design and an addendum."""
+
+    def git(self, *args):
+        subprocess.run(["git", "-C", str(self.p.root), "-c", "user.name=t", "-c", "user.email=t@example.com",
+                        *args], check=True, capture_output=True)
+
+    def include(self, *names):
+        entry = self.p.root / "docs" / "conception.md"
+        entry.write_text("".join(f"<!-- include: {n} -->\n" for n in names))
+        return entry
+
+    def test_switch_to_an_entry_file_then_add_an_addendum(self):
+        (self.p.root / "docs" / "addendum.md").write_text("## Addendum\n\nLes produits archivés restent visibles.\n")
+        self.p.design = self.include("design.md", "addendum.md")
+        design_line = re.search(r"^- Design: .*$", self.story_map(), re.M).group(0)
+        code, out = self.diff()
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("removed", out)
+        self.assertEqual((self.stories / "_meta" / "design.md").read_text(), common.read_design(self.p.design))
+        self.backlog()
+        self.assertIn(design_line + "\n", self.story_map(), "an open sync keeps the recorded design")
+        self.assertNotIn("- Included:", self.story_map())
+        self.check_off()
+        self.git("add", "docs")
+        self.git("commit", "-q", "-m", "design")
+        code, out = self.backlog()
+        self.assertEqual(code, 0, out)
+        self.assertRegex(self.story_map(), r"- Design: `docs/conception.md` · sha256 `[0-9a-f]{64}` · commit `[0-9a-f]{40}`"
+                                           r"\n- Included: `docs/design.md` · sha256 `[0-9a-f]{64}` · commit `[0-9a-f]{40}`"
+                                           r"\n- Included: `docs/addendum.md` · ")
+        self.assertIn("nothing to do", self.diff()[1])
+        (self.p.root / "docs" / "addendum-2.md").write_text("## Addendum 2\n\nUn produit a une couleur.\n")
+        self.include("design.md", "addendum.md", "addendum-2.md")
+        code, out = self.diff("--print")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Addendum 2", out)
+        self.assertNotIn("removed", out)
+
+    def test_bad_includes_fail(self):
+        nested = self.p.root / "docs" / "nested.md"
+        nested.write_text("<!-- include: design.md -->\n")
+        for names, message in ((["nested.md"], "cannot include others"), (["../../x.md"], "inside the project"),
+                               (["missing.md"], "cannot read")):
+            with self.subTest(names=names), self.assertRaises(common.DtusError) as caught:
+                common.read_design(self.include(*names))
+            self.assertIn(message, str(caught.exception))
+        (self.p.root / "docs" / "titled.md").write_text("# Addendum\n\nTexte.\n")
+        code, out = run(check_input.main, str(self.include("design.md", "titled.md")), "--out", str(self.stories))
+        self.assertEqual(code, 1, out)
+        self.assertIn("only the first included file may have a level-1 heading", out)
 
 
 @needs_git
