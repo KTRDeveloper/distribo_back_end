@@ -454,3 +454,25 @@ Also in this run: access.
 
 **Evidence:** story tests 5/5; full suite 5443/5443, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
 <!-- end AUTH-042 -->
+
+<!-- begin AUTH-043 -->
+## AUTH-043 — A lock refusal can tell the time left
+
+- Filed: 2026-11-11 07:42 UTC
+- Status: **done**: secondsLeft, httpError headers, handler sets them
+- Risk: medium · story: [AUTH-043-a-lock-refusal-can-tell-the-time-left.md](../modules/auth/AUTH-043-a-lock-refusal-can-tell-the-time-left.md)
+- Agent: 26,968 tokens, 14 tool uses, 5 min 40 s
+
+### Agent report
+
+**Summary:** Added secondsLeft, optional headers on httpError, and the handler sets them on the response.
+
+**Decisions:**
+- `headers` stored non-enumerable on the error: the handler logs the whole error, so an enumerable field would put header values in the log (AB-1).
+- Handler sets only string-valued headers, before the JSON body.
+
+**Tests added beyond the story:**
+- `tests/unit/lib/seconds-left.test.ts` › gives the window without pttl; never writes to the key: fallback and read-only (Context, Security 6.3.1); passed at once
+
+**Evidence:** story tests 9/9; full suite 5451/5452 on first run (the one failure, quality-gates lint, was my test lint errors, fixed and rerun green), failing: none, 0 known; typecheck clean; lint 0 errors
+<!-- end AUTH-043 -->

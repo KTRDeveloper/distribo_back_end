@@ -403,7 +403,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-040 | done | | HMAC-SHA256 fingerprint, ANDROID_ID_HASH_KEY required (min 32) |
 | AUTH-041 | done | | login with android_id revokes same-fingerprint devices (REPLACED), P2002 -> 409 SESSION_CONFLICT |
 | AUTH-042 | done | | open sessions filter on list and alert; alert after issueSession excluding new device |
-| AUTH-043 | todo | | |
+| AUTH-043 | done | | secondsLeft, httpError headers, handler sets them |
 | AUTH-044 | todo | | |
 | ORD-038 | todo | | |
 | PRIV-006 | todo | | |

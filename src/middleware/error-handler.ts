@@ -55,6 +55,11 @@ export function errorHandler(err: Error, req: Request, res: Response, next: Next
   // Handle custom application errors with statusCode property
   if ('statusCode' in err && typeof err.statusCode === 'number') {
     logger.warn({ requestId, error: err }, 'Application error');
+    if ('headers' in err && isPlainObject(err.headers)) {
+      for (const [name, value] of Object.entries(err.headers)) {
+        if (typeof value === 'string') res.setHeader(name, value);
+      }
+    }
     return res.status(err.statusCode).json({
       error: {
         message: err.message,

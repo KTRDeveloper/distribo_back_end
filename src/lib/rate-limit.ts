@@ -9,6 +9,8 @@ export interface RateLimitClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, mode: 'EX', ttlSeconds: number): Promise<unknown>;
   del?(key: string): Promise<unknown>;
+  /** Remaining time to live in milliseconds (Redis PTTL); -1 no expiry, -2 no key. */
+  pttl?(key: string): Promise<number>;
   eval?(script: string, numKeys: number, ...args: Array<string | number>): Promise<unknown>;
 }
 
@@ -67,6 +69,20 @@ export async function checkAndConsume(
 export async function getCount(key: string, client: RateLimitClient = redis): Promise<number> {
   const current = await client.get(key);
   return current ? parseInt(current, 10) : 0;
+}
+
+/**
+ * Remaining time of the counter `key`, in whole seconds rounded up, at least 1. Read only: it never
+ * extends a lock (ASVS 6.3.1). A client without `pttl` gives `windowSeconds`.
+ */
+export async function secondsLeft(
+  key: string,
+  windowSeconds: number,
+  client: RateLimitClient = redis
+): Promise<number> {
+  if (!client.pttl) return windowSeconds;
+  const ms = await client.pttl(key);
+  return Math.max(1, Math.ceil(ms / 1000));
 }
 
 /** Clear the counter for `key` (e.g. after a successful login). */
