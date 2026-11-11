@@ -408,7 +408,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-038 | done | | expected_total check on place and purchase; 13 tests |
 | PRIV-006 | done | | device update also nulls android_id_hash; 2 tests |
 | DLV-017 | done | | creditCheck in src/shared/credit.ts, deliverOrder uses it |
-| REL-032 | todo | | |
+| REL-032 | done | | available_credit clamped at 0 via availableCredit; 6 unit tests, suite green |
 | ORD-035 | todo | | |
 | ORD-036 | todo | | |
 | DLV-018 | todo | | |

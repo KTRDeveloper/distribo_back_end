@@ -1171,3 +1171,21 @@ REL-026 done
 **Follow-ups:**
 - Old tests AC-3/AB-1 of REL-024 were rewritten as the story's "Tests to update" allows.
 <!-- end REL-031 -->
+
+<!-- begin REL-032 -->
+## REL-032 — A driver's available credit never goes below zero
+
+- Filed: 2026-11-11 08:06 UTC
+- Status: **done**: available_credit clamped at 0 via availableCredit; 6 unit tests, suite green
+- Risk: medium · story: [REL-032-a-driver-s-available-credit-never-goes-below.md](../modules/relationship/REL-032-a-driver-s-available-credit-never-goes-below.md)
+- Agent: 24,119 tokens, 12 tool uses, 3 min 31 s
+
+### Agent report
+
+**Summary:** projectForDriver now uses availableCredit (clamped at 0, null with no limit); unit tests added.
+
+**Decisions:**
+- AB-1 negative check: matches `:-\d` on the JSON, since UUIDs contain hyphens.
+
+**Evidence:** story tests 6/6; full suite 5493/5493, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
+<!-- end REL-032 -->

@@ -1,4 +1,5 @@
 import type { CustomerRelationship, Person, Prisma } from '@prisma/client';
+import { availableCredit } from '../../shared/credit.js';
 import { toPublicPerson, type PublicPerson } from '../person/person.repository.js';
 
 /** A relationship row with the parties loaded; absent parties are null or omitted. */
@@ -84,6 +85,10 @@ function toNumber(value: bigint): number {
   return Number(value);
 }
 
+function toNullableNumber(value: bigint | null): number | null {
+  return value === null ? null : toNumber(value);
+}
+
 function customerOf(row: RelationshipRow): PartyView | null {
   if (row.customerPerson) return { kind: 'PERSON', person: toPublicPerson(row.customerPerson) };
   if (row.customerOrganization) {
@@ -163,7 +168,8 @@ export function projectInvitation(row: RelationshipRow): SupplierInvitationView 
 
 /**
  * Driver view: the customer's name and the credit still available (limit minus
- * balance, null with no ceiling), never the limit or the balance themselves. The
+ * balance, clamped at 0 so an overrun or a zero limit never shows the debt, null with
+ * no ceiling; REL-032, v5.0.0-15.3.1), never the limit or the balance themselves. The
  * name is the customer's public name, else the organization name, else the
  * supplier's own counter label (a driver works for the supplier).
  */
@@ -172,6 +178,6 @@ export function projectForDriver(row: RelationshipRow): DriverRelationshipView {
     id: row.id,
     customer_name:
       row.customerPerson?.fullName ?? row.customerOrganization?.name ?? row.customerLabel ?? null,
-    available_credit: row.creditLimit === null ? null : toNumber(row.creditLimit - row.balance),
+    available_credit: toNullableNumber(availableCredit(row.creditLimit, row.balance)),
   };
 }
