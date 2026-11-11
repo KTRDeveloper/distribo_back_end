@@ -1,4 +1,4 @@
-import type { CollaborationRole, OrderStatus, Prisma } from '@prisma/client';
+import type { CollaborationRole, OrderStatus, Prisma, ReceptionMode } from '@prisma/client';
 import { logger } from '../../../lib/logger.js';
 import { abilityFor } from '../../../shared/access/ability.js';
 import { TEXT_MAX } from '../../../shared/limits.js';
@@ -99,6 +99,16 @@ function readEnteredAt(row: Row, now: Date): Date | Invalid {
   return ahead > 0 && ahead <= FUTURE_TOLERANCE_MS ? now : parsed;
 }
 
+/**
+ * The reception mode of an order entered offline: `null` when absent or null (older apps), else
+ * exactly `DELIVERY` or `PICKUP`; anything else is `INVALID` (ASVS v5.0.0-2.2.1).
+ */
+function readReceptionMode(row: Row): ReceptionMode | null | Invalid {
+  const value = row['reception_mode'];
+  if (value === undefined || value === null) return null;
+  return value === 'DELIVERY' || value === 'PICKUP' ? value : INVALID;
+}
+
 /** A quantity in thousandths, above zero; the phone may send a number or a decimal text. */
 function readQuantity(row: Row): bigint | Invalid {
   const value = row['quantity'];
@@ -129,7 +139,8 @@ const invalidLine = (id: string) =>
 
 /**
  * One order entered offline. The judge has already checked scope, the right to create and set the
- * author. The order is stored empty at its delivery cost; its lines follow in `order_lines`, which
+ * author. The reception mode is `DELIVERY`, `PICKUP` or empty, and a PICKUP order has no address
+ * (SYNC-049, C-60). The order is stored empty at its delivery cost; its lines follow in `order_lines`, which
  * set the total (the database checks the two agree when the batch commits). Never throws for a
  * business reason, so one order cannot block the phone's batch (C-36).
  */
@@ -143,6 +154,7 @@ async function createOrder(ctx: PushContext, row: Row): Promise<LineOutcome> {
   const rawRelationship = row['customer_relationship_id'];
   const deliveryCost = readAmount(row, 'delivery_cost', 0n);
   const address = readText(row, 'delivery_address_applied');
+  const receptionMode = readReceptionMode(row);
   const note = readText(row, 'customer_note');
   const desired = readDay(row, 'desired_delivery_date');
   const now = new Date();
@@ -152,6 +164,9 @@ async function createOrder(ctx: PushContext, row: Row): Promise<LineOutcome> {
     !UUID.test(rawRelationship) ||
     deliveryCost === INVALID ||
     address === INVALID ||
+    receptionMode === INVALID ||
+    // C-60: a PICKUP order has no delivery address.
+    (receptionMode === 'PICKUP' && address !== null) ||
     note === INVALID ||
     desired === INVALID ||
     enteredAt === INVALID
@@ -198,6 +213,7 @@ async function createOrder(ctx: PushContext, row: Row): Promise<LineOutcome> {
         enteredById: viewer.personId,
         status: 'CONFIRMED',
         deliveryAddressApplied: address,
+        receptionMode,
         deliveryCost,
         totalAmount: orderTotal([], deliveryCost),
         desiredDeliveryDate: desired,

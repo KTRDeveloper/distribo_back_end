@@ -1601,3 +1601,26 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - All story tests passed before the judge change (the order push adapter ignores those fields anyway), so they act as regression guards; the computed-list entry is defence in depth per the story.
 <!-- end SYNC-048 -->
+
+<!-- begin SYNC-049 -->
+## SYNC-049 — Orders entered offline carry their reception mode
+
+- Filed: 2026-11-11 10:17 UTC
+- Status: **done**: reception_mode read on offline order create; update never changes it
+- Risk: medium · story: [SYNC-049-orders-entered-offline-carry-their-reception.md](../modules/sync/SYNC-049-orders-entered-offline-carry-their-reception.md)
+- Agent: 47,615 tokens, 17 tool uses, 4 min 54 s
+
+### Agent report
+
+**Summary:** Offline order create now reads `reception_mode` (DELIVERY/PICKUP/absent), refuses unknown values and PICKUP with an address; update untouched.
+
+**Decisions:**
+- Empty string or non-string mode: refused as INVALID (only absent/null is stored empty), per "any other value".
+- Judge needed no change: `reception_mode` already passes on create.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/push-reception-mode.test.ts` › null mode stored empty; mode "delivery", 42 and "" refused: strict two-value check (AB-1, v5.0.0-2.2.1)
+- same file › update with reception_mode PICKUP keeps DELIVERY: regression guard (AC-2); passed at once
+
+**Evidence:** story tests 11/11 (+17 in push-orders unchanged); full suite 5654/5654, failing: none, 0 known; typecheck clean; lint 0 errors, 299 warnings (existing)
+<!-- end SYNC-049 -->
