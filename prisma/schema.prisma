@@ -1356,6 +1356,15 @@ model CustomerPrice {
 //   that still has its address, fails with a check error (SQLSTATE 23514), so
 //   code must clear the address in the same write. (Migration
 //   20261026110000_ord_036_reception_mode)
+// - The receipt of an order (supplier_name_applied, customer_name_applied,
+//   collected_applied, balance_after_applied) is an accounting record that
+//   stays as it was written, even after an account is deleted. Once
+//   supplier_name_applied is set, the database refuses any change to one of the
+//   four fields (SQLSTATE 23514), so code writes the whole receipt in one
+//   statement, when the order is delivered, and never corrects it. An empty
+//   customer_name_applied means the customer has no public name (no account or
+//   an anonymized person). Migration 20261026130000_ord_042_backfill_and_freeze_receipt
+//   also filled the receipt of orders delivered before the fields existed.
 model Order {
   id                     String         @id @db.Uuid
   customerRelationshipId String         @map("customer_relationship_id") @db.Uuid

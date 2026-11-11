@@ -1352,3 +1352,34 @@ ORD-032 done
 **Follow-ups:**
 - `tests/integration/images/image-copy.test.ts` is flaky: it asserts that a random UUID contains no `20\d{2}`.
 <!-- end ORD-041 -->
+
+<!-- begin ORD-042 -->
+## ORD-042 — Delivered orders get their receipt from the server's history, then it is frozen
+
+- Filed: 2026-11-11 09:12 UTC
+- Status: **done**: Migration 20261026130000 backfills receipts and freezes them; 17 tests, suite green
+- Risk: high · story: [ORD-042-delivered-orders-get-their-receipt-from-the.md](../modules/order/ORD-042-delivered-orders-get-their-receipt-from-the.md)
+- Agent: 76,603 tokens, 29 tool uses, 6 min 41 s
+
+### Agent report
+
+**Summary:** Migration ord_042 audits, backfills the receipt of delivered orders from the ledger, then adds the freeze trigger; schema comment updated.
+
+**Decisions:**
+- Empty customer name: NULL (what DLV-019 writes), not an empty string; "set" means supplier_name_applied IS NOT NULL.
+- Backfill must pass the existing orders_enforce_status_rules (it refuses any change to a DELIVERED order): disabled for the one UPDATE then re-enabled, with SET CONSTRAINTS ALL IMMEDIATE before the re-enable (pending deferred events block ALTER TABLE). Precedent: cat_013 DISABLE TRIGGER.
+- Audit covers every DELIVERED order (literal story text), SALE = not a reversal; earliest SALE by server_updated_at, id.
+- Backfill bumps orders.server_updated_at (trigger), so clients pull the new fields.
+- Test fixtures give orders delivery_cost = total (no lines) so the deferred total check holds.
+
+**Tests added beyond the story:**
+- `receipt-backfill.test.ts` › collected 0 when no payment came with the sale: AC "0 when none" (Context); passed at once
+- same › leaves a receipt already written and other orders untouched: backfill only fills empty receipts of DELIVERED orders (Context); passed at once
+- same › switches the status rules back on after the backfill: the disabled trigger must not stay off (fail closed); passed at once
+- same › lets the writer set an empty receipt once; accepts supplier_note and same-value rewrite: freeze only applies once set (AC-5, Context)
+
+**Evidence:** story tests 17/17; full suite 5589/5589, failing: none, 0 known; typecheck clean; lint 0 errors, 268 warnings (existing style)
+
+**Follow-ups:**
+- ORD-043/045 (rule tying fields to DELIVERED) not touched; a DELIVERED order whose supplier has no organization would stay unfilled.
+<!-- end ORD-042 -->
