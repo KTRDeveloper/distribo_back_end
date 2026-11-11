@@ -425,5 +425,5 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | SYNC-046 | done | | Replaced-version gestures settled; delivery restores via trigger exception (migration sync_046) |
 | SYNC-047 | done | | customer_public_name / supplier_public_name computed at pull, never written by a phone |
 | REL-033 | done | | two rename triggers and one-time touch in rel_033_public_name_touch |
-| SYNC-048 | todo | | |
+| SYNC-048 | done | | receipt fields added to orders computed list; pull-receipt tests green |
 | SYNC-049 | todo | | |

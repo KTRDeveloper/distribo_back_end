@@ -168,7 +168,14 @@ const RULES_OF: Record<JudgedTable, TableRules> = {
   },
   orders: {
     subject: 'Order',
-    computed: ['sync_issue'],
+    // The receipt is frozen by the server at delivery (DLV-019): a pushed value is dropped (SYNC-048).
+    computed: [
+      'sync_issue',
+      'supplier_name_applied',
+      'customer_name_applied',
+      'collected_applied',
+      'balance_after_applied',
+    ],
     create: [{ action: 'create', subject: 'Order', withRow: true }],
     steps: {
       fields: [

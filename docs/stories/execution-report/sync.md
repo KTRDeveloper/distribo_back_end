@@ -1579,3 +1579,25 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 
 **Evidence:** story tests 10/10; full suite 5633/5634 on the first run, the one failure (quality-gates lint) came from 2 lint errors in my test, fixed and rerun green; typecheck clean; lint 0 errors, warnings pre-existing.
 <!-- end SYNC-047 -->
+
+<!-- begin SYNC-048 -->
+## SYNC-048 — Pulled orders carry the frozen receipt, which a phone never writes
+
+- Filed: 2026-11-11 10:12 UTC
+- Status: **done**: receipt fields added to orders computed list; pull-receipt tests green
+- Risk: medium · story: [SYNC-048-pulled-orders-carry-the-frozen-receipt-which-a.md](../modules/sync/SYNC-048-pulled-orders-carry-the-frozen-receipt-which-a.md)
+- Agent: 43,047 tokens, 15 tool uses, 4 min 21 s
+
+### Agent report
+
+**Summary:** Added the four receipt fields to the `orders` computed list in sync.judge.ts and wrote pull-receipt.test.ts; order.adapter.ts needed no change.
+
+**Decisions:**
+- order.adapter.ts left untouched: `orderRow` already spreads the ORD-041 views, which carry the four fields (DRIVER view has no balance), so AC-1/AC-2 passed at once.
+- AB-1 test also asserts the stored row in the database, not only the next pull.
+
+**Evidence:** story tests 5/5; full suite 5644/5644, failing: none, 0 known; typecheck clean; lint 0 errors, 299 warnings (pre-existing)
+
+**Follow-ups:**
+- All story tests passed before the judge change (the order push adapter ignores those fields anyway), so they act as regression guards; the computed-list entry is defence in depth per the story.
+<!-- end SYNC-048 -->
