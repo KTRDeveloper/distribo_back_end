@@ -416,7 +416,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-039 | done | | POST /orders/{orderId}/replace; link written before the cancellation (frozen order trigger) |
 | ORD-040 | done | | four nullable receipt columns on orders; migration 20261026120000 |
 | DLV-019 | done | | receipt written once in transitionOrder; 10 story tests pass |
-| ORD-041 | todo | | |
+| ORD-041 | done | | views add the four receipt fields; balance_after_applied only for OWNER/MANAGER/SELLER |
 | ORD-042 | todo | | |
 | ORD-043 | todo | | |
 | ORD-044 | todo | | |

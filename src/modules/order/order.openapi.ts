@@ -49,6 +49,10 @@ const customerOrderViewSchema = z.object({
   parent_order_id: z.string().uuid().nullable(),
   customer_note: z.string().nullable(),
   supplier_note: z.string().nullable(),
+  supplier_name_applied: z.string().nullable().openapi({ readOnly: true }),
+  customer_name_applied: z.string().nullable().openapi({ readOnly: true }),
+  collected_applied: z.number().int().nullable().openapi({ readOnly: true }),
+  balance_after_applied: z.number().int().nullable().openapi({ readOnly: true }),
   lines: z.array(orderLineViewSchema),
 });
 
@@ -265,6 +269,8 @@ openApiRegistry.registerPath({
 
 /** Supplier-side order view (`projectOrderForSupplier`); the price author goes to OWNER and MANAGER only. */
 export const supplierOrderViewSchema = customerOrderViewSchema.extend({
+  // Absent for a DRIVER: the customer's debt is not theirs to see.
+  balance_after_applied: z.number().int().nullable().optional().openapi({ readOnly: true }),
   entered_by_id: z.string().uuid(),
   delivered_by_id: z.string().uuid().nullable(),
   cancelled_by_id: z.string().uuid().nullable(),

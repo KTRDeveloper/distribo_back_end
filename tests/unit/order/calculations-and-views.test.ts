@@ -170,9 +170,17 @@ describe('customer view', () => {
         'parent_order_id',
         'customer_note',
         'supplier_note',
+        'supplier_name_applied',
+        'customer_name_applied',
+        'collected_applied',
+        'balance_after_applied',
         'lines',
       ].sort(),
     );
+  });
+
+  it('a DRIVER supplier view has no balance_after_applied', () => {
+    expect(projectOrderForSupplier(order(), 'DRIVER')).not.toHaveProperty('balance_after_applied');
   });
 });
 

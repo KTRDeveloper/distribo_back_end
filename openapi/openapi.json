@@ -16571,6 +16571,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -16638,6 +16666,10 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
+                    "balance_after_applied",
                     "lines"
                   ]
                 }
@@ -16861,6 +16893,34 @@
                               "null"
                             ]
                           },
+                          "supplier_name_applied": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
+                          "customer_name_applied": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
+                          "collected_applied": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
+                          "balance_after_applied": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
                           "lines": {
                             "type": "array",
                             "items": {
@@ -16928,6 +16988,10 @@
                           "parent_order_id",
                           "customer_note",
                           "supplier_note",
+                          "supplier_name_applied",
+                          "customer_name_applied",
+                          "collected_applied",
+                          "balance_after_applied",
                           "lines"
                         ]
                       }
@@ -17187,6 +17251,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -17254,6 +17346,10 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
+                    "balance_after_applied",
                     "lines"
                   ]
                 }
@@ -17496,6 +17592,34 @@
                               "null"
                             ]
                           },
+                          "supplier_name_applied": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
+                          "customer_name_applied": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
+                          "collected_applied": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
+                          "balance_after_applied": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
                           "lines": {
                             "type": "array",
                             "items": {
@@ -17563,6 +17687,10 @@
                           "parent_order_id",
                           "customer_note",
                           "supplier_note",
+                          "supplier_name_applied",
+                          "customer_name_applied",
+                          "collected_applied",
+                          "balance_after_applied",
                           "lines"
                         ]
                       }
@@ -17781,6 +17909,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -17848,6 +18004,10 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
+                    "balance_after_applied",
                     "lines"
                   ]
                 }
@@ -18072,6 +18232,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -18139,6 +18327,10 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
+                    "balance_after_applied",
                     "lines"
                   ]
                 }
@@ -18426,6 +18618,34 @@
                             "null"
                           ]
                         },
+                        "supplier_name_applied": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "customer_name_applied": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "collected_applied": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "balance_after_applied": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
                         "lines": {
                           "type": "array",
                           "items": {
@@ -18493,6 +18713,10 @@
                         "parent_order_id",
                         "customer_note",
                         "supplier_note",
+                        "supplier_name_applied",
+                        "customer_name_applied",
+                        "collected_applied",
+                        "balance_after_applied",
                         "lines"
                       ]
                     },
@@ -18735,6 +18959,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -18840,6 +19092,9 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
                     "lines",
                     "entered_by_id",
                     "delivered_by_id",
@@ -19069,6 +19324,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -19174,6 +19457,9 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
                     "lines",
                     "entered_by_id",
                     "delivered_by_id",
@@ -19403,6 +19689,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -19508,6 +19822,9 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
                     "lines",
                     "entered_by_id",
                     "delivered_by_id",
@@ -19793,6 +20110,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -19898,6 +20243,9 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
                     "lines",
                     "entered_by_id",
                     "delivered_by_id",
@@ -20144,6 +20492,34 @@
                               "null"
                             ]
                           },
+                          "supplier_name_applied": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
+                          "customer_name_applied": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
+                          "collected_applied": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
+                          "balance_after_applied": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "readOnly": true
+                          },
                           "lines": {
                             "type": "array",
                             "items": {
@@ -20249,6 +20625,9 @@
                           "parent_order_id",
                           "customer_note",
                           "supplier_note",
+                          "supplier_name_applied",
+                          "customer_name_applied",
+                          "collected_applied",
                           "lines",
                           "entered_by_id",
                           "delivered_by_id",
@@ -20552,6 +20931,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -20657,6 +21064,9 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
                     "lines",
                     "entered_by_id",
                     "delivered_by_id",
@@ -20859,6 +21269,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -20964,6 +21402,9 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
                     "lines",
                     "entered_by_id",
                     "delivered_by_id",
@@ -21180,6 +21621,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -21285,6 +21754,9 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
                     "lines",
                     "entered_by_id",
                     "delivered_by_id",
@@ -21470,6 +21942,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -21537,6 +22037,10 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
+                    "balance_after_applied",
                     "lines"
                   ]
                 }
@@ -21717,6 +22221,34 @@
                         "null"
                       ]
                     },
+                    "supplier_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "customer_name_applied": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "collected_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
+                    "balance_after_applied": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "readOnly": true
+                    },
                     "lines": {
                       "type": "array",
                       "items": {
@@ -21784,6 +22316,10 @@
                     "parent_order_id",
                     "customer_note",
                     "supplier_note",
+                    "supplier_name_applied",
+                    "customer_name_applied",
+                    "collected_applied",
+                    "balance_after_applied",
                     "lines"
                   ]
                 }
@@ -23291,6 +23827,34 @@
                             "null"
                           ]
                         },
+                        "supplier_name_applied": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "customer_name_applied": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "collected_applied": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "balance_after_applied": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
                         "lines": {
                           "type": "array",
                           "items": {
@@ -23396,6 +23960,9 @@
                         "parent_order_id",
                         "customer_note",
                         "supplier_note",
+                        "supplier_name_applied",
+                        "customer_name_applied",
+                        "collected_applied",
                         "lines",
                         "entered_by_id",
                         "delivered_by_id",

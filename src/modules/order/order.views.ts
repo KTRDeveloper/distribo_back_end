@@ -22,6 +22,9 @@ type PartyView = {
   parent_order_id: string | null;
   customer_note: string | null;
   supplier_note: string | null;
+  supplier_name_applied: string | null;
+  customer_name_applied: string | null;
+  collected_applied: number | null;
 };
 
 export type OrderLineView = {
@@ -38,6 +41,7 @@ export type OrderLineView = {
 };
 
 export type SupplierOrderView = PartyView & {
+  balance_after_applied?: number | null;
   entered_by_id: string;
   delivered_by_id: string | null;
   cancelled_by_id: string | null;
@@ -45,9 +49,16 @@ export type SupplierOrderView = PartyView & {
   lines: OrderLineView[];
 };
 
-export type CustomerOrderView = PartyView & { lines: OrderLineView[] };
+export type CustomerOrderView = PartyView & {
+  balance_after_applied: number | null;
+  lines: OrderLineView[];
+};
 
 const iso = (date: Date | null): string | null => (date ? date.toISOString() : null);
+
+/** A nullable amount as a number; null until the order is delivered. */
+const money = (amount: bigint | null | undefined): number | null =>
+  amount === null || amount === undefined ? null : Number(amount);
 
 /** Fields both parties see, listed one by one (v5.0.0-15.3.1: never a whole row). */
 function commonFields(order: Order): PartyView {
@@ -72,6 +83,9 @@ function commonFields(order: Order): PartyView {
     parent_order_id: order.parentOrderId,
     customer_note: order.customerNote,
     supplier_note: order.supplierNote,
+    supplier_name_applied: order.supplierNameApplied ?? null,
+    customer_name_applied: order.customerNameApplied ?? null,
+    collected_applied: money(order.collectedApplied),
   };
 }
 
@@ -92,15 +106,19 @@ function commonLine(line: OrderLine): OrderLineView {
 /**
  * Supplier-side view: all order fields plus `sync_issue`. The price author and time on
  * each line go only to OWNER and MANAGER; any other or unknown role gets neither
- * (v5.0.0-8.2.3, fail closed).
+ * (v5.0.0-8.2.3, fail closed). The customer's debt after delivery (`balance_after_applied`)
+ * goes only to OWNER, MANAGER and SELLER: the key is absent for DRIVER and any other or
+ * unknown role (v5.0.0-15.3.1).
  *
  * @param order - the order with its lines
  * @param role - the caller's role in the supplier organization, from the session
  */
 export function projectOrderForSupplier(order: OrderWithLines, role: Role): SupplierOrderView {
   const seesPriceAuthor = role === 'OWNER' || role === 'MANAGER';
+  const seesBalance = seesPriceAuthor || role === 'SELLER';
   return {
     ...commonFields(order),
+    ...(seesBalance ? { balance_after_applied: money(order.balanceAfterApplied) } : {}),
     entered_by_id: order.enteredById,
     delivered_by_id: order.deliveredById,
     cancelled_by_id: order.cancelledById,
@@ -119,5 +137,9 @@ export function projectOrderForSupplier(order: OrderWithLines, role: Role): Supp
  * author), no sync issue. `placed_by_party` and `cancelled_by_party` stay.
  */
 export function projectOrderForCustomer(order: OrderWithLines): CustomerOrderView {
-  return { ...commonFields(order), lines: order.lines.map(commonLine) };
+  return {
+    ...commonFields(order),
+    balance_after_applied: money(order.balanceAfterApplied),
+    lines: order.lines.map(commonLine),
+  };
 }
