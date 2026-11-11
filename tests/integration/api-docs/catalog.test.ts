@@ -207,6 +207,9 @@ describe('GET /docs/openapi.json', () => {
     // ORD-039: the customer changes a pending order
     expect(paths).toContain('/api/v1/orders/{orderId}/replace');
 
+    // ORD-044: a business changes a pending purchase
+    expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases/{orderId}/replace');
+
     // ORD-015: the seller writes a note on an order
     expect(paths).toContain('/api/v1/organizations/{organizationId}/orders/{orderId}/note');
 

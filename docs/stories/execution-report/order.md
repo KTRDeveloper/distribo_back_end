@@ -1407,3 +1407,25 @@ ORD-032 done
 **Follow-ups:**
 - ORD-045 must be checked against status-rules cases that insert DELIVERED without delivered_at (still 23514).
 <!-- end ORD-043 -->
+
+<!-- begin ORD-044 -->
+## ORD-044 — A business changes a pending purchase
+
+- Filed: 2026-11-11 09:29 UTC
+- Status: **done**: POST purchases/{orderId}/replace; 5 tests green, suite green
+- Risk: high · story: [ORD-044-a-business-changes-a-pending-purchase.md](../modules/order/ORD-044-a-business-changes-a-pending-purchase.md)
+- Agent: 47,223 tokens, 18 tool uses, 5 min 54 s
+
+### Agent report
+
+**Summary:** Added POST /organizations/{organizationId}/purchases/{orderId}/replace, calling `replaceOrder` with the path organization; all story tests green.
+
+**Decisions:**
+- OpenAPI: pulled the ORD-039 responses into a shared `replaceOrderResponses` const, reused for the purchase path plus a 403 entry (same pattern as `customerCancelResponses`).
+- Regenerated `openapi/openapi.json` (committed file) with `npm run openapi:generate`.
+
+**Tests added beyond the story:**
+- `tests/integration/order/replace-purchase.test.ts` › answers 404 to a non-member of the path business: a non-member of the path organization gets 404 and nothing changes (CONVENTIONS: outside scope is 404; same as the cancel route); passed at once
+
+**Evidence:** story tests 5/5 (49/49 with catalog and per-001); full suite 5594/5596 first run, the 2 failures were my typecheck error in order.openapi.ts (fixed, rerun green 121/121 on tooling, order and docs files), failing: none, 0 known; typecheck clean; lint 0 errors, 269 warnings (all existing security warnings)
+<!-- end ORD-044 -->

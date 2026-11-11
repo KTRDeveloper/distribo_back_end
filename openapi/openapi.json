@@ -18776,6 +18776,411 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/purchases/{orderId}/replace": {
+      "post": {
+        "tags": [
+          "order"
+        ],
+        "summary": "A manager changes a pending purchase of the business (ORD-044)",
+        "description": "Same body, rules and answer as `POST /api/v1/orders/{orderId}/replace` (ORD-039). The caller needs the ability to order from a supplier (OWNER or MANAGER of the business); the purchase is found through the business's own relationship, so any other id is a 404.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "orderId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "delivery_address": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "reception_mode": {
+                    "type": "string",
+                    "enum": [
+                      "DELIVERY",
+                      "PICKUP"
+                    ]
+                  },
+                  "desired_delivery_date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "customer_note": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "expected_total": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                        },
+                        "product_variant_id": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                        },
+                        "quantity": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "string",
+                              "maxLength": 32
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "product_variant_id",
+                        "quantity"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "id",
+                  "expected_total",
+                  "lines"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new PENDING order, customer view, and the id of the replaced order",
+            "headers": {
+              "Idempotent-Replay": {
+                "description": "Present, with the value true, only on a repeat of an earlier gesture",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "order": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "customer_relationship_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "placed_by_party": {
+                          "type": "string",
+                          "enum": [
+                            "CUSTOMER",
+                            "SUPPLIER"
+                          ]
+                        },
+                        "delivery_address_applied": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "reception_mode": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "DELIVERY",
+                            "PICKUP"
+                          ]
+                        },
+                        "total_amount": {
+                          "type": "integer"
+                        },
+                        "delivery_cost": {
+                          "type": "integer"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "accepted_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "delivered_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "desired_delivery_date": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "cancelled_by_party": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "cancelled_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "cancellation_reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "parent_order_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        },
+                        "customer_note": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "supplier_note": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "supplier_name_applied": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "customer_name_applied": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "collected_applied": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "balance_after_applied": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "readOnly": true
+                        },
+                        "lines": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "product_variant_id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "label_applied": {
+                                "type": "string"
+                              },
+                              "quantity": {
+                                "type": "string"
+                              },
+                              "delivered_quantity": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "reference_price": {
+                                "type": "integer"
+                              },
+                              "unit_price_applied": {
+                                "type": "integer"
+                              },
+                              "amount": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "product_variant_id",
+                              "label_applied",
+                              "quantity",
+                              "delivered_quantity",
+                              "reference_price",
+                              "unit_price_applied",
+                              "amount"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "customer_relationship_id",
+                        "placed_by_party",
+                        "delivery_address_applied",
+                        "reception_mode",
+                        "total_amount",
+                        "delivery_cost",
+                        "status",
+                        "accepted_at",
+                        "delivered_at",
+                        "created_at",
+                        "desired_delivery_date",
+                        "cancelled_by_party",
+                        "cancelled_at",
+                        "cancellation_reason",
+                        "parent_order_id",
+                        "customer_note",
+                        "supplier_note",
+                        "supplier_name_applied",
+                        "customer_name_applied",
+                        "collected_applied",
+                        "balance_after_applied",
+                        "lines"
+                      ]
+                    },
+                    "replaced_order_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "order",
+                    "replaced_order_id"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: invalid body (unknown field, missing expected_total) or id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: the role may not order from a supplier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: order of another customer, already replaced, or unknown product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_TRANSITION (not PENDING), TOTAL_CHANGED (`details.total` is the server total), ORGANIZATION_NOT_ACTIVE, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/orders/{orderId}/accept": {
       "post": {
         "tags": [

@@ -208,6 +208,37 @@ purchaseRoutes.post(
   }
 );
 
+// POST /api/v1/organizations/:organizationId/purchases/:orderId/replace - a manager changes a
+// PENDING purchase of the business (ORD-044); same body and answer as ORD-039. The organization is
+// the path's (a non-member gets 404) and the order is found through the business's own
+// relationship, so a purchase of another business is a 404.
+purchaseRoutes.post(
+  '/purchases/:orderId/replace',
+  authMiddleware,
+  loadActor,
+  requireAbility('order_from_supplier', 'CustomerRelationship'),
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = replaceOrderSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    const actor = req.actor!;
+    replaceOrder(
+      { personId: actor.personId, organizationId: actor.organizationId },
+      orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      replaceOrderSchema.parse(req.body)
+    )
+      .then((view) => res.status(201).json(view))
+      .catch(next);
+  }
+);
+
 /** Supplier-side order routes, mounted at `/organizations/:organizationId`. */
 export const supplierOrderRoutes = Router({ mergeParams: true });
 

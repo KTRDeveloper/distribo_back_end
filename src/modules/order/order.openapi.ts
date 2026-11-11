@@ -206,6 +206,41 @@ openApiRegistry.registerPath({
   responses: customerCancelResponses,
 });
 
+const replaceOrderResponses = {
+  201: {
+    description: 'The new PENDING order, customer view, and the id of the replaced order',
+    headers: {
+      'Idempotent-Replay': {
+        description: 'Present, with the value true, only on a repeat of an earlier gesture',
+        schema: { type: 'string' as const, enum: ['true'] },
+      },
+    },
+    content: {
+      'application/json': {
+        schema: z.object({
+          order: customerOrderViewSchema,
+          replaced_order_id: z.string().uuid(),
+        }),
+      },
+    },
+  },
+  400: {
+    description: 'VALIDATION_ERROR: invalid body (unknown field, missing expected_total) or id',
+    content: errorContent,
+  },
+  401: { description: 'Missing or invalid token', content: errorContent },
+  404: {
+    description: 'NOT_FOUND: order of another customer, already replaced, or unknown product',
+    content: errorContent,
+  },
+  409: {
+    description:
+      'INVALID_TRANSITION (not PENDING), TOTAL_CHANGED (`details.total` is the server total), ' +
+      'ORGANIZATION_NOT_ACTIVE, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+    content: errorContent,
+  },
+};
+
 openApiRegistry.registerPath({
   method: 'post',
   path: '/api/v1/orders/{orderId}/replace',
@@ -231,37 +266,27 @@ openApiRegistry.registerPath({
     params: z.object({ orderId: uuidV7Schema }),
     body: { content: { 'application/json': { schema: replaceOrderSchema } } },
   },
+  responses: replaceOrderResponses,
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/organizations/{organizationId}/purchases/{orderId}/replace',
+  tags: ['order'],
+  summary: 'A manager changes a pending purchase of the business (ORD-044)',
+  description:
+    'Same body, rules and answer as `POST /api/v1/orders/{orderId}/replace` (ORD-039). The ' +
+    'caller needs the ability to order from a supplier (OWNER or MANAGER of the business); the ' +
+    "purchase is found through the business's own relationship, so any other id is a 404.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ organizationId: uuidV7Schema, orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: replaceOrderSchema } } },
+  },
   responses: {
-    201: {
-      description: 'The new PENDING order, customer view, and the id of the replaced order',
-      headers: {
-        'Idempotent-Replay': {
-          description: 'Present, with the value true, only on a repeat of an earlier gesture',
-          schema: { type: 'string', enum: ['true'] },
-        },
-      },
-      content: {
-        'application/json': {
-          schema: z.object({
-            order: customerOrderViewSchema,
-            replaced_order_id: z.string().uuid(),
-          }),
-        },
-      },
-    },
-    400: {
-      description: 'VALIDATION_ERROR: invalid body (unknown field, missing expected_total) or id',
-      content: errorContent,
-    },
-    401: { description: 'Missing or invalid token', content: errorContent },
-    404: {
-      description: 'NOT_FOUND: order of another customer, already replaced, or unknown product',
-      content: errorContent,
-    },
-    409: {
-      description:
-        'INVALID_TRANSITION (not PENDING), TOTAL_CHANGED (`details.total` is the server total), ' +
-        'ORGANIZATION_NOT_ACTIVE, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+    ...replaceOrderResponses,
+    403: {
+      description: 'FORBIDDEN: the role may not order from a supplier',
       content: errorContent,
     },
   },
