@@ -10,7 +10,7 @@ import {
   ensureCustomerRelationship,
   findSupplierRelationshipLocked,
 } from '../relationship/relationship.repository.js';
-import { lineAmountOf, orderTotal } from './order.calculations.js';
+import { lineAmountOf, orderTotal, resolveReception } from './order.calculations.js';
 import { atLeast, type Role } from '../../shared/access/roles.js';
 import type { Actor } from '../../types/express.js';
 import {
@@ -18,6 +18,7 @@ import {
   findExistingLineIds,
   findOrderToAccept,
   findSupplierOrder,
+  findUsualAddress,
   insertConfirmedOrder,
   insertPendingOrder,
   isRegisteredPerson,
@@ -172,11 +173,16 @@ function placeOrderFor(
     );
     assertExpectedTotal(total, input.expected_total);
 
+    const reception = resolveReception(
+      { mode: input.reception_mode, address: input.delivery_address },
+      null,
+      relationship.deliveryAddress
+    );
     const order = await insertPendingOrder(tx, {
       id: input.id,
       customerRelationshipId: relationship.id,
       enteredById: customer.personId,
-      deliveryAddressApplied: input.delivery_address ?? relationship.deliveryAddress,
+      ...reception,
       desiredDeliveryDate: input.desired_delivery_date
         ? new Date(`${input.desired_delivery_date}T00:00:00.000Z`)
         : null,
@@ -602,11 +608,16 @@ export function enterOrder(actor: Actor, input: EnterOrderInput): Promise<Suppli
     }
     const deliveryCost = BigInt(input.delivery_cost ?? 0);
 
+    const reception = resolveReception(
+      { mode: input.reception_mode, address: input.delivery_address },
+      null,
+      relationship.deliveryAddress
+    );
     const order = await insertConfirmedOrder(tx, {
       id: input.id,
       customerRelationshipId: relationship.id,
       enteredById: actor.personId,
-      deliveryAddressApplied: input.delivery_address ?? relationship.deliveryAddress,
+      ...reception,
       deliveryCost,
       desiredDeliveryDate: input.desired_delivery_date
         ? new Date(`${input.desired_delivery_date}T00:00:00.000Z`)
@@ -684,10 +695,15 @@ export function editOrder(
       amounts = lines.map((line) => line.amount);
     }
 
+    const reception = resolveReception(
+      { mode: input.reception_mode, address: input.delivery_address },
+      { mode: order.receptionMode, address: order.deliveryAddressApplied },
+      await findUsualAddress(tx, order.customerRelationshipId)
+    );
     await updateEditableOrderFields(tx, orderId, {
-      ...(input.delivery_address === undefined
+      ...(input.delivery_address === undefined && input.reception_mode === undefined
         ? {}
-        : { deliveryAddressApplied: input.delivery_address }),
+        : reception),
       ...(input.delivery_cost === undefined ? {} : { deliveryCost }),
       ...(input.desired_delivery_date === undefined
         ? {}

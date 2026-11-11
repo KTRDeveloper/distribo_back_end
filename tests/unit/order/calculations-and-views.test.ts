@@ -156,6 +156,7 @@ describe('customer view', () => {
         'customer_relationship_id',
         'placed_by_party',
         'delivery_address_applied',
+        'reception_mode',
         'total_amount',
         'delivery_cost',
         'status',

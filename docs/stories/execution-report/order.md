@@ -1250,3 +1250,30 @@ ORD-032 done
 
 **Evidence:** story tests 8/8; full suite 5508/5508, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
 <!-- end ORD-036 -->
+
+<!-- begin ORD-037 -->
+## ORD-037 — Orders are placed and edited as delivery or pickup
+
+- Filed: 2026-11-11 08:26 UTC
+- Status: **done**: reception_mode on 4 bodies and views; resolveReception in order.calculations.ts
+- Risk: medium · story: [ORD-037-orders-are-placed-and-edited-as-delivery-or.md](../modules/order/ORD-037-orders-are-placed-and-edited-as-delivery-or.md)
+- Agent: 67,251 tokens, 23 tool uses, 5 min 44 s
+
+### Agent report
+
+**Summary:** Added optional `reception_mode` to the four bodies and both views; `resolveReception` decides mode and address for creation and edit.
+
+**Decisions:**
+- Helper location: `resolveReception` in `order.calculations.ts` (pure, no new file); it throws httpError 400 itself.
+- PICKUP plus address is also refused in the Zod schemas (create bodies and edit), so details name `delivery_address` and the rule; the helper stays the backstop for the edit case that depends on the stored mode (AC-5).
+- Edit sending only `reception_mode` is a valid edit (counted in the at-least-one-field rule).
+- Added repository `findUsualAddress` to read the relationship address on edit.
+
+**Tests added beyond the story:**
+- `reception-mode.test.ts` › address sent with DELIVERY wins over the usual one; edit without mode leaves the mode unchanged; unstated order shows null; `resolveReception` unit cases (ORD-037 Context)
+
+**Evidence:** story tests 29/29 (with the unit file); full suite 5525/5526, failing: pull-plan-fields AC-4 (flaky, passes alone, unrelated), 0 known; typecheck clean; lint 0 errors, 263 warnings (pre-existing)
+
+**Follow-ups:**
+- sync/pull-plan-fields AC-4 failed once under full-suite load: possible time flake.
+<!-- end ORD-037 -->

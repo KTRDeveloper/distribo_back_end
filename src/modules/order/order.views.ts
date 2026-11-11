@@ -8,6 +8,7 @@ type PartyView = {
   customer_relationship_id: string;
   placed_by_party: string;
   delivery_address_applied: string | null;
+  reception_mode: string | null;
   total_amount: number;
   delivery_cost: number;
   status: string;
@@ -55,6 +56,7 @@ function commonFields(order: Order): PartyView {
     customer_relationship_id: order.customerRelationshipId,
     placed_by_party: order.placedByParty,
     delivery_address_applied: order.deliveryAddressApplied,
+    reception_mode: order.receptionMode ?? null,
     total_amount: Number(order.totalAmount),
     delivery_cost: Number(order.deliveryCost),
     status: order.status,

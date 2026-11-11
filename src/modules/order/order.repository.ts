@@ -1,4 +1,4 @@
-import { Prisma, type Order, type OrderStatus } from '@prisma/client';
+import { Prisma, type Order, type OrderStatus, type ReceptionMode } from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
@@ -140,6 +140,7 @@ export function insertPendingOrder(
     customerRelationshipId: string;
     enteredById: string;
     deliveryAddressApplied: string | null;
+    receptionMode: ReceptionMode | null;
     desiredDeliveryDate: Date | null;
     customerNote: string | null;
     totalAmount: bigint;
@@ -171,6 +172,7 @@ export function insertConfirmedOrder(
     customerRelationshipId: string;
     enteredById: string;
     deliveryAddressApplied: string | null;
+    receptionMode: ReceptionMode | null;
     deliveryCost: bigint;
     desiredDeliveryDate: Date | null;
     customerNote: string | null;
@@ -324,6 +326,7 @@ export async function updateEditableOrderFields(
   orderId: string,
   data: {
     deliveryAddressApplied?: string | null;
+    receptionMode?: ReceptionMode | null;
     deliveryCost?: bigint;
     desiredDeliveryDate?: Date | null;
     customerNote?: string | null;
@@ -629,4 +632,16 @@ export async function listOrderedVariantIds(
     WHERE ol.product_variant_id = ANY(${variantIds}::uuid[])
   `;
   return new Set(rows.map((row) => row.product_variant_id));
+}
+
+/** Reads the relationship's usual delivery address, applied when an edit switches back to delivery (ORD-037). */
+export async function findUsualAddress(
+  tx: Prisma.TransactionClient,
+  relationshipId: string
+): Promise<string | null> {
+  const relationship = await tx.customerRelationship.findUnique({
+    where: { id: relationshipId },
+    select: { deliveryAddress: true },
+  });
+  return relationship?.deliveryAddress ?? null;
 }

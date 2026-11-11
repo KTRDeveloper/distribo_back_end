@@ -35,6 +35,12 @@ const dateSchema = z
     return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
   });
 
+/** Whether the order is delivered or picked up (ORD-037, C-60). */
+const receptionModeSchema = z.enum(['DELIVERY', 'PICKUP']);
+
+/** A pickup has no delivery address, so sending both is refused (C-60). */
+const PICKUP_WITH_ADDRESS = { message: 'pickup_has_no_address', path: ['delivery_address'] };
+
 /**
  * One order line: only ids and a quantity. Prices, amounts and labels are never accepted; the
  * server freezes them from the catalog (ASVS v5.0.0-2.2.1, v5.0.0-15.3.3, CWE-915).
@@ -53,6 +59,7 @@ export const placeOrderSchema = z
     id: uuidV7Schema,
     supplier_organization_id: uuidV7Schema,
     delivery_address: z.string().trim().min(1).max(TEXT_MAX).optional(),
+    reception_mode: receptionModeSchema.optional(),
     desired_delivery_date: dateSchema.optional(),
     customer_note: z.string().max(TEXT_MAX).optional(),
     expected_total: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
@@ -62,7 +69,11 @@ export const placeOrderSchema = z
   .refine((body) => new Set(body.lines.map((line) => line.id)).size === body.lines.length, {
     message: 'duplicate_line_id',
     path: ['lines'],
-  });
+  })
+  .refine(
+    (body) => body.reception_mode !== 'PICKUP' || body.delivery_address === undefined,
+    PICKUP_WITH_ADDRESS
+  );
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;
 
@@ -157,6 +168,7 @@ export const enterOrderSchema = z
     id: uuidV7Schema,
     customer_relationship_id: uuidV7Schema,
     delivery_address: z.string().trim().min(1).max(TEXT_MAX).optional(),
+    reception_mode: receptionModeSchema.optional(),
     delivery_cost: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
     desired_delivery_date: dateSchema.optional(),
     customer_note: z.string().max(TEXT_MAX).optional(),
@@ -166,12 +178,16 @@ export const enterOrderSchema = z
   .refine((body) => new Set(body.lines.map((line) => line.id)).size === body.lines.length, {
     message: 'duplicate_line_id',
     path: ['lines'],
-  });
+  })
+  .refine(
+    (body) => body.reception_mode !== 'PICKUP' || body.delivery_address === undefined,
+    PICKUP_WITH_ADDRESS
+  );
 
 export type EnterOrderInput = z.infer<typeof enterOrderSchema>;
 
 /**
- * Strict body of the seller's edit-order gesture (ORD-014): the gesture id and at least one of the
+ * Strict body of the seller's edit-order gesture (ORD-014, ORD-037): the gesture id and at least one of the
  * editable fields. Each scalar may be `null` to clear it; `lines` is the full replacement list.
  * Status, party, author, totals and reference prices are never accepted (ASVS v5.0.0-15.3.3).
  */
@@ -179,6 +195,7 @@ export const editOrderSchema = z
   .object({
     id: uuidV7Schema,
     delivery_address: z.string().trim().min(1).max(TEXT_MAX).nullable().optional(),
+    reception_mode: receptionModeSchema.optional(),
     delivery_cost: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable().optional(),
     desired_delivery_date: dateSchema.nullable().optional(),
     customer_note: z.string().max(TEXT_MAX).nullable().optional(),
@@ -188,6 +205,7 @@ export const editOrderSchema = z
   .refine(
     (body) =>
       body.delivery_address !== undefined ||
+      body.reception_mode !== undefined ||
       body.delivery_cost !== undefined ||
       body.desired_delivery_date !== undefined ||
       body.customer_note !== undefined ||
@@ -199,6 +217,13 @@ export const editOrderSchema = z
       body.lines === undefined ||
       new Set(body.lines.map((line) => line.id)).size === body.lines.length,
     { message: 'duplicate_line_id', path: ['lines'] }
+  )
+  .refine(
+    (body) =>
+      body.reception_mode !== 'PICKUP' ||
+      body.delivery_address === undefined ||
+      body.delivery_address === null,
+    PICKUP_WITH_ADDRESS
   );
 
 export type EditOrderInput = z.infer<typeof editOrderSchema>;
