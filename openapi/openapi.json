@@ -16359,7 +16359,7 @@
           "order"
         ],
         "summary": "A person places an order with a supplier, for themselves as customer (ORD-009)",
-        "description": "Rights and scope: any signed-in person orders for themselves. The customer is always the\ncaller, never a body field. The relationship with the supplier is found, or created ACTIVE\nwith credit limit 0 on the first order. To order for a business, use\n`POST /api/v1/organizations/{organizationId}/purchases` (ORD-010).\n\nIds made by the phone: `id` is a UUIDv7 that is both the new order id and the gesture id.\nEach line `id` is a UUIDv7 that becomes the line id, unique within the body.\n\nBody: `supplier_organization_id`; 1 to 100 `lines`, each with `product_variant_id` and\n`quantity` (greater than 0, at most 3 decimals, a decimal string or a number); optional\n`delivery_address` (1 to 2000 characters), `desired_delivery_date` (YYYY-MM-DD) and\n`customer_note` (up to 2000 characters). Any other field is refused: prices, labels,\namounts, totals, status, customer and relationship are never accepted.\n\nThe server computes the rest from its own data: each line label, the reference price\n(negotiated price, else catalog price), the applied unit price (equal to it), the line\namounts and the total. `delivery_address_applied` is the body address, else the usual\naddress of the relationship; `delivery_cost` is 0; the order is PENDING and placed by the\nCUSTOMER. Relationship, order, lines and the `order.placed` notification to the supplier\nOWNER, MANAGERs and SELLERs are one transaction: a refusal writes nothing.\n\nRepeat: the same `id` sent again by the same person changes nothing and returns the first\nresponse (status and body) with the header `Idempotent-Replay: true`, for 30 days. A refusal\nby the server (404, 409, quantity below the minimum) is replayed the same way, so a new\nattempt needs a new `id`. A body refused by validation reserves nothing. While the first\nrequest is still running, a repeat gets 409 `REQUEST_IN_PROGRESS`. A 5xx keeps nothing:\nthe same `id` can be sent again.",
+        "description": "Rights and scope: any signed-in person orders for themselves. The customer is always the\ncaller, never a body field. The relationship with the supplier is found, or created ACTIVE\nwith credit limit 0 on the first order. To order for a business, use\n`POST /api/v1/organizations/{organizationId}/purchases` (ORD-010).\n\nIds made by the phone: `id` is a UUIDv7 that is both the new order id and the gesture id.\nEach line `id` is a UUIDv7 that becomes the line id, unique within the body.\n\nBody: `supplier_organization_id`; 1 to 100 `lines`, each with `product_variant_id` and\n`quantity` (greater than 0, at most 3 decimals, a decimal string or a number); optional\n`delivery_address` (1 to 2000 characters), `desired_delivery_date` (YYYY-MM-DD) and\n`customer_note` (up to 2000 characters). Any other field is refused: prices, labels,\namounts, totals, status, customer and relationship are never accepted.\n\nThe server computes the rest from its own data: each line label, the reference price\n(negotiated price, else catalog price), the applied unit price (equal to it), the line\namounts and the total. The optional `expected_total` (integer francs, 0 up) is the total the\ncustomer saw: when it differs from the server total the answer is 409 `TOTAL_CHANGED` with\n`details.total` and nothing is stored; it is never a price. `delivery_address_applied` is the body address, else the usual\naddress of the relationship; `delivery_cost` is 0; the order is PENDING and placed by the\nCUSTOMER. Relationship, order, lines and the `order.placed` notification to the supplier\nOWNER, MANAGERs and SELLERs are one transaction: a refusal writes nothing.\n\nRepeat: the same `id` sent again by the same person changes nothing and returns the first\nresponse (status and body) with the header `Idempotent-Replay: true`, for 30 days. A refusal\nby the server (404, 409, quantity below the minimum) is replayed the same way, so a new\nattempt needs a new `id`. A body refused by validation reserves nothing. While the first\nrequest is still running, a repeat gets 409 `REQUEST_IN_PROGRESS`. A 5xx keeps nothing:\nthe same `id` can be sent again.",
         "security": [
           {
             "bearerAuth": []
@@ -16391,6 +16391,11 @@
                   "customer_note": {
                     "type": "string",
                     "maxLength": 2000
+                  },
+                  "expected_total": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   },
                   "lines": {
                     "type": "array",
@@ -16652,7 +16657,7 @@
             }
           },
           "409": {
-            "description": "ORGANIZATION_NOT_ACTIVE (supplier suspended or closed), RELATIONSHIP_NOT_ACTIVE (relationship ended by either party) or REQUEST_IN_PROGRESS (same id still running)",
+            "description": "ORGANIZATION_NOT_ACTIVE (supplier suspended or closed), RELATIONSHIP_NOT_ACTIVE (relationship ended by either party), TOTAL_CHANGED (`expected_total` differs from the server total; `details.total` is the server total, nothing is stored) or REQUEST_IN_PROGRESS (same id still running)",
             "content": {
               "application/json": {
                 "schema": {
@@ -16985,6 +16990,11 @@
                     "type": "string",
                     "maxLength": 2000
                   },
+                  "expected_total": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
                   "lines": {
                     "type": "array",
                     "items": {
@@ -17244,7 +17254,7 @@
             }
           },
           "409": {
-            "description": "ORGANIZATION_NOT_ACTIVE, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id",
+            "description": "ORGANIZATION_NOT_ACTIVE, RELATIONSHIP_NOT_ACTIVE, TOTAL_CHANGED (`expected_total` differs from the server total, `details.total`) or conflicting gesture id",
             "content": {
               "application/json": {
                 "schema": {

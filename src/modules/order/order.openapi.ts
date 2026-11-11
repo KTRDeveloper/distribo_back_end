@@ -72,7 +72,9 @@ openApiRegistry.registerPath({
     '',
     'The server computes the rest from its own data: each line label, the reference price',
     '(negotiated price, else catalog price), the applied unit price (equal to it), the line',
-    'amounts and the total. `delivery_address_applied` is the body address, else the usual',
+    'amounts and the total. The optional `expected_total` (integer francs, 0 up) is the total the',
+    'customer saw: when it differs from the server total the answer is 409 `TOTAL_CHANGED` with',
+    '`details.total` and nothing is stored; it is never a price. `delivery_address_applied` is the body address, else the usual',
     'address of the relationship; `delivery_cost` is 0; the order is PENDING and placed by the',
     'CUSTOMER. Relationship, order, lines and the `order.placed` notification to the supplier',
     "OWNER, MANAGERs and SELLERs are one transaction: a refusal writes nothing.",
@@ -116,7 +118,9 @@ openApiRegistry.registerPath({
     409: {
       description:
         'ORGANIZATION_NOT_ACTIVE (supplier suspended or closed), RELATIONSHIP_NOT_ACTIVE ' +
-        '(relationship ended by either party) or REQUEST_IN_PROGRESS (same id still running)',
+        '(relationship ended by either party), TOTAL_CHANGED (`expected_total` differs from the ' +
+        'server total; `details.total` is the server total, nothing is stored) or ' +
+        'REQUEST_IN_PROGRESS (same id still running)',
       content: errorContent,
     },
   },
@@ -145,7 +149,9 @@ openApiRegistry.registerPath({
     403: { description: 'The role may not order from a supplier', content: errorContent },
     404: { description: 'Not a member, unknown supplier or product', content: errorContent },
     409: {
-      description: 'ORGANIZATION_NOT_ACTIVE, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+      description:
+        'ORGANIZATION_NOT_ACTIVE, RELATIONSHIP_NOT_ACTIVE, TOTAL_CHANGED (`expected_total` ' +
+        'differs from the server total, `details.total`) or conflicting gesture id',
       content: errorContent,
     },
   },

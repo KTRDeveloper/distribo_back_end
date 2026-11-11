@@ -405,7 +405,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-042 | done | | open sessions filter on list and alert; alert after issueSession excluding new device |
 | AUTH-043 | done | | secondsLeft, httpError headers, handler sets them |
 | AUTH-044 | blocked | | Code and own tests done; 8 existing tests in 6 files mock rate-limit.js without secondsLeft so the 429 becomes 500: admin-login, totp-recovery, attempt-lock-concurrency, login-request, password-change, anonymize. Not listed under Tests to update; OK to add secondsLeft to those mocks? |
-| ORD-038 | todo | | |
+| ORD-038 | done | | expected_total check on place and purchase; 13 tests |
 | PRIV-006 | todo | | |
 | DLV-017 | todo | | |
 | REL-032 | todo | | |

@@ -93,6 +93,20 @@ async function priceLine(
   };
 }
 
+/**
+ * Refuses a gesture whose total is not the one the customer saw (ORD-038, CM-16). `expected` is
+ * only compared, never used as a price (ASVS v5.0.0-2.2.1); absent means no check (older apps).
+ * Reused by ORD-039.
+ *
+ * @param total - The total computed on the server, in francs.
+ * @param expected - The total the customer saw, if sent.
+ * @throws 409 `TOTAL_CHANGED` with `details.total` when they differ.
+ */
+export function assertExpectedTotal(total: bigint, expected: number | undefined): void {
+  if (expected === undefined || BigInt(expected) === total) return;
+  throw httpError(409, 'TOTAL_CHANGED', 'The total changed.', { total: Number(total) });
+}
+
 /** Tells the supplier's OWNER, MANAGERs and SELLERs, each in their language (`order.placed`). */
 async function notifyTeam(
   tx: Prisma.TransactionClient,
@@ -152,6 +166,12 @@ function placeOrderFor(
       priced.push(await priceLine(tx, input.supplier_organization_id, relationship.id, line));
     }
 
+    const total = orderTotal(
+      priced.map((line) => line.amount),
+      0n
+    );
+    assertExpectedTotal(total, input.expected_total);
+
     const order = await insertPendingOrder(tx, {
       id: input.id,
       customerRelationshipId: relationship.id,
@@ -161,10 +181,7 @@ function placeOrderFor(
         ? new Date(`${input.desired_delivery_date}T00:00:00.000Z`)
         : null,
       customerNote: input.customer_note ?? null,
-      totalAmount: orderTotal(
-        priced.map((line) => line.amount),
-        0n
-      ),
+      totalAmount: total,
       lines: priced.map(({ quantityMilli: _milli, ...line }) => line),
     });
 
@@ -189,7 +206,7 @@ function placeOrderFor(
  * @param customer - The caller, from the session.
  * @param input - Validated body: ids, optional address, date and note, and 1 to 100 lines.
  * @throws 404 `NOT_FOUND` (business or product); 409 `ORGANIZATION_NOT_ACTIVE`;
- * 409 `RELATIONSHIP_NOT_ACTIVE`; 400 `VALIDATION_ERROR` (quantity below the minimum).
+ * 409 `RELATIONSHIP_NOT_ACTIVE`; 409 `TOTAL_CHANGED` (ORD-038); 400 `VALIDATION_ERROR` (quantity below the minimum).
  */
 export function placeOrder(
   customer: { personId: string },

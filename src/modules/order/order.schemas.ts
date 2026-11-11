@@ -46,6 +46,7 @@ const placeOrderLineSchema = z
 /**
  * Strict body of the place-order gesture (ASVS v5.0.0-15.3.3). The customer, the relationship, the
  * status, the totals and the placing party are never accepted: the server sets them (v5.0.0-8.2.2).
+ * `expected_total` (ORD-038) is only compared with the server total, never stored or used as a price.
  */
 export const placeOrderSchema = z
   .object({
@@ -54,6 +55,7 @@ export const placeOrderSchema = z
     delivery_address: z.string().trim().min(1).max(TEXT_MAX).optional(),
     desired_delivery_date: dateSchema.optional(),
     customer_note: z.string().max(TEXT_MAX).optional(),
+    expected_total: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
     lines: z.array(placeOrderLineSchema).min(1).max(ORDER_LINES_MAX),
   })
   .strict()
