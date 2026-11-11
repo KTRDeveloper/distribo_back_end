@@ -198,14 +198,16 @@ export const ordersAdapter: SyncAdapter = {
 /**
  * `order_lines`: the lines of the orders the viewer receives, in the same view. A line is sent
  * when it changed or when its order changed, so an updated order always arrives with its lines
- * (AC-4); a deleted line is listed in `deleted` (C-35).
+ * (AC-4); a deleted line is listed in `deleted` (C-35). On an incremental pull the lines of an
+ * order deleted since (replaced, ORD-039) are listed in `deleted` too, within the viewer's own
+ * order scope (ASVS v5.0.0-8.2.2); a first pull never sends them.
  */
 export const orderLinesAdapter: SyncAdapter = {
   table: 'order_lines',
   async pull(viewer, since, tx): Promise<Changes> {
     const rows = await tx.orderLine.findMany({
       where: {
-        order: orderScope(viewer, false),
+        order: orderScope(viewer, since !== null),
         ...(since
           ? {
               OR: [
@@ -222,13 +224,18 @@ export const orderLinesAdapter: SyncAdapter = {
     const allowed = rows.filter((r) => roleOf(r.order.customerRelationship, viewer) !== null);
     return classifyChanges(
       // A line travels with its order: its order's change counts as the line's change.
-      allowed.map((r) => ({
-        ...r,
-        serverUpdatedAt:
-          r.deletedAt === null && r.order.serverUpdatedAt > r.serverUpdatedAt
-            ? r.order.serverUpdatedAt
-            : r.serverUpdatedAt,
-      })),
+      // A line of a deleted order is deleted with it: the order's dates count as the line's (SYNC-045).
+      allowed.map((r) =>
+        r.order.deletedAt !== null
+          ? { ...r, deletedAt: r.order.deletedAt, serverUpdatedAt: r.order.serverUpdatedAt }
+          : {
+              ...r,
+              serverUpdatedAt:
+                r.deletedAt === null && r.order.serverUpdatedAt > r.serverUpdatedAt
+                  ? r.order.serverUpdatedAt
+                  : r.serverUpdatedAt,
+            }
+      ),
       since,
       (r) => r.order.createdAt,
       (r) => {

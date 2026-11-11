@@ -1502,3 +1502,26 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 **Follow-ups:**
 - Confirm the epoch ms format against the story's "ISO timestamp"; the story text could be amended.
 <!-- end SYNC-044 -->
+
+<!-- begin SYNC-045 -->
+## SYNC-045 — Lines of a deleted order are pulled as deletions
+
+- Filed: 2026-11-11 09:38 UTC
+- Status: **done**: Lines of a deleted order go to order_lines.deleted on incremental pulls
+- Risk: medium · story: [SYNC-045-lines-of-a-deleted-order-are-pulled-as-deletions.md](../modules/sync/SYNC-045-lines-of-a-deleted-order-are-pulled-as-deletions.md)
+- Agent: 35,964 tokens, 14 tool uses, 3 min 54 s
+
+### Agent report
+
+**Summary:** Incremental pulls now list the lines of orders deleted since `since` in `order_lines.deleted`; first pull unchanged.
+
+**Decisions:**
+- Order scope with `includeGone` only when `since` is set: reuses the existing deleted branch of `orderScope`, so tenant scope is the same as for orders.
+- A line of a deleted order takes the order's `deletedAt` and `serverUpdatedAt`: `classifyChanges` then lists it once, and not again on later pulls.
+
+**Tests added beyond the story:**
+- `tests/integration/sync/pull-deleted-order-lines.test.ts` › deletion listed once, not again on a later pull: no repeat of a deletion already pulled (C-35); passed at once (only the AC-1 test failed first)
+- same file › the customer also gets the deletions: AC-1 applies to every viewer of the order
+
+**Evidence:** story tests 5/5; full suite 5601/5601, failing: none, 0 known; typecheck clean; lint 0 errors, 269 warnings
+<!-- end SYNC-045 -->

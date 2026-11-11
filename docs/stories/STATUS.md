@@ -421,7 +421,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-043 | done | | Fixtures give DELIVERED orders RECEIPT_FIELDS; suite 5590/5590 |
 | ORD-044 | done | | POST purchases/{orderId}/replace; 5 tests green, suite green |
 | ORD-045 | blocked | | Migration and 8 tests pass, but 17 existing tests in receipt-backfill.test.ts (ORD-042) and receipt-columns.test.ts (ORD-040) fail: they store a receipt on non-DELIVERED orders; neither story lists them under Tests to update |
-| SYNC-045 | todo | | |
+| SYNC-045 | done | | Lines of a deleted order go to order_lines.deleted on incremental pulls |
 | SYNC-046 | todo | | |
 | SYNC-047 | todo | | |
 | REL-033 | todo | | |
