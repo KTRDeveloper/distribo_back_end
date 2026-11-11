@@ -19,6 +19,8 @@ const SUPPLIER_VIEW_ROLES: CollaborationRole[] = ['OWNER', 'MANAGER', 'SELLER'];
 const WITH_PARTIES = {
   customerPerson: true,
   customerOrganization: { select: { name: true, description: true } },
+  supplierPerson: true,
+  supplierOrganization: { select: { name: true, description: true } },
 } satisfies Prisma.CustomerRelationshipInclude;
 
 function organizationsWithRole(viewer: Viewer, roles: CollaborationRole[]): string[] {
@@ -100,10 +102,24 @@ function baseColumns(r: RelationshipRow & { serverUpdatedAt: Date }): Row {
 }
 
 /**
+ * The customer's public name for the supplier team: the organization's name, else the person's
+ * full name, else null. Never the private `customer_label` (SYNC-047, ASVS v5.0.0-15.3.1).
+ */
+function customerPublicName(r: RelationshipRow): string | null {
+  return r.customerOrganization?.name ?? r.customerPerson?.fullName ?? null;
+}
+
+/** The supplier's public name for the customer: organization name, else invited person's full name. */
+function supplierPublicName(r: RelationshipRow): string | null {
+  return r.supplierOrganization?.name ?? r.supplierPerson?.fullName ?? null;
+}
+
+/**
  * Builds the row a phone receives, from the REL-005 projection that fits the viewer. A person who
  * is the customer of the row always gets the customer view, even when also a collaborator of the
  * supplier (nobody judges their own record). Explicit field lists only (ASVS v5.0.0-15.3.1). Both
  * non-driver rows carry `contested_at` (epoch ms or null, C-57); a phone never sends it back.
+ * Each side gets only its own computed public name of the other side (SYNC-047), never stored.
  */
 function toSyncRow(
   r: RelationshipRow & { serverUpdatedAt: Date },
@@ -116,6 +132,7 @@ function toSyncRow(
       ...baseColumns(r),
       supplier_person_id: r.supplierPersonId,
       supplier_label: v.supplier_label,
+      supplier_public_name: supplierPublicName(r),
       delivery_address: v.delivery_address,
       credit_limit: v.credit_limit,
       balance: v.balance,
@@ -128,6 +145,7 @@ function toSyncRow(
     return {
       ...baseColumns(r),
       customer_label: v.customer_label,
+      customer_public_name: customerPublicName(r),
       supplier_notes: v.supplier_notes,
       delivery_address: v.delivery_address,
       credit_limit: v.credit_limit,
@@ -143,6 +161,7 @@ function toSyncRow(
   return {
     ...baseColumns(r),
     customer_label: v.customer_name,
+    customer_public_name: customerPublicName(r),
     credit_limit: v.available_credit,
     balance: 0,
   };

@@ -136,7 +136,7 @@ const ORDER_STEPS: Right[] = [
 const RULES_OF: Record<JudgedTable, TableRules> = {
   customer_relationships: {
     subject: 'CustomerRelationship',
-    computed: [],
+    computed: ['customer_public_name', 'supplier_public_name'],
     create: [{ action: 'create', subject: 'CustomerRelationship', withRow: true }],
     author: ['created_by_id'],
   },

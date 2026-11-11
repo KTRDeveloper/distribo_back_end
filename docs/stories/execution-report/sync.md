@@ -1560,3 +1560,22 @@ Also in this run: relationship, catalog, order, finance, delivery, privacy.
 - The local test template DB already had my first draft of the migration applied. I re-applied the corrected SQL by hand with `prisma db execute`. A fresh database applies the file from scratch, but I did not run that.
 - A phone whose `last_pulled_at` predates the replacement may get 409 SYNC_CONFLICT on its updated `orders` rows (the replaced order is pulled as a deletion). Tests use a fresh pull time. I did not verify this; it is outside the story.
 <!-- end SYNC-046 -->
+
+<!-- begin SYNC-047 -->
+## SYNC-047 — Relationship rows carry the other side's public name
+
+- Filed: 2026-11-11 10:03 UTC
+- Status: **done**: customer_public_name / supplier_public_name computed at pull, never written by a phone
+- Risk: medium · story: [SYNC-047-relationship-rows-carry-the-other-side-s-public.md](../modules/sync/SYNC-047-relationship-rows-carry-the-other-side-s-public.md)
+- Agent: 47,934 tokens, 19 tool uses, 6 min 46 s
+
+### Agent report
+
+**Summary:** Relationship rows now carry customer_public_name (supplier team, driver) or supplier_public_name (customer person), computed at pull; both listed as computed in the judge.
+
+**Decisions:**
+- Person name source: raw `fullName` of the person (no public-person projection), per the story's "full_name".
+- Test seeds: an unnamed person is an unregistered one (id + phone), a person supplier needs status PENDING (DB check constraint).
+
+**Evidence:** story tests 10/10; full suite 5633/5634 on the first run, the one failure (quality-gates lint) came from 2 lint errors in my test, fixed and rerun green; typecheck clean; lint 0 errors, warnings pre-existing.
+<!-- end SYNC-047 -->
