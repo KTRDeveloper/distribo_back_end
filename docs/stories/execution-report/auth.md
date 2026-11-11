@@ -476,3 +476,32 @@ Also in this run: access.
 
 **Evidence:** story tests 9/9; full suite 5451/5452 on first run (the one failure, quality-gates lint, was my test lint errors, fixed and rerun green), failing: none, 0 known; typecheck clean; lint 0 errors
 <!-- end AUTH-043 -->
+
+<!-- begin AUTH-044 -->
+## AUTH-044 — A password lock lasts one minute and says when it ends
+
+- Filed: 2026-11-11 07:47 UTC
+- Status: **blocked**: Code and own tests done; 8 existing tests in 6 files mock rate-limit.js without secondsLeft so the 429 becomes 500: admin-login, totp-recovery, attempt-lock-concurrency, login-request, password-change, anonymize. Not listed under Tests to update; OK to add secondsLeft to those mocks?
+- Risk: high · story: [AUTH-044-a-password-lock-lasts-one-minute-and-says-when.md](../modules/auth/AUTH-044-a-password-lock-lasts-one-minute-and-says-when.md)
+- Agent: 49,921 tokens, 17 tool uses, 4 min 53 s
+
+### Agent report
+
+**Summary:** Blocked at the last step: implementation and own tests are done, but 8 existing tests fail because their `rate-limit.js` mocks lack `secondsLeft`, and the story does not list them under "Tests to update".
+
+**Decisions:**
+- `Retry-After` set through `httpError(..., headers)` from `secondsLeft(key, loginLockMinutes*60)`; admin's two lock checks share a new private `takeAdminAttempt` helper.
+- Left the work in the tree (uncommitted) so a human can approve the mock change and finish.
+
+**Tests added beyond the story:**
+- none (story's 6 tests written in `tests/integration/auth/lock-retry-after.test.ts`; failed 8/8 before the code, pass after)
+
+**Other additions:**
+- `tests/unit/auth/attempt-counter.test.ts` updated as listed ('defaults to 1').
+
+**Evidence:** story tests 8/8 (+ attempt-counter unit passing); full suite 5452/5460, failing: 8 (below), 0 known; typecheck clean; lint 0 errors, 263 warnings
+
+**Follow-ups:**
+- Failing, all 429 LOGIN_LOCKED turned 500 ("No secondsLeft export on the mock"): admin-login (lock), totp-recovery (back door lock), attempt-lock-concurrency (2), login-request (lock, stuffing), password-change (lock), anonymize (wrong passwords lock).
+- Question: may the `vi.mock('rate-limit.js')` factories in those 6 files gain a `secondsLeft` entry (no assertion changed)? Without it the story cannot pass.
+<!-- end AUTH-044 -->
