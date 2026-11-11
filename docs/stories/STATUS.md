@@ -407,7 +407,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | AUTH-044 | blocked | | Code and own tests done; 8 existing tests in 6 files mock rate-limit.js without secondsLeft so the 429 becomes 500: admin-login, totp-recovery, attempt-lock-concurrency, login-request, password-change, anonymize. Not listed under Tests to update; OK to add secondsLeft to those mocks? |
 | ORD-038 | done | | expected_total check on place and purchase; 13 tests |
 | PRIV-006 | done | | device update also nulls android_id_hash; 2 tests |
-| DLV-017 | todo | | |
+| DLV-017 | done | | creditCheck in src/shared/credit.ts, deliverOrder uses it |
 | REL-032 | todo | | |
 | ORD-035 | todo | | |
 | ORD-036 | todo | | |

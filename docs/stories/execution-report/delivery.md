@@ -523,6 +523,25 @@ DLV-016 done
 - The first full-suite run showed 2 failures that did not repeat in two later runs; I did not capture which tests. Probably a flake under load, worth watching.
 <!-- end DLV-010 -->
 
+<!-- begin DLV-017 -->
+## DLV-017 — A delivery paid in full is accepted even when the credit limit is already exceeded
+
+- Filed: 2026-11-11 08:02 UTC
+- Status: **done**: creditCheck in src/shared/credit.ts, deliverOrder uses it
+- Risk: medium · story: [DLV-017-a-delivery-paid-in-full-is-accepted-even-when.md](../modules/delivery/DLV-017-a-delivery-paid-in-full-is-accepted-even-when.md)
+- Agent: 41,256 tokens, 17 tool uses, 6 min 14 s
+
+### Agent report
+
+**Summary:** Added `availableCredit`/`creditCheck` in `src/shared/credit.ts`; `deliverOrder` now uses them, so a balance already above the limit no longer forces paying the old overrun.
+
+**Decisions:**
+- Integration test builds its own small fixture (orders of 10000/30000) because deliver.test.ts helpers fix the total at 30000.
+- Added an extra unit row (balance 40000, limit 50000, total 30000, collected 19999) for AC-3.
+
+**Evidence:** story tests 20/20 (13 unit, 7 integration); full suite 5486/5487, failing: quality-gates lint check (my 2 lint errors, fixed and rerun green), 0 known; typecheck clean; lint 0 errors, 263 warnings (existing)
+<!-- end DLV-017 -->
+
 <!-- begin DLV-011 -->
 ## DLV-011 — Owner reviews unsettled deliveries of the day
 

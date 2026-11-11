@@ -3,6 +3,7 @@ import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import type { Actor } from '../../types/express.js';
+import { creditCheck } from '../../shared/credit.js';
 import { newId } from '../../shared/ids.js';
 import { parseQuantity } from '../../shared/money.js';
 import { appendLedgerEntry } from '../finance/ledger.service.js';
@@ -354,8 +355,9 @@ export type DeliverOptions = {
  * `delivered_quantity` = `quantity`, line amounts and the order total are recomputed by the
  * server, and the SALE entry is the order total: the phone never sends it (v5.0.0-2.2.1). When
  * `collected_amount` is above 0 a PAYMENT entry of that amount is written with the mode. The
- * credit rule `balance + total - collected <= credit_limit` (null: no limit) is checked before
- * any write; a refusal names the smallest allowed collection and rolls everything back. Both
+ * credit rule (`creditCheck`, DLV-017: the new total must fit in the credit left, a balance already
+ * above the limit counts as none left; null: no limit) is checked before any write; a refusal
+ * names the smallest allowed collection and rolls everything back. Both
  * entries are recorded by the caller. The customer is notified `order.status_changed`. Replays
  * with the same `id` are answered by `idempotent()`.
  *
@@ -461,12 +463,14 @@ export function deliverOrder(
     const collected = payments
       ? payments.reduce((sum, payment) => sum + payment.amount, 0n)
       : BigInt(input.collected_amount);
-    const creditLimit = relationship.creditLimit;
-    const overLimit =
-      creditLimit !== null ? relationship.balance + total - collected - creditLimit : 0n;
-    const creditExceededBy = overLimit > 0n ? Number(overLimit) : 0;
-    if (overLimit > 0n && !options.viaSync) {
-      const minCollect = relationship.balance + total - (creditLimit ?? 0n);
+    const { minCollect, exceededBy } = creditCheck({
+      limit: relationship.creditLimit,
+      balance: relationship.balance,
+      total,
+      collected,
+    });
+    const creditExceededBy = Number(exceededBy);
+    if (collected < minCollect && !options.viaSync) {
       throw httpError(409, 'CREDIT_INSUFFICIENT', 'The credit limit would be exceeded.', {
         min_collect: Number(minCollect),
       });
