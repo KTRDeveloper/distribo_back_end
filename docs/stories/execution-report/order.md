@@ -6,6 +6,33 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-11-11 10:17 UTC: `/implement-stories next:30`
+
+| story | status | commit | note |
+|---|---|---|---|
+| ORD-038 An order is refused when its total changed since the customer saw it | done | 02b5d40 | expected_total check on place and purchase; 13 tests |
+| ORD-035 An order records the version that replaced it | done | 2c33068 | orders.replaced_by_order_id: FK, partial unique, 2 CHECKs, same-relationship trigger |
+| ORD-036 An order records delivery or pickup | done | a298b96 | reception_mode enum column + pickup-no-address CHECK migration |
+| ORD-037 Orders are placed and edited as delivery or pickup | done | b62d2eb | reception_mode on 4 bodies and views; resolveReception in order.calculations.ts |
+| ORD-039 Customer changes a pending order | done | 3afac53 | POST /orders/{orderId}/replace; link written before the cancellation (frozen order trigger) |
+| ORD-040 Orders get the frozen receipt fields | done | 7158ace | four nullable receipt columns on orders; migration 20261026120000 |
+| ORD-041 Order views show the frozen receipt fields | done | 758c98c | views add the four receipt fields; balance_after_applied only for OWNER/MANAGER/SELLER |
+| ORD-042 Delivered orders get their receipt from the server's history, then it is frozen | done | 4711012 | Migration 20261026130000 backfills receipts and freezes them; 17 tests, suite green |
+| ORD-043 Test fixtures give every delivered order its receipt | done | 1c404e9 | Fixtures give DELIVERED orders RECEIPT_FIELDS; suite 5590/5590 |
+| ORD-044 A business changes a pending purchase | done | 9d29ba1 | POST purchases/{orderId}/replace; 5 tests green, suite green |
+| ORD-045 A delivered order always has its receipt | done | 59c7679 | CHECK orders_receipt_matches_status_check with audit; ORD-040/042 tests adapted |
+
+Also in this run: notification, auth, privacy, delivery, relationship, sync.
+
+- Run completed: all 29 PLAN stories are done. No stash left from this run (AUTH-044 and ORD-045 were blocked, then resumed and finished).
+- AUTH-044 was blocked on 6 tests whose rate-limit mock lacked secondsLeft; ORD-045 on 18 tests of ORD-040 and ORD-042. The user authorized both test updates; each story was resumed in a new subagent with that authorization added to the prompt (outside the usual three lines).
+- SYNC-046 hit the 40-turn limit with no hand-back; resumed by SendMessage and finished. Its figures are those of the resumed notification. It added a migration the story does not list (20261111100000_sync_046_restore_replaced_version): needs the user's confirmation.
+- ORD-045's migration was renamed to 20261111110000 to sort after SYNC-046's.
+- Flaky tests seen once each in full runs: sync/pull-plan-fields AC-4, sync/pull-relationships AB-1 (timestamp containing 777777), images/image-copy (UUID matching /20\d{2}/). All passed on rerun.
+- Several agents did not rerun the full suite after a lint or typecheck fix (NTF-005, AUTH-043, DLV-017, ORD-044, SYNC-047, ORD-039). DLV-019 wrote code before tests.
+- Baseline: 0 failing.
+- Next: node .claude/skills/implement-stories/scripts/select.mjs next:30
+
 ### Run 2026-10-26 10:39 UTC: `/implement-stories next:10`
 
 | story | status | commit | note |

@@ -6,6 +6,27 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-11-11 10:17 UTC: `/implement-stories next:30`
+
+| story | status | commit | note |
+|---|---|---|---|
+| SYNC-045 Lines of a deleted order are pulled as deletions | done | 26c95c5 | Lines of a deleted order go to order_lines.deleted on incremental pulls |
+| SYNC-046 An offline gesture on a replaced order is settled | done | 49f5b87 | Replaced-version gestures settled; delivery restores via trigger exception (migration sync_046) |
+| SYNC-047 Relationship rows carry the other side's public name | done | e2fcdc5 | customer_public_name / supplier_public_name computed at pull, never written by a phone |
+| SYNC-048 Pulled orders carry the frozen receipt, which a phone never writes | done | f014507 | receipt fields added to orders computed list; pull-receipt tests green |
+| SYNC-049 Orders entered offline carry their reception mode | done | 21e2df8 | reception_mode read on offline order create; update never changes it |
+
+Also in this run: notification, auth, order, privacy, delivery, relationship.
+
+- Run completed: all 29 PLAN stories are done. No stash left from this run (AUTH-044 and ORD-045 were blocked, then resumed and finished).
+- AUTH-044 was blocked on 6 tests whose rate-limit mock lacked secondsLeft; ORD-045 on 18 tests of ORD-040 and ORD-042. The user authorized both test updates; each story was resumed in a new subagent with that authorization added to the prompt (outside the usual three lines).
+- SYNC-046 hit the 40-turn limit with no hand-back; resumed by SendMessage and finished. Its figures are those of the resumed notification. It added a migration the story does not list (20261111100000_sync_046_restore_replaced_version): needs the user's confirmation.
+- ORD-045's migration was renamed to 20261111110000 to sort after SYNC-046's.
+- Flaky tests seen once each in full runs: sync/pull-plan-fields AC-4, sync/pull-relationships AB-1 (timestamp containing 777777), images/image-copy (UUID matching /20\d{2}/). All passed on rerun.
+- Several agents did not rerun the full suite after a lint or typecheck fix (NTF-005, AUTH-043, DLV-017, ORD-044, SYNC-047, ORD-039). DLV-019 wrote code before tests.
+- Baseline: 0 failing.
+- Next: node .claude/skills/implement-stories/scripts/select.mjs next:30
+
 ### Run 2026-10-26 10:39 UTC: `/implement-stories next:10`
 
 | story | status | commit | note |

@@ -6,6 +6,25 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-11-11 10:17 UTC: `/implement-stories next:30`
+
+| story | status | commit | note |
+|---|---|---|---|
+| DLV-017 A delivery paid in full is accepted even when the credit limit is already exceeded | done | 30bf046 | creditCheck in src/shared/credit.ts, deliverOrder uses it |
+| DLV-018 The order for the rest keeps the reception mode of the first order | done | 57ef4fc | Rest order copies reception_mode from the locked first order; 3 AC rows pass |
+| DLV-019 A delivery writes its receipt once, in the transaction that delivers the order | done | 209a90a | receipt written once in transitionOrder; 10 story tests pass |
+
+Also in this run: notification, auth, order, privacy, relationship, sync.
+
+- Run completed: all 29 PLAN stories are done. No stash left from this run (AUTH-044 and ORD-045 were blocked, then resumed and finished).
+- AUTH-044 was blocked on 6 tests whose rate-limit mock lacked secondsLeft; ORD-045 on 18 tests of ORD-040 and ORD-042. The user authorized both test updates; each story was resumed in a new subagent with that authorization added to the prompt (outside the usual three lines).
+- SYNC-046 hit the 40-turn limit with no hand-back; resumed by SendMessage and finished. Its figures are those of the resumed notification. It added a migration the story does not list (20261111100000_sync_046_restore_replaced_version): needs the user's confirmation.
+- ORD-045's migration was renamed to 20261111110000 to sort after SYNC-046's.
+- Flaky tests seen once each in full runs: sync/pull-plan-fields AC-4, sync/pull-relationships AB-1 (timestamp containing 777777), images/image-copy (UUID matching /20\d{2}/). All passed on rerun.
+- Several agents did not rerun the full suite after a lint or typecheck fix (NTF-005, AUTH-043, DLV-017, ORD-044, SYNC-047, ORD-039). DLV-019 wrote code before tests.
+- Baseline: 0 failing.
+- Next: node .claude/skills/implement-stories/scripts/select.mjs next:30
+
 ### Run 2026-10-22 03:26 UTC: `/implement-stories next:10`
 
 | story | status | commit | note |

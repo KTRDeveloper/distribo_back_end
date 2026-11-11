@@ -6,6 +6,28 @@ Filed by `/implement-stories` through `report.mjs`: the orchestrator runs first,
 
 <!-- runs: newest first -->
 
+### Run 2026-11-11 10:17 UTC: `/implement-stories next:30`
+
+| story | status | commit | note |
+|---|---|---|---|
+| AUTH-039 A device stores the fingerprint of its Android id | done | 9e0e392 | REPLACED reason, android_id_hash column and partial unique index added; 7 tests pass |
+| AUTH-040 The server computes an Android id fingerprint with its own key | done | f866480 | HMAC-SHA256 fingerprint, ANDROID_ID_HASH_KEY required (min 32) |
+| AUTH-041 A new login on the same Android phone closes its old session | done | ab6ec3a | login with android_id revokes same-fingerprint devices (REPLACED), P2002 -> 409 SESSION_CONFLICT |
+| AUTH-042 Only open sessions are listed and alerted | done | 032b17f | open sessions filter on list and alert; alert after issueSession excluding new device |
+| AUTH-043 A lock refusal can tell the time left | done | 4fb2fb0 | secondsLeft, httpError headers, handler sets them |
+| AUTH-044 A password lock lasts one minute and says when it ends | done | a1c3202 | Retry-After on every password lock; default lock 1 minute |
+
+Also in this run: notification, order, privacy, delivery, relationship, sync.
+
+- Run completed: all 29 PLAN stories are done. No stash left from this run (AUTH-044 and ORD-045 were blocked, then resumed and finished).
+- AUTH-044 was blocked on 6 tests whose rate-limit mock lacked secondsLeft; ORD-045 on 18 tests of ORD-040 and ORD-042. The user authorized both test updates; each story was resumed in a new subagent with that authorization added to the prompt (outside the usual three lines).
+- SYNC-046 hit the 40-turn limit with no hand-back; resumed by SendMessage and finished. Its figures are those of the resumed notification. It added a migration the story does not list (20261111100000_sync_046_restore_replaced_version): needs the user's confirmation.
+- ORD-045's migration was renamed to 20261111110000 to sort after SYNC-046's.
+- Flaky tests seen once each in full runs: sync/pull-plan-fields AC-4, sync/pull-relationships AB-1 (timestamp containing 777777), images/image-copy (UUID matching /20\d{2}/). All passed on rerun.
+- Several agents did not rerun the full suite after a lint or typecheck fix (NTF-005, AUTH-043, DLV-017, ORD-044, SYNC-047, ORD-039). DLV-019 wrote code before tests.
+- Baseline: 0 failing.
+- Next: node .claude/skills/implement-stories/scripts/select.mjs next:30
+
 ### Run 2026-10-19 15:09 UTC: `/implement-stories AUTH-037 (re-run after unblock)`
 
 | story | status | commit | note |
