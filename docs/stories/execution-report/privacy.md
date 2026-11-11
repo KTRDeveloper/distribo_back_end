@@ -122,6 +122,39 @@ Also in this run: relationship, catalog, order, finance, delivery, sync.
 - Blockers are checked before the transaction, not inside it: a balance changing in between is not locked.
 <!-- end PRIV-002 -->
 
+<!-- begin PRIV-004 -->
+## PRIV-004 — Account deletion also clears and removes the profile photo
+
+- Filed: 2026-10-26 10:36 UTC
+- Status: **done**: Avatar key cleared in the anonymization transaction, file deleted after commit
+- Risk: high · story: [PRIV-004-account-deletion-also-clears-and-removes-the.md](../modules/privacy/PRIV-004-account-deletion-also-clears-and-removes-the.md)
+- Agent: 40,938 tokens, 13 tool uses, 2 min 25 s
+
+### Agent report
+
+**Summary:** `anonymizePerson` now clears the avatar key in its transaction and deletes the file after commit.
+
+**Decisions:**
+- Calls `setAvatarKey(personId, null, tx)` before `anonymizeRows`: the PER-010 CHECK would refuse the anonymized row otherwise. An absent person gives 404 from `setAvatarKey`, the same code as before.
+
+**Evidence:** story tests 19/19 (6 new + 13 existing anonymize); full suite 5397/5397, failing: none, 0 known; typecheck clean; lint 0 errors, 260 warnings (existing)
+<!-- end PRIV-004 -->
+
+<!-- begin PRIV-006 -->
+## PRIV-006 — Account deletion also clears the phones' Android fingerprints
+
+- Filed: 2026-11-11 07:55 UTC
+- Status: **done**: device update also nulls android_id_hash; 2 tests
+- Risk: medium · story: [PRIV-006-account-deletion-also-clears-the-phones-android.md](../modules/privacy/PRIV-006-account-deletion-also-clears-the-phones-android.md)
+- Agent: 22,092 tokens, 9 tool uses, 3 min 21 s
+
+### Agent report
+
+**Summary:** The anonymization transaction now nulls android_id_hash with push_token on every device of the person, revoked ones included.
+
+**Evidence:** story tests 2/2; full suite 5467/5467, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings (existing)
+<!-- end PRIV-006 -->
+
 <!-- begin PRIV-003 -->
 ## PRIV-003 — Daily purge of expired data
 
@@ -152,24 +185,6 @@ Also in this run: relationship, catalog, order, finance, delivery, sync.
 - Confirm the "keep archives referenced by a REPLAY_SYNC journal entry" rule; those archives then outlive 90 days.
 - Scheduling stays out of scope (Q-010).
 <!-- end PRIV-003 -->
-
-<!-- begin PRIV-004 -->
-## PRIV-004 — Account deletion also clears and removes the profile photo
-
-- Filed: 2026-10-26 10:36 UTC
-- Status: **done**: Avatar key cleared in the anonymization transaction, file deleted after commit
-- Risk: high · story: [PRIV-004-account-deletion-also-clears-and-removes-the.md](../modules/privacy/PRIV-004-account-deletion-also-clears-and-removes-the.md)
-- Agent: 40,938 tokens, 13 tool uses, 2 min 25 s
-
-### Agent report
-
-**Summary:** `anonymizePerson` now clears the avatar key in its transaction and deletes the file after commit.
-
-**Decisions:**
-- Calls `setAvatarKey(personId, null, tx)` before `anonymizeRows`: the PER-010 CHECK would refuse the anonymized row otherwise. An absent person gives 404 from `setAvatarKey`, the same code as before.
-
-**Evidence:** story tests 19/19 (6 new + 13 existing anonymize); full suite 5397/5397, failing: none, 0 known; typecheck clean; lint 0 errors, 260 warnings (existing)
-<!-- end PRIV-004 -->
 
 <!-- begin PRIV-005 -->
 ## PRIV-005 — The purge deletes failed and expired payment requests after 90 days

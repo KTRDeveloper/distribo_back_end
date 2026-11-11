@@ -89,7 +89,11 @@ export async function anonymizeRows(
   await tx.otpChallenge.deleteMany({
     where: { OR: [{ personId }, ...(targets.length > 0 ? [{ target: { in: targets } }] : [])] },
   });
-  await tx.device.updateMany({ where: { personId }, data: { pushToken: null } });
+  // The push token and the Android fingerprint are personal data (ASVS v5.0.0-14.2.4): cleared on every device, revoked ones included.
+  await tx.device.updateMany({
+    where: { personId },
+    data: { pushToken: null, androidIdHash: null },
+  });
   await tx.task.deleteMany({ where: { accountId: personId } });
 
   const done = await tx.person.updateMany({
