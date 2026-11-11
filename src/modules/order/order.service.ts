@@ -1,11 +1,15 @@
-import type { Prisma } from '@prisma/client';
+import type { CustomerRelationship, Prisma } from '@prisma/client';
 import { assertOrganizationActive } from '../../middleware/load-actor.js';
 import { httpError } from '../../lib/http-error.js';
 import { logger } from '../../lib/logger.js';
 import { parseQuantity } from '../../shared/money.js';
 import { variantLabel } from '../../shared/variant.js';
 import { getActiveVariant, getReferencePrice } from '../catalog/catalog.repository.js';
-import { notify, recipientLanguage } from '../notification/notification.service.js';
+import {
+  notify,
+  recipientLanguage,
+  retargetNotifications,
+} from '../notification/notification.service.js';
 import {
   ensureCustomerRelationship,
   findSupplierRelationshipLocked,
@@ -16,6 +20,7 @@ import type { Actor } from '../../types/express.js';
 import {
   findCustomerOrder,
   findExistingLineIds,
+  findOrderToReplace,
   findOrderToAccept,
   findSupplierOrder,
   findUsualAddress,
@@ -27,6 +32,7 @@ import {
   listSupplierOrders,
   lockCustomerOrder,
   lockSupplierOrder,
+  markOrderReplaced,
   replaceOrderLines,
   runInTransaction,
   setLinePrice,
@@ -45,6 +51,7 @@ import type {
   ListOrdersQuery,
   PlaceOrderInput,
   RefuseInput,
+  ReplaceOrderInput,
 } from './order.schemas.js';
 import { deleteUnstartedDeliveries } from '../delivery/delivery.service.js';
 import { transitionOrder } from './order.state.js';
@@ -54,6 +61,9 @@ import {
   type CustomerOrderView,
   type SupplierOrderView,
 } from './order.views.js';
+
+/** Answer of the replace-order gesture: the new order and the id of the one it replaced. */
+export type ReplacedOrderView = { order: CustomerOrderView; replaced_order_id: string };
 
 const PLACED_CONTENT = {
   FR: 'Nouvelle commande reçue.',
@@ -130,6 +140,65 @@ async function notifyTeam(
 }
 
 /**
+ * The checks and pricing both the place-order and replace-order gestures share (CM-16): the
+ * relationship must be ACTIVE (C-14), each line is priced from the catalog (C-15), the server total
+ * must be the one the customer saw (`expected_total`, ORD-038), and the reception comes from
+ * `resolveReception`. Then the PENDING order is inserted, placed by the CUSTOMER, entered by the
+ * caller. Lines come back in the request order, so the answer mirrors what was sent.
+ *
+ * @throws 409 `RELATIONSHIP_NOT_ACTIVE`; 409 `TOTAL_CHANGED`; 404 or 400 from the line pricing.
+ */
+async function insertPricedOrder(
+  tx: Prisma.TransactionClient,
+  args: {
+    customer: { personId: string };
+    relationship: CustomerRelationship;
+    supplierOrganizationId: string;
+    input: Omit<PlaceOrderInput, 'supplier_organization_id'>;
+    supplierNote: string | null;
+  }
+) {
+  const { customer, relationship, supplierOrganizationId, input, supplierNote } = args;
+  if (relationship.status !== 'ACTIVE') {
+    throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'Relationship is not active');
+  }
+
+  const priced: Awaited<ReturnType<typeof priceLine>>[] = [];
+  for (const line of input.lines) {
+    priced.push(await priceLine(tx, supplierOrganizationId, relationship.id, line));
+  }
+
+  const total = orderTotal(
+    priced.map((line) => line.amount),
+    0n
+  );
+  assertExpectedTotal(total, input.expected_total);
+
+  const reception = resolveReception(
+    { mode: input.reception_mode, address: input.delivery_address },
+    null,
+    relationship.deliveryAddress
+  );
+  const order = await insertPendingOrder(tx, {
+    id: input.id,
+    customerRelationshipId: relationship.id,
+    enteredById: customer.personId,
+    ...reception,
+    desiredDeliveryDate: input.desired_delivery_date
+      ? new Date(`${input.desired_delivery_date}T00:00:00.000Z`)
+      : null,
+    customerNote: input.customer_note ?? null,
+    supplierNote,
+    totalAmount: total,
+    lines: priced.map(({ quantityMilli: _milli, ...line }) => line),
+  });
+
+  const position = new Map(input.lines.map((line, index) => [line.id, index]));
+  order.lines.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+  return order;
+}
+
+/**
  * Shared body of the two place-order gestures. The customer side of the relationship is the
  * calling organization when `customer.organizationId` is set, else the calling person; the
  * person who enters the order is always `customer.personId`.
@@ -158,44 +227,17 @@ function placeOrderFor(
             createdById: customer.personId,
           }
     );
-    if (relationship.status !== 'ACTIVE') {
-      throw httpError(409, 'RELATIONSHIP_NOT_ACTIVE', 'Relationship is not active');
-    }
 
-    const priced: Awaited<ReturnType<typeof priceLine>>[] = [];
-    for (const line of input.lines) {
-      priced.push(await priceLine(tx, input.supplier_organization_id, relationship.id, line));
-    }
-
-    const total = orderTotal(
-      priced.map((line) => line.amount),
-      0n
-    );
-    assertExpectedTotal(total, input.expected_total);
-
-    const reception = resolveReception(
-      { mode: input.reception_mode, address: input.delivery_address },
-      null,
-      relationship.deliveryAddress
-    );
-    const order = await insertPendingOrder(tx, {
-      id: input.id,
-      customerRelationshipId: relationship.id,
-      enteredById: customer.personId,
-      ...reception,
-      desiredDeliveryDate: input.desired_delivery_date
-        ? new Date(`${input.desired_delivery_date}T00:00:00.000Z`)
-        : null,
-      customerNote: input.customer_note ?? null,
-      totalAmount: total,
-      lines: priced.map(({ quantityMilli: _milli, ...line }) => line),
+    const order = await insertPricedOrder(tx, {
+      customer,
+      relationship,
+      supplierOrganizationId: input.supplier_organization_id,
+      input,
+      supplierNote: null,
     });
 
     await notifyTeam(tx, input.supplier_organization_id, order.id);
 
-    // Lines come back in the request order, so the answer mirrors what was sent.
-    const position = new Map(input.lines.map((line, index) => [line.id, index]));
-    order.lines.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
     return projectOrderForCustomer(order);
   });
 }
@@ -244,6 +286,88 @@ export function placePurchase(
     );
   }
   return placeOrderFor({ personId: actor.personId, organizationId: actor.organizationId }, input);
+}
+
+const REPLACED_CONTENT = {
+  FR: 'Commande modifiée par le client.',
+  EN: 'Order changed by the customer.',
+} as const;
+
+/**
+ * The customer changes a PENDING order (ORD-039, CM-16, C-58): the old order is cancelled and
+ * replaced by a new version, so the supplier sees one order, not a cancellation and a new order.
+ * One transaction (v5.0.0-2.3.3): the old order is locked through the caller's own relationship
+ * (any other id, and an order already replaced or deleted, is 404, v5.0.0-8.2.2); it must be
+ * PENDING (409 `INVALID_TRANSITION`); the new lines go through the checks and pricing of placing,
+ * today's prices and `expected_total` included; the new order keeps the relationship and the
+ * supplier note and nothing else. The old one is CANCELLED by the CUSTOMER party, deleted and
+ * linked to the new one, its lines untouched. The notifications about the old order are
+ * retargeted to the new one and the supplier's OWNER, MANAGERs and SELLERs get one
+ * `order.replaced`; neither `order.placed` nor `order.status_changed` is sent. Replays with the
+ * same `id` (the new order) are answered by `idempotent()`.
+ *
+ * @param customer - The caller, from the session.
+ * @param orderId - The order to replace, from the path.
+ * @param input - Validated body: the new order id, lines and `expected_total`.
+ * @returns The new PENDING order, customer view, and the id of the replaced order.
+ * @throws 404 `NOT_FOUND`; 409 `INVALID_TRANSITION`, `TOTAL_CHANGED`, `ORGANIZATION_NOT_ACTIVE`,
+ * `RELATIONSHIP_NOT_ACTIVE`; 400 `VALIDATION_ERROR` (quantity below the minimum, address on pickup).
+ */
+export function replaceOrder(
+  customer: { personId: string; organizationId?: string },
+  orderId: string,
+  input: ReplaceOrderInput
+): Promise<ReplacedOrderView> {
+  return runInTransaction(async (tx) => {
+    const found = await lockCustomerOrder(tx, orderId, customer);
+    if (!found) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    const old = await findOrderToReplace(tx, orderId);
+    if (!old) throw httpError(404, 'NOT_FOUND', 'Order not found.');
+    if (old.status !== 'PENDING') {
+      throw httpError(
+        409,
+        'INVALID_TRANSITION',
+        `Order cannot go from ${old.status} to CANCELLED by a change.`
+      );
+    }
+    if (customer.organizationId !== undefined) {
+      await assertOrganizationActive(customer.organizationId, tx);
+    }
+    await assertOrganizationActive(found.supplierOrganizationId, tx);
+
+    const order = await insertPricedOrder(tx, {
+      customer,
+      relationship: old.relationship,
+      supplierOrganizationId: found.supplierOrganizationId,
+      input,
+      supplierNote: old.supplierNote,
+    });
+
+    // The link comes first: a CANCELLED order is frozen by the database (only its notes may
+    // change), so deleted_at and replaced_by_order_id can only be written while it is PENDING.
+    await markOrderReplaced(tx, orderId, order.id);
+    await transitionOrder(tx, orderId, 'CANCELLED', {
+      personId: customer.personId,
+      party: 'CUSTOMER',
+    });
+    await retargetNotifications(tx, { type: 'order', fromId: orderId, toId: order.id });
+
+    for (const recipientId of await listOrderTeamIds(tx, found.supplierOrganizationId)) {
+      const language = await recipientLanguage(recipientId, tx);
+      await notify(
+        {
+          recipientId,
+          organizationId: found.supplierOrganizationId,
+          sourceEvent: 'order.replaced',
+          content: language === 'EN' ? REPLACED_CONTENT.EN : REPLACED_CONTENT.FR,
+          related: { type: 'order', id: order.id },
+        },
+        tx
+      );
+    }
+
+    return { order: projectOrderForCustomer(order), replaced_order_id: orderId };
+  });
 }
 
 /**

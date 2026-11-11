@@ -204,6 +204,9 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/orders/{orderId}/cancel');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/purchases/{orderId}/cancel');
 
+    // ORD-039: the customer changes a pending order
+    expect(paths).toContain('/api/v1/orders/{orderId}/replace');
+
     // ORD-015: the seller writes a note on an order
     expect(paths).toContain('/api/v1/organizations/{organizationId}/orders/{orderId}/note');
 
@@ -310,12 +313,26 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/billing/shops/{code}');
     expect(paths).toContain('/api/v1/billing/shops/{code}/quote');
 
-    expect(paths).toContain('/api/v1/admin/organizations/{organizationId}/billing/payments/{paymentId}/refund');
-    expect(bodyOf<OpenApiDoc>(response).paths['/api/v1/admin/organizations/{organizationId}/billing/payments/{paymentId}/refund']).toHaveProperty('post');
+    expect(paths).toContain(
+      '/api/v1/admin/organizations/{organizationId}/billing/payments/{paymentId}/refund'
+    );
+    expect(
+      bodyOf<OpenApiDoc>(response).paths[
+        '/api/v1/admin/organizations/{organizationId}/billing/payments/{paymentId}/refund'
+      ]
+    ).toHaveProperty('post');
     expect(paths).toContain('/api/v1/admin/organizations/{organizationId}/billing/payments');
-    expect(bodyOf<OpenApiDoc>(response).paths['/api/v1/admin/organizations/{organizationId}/billing/payments']).toHaveProperty('post');
+    expect(
+      bodyOf<OpenApiDoc>(response).paths[
+        '/api/v1/admin/organizations/{organizationId}/billing/payments'
+      ]
+    ).toHaveProperty('post');
     expect(paths).toContain('/api/v1/admin/organizations/{organizationId}/billing/gift-days');
-    expect(bodyOf<OpenApiDoc>(response).paths['/api/v1/admin/organizations/{organizationId}/billing/gift-days']).toHaveProperty('post');
+    expect(
+      bodyOf<OpenApiDoc>(response).paths[
+        '/api/v1/admin/organizations/{organizationId}/billing/gift-days'
+      ]
+    ).toHaveProperty('post');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/billing');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/billing/receipts');
     expect(paths).toContain('/api/v1/organizations/{organizationId}/billing/keep-choice');
@@ -326,7 +343,9 @@ describe('GET /docs/openapi.json', () => {
     expect(paths).toContain('/api/v1/billing/payments');
     expect(paths).toContain('/api/v1/billing/payments/{id}');
     expect(paths).toContain('/api/v1/billing/confirmations');
-    expect(bodyOf<OpenApiDoc>(response).paths['/api/v1/billing/confirmations']).toHaveProperty('post');
+    expect(bodyOf<OpenApiDoc>(response).paths['/api/v1/billing/confirmations']).toHaveProperty(
+      'post'
+    );
 
     // AUTH-009/010/013: the auth paths are the registration code request, registration and login
     const authPaths = paths.filter((p) => p.startsWith('/api/v1/auth'));

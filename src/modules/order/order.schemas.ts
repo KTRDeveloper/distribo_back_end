@@ -49,33 +49,56 @@ const placeOrderLineSchema = z
   .object({ id: uuidV7Schema, product_variant_id: uuidV7Schema, quantity: quantitySchema })
   .strict();
 
+/** Fields of the place-order body; the exported schemas add `.strict()` and the whole-body rules. */
+const placeOrderShape = z.object({
+  id: uuidV7Schema,
+  supplier_organization_id: uuidV7Schema,
+  delivery_address: z.string().trim().min(1).max(TEXT_MAX).optional(),
+  reception_mode: receptionModeSchema.optional(),
+  desired_delivery_date: dateSchema.optional(),
+  customer_note: z.string().max(TEXT_MAX).optional(),
+  expected_total: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+  lines: z.array(placeOrderLineSchema).min(1).max(ORDER_LINES_MAX),
+});
+
+type OrderRulesBody = {
+  lines: Array<{ id: string }>;
+  reception_mode?: string | undefined;
+  delivery_address?: string | undefined;
+};
+
+/** Rules on the whole body, shared by the place-order and replace-order gestures. */
+const hasDistinctLineIds = (body: OrderRulesBody): boolean =>
+  new Set(body.lines.map((line) => line.id)).size === body.lines.length;
+const DUPLICATE_LINE_ID = { message: 'duplicate_line_id', path: ['lines'] };
+const noAddressOnPickup = (body: OrderRulesBody): boolean =>
+  body.reception_mode !== 'PICKUP' || body.delivery_address === undefined;
+
 /**
  * Strict body of the place-order gesture (ASVS v5.0.0-15.3.3). The customer, the relationship, the
  * status, the totals and the placing party are never accepted: the server sets them (v5.0.0-8.2.2).
  * `expected_total` (ORD-038) is only compared with the server total, never stored or used as a price.
  */
-export const placeOrderSchema = z
-  .object({
-    id: uuidV7Schema,
-    supplier_organization_id: uuidV7Schema,
-    delivery_address: z.string().trim().min(1).max(TEXT_MAX).optional(),
-    reception_mode: receptionModeSchema.optional(),
-    desired_delivery_date: dateSchema.optional(),
-    customer_note: z.string().max(TEXT_MAX).optional(),
-    expected_total: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
-    lines: z.array(placeOrderLineSchema).min(1).max(ORDER_LINES_MAX),
-  })
+export const placeOrderSchema = placeOrderShape
   .strict()
-  .refine((body) => new Set(body.lines.map((line) => line.id)).size === body.lines.length, {
-    message: 'duplicate_line_id',
-    path: ['lines'],
-  })
-  .refine(
-    (body) => body.reception_mode !== 'PICKUP' || body.delivery_address === undefined,
-    PICKUP_WITH_ADDRESS
-  );
+  .refine(hasDistinctLineIds, DUPLICATE_LINE_ID)
+  .refine(noAddressOnPickup, PICKUP_WITH_ADDRESS);
 
 export type PlaceOrderInput = z.infer<typeof placeOrderSchema>;
+
+/**
+ * Strict body of the replace-order gesture (ORD-039): the place-order body without the supplier,
+ * which comes from the replaced order's relationship (v5.0.0-8.2.2), and with `expected_total`
+ * required, since a change is always made from a total the customer saw.
+ */
+export const replaceOrderSchema = placeOrderShape
+  .omit({ supplier_organization_id: true })
+  .extend({ expected_total: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) })
+  .strict()
+  .refine(hasDistinctLineIds, DUPLICATE_LINE_ID)
+  .refine(noAddressOnPickup, PICKUP_WITH_ADDRESS);
+
+export type ReplaceOrderInput = z.infer<typeof replaceOrderSchema>;
 
 /** Body of the organization purchase (ORD-010): the same strict body as a person's order. */
 export const placePurchaseSchema = placeOrderSchema;

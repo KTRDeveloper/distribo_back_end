@@ -1,4 +1,10 @@
-import { Prisma, type Order, type OrderStatus, type ReceptionMode } from '@prisma/client';
+import {
+  Prisma,
+  type CustomerRelationship,
+  type Order,
+  type OrderStatus,
+  type ReceptionMode,
+} from '@prisma/client';
 import { prisma } from '../../lib/db.js';
 import { decodeCursor, encodeCursor } from '../../shared/pagination.js';
 import { visibleRelationsWhere } from '../relationship/relationship.visibility.js';
@@ -143,6 +149,7 @@ export function insertPendingOrder(
     receptionMode: ReceptionMode | null;
     desiredDeliveryDate: Date | null;
     customerNote: string | null;
+    supplierNote?: string | null;
     totalAmount: bigint;
     lines: NewOrderLine[];
   }
@@ -281,6 +288,46 @@ export async function findOrderToAccept(
   if (!order) return null;
   const { customerRelationship, ...rest } = order;
   return { ...rest, customerPersonId: customerRelationship.customerPersonId };
+}
+
+/** The status, supplier note and customer relationship of an order, read under the caller's lock. */
+export type OrderToReplace = {
+  status: OrderStatus;
+  supplierNote: string | null;
+  relationship: CustomerRelationship;
+};
+
+/** Reads what a replacement needs from the order whose row `lockCustomerOrder` holds. */
+export async function findOrderToReplace(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<OrderToReplace | null> {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    select: { status: true, supplierNote: true, customerRelationship: true },
+  });
+  if (!order) return null;
+  return {
+    status: order.status,
+    supplierNote: order.supplierNote,
+    relationship: order.customerRelationship,
+  };
+}
+
+/**
+ * Marks an order as replaced (ORD-039, C-58): it gets the time it was deleted and the id of the
+ * version that replaced it. The database refuses a link to itself, to another relationship or from
+ * an order the supplier placed, and a second order pointing at the same replacement.
+ */
+export async function markOrderReplaced(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  replacedById: string
+): Promise<void> {
+  await tx.order.update({
+    where: { id: orderId },
+    data: { deletedAt: new Date(), replacedByOrderId: replacedById },
+  });
 }
 
 /**

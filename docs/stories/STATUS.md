@@ -413,7 +413,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-036 | done | | reception_mode enum column + pickup-no-address CHECK migration |
 | DLV-018 | done | | Rest order copies reception_mode from the locked first order; 3 AC rows pass |
 | ORD-037 | done | | reception_mode on 4 bodies and views; resolveReception in order.calculations.ts |
-| ORD-039 | todo | | |
+| ORD-039 | done | | POST /orders/{orderId}/replace; link written before the cancellation (frozen order trigger) |
 | ORD-040 | todo | | |
 | DLV-019 | todo | | |
 | ORD-041 | todo | | |

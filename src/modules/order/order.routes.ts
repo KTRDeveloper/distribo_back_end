@@ -15,6 +15,7 @@ import {
   placeOrderSchema,
   placePurchaseSchema,
   refuseOrderSchema,
+  replaceOrderSchema,
   setSupplierNoteSchema,
 } from './order.schemas.js';
 import {
@@ -30,6 +31,7 @@ import {
   placeOrder,
   placePurchase,
   refuseOrder,
+  replaceOrder,
   setSupplierNote,
 } from './order.service.js';
 import './order.openapi.js';
@@ -102,6 +104,32 @@ orderRoutes.post(
       cancelOrderAsCustomerSchema.parse(req.body)
     )
       .then((view) => res.status(200).json(view))
+      .catch(next);
+  }
+);
+
+// POST /api/v1/orders/:orderId/replace - the customer changes a PENDING order of their own
+// relationship; the new order is the body `id`, the supplier is never a body field. An order of
+// another customer, or one already replaced, is a 404; one that is not PENDING is a 409.
+orderRoutes.post(
+  '/:orderId/replace',
+  // Strict validation first, so an invalid request never reserves the idempotency key.
+  (req, _res, next) => {
+    const params = orderIdParamSchema.safeParse({ orderId: req.params.orderId });
+    if (!params.success) return next(params.error);
+    const parsed = replaceOrderSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    req.body = parsed.data;
+    return next();
+  },
+  idempotent(),
+  (req, res, next) => {
+    replaceOrder(
+      { personId: req.user!.id },
+      orderIdParamSchema.parse({ orderId: req.params.orderId }).orderId,
+      replaceOrderSchema.parse(req.body)
+    )
+      .then((view) => res.status(201).json(view))
       .catch(next);
   }
 );

@@ -12,6 +12,7 @@ import {
   placeOrderSchema,
   placePurchaseSchema,
   refuseOrderSchema,
+  replaceOrderSchema,
   setSupplierNoteSchema,
 } from './order.schemas.js';
 
@@ -199,6 +200,67 @@ openApiRegistry.registerPath({
     body: { content: { 'application/json': { schema: cancelOrderAsCustomerSchema } } },
   },
   responses: customerCancelResponses,
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/api/v1/orders/{orderId}/replace',
+  tags: ['order'],
+  summary: 'The customer changes a PENDING order (ORD-039)',
+  description: [
+    'The customer replaces one of their own PENDING orders by a new version, so the supplier gets',
+    'the right order without a cancellation and a new order. Body: the new order `id` (a UUIDv7,',
+    'also the gesture id), 1 to 100 `lines`, `expected_total` (required, integer francs: the total',
+    'the customer saw) and the optional `delivery_address`, `reception_mode`,',
+    '`desired_delivery_date` and `customer_note` of placing an order. The supplier is the one of',
+    'the replaced order; status, prices, labels and totals are never accepted.',
+    '',
+    "The new order is PENDING at today's prices, placed by the CUSTOMER on the same relationship,",
+    'and keeps only the supplier note. The old order becomes CANCELLED by the CUSTOMER and',
+    'disappears from lists and detail (404). The notifications about it now open the new order and',
+    'the supplier OWNER, MANAGERs and SELLERs get one `order.replaced`. All in one transaction.',
+    '',
+    'Repeat: the same `id` returns the first response with the header `Idempotent-Replay: true`.',
+  ].join('\n'),
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ orderId: uuidV7Schema }),
+    body: { content: { 'application/json': { schema: replaceOrderSchema } } },
+  },
+  responses: {
+    201: {
+      description: 'The new PENDING order, customer view, and the id of the replaced order',
+      headers: {
+        'Idempotent-Replay': {
+          description: 'Present, with the value true, only on a repeat of an earlier gesture',
+          schema: { type: 'string', enum: ['true'] },
+        },
+      },
+      content: {
+        'application/json': {
+          schema: z.object({
+            order: customerOrderViewSchema,
+            replaced_order_id: z.string().uuid(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'VALIDATION_ERROR: invalid body (unknown field, missing expected_total) or id',
+      content: errorContent,
+    },
+    401: { description: 'Missing or invalid token', content: errorContent },
+    404: {
+      description: 'NOT_FOUND: order of another customer, already replaced, or unknown product',
+      content: errorContent,
+    },
+    409: {
+      description:
+        'INVALID_TRANSITION (not PENDING), TOTAL_CHANGED (`details.total` is the server total), ' +
+        'ORGANIZATION_NOT_ACTIVE, RELATIONSHIP_NOT_ACTIVE or conflicting gesture id',
+      content: errorContent,
+    },
+  },
 });
 
 /** Supplier-side order view (`projectOrderForSupplier`); the price author goes to OWNER and MANAGER only. */
