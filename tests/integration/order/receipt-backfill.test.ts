@@ -81,6 +81,15 @@ async function dropFreezeTrigger(): Promise<void> {
   await client.query('DROP TRIGGER orders_freeze_receipt ON orders');
 }
 
+/**
+ * The state before ORD-045: its check (receipt goes with DELIVERED) does not exist yet, so the
+ * fixtures can hold delivered orders without receipt (the backfill input) and receipts on
+ * orders that are not delivered (the freeze input).
+ */
+async function dropReceiptCheck(): Promise<void> {
+  await client.query('ALTER TABLE orders DROP CONSTRAINT orders_receipt_matches_status_check');
+}
+
 async function seedPerson(id: string, phone: string, status = 'ACTIVE') {
   const anonymized = status === 'ANONYMIZED';
   await client.query(
@@ -198,6 +207,7 @@ async function receiptOf(id: string): Promise<Receipt> {
 
 describe('ORD-042 backfill', () => {
   beforeEach(dropFreezeTrigger);
+  beforeEach(dropReceiptCheck);
 
   it('gives a delivered order its receipt (AC-1)', async () => {
     await seedDeliveredOrder();
@@ -274,6 +284,8 @@ describe('ORD-042 backfill', () => {
 });
 
 describe('ORD-042 freeze', () => {
+  beforeEach(dropReceiptCheck);
+
   const FIELDS: Array<[string, string, unknown]> = [
     ['supplier_name_applied', '$1', 'Other supplier'],
     ['customer_name_applied', '$1', 'Other customer'],

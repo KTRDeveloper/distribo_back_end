@@ -420,7 +420,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | ORD-042 | done | | Migration 20261026130000 backfills receipts and freezes them; 17 tests, suite green |
 | ORD-043 | done | | Fixtures give DELIVERED orders RECEIPT_FIELDS; suite 5590/5590 |
 | ORD-044 | done | | POST purchases/{orderId}/replace; 5 tests green, suite green |
-| ORD-045 | blocked | | Migration and 8 tests pass, but 17 existing tests in receipt-backfill.test.ts (ORD-042) and receipt-columns.test.ts (ORD-040) fail: they store a receipt on non-DELIVERED orders; neither story lists them under Tests to update |
+| ORD-045 | done | | CHECK orders_receipt_matches_status_check with audit; ORD-040/042 tests adapted |
 | SYNC-045 | done | | Lines of a deleted order go to order_lines.deleted on incremental pulls |
 | SYNC-046 | done | | Replaced-version gestures settled; delivery restores via trigger exception (migration sync_046) |
 | SYNC-047 | todo | | |

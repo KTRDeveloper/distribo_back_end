@@ -1369,6 +1369,13 @@ model CustomerPrice {
 //   customer_name_applied means the customer has no public name (no account or
 //   an anonymized person). Migration 20261026130000_ord_042_backfill_and_freeze_receipt
 //   also filled the receipt of orders delivered before the fields existed.
+// - The receipt goes with the DELIVERED status: a delivered order always has
+//   supplier_name_applied, collected_applied and balance_after_applied (the
+//   customer name may stay empty), and an order in any other status has all four
+//   fields empty. Anything else fails with a check error (SQLSTATE 23514), so
+//   code writes the receipt in the same statement that sets DELIVERED. The
+//   migration first lists the orders that break the rule and stops if there is
+//   any. (Migration 20261111110000_ord_045_delivered_needs_receipt)
 model Order {
   id                     String         @id @db.Uuid
   customerRelationshipId String         @map("customer_relationship_id") @db.Uuid

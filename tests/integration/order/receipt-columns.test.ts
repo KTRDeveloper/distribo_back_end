@@ -104,7 +104,16 @@ describe('ORD-040 orders receipt fields', () => {
     const big = 9007199254740993n;
     await prisma.order.update({
       where: { id: EXISTING },
-      data: { collectedApplied: big, balanceAfterApplied: -big },
+      // ORD-045: the receipt only exists on a delivered order, so the order is delivered here.
+      data: {
+        status: 'DELIVERED',
+        deliveredAt: REG,
+        deliveredById: SELLER,
+        deliveryCost: 0n,
+        supplierNameApplied: 'Supplier',
+        collectedApplied: big,
+        balanceAfterApplied: -big,
+      },
     });
     const [row] = await prisma.$queryRaw<
       Array<{ collected_applied: bigint; balance_after_applied: bigint }>
