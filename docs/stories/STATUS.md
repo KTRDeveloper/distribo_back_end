@@ -414,7 +414,7 @@ The skill only adds lines, as todo. Agents and orchestrators update status, revi
 | DLV-018 | done | | Rest order copies reception_mode from the locked first order; 3 AC rows pass |
 | ORD-037 | done | | reception_mode on 4 bodies and views; resolveReception in order.calculations.ts |
 | ORD-039 | done | | POST /orders/{orderId}/replace; link written before the cancellation (frozen order trigger) |
-| ORD-040 | todo | | |
+| ORD-040 | done | | four nullable receipt columns on orders; migration 20261026120000 |
 | DLV-019 | todo | | |
 | ORD-041 | todo | | |
 | ORD-042 | todo | | |

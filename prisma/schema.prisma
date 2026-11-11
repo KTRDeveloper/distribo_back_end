@@ -1379,6 +1379,10 @@ model Order {
   replacedByOrderId      String?        @map("replaced_by_order_id") @db.Uuid
   customerNote           String?        @map("customer_note") @db.Text
   supplierNote           String?        @map("supplier_note") @db.Text
+  supplierNameApplied    String?        @map("supplier_name_applied") @db.Text
+  customerNameApplied    String?        @map("customer_name_applied") @db.Text
+  collectedApplied       BigInt?        @map("collected_applied")
+  balanceAfterApplied    BigInt?        @map("balance_after_applied")
   syncIssue              String?        @map("sync_issue") @db.Text
   serverUpdatedAt        DateTime       @default(now()) @map("server_updated_at") @db.Timestamptz
   deletedAt              DateTime?      @map("deleted_at") @db.Timestamptz
