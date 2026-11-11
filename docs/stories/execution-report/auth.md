@@ -370,3 +370,22 @@ Also in this run: access.
 
 **Evidence:** story tests 10/10 (3 new + 7 existing); full suite 3226/3226, failing: none, 0 known; typecheck clean; lint 0 errors, 137 warnings (pre-existing)
 <!-- end AUTH-038 -->
+
+<!-- begin AUTH-039 -->
+## AUTH-039 — A device stores the fingerprint of its Android id
+
+- Filed: 2026-11-11 07:23 UTC
+- Status: **done**: REPLACED reason, android_id_hash column and partial unique index added; 7 tests pass
+- Risk: high · story: [AUTH-039-a-device-stores-the-fingerprint-of-its-android.md](../modules/auth/AUTH-039-a-device-stores-the-fingerprint-of-its-android.md)
+- Agent: 29,404 tokens, 14 tool uses, 3 min 56 s
+
+### Agent report
+
+**Summary:** Added the AUTH-039 migration (REPLACED reason, `devices.android_id_hash`, partial unique index), schema comment and `RevokedReason` update.
+
+**Decisions:**
+- Migration name `20261026090000_auth_039_android_id_hash`: the story gave no timestamp; chosen after the latest existing migration.
+- Index excludes null hashes (`revoked_at IS NULL AND android_id_hash IS NOT NULL`): AC-2 requires several open devices without a fingerprint.
+
+**Evidence:** story tests 7/7; full suite 5421/5421, failing: none, 0 known; typecheck clean; lint 0 errors, 263 warnings
+<!-- end AUTH-039 -->

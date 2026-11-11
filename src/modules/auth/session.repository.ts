@@ -9,7 +9,8 @@ export type RevokedReason =
   | 'LOGOUT_ALL'
   | 'REUSE_DETECTED'
   | 'PASSWORD_RESET'
-  | 'ACCOUNT_SUSPENDED';
+  | 'ACCOUNT_SUSPENDED'
+  | 'REPLACED';
 
 /** Session persistence: the only place the session service touches prisma. */
 export const sessionRepository = {

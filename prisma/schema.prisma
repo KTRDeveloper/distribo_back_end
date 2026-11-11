@@ -108,6 +108,7 @@ enum RefreshTokenRevokedReason {
   ACCOUNT_LOCKED
   DEVICE_REMOVED
   ACCOUNT_SUSPENDED
+  REPLACED
 }
 
 enum DevicePlatform {
@@ -985,6 +986,11 @@ model PhoneNumberChangeLog {
 //   still allowed (not revoked). Prisma cannot declare an index limited to some
 //   rows, so it exists only in migration
 //   20261003160000_auth_007_devices_refresh_tokens.
+// - A person has at most one open (not revoked) device per phone fingerprint
+//   (android_id_hash); devices without a fingerprint are not limited. This is
+//   not in @@unique because @@unique would also count closed devices, and a
+//   person must be able to keep the history of closed ones. It exists only in
+//   migration 20261026090000_auth_039_android_id_hash.
 model Device {
   id               String         @id @db.Uuid
   personId         String         @map("person_id") @db.Uuid
@@ -995,6 +1001,7 @@ model Device {
   lastSyncedAt     DateTime?      @map("last_synced_at") @db.Timestamptz
   scopeVersionSeen Int            @default(0) @map("scope_version_seen")
   integrityVerdict String?        @map("integrity_verdict")
+  androidIdHash    String?        @map("android_id_hash")
   createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz
   revokedAt        DateTime?      @map("revoked_at") @db.Timestamptz
 
