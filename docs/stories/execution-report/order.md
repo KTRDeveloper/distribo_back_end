@@ -1429,3 +1429,30 @@ ORD-032 done
 
 **Evidence:** story tests 5/5 (49/49 with catalog and per-001); full suite 5594/5596 first run, the 2 failures were my typecheck error in order.openapi.ts (fixed, rerun green 121/121 on tooling, order and docs files), failing: none, 0 known; typecheck clean; lint 0 errors, 269 warnings (all existing security warnings)
 <!-- end ORD-044 -->
+
+<!-- begin ORD-045 -->
+## ORD-045 — A delivered order always has its receipt
+
+- Filed: 2026-11-11 09:34 UTC
+- Status: **blocked**: Migration and 8 tests pass, but 17 existing tests in receipt-backfill.test.ts (ORD-042) and receipt-columns.test.ts (ORD-040) fail: they store a receipt on non-DELIVERED orders; neither story lists them under Tests to update
+- Risk: high · story: [ORD-045-a-delivered-order-always-has-its-receipt.md](../modules/order/ORD-045-a-delivered-order-always-has-its-receipt.md)
+- Agent: 48,865 tokens, 17 tool uses, 4 min 38 s
+
+### Agent report
+
+**Summary:** Blocked: migration, schema comment and story tests are done and green, but the new CHECK breaks 17 existing tests that I may not change.
+
+**Decisions:**
+- Constraint name `orders_receipt_matches_status_check`; the audit uses the same predicate as the CHECK (a single DO block lists ids, then ADD CONSTRAINT).
+- Audit test drops the check inside a rolled-back transaction to build the pre-migration state (pattern of receipt-backfill.test.ts).
+
+**Tests added beyond the story:**
+- `receipt-required.test.ts` › missing collected/balance on DELIVERED, customer name on PENDING: each field of the rule is refused (C-61); passed at once
+- `receipt-required.test.ts` › audit passes and adds the check when all orders obey: happy path of the migration (AC-2)
+
+**Evidence:** story tests 8/8; full suite 5586/5604, failing: 17 in tests/integration/order/receipt-backfill.test.ts (ORD-042) and 1 in receipt-columns.test.ts (ORD-040 "bigint round-trips"), 0 known; typecheck clean; lint 0 errors, 271 warnings
+
+**Follow-ups:**
+- Those tests create CONFIRMED orders with receipt fields set (receipt-backfill seedOrder with supplierName, "freeze" tests) or write collected_applied on a CONFIRMED order (receipt-columns). Neither ORD-040 nor ORD-042 nor ORD-043 lists them under "Tests to update". A human must decide: add them to ORD-045 "Tests to update" (e.g. fixtures use DELIVERED, or the ORD-042 backfill tests drop the new check first) and rerun.
+- Files left in the working tree: the migration `prisma/migrations/20261026140000_ord_045_delivered_needs_receipt/`, schema.prisma comment, receipt-required.test.ts.
+<!-- end ORD-045 -->
